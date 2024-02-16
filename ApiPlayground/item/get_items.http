@@ -1,0 +1,7 @@
+GRAPHQL {{host}}
+
+query {
+    getItems {
+        id, name, checked
+    }
+}

@@ -1,0 +1,5 @@
+schema: schema.graphql
+documents: '**/*.graphql'
+projects:
+  local:
+    schema: "http://0.0.0.0:8080/graphql"

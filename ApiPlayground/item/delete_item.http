@@ -1,0 +1,10 @@
+@id = {{$random.uuid}}
+#@id = 9034149e-b782-45be-959b-e480c57b09c3
+
+GRAPHQL {{host}}
+
+mutation {
+    deleteItem(id: "{{id}}"){
+        id, name, checked
+    }
+}
