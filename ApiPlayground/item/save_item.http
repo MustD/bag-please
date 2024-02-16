@@ -1,6 +1,7 @@
-@id = {{$random.uuid}}
-#@id = 90dd0772-bb63-439a-abd1-2fc3d59e5a69
-@name = {{$random.alphabetic(10)}}
+#@id = {{$random.uuid}}
+@id = 72743544-31d4-428d-9d12-1b07d0dfb15d
+#@name = {{$random.alphabetic(10)}}
+@name = to_delete_it
 
 GRAPHQL {{host}}
 
