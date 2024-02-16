@@ -1,0 +1,24 @@
+version: '3'
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - ./db/data:/data/db
+    ports:
+      - "27017:27017"
+
+  bp_front:
+    build:
+      context: ./bp_front
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+
+  bp_back:
+    build:
+      context: ./bp_back
+    ports:
+      - "4000:8080"
+    depends_on:
+      - mongo
