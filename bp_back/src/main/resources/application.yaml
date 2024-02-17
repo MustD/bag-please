@@ -5,6 +5,7 @@ ktor:
       - com.bagplease.ApplicationKt.module
   deployment:
     port: 4000
+
 jwt:
   domain: "https://jwt-provider-domain/"
   audience: "jwt-audience"

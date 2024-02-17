@@ -1,6 +1,5 @@
 package com.bagplease
 
-import com.bagplease.plugins.configureHTTP
 import com.bagplease.plugins.configureMonitoring
 import com.bagplease.plugins.configureSecurity
 import com.bagplease.plugins.graphQLModule
@@ -12,7 +11,7 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     configureSecurity()
-    configureHTTP()
+//    configureHTTP()
     configureMonitoring()
     graphQLModule()
 }
