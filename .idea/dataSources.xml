@@ -4,6 +4,7 @@
     <data-source source="LOCAL" name="@localhost" uuid="d662b34d-786d-4a5c-9ec7-8f944e091d89">
       <driver-ref>mongo</driver-ref>
       <synchronize>true</synchronize>
+      <configured-by-url>true</configured-by-url>
       <jdbc-driver>com.dbschema.MongoJdbcDriver</jdbc-driver>
       <jdbc-url>mongodb://localhost:27017</jdbc-url>
       <jdbc-additional-properties>
