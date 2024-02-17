@@ -24,6 +24,17 @@ services:
       - "3000:3000"
     depends_on:
       - mongo
+      - bp_back
+    networks:
+      - bp_network
+
+  bp_back:
+    build:
+      context: ./bp_back
+    ports:
+      - "4000:4000"
+    depends_on:
+      - mongo
     networks:
       - bp_network
     environment:
@@ -32,13 +43,3 @@ services:
       KTOR_MONGO_DB_NAME: "bag-please"
       KTOR_MONGO_USER: "user"
       KTOR_MONGO_PASS: "pass"
-
-  bp_back:
-    build:
-      context: ./bp_back
-    ports:
-      - "4000:8080"
-    depends_on:
-      - mongo
-    networks:
-      - bp_network

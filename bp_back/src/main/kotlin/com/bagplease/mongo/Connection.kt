@@ -6,9 +6,12 @@ import com.mongodb.MongoClientSettings
 import com.mongodb.MongoCredential
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import com.mongodb.kotlin.client.coroutine.MongoDatabase
+import io.ktor.util.logging.*
 import org.bson.UuidRepresentation
 
 object Connection {
+
+    private val logger = KtorSimpleLogger("${Connection::class.qualifiedName}")
 
     val db: MongoDatabase
 
@@ -21,6 +24,7 @@ object Connection {
         val pass = config.property("pass").getString()
 
         val connectionString = ConnectionString("mongodb://$host:$port/$dbName")
+
         val credential = MongoCredential.createScramSha1Credential(user, "admin", pass.toCharArray())
 
         val settings = MongoClientSettings.builder()
@@ -28,6 +32,8 @@ object Connection {
             .uuidRepresentation(UuidRepresentation.STANDARD)
             .applyConnectionString(connectionString)
             .build()
+
+        logger.info("Connecting to mongo database at mongodb://$host:$port/$dbName with user $user")
 
         val client = MongoClient.create(settings)
         db = client.getDatabase(databaseName = dbName)
