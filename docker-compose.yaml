@@ -40,6 +40,6 @@ services:
     environment:
       KTOR_MONGO_HOST: "mongo"
       KTOR_MONGO_PORT: "27017"
-      KTOR_MONGO_DB_NAME: "bag-please"
+      KTOR_MONGO_DB_NAME: "bag_please"
       KTOR_MONGO_USER: "user"
       KTOR_MONGO_PASS: "pass"
