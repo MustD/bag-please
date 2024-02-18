@@ -9,12 +9,11 @@ services:
     build:
       context: ./routing
     ports:
-      - "3300:80"
+      - "2080:80"
     networks:
       - bp_network
-    depends_on:
-      - bp_back
-      - bp_front
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   mongo:
     image: mongo:7

@@ -4,7 +4,9 @@ ktor:
     modules:
       - com.bagplease.ApplicationKt.module
   deployment:
+    host: "0.0.0.0"
     port: 4000
+    rootPath: "api"
 
 jwt:
   domain: "https://jwt-provider-domain/"

@@ -16,12 +16,14 @@
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.9",
-    "@mui/material": "^5.15.9",
+    "@mui/lab": "^5.0.0-alpha.165",
+    "@mui/material": "^5.15.10",
     "@mui/material-nextjs": "^5.15.9",
     "graphql": "^16.8.1",
     "next": "14.1.0",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^5.0.2",
@@ -33,10 +35,10 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/uuid": "^9.0.8",
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
     "string-width": "4.2.3",
-    "string-width-cjs": "4.2.3",
     "typescript": "^5"
   }
 }

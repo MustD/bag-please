@@ -1,7 +1,6 @@
 package com.bagplease
 
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.*
 import kotlin.test.Test
@@ -12,8 +11,7 @@ class ApplicationTest {
     fun testRoot() = testApplication {
         application { }
         client.get("/").apply {
-            assertEquals(HttpStatusCode.OK, status)
-            assertEquals("Hello World!", bodyAsText())
+            assertEquals(HttpStatusCode.NotFound, status)
         }
     }
 }
