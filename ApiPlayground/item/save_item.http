@@ -1,7 +1,7 @@
 @id = {{$random.uuid}}
 #@id = 72743544-31d4-428d-9d12-1b07d0dfb15d
 @name = {{$random.alphabetic(10)}}
-#@name = to_delete_it
+#@name = updated_name
 
 GRAPHQL {{host}}
 

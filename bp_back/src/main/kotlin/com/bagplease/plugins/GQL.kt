@@ -3,25 +3,31 @@
 package com.bagplease.plugins
 
 import com.bagplease.gql.GqlDefinition
-import com.expediagroup.graphql.server.ktor.GraphQL
-import com.expediagroup.graphql.server.ktor.graphQLPostRoute
-import com.expediagroup.graphql.server.ktor.graphQLSDLRoute
-import com.expediagroup.graphql.server.ktor.graphiQLRoute
+import com.expediagroup.graphql.server.ktor.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
+import java.time.Duration
 
 fun Application.configureGql() {
+
     install(GraphQL) {
         schema {
             packages = listOf("com.bagplease.gql")
             queries = GqlDefinition.queries
             mutations = GqlDefinition.mutations
-
+            subscriptions = GqlDefinition.subscriptions
         }
     }
+
+    install(WebSockets) {
+        pingPeriod = Duration.ofSeconds(3)
+    }
+
     install(Routing) {
         graphQLPostRoute()
         graphQLSDLRoute()
         graphiQLRoute()
+        graphQLSubscriptionsRoute()
     }
 }

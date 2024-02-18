@@ -2,10 +2,16 @@ package com.bagplease.gql
 
 import com.bagplease.gql.model.GqlItem
 import com.bagplease.gql.model.GqlItemMapper
+import com.bagplease.gql.model.GqlItemUpdate
+import com.bagplease.gql.model.GqlItemUpdateType
 import com.bagplease.service.ItemService
 import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
+import com.expediagroup.graphql.server.operations.Subscription
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import java.util.*
 
 @Suppress("unused")
@@ -50,4 +56,31 @@ object ItemMutations : Mutation {
     suspend fun deleteItem(id: ID): GqlItem = id.let { UUID.fromString(it.value) }.let {
         service.deleteItem(it)
     }.let(GqlItemMapper::mapItemToGql)
+}
+
+@Suppress("unused")
+object ItemSubscriptions : Subscription {
+
+    private val service = ItemService
+
+    /**
+     * Retrieves updates for items.
+     *
+     * @return A [Flow] of [GqlItemUpdate] that emits item updates.
+     */
+    suspend fun getItemUpdates(): Flow<GqlItemUpdate> {
+        val updates = service.itemUpdates.map {
+            GqlItemUpdate(
+                type = GqlItemUpdateType.SAVED, item = GqlItemMapper.mapItemToGql(it)
+            )
+        }
+
+        val deletions = service.itemDeletions.map {
+            GqlItemUpdate(
+                type = GqlItemUpdateType.DELETED, item = GqlItemMapper.mapItemToGql(it)
+            )
+        }
+
+        return merge(updates, deletions)
+    }
 }

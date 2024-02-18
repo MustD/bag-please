@@ -1,0 +1,8 @@
+GRAPHQL {{ws_host}}
+Sec-Websocket-Protocol: graphql-transport-ws
+
+subscription Items {
+    getRandomItem {
+        id, name, checked
+    }
+}

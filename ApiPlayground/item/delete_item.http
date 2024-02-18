@@ -1,5 +1,4 @@
-#@id = {{$random.uuid}}
-@id = 72743544-31d4-428d-9d12-1b07d0dfb15d
+@id = 30208b8c-b8fc-4d81-ab09-f2e6784c5f64
 
 GRAPHQL {{host}}
 
