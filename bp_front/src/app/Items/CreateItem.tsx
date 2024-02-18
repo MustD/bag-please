@@ -2,7 +2,7 @@
 import {Box, FormGroup, TextField} from "@mui/material";
 import Typography from "@mui/material/Typography";
 import {useMutation} from "@apollo/client";
-import {createItemMutation, getItemsQuery} from "@/app/Items/Queries";
+import {createItemMutation} from "@/app/Items/Queries";
 import React, {useState} from "react";
 import {v4 as uuid} from "uuid"
 import SaveIcon from '@mui/icons-material/Save';
@@ -14,7 +14,6 @@ export default function CreateItem() {
   const save = (name: string) => {
     createItem({
       variables: {item: {id: uuid(), name: name, checked: false}},
-      refetchQueries: [getItemsQuery]
     })
     setItemName("")
   }

@@ -20,6 +20,7 @@
     "@mui/material": "^5.15.10",
     "@mui/material-nextjs": "^5.15.9",
     "graphql": "^16.8.1",
+    "graphql-ws": "^5.15.0",
     "next": "14.1.0",
     "react": "^18",
     "react-dom": "^18",

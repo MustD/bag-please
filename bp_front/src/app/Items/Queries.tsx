@@ -11,3 +11,14 @@ export const createItemMutation = gql(`mutation saveItem($item: ItemInput!) {
         id, name, checked
     }
 }`);
+
+export const itemsSubscription = gql(`subscription ItemUpdates {
+    getItemUpdates {
+        type
+        item {
+            id
+            name
+            checked
+        }
+    }
+}`);
