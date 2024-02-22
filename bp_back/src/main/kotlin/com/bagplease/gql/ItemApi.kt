@@ -68,7 +68,7 @@ object ItemSubscriptions : Subscription {
      *
      * @return A [Flow] of [GqlItemUpdate] that emits item updates.
      */
-    suspend fun getItemUpdates(): Flow<GqlItemUpdate> {
+    fun getItemUpdates(): Flow<GqlItemUpdate> {
         val updates = service.itemUpdates.map {
             GqlItemUpdate(
                 type = GqlItemUpdateType.SAVED, item = GqlItemMapper.mapItemToGql(it)
@@ -80,7 +80,6 @@ object ItemSubscriptions : Subscription {
                 type = GqlItemUpdateType.DELETED, item = GqlItemMapper.mapItemToGql(it)
             )
         }
-
         return merge(updates, deletions)
     }
 }

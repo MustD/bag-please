@@ -4,6 +4,7 @@ package com.bagplease.plugins
 
 import com.bagplease.gql.GqlDefinition
 import com.expediagroup.graphql.server.ktor.*
+import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
@@ -21,7 +22,8 @@ fun Application.configureGql() {
     }
 
     install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(3)
+        pingPeriod = Duration.ofSeconds(10)
+        contentConverter = JacksonWebsocketContentConverter()
     }
 
     install(Routing) {

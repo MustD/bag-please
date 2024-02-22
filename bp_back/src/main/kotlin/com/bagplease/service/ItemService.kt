@@ -2,6 +2,7 @@ package com.bagplease.service
 
 import com.bagplease.storage.Item
 import com.bagplease.storage.ItemStorage
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import java.util.*
@@ -9,8 +10,12 @@ import java.util.*
 object ItemService {
 
     private val storage = ItemStorage
-    private val itemUpdateChannel = MutableSharedFlow<Item>()
-    private val itemDeleteChannel = MutableSharedFlow<Item>()
+    private val itemUpdateChannel = MutableSharedFlow<Item>(
+        onBufferOverflow = BufferOverflow.DROP_OLDEST, extraBufferCapacity = 1
+    )
+    private val itemDeleteChannel = MutableSharedFlow<Item>(
+        onBufferOverflow = BufferOverflow.DROP_OLDEST, extraBufferCapacity = 1
+    )
 
     val itemUpdates = itemUpdateChannel as SharedFlow<Item>
     val itemDeletions = itemDeleteChannel as SharedFlow<Item>
