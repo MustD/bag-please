@@ -27,7 +27,7 @@ export default function Items() {
     })
   }
 
-  useEffect(() => subscribe, [])
+  useEffect(() => subscribe(), [])
 
   const values = data?.getItems
   const toRender = values ? [...values].sort((a, b) => (a.name < b.name ? -1 : 1)) : []
