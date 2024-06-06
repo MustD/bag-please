@@ -6,7 +6,9 @@
       <script value="generate" />
     </scripts>
     <node-interpreter value="project" />
-    <envs />
+    <envs>
+      <env name="UV_USE_IO_URING" value="0" />
+    </envs>
     <method v="2" />
   </configuration>
 </component>
