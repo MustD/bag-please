@@ -4,12 +4,12 @@ val logback_version: String by project
 val gql_server_version: String by project
 
 plugins {
-    kotlin("jvm") version "1.9.22"
-    id("io.ktor.plugin") version "2.3.8"
+    kotlin("jvm") version "2.0.0"
+    id("io.ktor.plugin") version "2.3.11"
 }
 
 group = "com.bagplease"
-version = "0.5.0"
+version = "0.6.0"
 
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")
@@ -38,8 +38,8 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm")
     implementation("io.ktor:ktor-server-websockets")
     implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("io.ktor:ktor-server-config-yaml:2.3.8")
-    implementation("org.mongodb:mongodb-driver-kotlin-coroutine:4.11.1")
+    implementation("io.ktor:ktor-server-config-yaml:$ktor_version")
+    implementation("org.mongodb:mongodb-driver-kotlin-coroutine:5.1.0")
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
