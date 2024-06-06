@@ -10,6 +10,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/bp_back" />
+            <option value="$PROJECT_DIR$/bp_front" />
           </set>
         </option>
       </GradleProjectSettings>
