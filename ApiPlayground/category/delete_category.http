@@ -1,0 +1,10 @@
+@id = 96fde445-31f3-4256-9a41-bf596e7babd7
+
+GRAPHQL {{gql_host}}
+Authorization: Bearer {{auth_token}}
+
+mutation {
+    deleteCategory(id: "{{id}}"){
+        id, name
+    }
+}

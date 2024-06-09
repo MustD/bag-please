@@ -16,7 +16,8 @@ object GqlItemMapper {
         return GqlItem(
             id = ID(item.id.toString()),
             name = item.name,
-            checked = item.checked
+            checked = item.checked,
+            category = item.category.toString()
         )
     }
 
@@ -30,7 +31,8 @@ object GqlItemMapper {
         return Item(
             id = UUID.fromString(item.id.toString()),
             name = item.name,
-            checked = item.checked
+            checked = item.checked,
+            category = UUID.fromString(item.category),
         )
     }
 }

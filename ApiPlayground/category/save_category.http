@@ -2,13 +2,12 @@
 #@id = 72743544-31d4-428d-9d12-1b07d0dfb15d
 @name = {{$random.alphabetic(10)}}
 #@name = updated_name
-@category = 3c5d478f-1152-4fd7-ac48-3165085a7355
 
 GRAPHQL {{gql_host}}
 Authorization: Bearer {{auth_token}}
 
 mutation {
-    saveItem(item: {id: "{{id}}", name: "{{name}}", checked: false, category: "{{category}}"}){
-        id, name, checked, category
+    saveCategory(category: {id: "{{id}}", name: "Grocery"}){
+        id, name
     }
 }

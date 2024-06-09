@@ -2,7 +2,7 @@ GRAPHQL {{gql_host}}
 Authorization: Bearer {{auth_token}}
 
 query {
-    getItems {
-        id, name, checked, category
+    getCategories {
+        id, name
     }
 }

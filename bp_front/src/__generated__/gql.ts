@@ -13,10 +13,14 @@ import {TypedDocumentNode as DocumentNode} from '@graphql-typed-document-node/co
  * Therefore it is highly recommended to use the babel or swc plugin for production.
  */
 const documents = {
-  "query getItems {\n    getItems {\n        id, name, checked\n    }\n}": types.GetItemsDocument,
-  "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked\n    }\n}": types.SaveItemDocument,
-  "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked\n    }\n}": types.DeleteDocument,
-  "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n        }\n    }\n}": types.ItemUpdatesDocument,
+  "query getCategories {\n    getCategories {\n        id, name\n    }\n}": types.GetCategoriesDocument,
+  "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}": types.SaveCategoryDocument,
+  "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}": types.DeleteCategoryDocument,
+  "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}": types.CategoryUpdatesDocument,
+  "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}": types.GetItemsDocument,
+  "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}": types.SaveItemDocument,
+  "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}": types.DeleteDocument,
+  "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}": types.ItemUpdatesDocument,
 };
 
 /**
@@ -36,19 +40,35 @@ export function gql(source: string): unknown;
 /**
  * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function gql(source: "query getItems {\n    getItems {\n        id, name, checked\n    }\n}"): (typeof documents)["query getItems {\n    getItems {\n        id, name, checked\n    }\n}"];
+export function gql(source: "query getCategories {\n    getCategories {\n        id, name\n    }\n}"): (typeof documents)["query getCategories {\n    getCategories {\n        id, name\n    }\n}"];
 /**
  * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function gql(source: "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked\n    }\n}"): (typeof documents)["mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked\n    }\n}"];
+export function gql(source: "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}"): (typeof documents)["mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}"];
 /**
  * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function gql(source: "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked\n    }\n}"): (typeof documents)["mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked\n    }\n}"];
+export function gql(source: "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}"): (typeof documents)["mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}"];
 /**
  * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function gql(source: "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n        }\n    }\n}"): (typeof documents)["subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n        }\n    }\n}"];
+export function gql(source: "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}"): (typeof documents)["subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}"];
+/**
+ * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function gql(source: "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"): (typeof documents)["query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"];
+/**
+ * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function gql(source: "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}"): (typeof documents)["mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}"];
+/**
+ * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function gql(source: "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}"): (typeof documents)["mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}"];
+/**
+ * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function gql(source: "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}"): (typeof documents)["subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}"];
 
 export function gql(source: string) {
   return (documents as any)[source] ?? {};

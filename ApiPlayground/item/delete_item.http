@@ -1,6 +1,7 @@
-@id = 30208b8c-b8fc-4d81-ab09-f2e6784c5f64
+@id = d544090d-1b29-4981-8be9-013d40132f2f
 
 GRAPHQL {{gql_host}}
+Authorization: Bearer {{auth_token}}
 
 mutation {
     deleteItem(id: "{{id}}"){

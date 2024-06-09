@@ -9,22 +9,24 @@ import React, {useState} from "react";
 import Box from '@mui/material/Box';
 import LoadingButton from "@mui/lab/LoadingButton";
 import SaveIcon from "@mui/icons-material/Save";
+import Categories from "@/app/Categories/Categories";
 
-export type Item = { id: string, name: string, checked: boolean }
+export type Item = { id: string, name: string, checked: boolean, category: string }
 
 export default function EditItem(item: Item) {
   const [saveItem] = useMutation(createItemMutation);
   const [deleteItem] = useMutation(deleteItemMutation)
 
   const update = (state: boolean) => {
-    saveItem({variables: {item: {id: item.id, name: item.name, checked: state}}})
+    saveItem({variables: {item: {id: item.id, name: item.name, checked: state, category: item.category}}})
   }
   const deleteMe = (id: string) => {
     deleteItem({variables: {id: id}})
   }
-  const editMe = (newName: string) => {
-    saveItem({variables: {item: {id: item.id, name: newName, checked: item.checked}}})
+  const editMe = (newName: string, newCategory: string) => {
+    saveItem({variables: {item: {id: item.id, name: newName, checked: item.checked, category: newCategory}}})
   }
+  const [cat, setCategory] = useState<string>(item.category)
   const [open, setOpen] = React.useState(false);
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -63,10 +65,11 @@ export default function EditItem(item: Item) {
                 defaultValue={item.name}
                 onChange={(event) => setItemName(event.target.value)}
               />
+              <Categories prevCat={item.category} categoryUpdate={setCategory}/>
               <LoadingButton
                 color="secondary"
                 onClick={() => {
-                  editMe(itemName);
+                  editMe(itemName, cat);
                   handleClose()
                 }}
                 loadingPosition="start"

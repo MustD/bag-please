@@ -12,9 +12,9 @@ import java.util.*
 
 object ItemRepository {
 
-    private const val collectionName = "items"
+    private const val COLLECTION_NAME = "items"
     private val db = Connection.db
-    private val col = db.getCollection<MongoItem>(collectionName)
+    private val col = db.getCollection<MongoItem>(COLLECTION_NAME)
     private const val ID_COL = "_id"
 
     suspend fun getAll(): List<Item> = col.find().map(MongoItemMapper::mapItemFromMongo).toList()
@@ -24,7 +24,8 @@ object ItemRepository {
         val options = UpdateOptions().upsert(true)
         val update = Updates.combine(
             Updates.set(MongoItem::name.name, item.name),
-            Updates.set(MongoItem::checked.name, item.checked)
+            Updates.set(MongoItem::checked.name, item.checked),
+            Updates.set(MongoItem::category.name, item.category),
         )
         col.updateOne(filter, update, options)
     }

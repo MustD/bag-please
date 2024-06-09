@@ -1,15 +1,15 @@
 'use client'
 import {Box, FormGroup} from "@mui/material";
+import React, {useEffect} from "react";
 import Typography from "@mui/material/Typography";
 import {useQuery} from "@apollo/client";
 import {getItemsQuery, itemsSubscription} from "@/app/store/item/Queries";
 import EditItem from "@/app/store/item/EditItem";
 import {ItemUpdateType} from "@/__generated__/graphql";
-import {useEffect} from "react";
 
-export default function Items() {
+
+export default function Items(props: { categoryId: string; categoryName: string }) {
   const {data, loading, error, subscribeToMore} = useQuery(getItemsQuery);
-
   const subscribe = () => {
     subscribeToMore({
       document: itemsSubscription,
@@ -31,13 +31,16 @@ export default function Items() {
 
   const values = data?.getItems
   const toRender = values ? [...values].sort((a, b) => (a.name < b.name ? -1 : 1)) : []
+  const filtered = toRender.filter(item => item.category.match(props.categoryId));
+
   return (
     <Box>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
       <FormGroup>
-        {toRender?.map(item => (
-          <EditItem key={item.id} id={item.id} name={item.name} checked={item.checked}/>
+        <Typography style={{color: 'lightgreen'}} variant={"subtitle1"}>{props.categoryName}</Typography>
+        {filtered?.map(item => (
+          <EditItem key={item.id} id={item.id} name={item.name} checked={item.checked} category={item.category}/>
         ))}
       </FormGroup>
     </Box>

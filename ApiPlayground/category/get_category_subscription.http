@@ -1,0 +1,12 @@
+GRAPHQL {{ws_host}}
+Sec-Websocket-Protocol: graphql-transport-ws
+
+subscription CategoryUpdates {
+    getCategoryUpdates {
+        type
+        item {
+            id
+            name
+        }
+    }
+}

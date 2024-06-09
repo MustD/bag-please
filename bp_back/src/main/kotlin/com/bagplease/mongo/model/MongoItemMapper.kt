@@ -14,7 +14,8 @@ object MongoItemMapper {
         return MongoItem(
             id = item.id,
             name = item.name,
-            checked = item.checked
+            checked = item.checked,
+            category = item.category,
         )
     }
 
@@ -28,7 +29,8 @@ object MongoItemMapper {
         return Item(
             id = item.id,
             name = item.name,
-            checked = item.checked
+            checked = item.checked,
+            category = item.category,
         )
     }
 }
