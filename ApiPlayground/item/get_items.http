@@ -1,4 +1,4 @@
-GRAPHQL {{host}}
+GRAPHQL {{gql_host}}
 
 query {
     getItems {

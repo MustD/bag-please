@@ -1,6 +1,6 @@
 @id = 30208b8c-b8fc-4d81-ab09-f2e6784c5f64
 
-GRAPHQL {{host}}
+GRAPHQL {{gql_host}}
 
 mutation {
     deleteItem(id: "{{id}}"){

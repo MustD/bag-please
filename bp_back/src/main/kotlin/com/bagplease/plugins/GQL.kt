@@ -6,6 +6,7 @@ import com.bagplease.gql.GqlDefinition
 import com.expediagroup.graphql.server.ktor.*
 import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import java.time.Duration
@@ -26,10 +27,13 @@ fun Application.configureGql() {
         contentConverter = JacksonWebsocketContentConverter()
     }
 
-    install(Routing) {
+}
+
+fun Routing.gqlRoutes() {
+    authenticate(authMethod) {
         graphQLPostRoute()
         graphQLSDLRoute()
         graphiQLRoute()
-        graphQLSubscriptionsRoute()
     }
+    graphQLSubscriptionsRoute()
 }

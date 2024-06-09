@@ -3,7 +3,7 @@
 @name = {{$random.alphabetic(10)}}
 #@name = updated_name
 
-GRAPHQL {{host}}
+GRAPHQL {{gql_host}}
 
 mutation {
     saveItem(item: {id: "{{id}}", name: "{{name}}", checked: false}){

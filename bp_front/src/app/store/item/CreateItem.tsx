@@ -2,7 +2,7 @@
 import {Box, FormGroup, TextField} from "@mui/material";
 import Typography from "@mui/material/Typography";
 import {useMutation} from "@apollo/client";
-import {createItemMutation} from "@/app/Items/Queries";
+import {createItemMutation} from "@/app/store/item/Queries";
 import React, {useState} from "react";
 import {v4 as uuid} from "uuid"
 import SaveIcon from '@mui/icons-material/Save';

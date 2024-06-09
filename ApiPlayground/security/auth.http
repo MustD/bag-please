@@ -1,0 +1,16 @@
+POST {{plain_host}}/login
+Content-Type: application/json
+
+{
+  "username": "jetbrains",
+  "password": "foobar"
+}
+
+> {%
+    client.global.set("auth_token", response.body.token);
+%}
+
+###
+
+GET {{plain_host}}/auth-test
+Authorization: Bearer {{auth_token}}

@@ -1,8 +1,6 @@
 package com.bagplease
 
-import com.bagplease.plugins.configureCors
-import com.bagplease.plugins.configureGql
-import com.bagplease.plugins.configureMonitoring
+import com.bagplease.plugins.*
 import io.ktor.server.application.*
 
 fun main(args: Array<String>) {
@@ -10,8 +8,9 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-//    configureSecurity()
     configureCors()
     configureMonitoring()
+    configureSecurity()
     configureGql()
+    configureRouting()
 }

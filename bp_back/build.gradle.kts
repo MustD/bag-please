@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.bagplease"
-version = "0.6.0"
+version = "0.7.0"
 
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")
@@ -29,12 +29,12 @@ repositories {
 dependencies {
     implementation("com.expediagroup:graphql-kotlin-ktor-server:$gql_server_version")
     implementation("io.ktor:ktor-server-core-jvm")
-    implementation("io.ktor:ktor-server-auth-jvm")
-    implementation("io.ktor:ktor-server-auth-jwt-jvm")
+    implementation("io.ktor:ktor-server-auth")
+    implementation("io.ktor:ktor-server-auth-jwt")
     implementation("io.ktor:ktor-server-cors-jvm")
     implementation("io.ktor:ktor-server-call-logging-jvm")
-    implementation("io.ktor:ktor-server-content-negotiation-jvm")
-    implementation("io.ktor:ktor-serialization-jackson-jvm")
+    implementation("io.ktor:ktor-server-content-negotiation")
+    implementation("io.ktor:ktor-serialization-jackson")
     implementation("io.ktor:ktor-server-netty-jvm")
     implementation("io.ktor:ktor-server-websockets")
     implementation("ch.qos.logback:logback-classic:$logback_version")

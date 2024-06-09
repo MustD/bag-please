@@ -5,7 +5,6 @@ import {Container, ThemeProvider} from "@mui/material";
 import {AppRouterCacheProvider} from '@mui/material-nextjs/v13-appRouter';
 import theme from './theme'
 import AppHeader from "./AppHeader";
-import {ApolloWrapper} from "./lib/apollo-wraper"
 
 const inter = Inter({subsets: ["latin"]});
 
@@ -24,16 +23,14 @@ export default function RootLayout({children}: Readonly<{ children: React.ReactN
     <html lang="en">
     <CssBaseline/>
     <body className={inter.className}>
-    <AppRouterCacheProvider>
-      <ApolloWrapper>
-        <ThemeProvider theme={theme}>
-          <Container maxWidth={false} sx={{height: '100vh', p: 1, bgcolor: 'background.default'}}>
-            <AppHeader/>
-            {children}
-          </Container>
-        </ThemeProvider>
-      </ApolloWrapper>
-    </AppRouterCacheProvider>
+    <ThemeProvider theme={theme}>
+      <Container maxWidth={false} sx={{height: '100vh', p: 1, bgcolor: 'background.default'}}>
+        <AppHeader/>
+        <AppRouterCacheProvider>
+          {children}
+        </AppRouterCacheProvider>
+      </Container>
+    </ThemeProvider>
     </body>
     </html>
   );

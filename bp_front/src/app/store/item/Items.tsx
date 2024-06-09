@@ -2,8 +2,8 @@
 import {Box, FormGroup} from "@mui/material";
 import Typography from "@mui/material/Typography";
 import {useQuery} from "@apollo/client";
-import {getItemsQuery, itemsSubscription} from "@/app/Items/Queries";
-import EditItem from "@/app/Items/EditItem";
+import {getItemsQuery, itemsSubscription} from "@/app/store/item/Queries";
+import EditItem from "@/app/store/item/EditItem";
 import {ItemUpdateType} from "@/__generated__/graphql";
 import {useEffect} from "react";
 

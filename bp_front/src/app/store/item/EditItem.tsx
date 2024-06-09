@@ -1,7 +1,7 @@
 'use client'
 import {Checkbox, FormControl, FormControlLabel, FormGroup, IconButton, TextField} from "@mui/material";
 import {useMutation} from "@apollo/client";
-import {createItemMutation, deleteItemMutation} from "@/app/Items/Queries";
+import {createItemMutation, deleteItemMutation} from "@/app/store/item/Queries";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import Modal from '@mui/material/Modal';

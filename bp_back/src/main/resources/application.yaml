@@ -9,9 +9,12 @@ ktor:
     rootPath: "api"
 
 jwt:
-  domain: "https://jwt-provider-domain/"
-  audience: "jwt-audience"
-  realm: "ktor sample app"
+  secret: "$KTOR_JWT_SECRET:secret"
+  issuer: "bag-please.com"
+  audience: "bag-please.com"
+  realm: "bag-please.com"
+  admin_login: "$KTOR_ADMIN_LOGIN:admin"
+  admin_pass: "$KTOR_ADMIN_PASS:admin"
 
 db:
   mongo:
