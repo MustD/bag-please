@@ -7,7 +7,7 @@ import React, {useState} from "react";
 import {v4 as uuid} from "uuid"
 import SaveIcon from '@mui/icons-material/Save';
 import LoadingButton from '@mui/lab/LoadingButton';
-import Categories from "@/app/Categories/Categories";
+import Categories from "@/app/store/category/Categories";
 
 export default function CreateItem() {
   const [createItem, {data, loading, error}] = useMutation(createItemMutation);

@@ -1,16 +1,15 @@
 "use client"
 
 import {Box, Paper} from "@mui/material";
-import Typography from "@mui/material/Typography";
-import {redirect} from "next/navigation";
+import ItemsList from "@/app/store/ItemsList";
+import React from "react";
 
 export default function Home() {
-  redirect("/store/item")
 
   return (
     <Box>
       <Paper sx={{p: 1}}>
-        <Typography>Store</Typography>
+        <ItemsList/>
       </Paper>
     </Box>
   );

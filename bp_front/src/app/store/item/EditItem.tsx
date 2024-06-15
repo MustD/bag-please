@@ -9,7 +9,7 @@ import React, {useState} from "react";
 import Box from '@mui/material/Box';
 import LoadingButton from "@mui/lab/LoadingButton";
 import SaveIcon from "@mui/icons-material/Save";
-import Categories from "@/app/Categories/Categories";
+import Categories from "@/app/store/category/Categories";
 
 export type Item = { id: string, name: string, checked: boolean, category: string }
 
