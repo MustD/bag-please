@@ -14,13 +14,13 @@ export default function Navigation() {
         <Grid item>
           <Button
             variant={"outlined"}
-            color={currentPath === "/" ? "primary" : "secondary"}
+            color={currentPath == "/" ? "secondary" : "primary"}
             onClick={() => router.push("/")}>Home</Button>
         </Grid>
         <Grid item>
           <Button
             variant={"outlined"}
-            color={currentPath.startsWith("/store") ? "primary" : "secondary"}
+            color={currentPath.startsWith("/store") ? "secondary" : "primary"}
             onClick={() => router.push("/store")}>store</Button>
         </Grid>
       </Grid>

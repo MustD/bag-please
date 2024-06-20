@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Box,
   Button,
   Checkbox,
   Paper,
@@ -57,7 +58,6 @@ export default function ItemsPage() {
       }
     })
   }
-
   useEffect(() => subscribe(), [])
 
 
@@ -93,26 +93,26 @@ export default function ItemsPage() {
   const categories = List(categoryData?.getCategories || [])
 
   return (
-    <Paper sx={{p: 1}}>
+    <Box sx={{p: 1}}>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
       <TableContainer component={Paper}>
-        <Table sx={{minWidth: 650}} aria-label="simple table">
+        <Table aria-label="items table" size={"small"}>
           <TableHead>
             <TableRow>
-              <TableCell align="left">Checked</TableCell>
+              <TableCell align="center">Checked</TableCell>
               <TableCell>Item name</TableCell>
-              <TableCell align="left">Category</TableCell>
-              <TableCell align="right"></TableCell>
+              <TableCell>Category</TableCell>
+              <TableCell></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} sx={{'&:last-child td, &:last-child th': {border: 0}}}>
-                <TableCell align="left">
+              <TableRow key={item.id}>
+                <TableCell>
                   <Checkbox checked={item.checked} onChange={() => updateItemState(item, !item.checked)}/>
                 </TableCell>
-                <TableCell component="th" scope="row">
+                <TableCell>
                   {currentEdit === item.id ?
                     <TextField
                       value={editItemName}
@@ -121,13 +121,13 @@ export default function ItemsPage() {
                     : item.name
                   }
                 </TableCell>
-                <TableCell align="left">
+                <TableCell>
                   {currentEdit === item.id ?
                     <Categories prevCat={item.category} categoryUpdate={setEditItemCategory}/>
                     : categories.find(category => category.id === item.category)?.name || "not found"
                   }
                 </TableCell>
-                <TableCell align="right">
+                <TableCell align={"right"}>
                   {currentEdit === item.id ?
                     <Button onClick={() => {
                       saveItemAction(item, editItemName, editItemCategory)
@@ -147,6 +147,6 @@ export default function ItemsPage() {
         </Table>
       </TableContainer>
       <CreateItem/>
-    </Paper>
+    </Box>
   );
 }

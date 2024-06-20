@@ -24,7 +24,7 @@ export default function RootLayout({children}: Readonly<{ children: React.ReactN
     <CssBaseline/>
     <body className={inter.className}>
     <ThemeProvider theme={theme}>
-      <Container maxWidth={false} sx={{height: '100vh', p: 1, bgcolor: 'background.default'}}>
+      <Container maxWidth={false} sx={{height: '100vh', p: 1, bgcolor: 'background.default', overflow: "scroll"}}>
         <AppHeader/>
         <AppRouterCacheProvider>
           {children}

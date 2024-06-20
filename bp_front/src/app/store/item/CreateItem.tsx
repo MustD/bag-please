@@ -1,6 +1,5 @@
 'use client'
 import {Box, FormGroup, TextField} from "@mui/material";
-import Typography from "@mui/material/Typography";
 import {useMutation} from "@apollo/client";
 import {createItemMutation} from "@/app/store/item/Queries";
 import React, {useState} from "react";
@@ -22,8 +21,6 @@ export default function CreateItem() {
 
   return (
     <Box>
-      {loading && <Typography>Loading...</Typography>}
-      {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
       <FormGroup sx={{gap: 1, maxWidth: 'md'}}>
         <TextField
           id="item_name"
