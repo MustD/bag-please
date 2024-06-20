@@ -1,6 +1,6 @@
 "use client"
 
-import ApolloWrapper from "@/app/lib/ApolloWrapper";
+import ApolloWrapper from "@/lib/apollo/ApolloWrapper";
 import {useRouter} from "next/navigation";
 import {useEffect} from "react";
 

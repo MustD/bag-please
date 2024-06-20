@@ -1,11 +1,11 @@
 'use client'
 import {Grid} from "@mui/material";
 import {useQuery} from "@apollo/client";
-import {getItemsQuery, itemsSubscription} from "@/app/store/item/Queries";
+import {getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
 import React, {useEffect} from "react";
 import Box from '@mui/material/Box';
 import Typography from "@mui/material/Typography";
-import {getCategoriesQuery} from "@/app/store/category/Queries";
+import {getCategoriesQuery} from "@/lib/category/Queries";
 import {List} from "immutable";
 import ItemView from "@/app/store/ItemView";
 import {ItemUpdateType} from "@/__generated__/graphql";

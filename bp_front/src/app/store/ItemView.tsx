@@ -1,7 +1,7 @@
 'use client'
 import {Checkbox, FormControlLabel, FormGroup} from "@mui/material";
 import {useMutation} from "@apollo/client";
-import {createItemMutation} from "@/app/store/item/Queries";
+import {createItemMutation} from "@/lib/item/Queries";
 import React from "react";
 
 export type ItemView = { id: string, name: string, checked: boolean, category: string }

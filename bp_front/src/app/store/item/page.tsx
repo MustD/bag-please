@@ -4,6 +4,8 @@ import {
   Box,
   Button,
   Checkbox,
+  Fab,
+  IconButton,
   Paper,
   Table,
   TableBody,
@@ -15,14 +17,16 @@ import {
 } from "@mui/material";
 import CreateItem from "@/app/store/item/CreateItem";
 import {useMutation, useQuery} from "@apollo/client";
-import {getCategoriesQuery} from "@/app/store/category/Queries";
+import {getCategoriesQuery} from "@/lib/category/Queries";
 import React, {useEffect, useState} from "react";
-import {createItemMutation, getItemsQuery, itemsSubscription} from "@/app/store/item/Queries";
+import {createItemMutation, deleteItemMutation, getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
 import {ItemUpdateType} from "@/__generated__/graphql";
 import {List} from "immutable";
 import Typography from "@mui/material/Typography";
 import {v4 as uuid} from "uuid"
-import Categories from "@/app/store/category/Categories";
+import SelectCategory from "@/app/store/category/SelectCategory";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 
 /**
@@ -39,8 +43,10 @@ export default function ItemsPage() {
     error: itemsError,
     subscribeToMore: itemSubscription
   } = useQuery(getItemsQuery);
-  const {data: categoryData, loading, error, subscribeToMore: categorySubscription} = useQuery(getCategoriesQuery);
+  const {data: categoryData, subscribeToMore: categorySubscription} = useQuery(getCategoriesQuery);
+
   const [saveItem] = useMutation(createItemMutation);
+  const [deleteItem] = useMutation(deleteItemMutation)
 
   const subscribe = () => {
     itemSubscription({
@@ -64,6 +70,7 @@ export default function ItemsPage() {
   const [editItemName, setEditItemName] = useState("")
   const [editItemCategory, setEditItemCategory] = useState("")
   const [currentEdit, setCurrentEdit] = useState(uuid())
+
   const saveItemAction = (itemToSave: Item, newName: string, newCategory: string) => {
     saveItem({
       variables: {
@@ -76,6 +83,7 @@ export default function ItemsPage() {
       }
     })
   }
+
   const updateItemState = (itemToSave: Item, state: boolean) => {
     saveItem({
       variables: {
@@ -89,13 +97,23 @@ export default function ItemsPage() {
     })
   }
 
+  const deleteItemAction = (itemId: string) => {
+    deleteItem({
+      variables: {
+        id: itemId
+      }
+    })
+  }
+
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+
   const items = List(itemsData?.getItems || []).sortBy(item => item.name)
   const categories = List(categoryData?.getCategories || [])
 
   return (
     <Box sx={{p: 1}}>
-      {loading && <Typography>Loading...</Typography>}
-      {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
+      {itemsLoading && <Typography>Loading...</Typography>}
+      {itemsError && <Typography variant={"caption"} sx={{color: "error.main"}}>{itemsError.message}</Typography>}
       <TableContainer component={Paper}>
         <Table aria-label="items table" size={"small"}>
           <TableHead>
@@ -110,7 +128,16 @@ export default function ItemsPage() {
             {items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  <Checkbox checked={item.checked} onChange={() => updateItemState(item, !item.checked)}/>
+                  {currentEdit === item.id ?
+                    <IconButton onClick={() => {
+                      deleteItemAction(item.id)
+                      setCurrentEdit(uuid())
+                    }}>
+                      <DeleteIcon color={"warning"} sx={{width: 32, height: 32}}/>
+                    </IconButton>
+                    :
+                    <Checkbox checked={item.checked} onChange={() => updateItemState(item, !item.checked)}/>
+                  }
                 </TableCell>
                 <TableCell>
                   {currentEdit === item.id ?
@@ -118,13 +145,18 @@ export default function ItemsPage() {
                       value={editItemName}
                       onChange={e => setEditItemName(e.target.value)}
                     />
-                    : item.name
+                    :
+                    <Typography>{item.name}</Typography>
                   }
                 </TableCell>
                 <TableCell>
                   {currentEdit === item.id ?
-                    <Categories prevCat={item.category} categoryUpdate={setEditItemCategory}/>
-                    : categories.find(category => category.id === item.category)?.name || "not found"
+                    <SelectCategory
+                      selectedId={editItemCategory === "" ? item.category : editItemCategory}
+                      setSelectedId={setEditItemCategory}
+                    />
+                    :
+                    <Typography>{categories.find(category => category.id === item.category)?.name || "not found"}</Typography>
                   }
                 </TableCell>
                 <TableCell align={"right"}>
@@ -146,7 +178,19 @@ export default function ItemsPage() {
           </TableBody>
         </Table>
       </TableContainer>
-      <CreateItem/>
+      <Fab
+        size="large"
+        color="secondary"
+        aria-label="add"
+        onClick={() => setIsCreateOpen(true)}
+        style={{position: "fixed", right: "60px", bottom: "60px"}}
+      >
+        <AddIcon/>
+      </Fab>
+      <CreateItem isOpen={isCreateOpen} onClose={() => {
+        setIsCreateOpen(false)
+      }}
+      />
     </Box>
   );
 }

@@ -3,7 +3,7 @@ import {Dialog, Grid, Paper, TextField} from "@mui/material";
 import React, {useState} from "react";
 import {v4 as uuid} from "uuid";
 import {useMutation} from "@apollo/client";
-import {createCategoryMutation} from "@/app/store/category/Queries";
+import {createCategoryMutation} from "@/lib/category/Queries";
 import SaveIcon from "@mui/icons-material/Save";
 import LoadingButton from "@mui/lab/LoadingButton";
 
@@ -15,12 +15,11 @@ export type CreateDialogProps = {
 export default function CreateCategory(props: CreateDialogProps) {
   const {isOpen, onClose} = props;
 
-  const [saveCategory] = useMutation(createCategoryMutation);
+  const [saveCategory, {data, loading, error}] = useMutation(createCategoryMutation);
   const [newCatName, setNewCatName] = useState("")
 
-  const saveCategoryAction = (id: string, name: string) => {
-    saveCategory({variables: {category: {id: id, name: name}}})
-    setNewCatName("")
+  const saveCategoryAction = (name: string) => {
+    saveCategory({variables: {category: {id: uuid().toString(), name: name}}})
   }
 
   return (
@@ -40,7 +39,7 @@ export default function CreateCategory(props: CreateDialogProps) {
             <LoadingButton
               color="secondary"
               onClick={() => {
-                saveCategoryAction(uuid().toString(), newCatName)
+                saveCategoryAction(newCatName)
                 onClose()
               }}
               loadingPosition="start"

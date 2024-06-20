@@ -1,11 +1,17 @@
 'use client'
 import {useMutation, useQuery} from "@apollo/client";
-import {categoriesSubscription, createCategoryMutation, getCategoriesQuery} from "@/app/store/category/Queries";
+import {
+  categoriesSubscription,
+  createCategoryMutation,
+  deleteCategoryMutation,
+  getCategoriesQuery
+} from "@/lib/category/Queries";
 import React, {useEffect, useState} from "react";
 import {
   Box,
   Button,
   Fab,
+  IconButton,
   Paper,
   Table,
   TableBody,
@@ -21,6 +27,7 @@ import Typography from "@mui/material/Typography";
 import AddIcon from '@mui/icons-material/Add';
 import CreateCategory from "@/app/store/category/CreateCategory";
 import {CategoryUpdateType} from "@/__generated__/graphql";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 
 /**
@@ -57,6 +64,15 @@ export default function ManageCategories() {
     saveCategory({variables: {category: {id: id, name: name}}})
   }
 
+  const [deleteCat] = useMutation(deleteCategoryMutation)
+  const deleteCategoryAction = (catId: string) => {
+    deleteCat({
+      variables: {
+        id: catId
+      }
+    })
+  }
+
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
 
   const categories = List(data?.getCategories).sortBy(cat => cat.name)
@@ -69,6 +85,7 @@ export default function ManageCategories() {
         <Table aria-label="Categories table" size="small">
           <TableHead>
             <TableRow>
+              <TableCell></TableCell>
               <TableCell>Category name</TableCell>
               <TableCell></TableCell>
             </TableRow>
@@ -78,11 +95,23 @@ export default function ManageCategories() {
               <TableRow key={category.id} sx={{'&:last-child td, &:last-child th': {border: 0}}}>
                 <TableCell>
                   {currentEdit === category.id ?
+                    <IconButton onClick={() => {
+                      deleteCategoryAction(category.id)
+                      setCurrentEdit(uuid())
+                    }}>
+                      <DeleteIcon color={"warning"} sx={{width: 32, height: 32}}/>
+                    </IconButton>
+                    : null
+                  }
+
+                </TableCell>
+                <TableCell>
+                  {currentEdit === category.id ?
                     <TextField
                       value={editCatName}
                       onChange={e => setEditCatName(e.target.value)}
                     />
-                    : category.name
+                    : <Typography>{category.name}</Typography>
                   }
 
                 </TableCell>
