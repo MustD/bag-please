@@ -3,7 +3,6 @@
 import ApolloWrapper from "@/app/lib/ApolloWrapper";
 import {useRouter} from "next/navigation";
 import {useEffect} from "react";
-import Navigation from "@/app/store/Navigation";
 
 export default function StoreLayout({children}: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
@@ -16,7 +15,6 @@ export default function StoreLayout({children}: Readonly<{ children: React.React
 
   return (
     <ApolloWrapper onAuthError={onAuthError}>
-      <Navigation/>
       {children}
     </ApolloWrapper>
   )

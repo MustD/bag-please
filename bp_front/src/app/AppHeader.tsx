@@ -3,7 +3,6 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import Logout from "@/app/auth/Logout";
 import Navigation from "@/app/Navigation";
 
 export default function AppHeader() {
@@ -12,9 +11,8 @@ export default function AppHeader() {
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{flexGrow: 1}}>Bag please</Typography>
-          <Logout/>
+          <Navigation/>
         </Toolbar>
-        <Navigation/>
       </AppBar>
     </Box>
   );

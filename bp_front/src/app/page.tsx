@@ -9,8 +9,10 @@ export default function Home() {
       <Paper sx={{p: 1}}>
         <Typography>Welcome to the bag-please app.</Typography>
         <Typography>Work in progress.</Typography>
-        <Typography>Check out our <Link target="_blank"
-                                        href="https://github.com/MustD/bag-please">github</Link></Typography>
+        <Typography>
+          Check out our&nbsp;
+          <Link target="_blank" href="https://github.com/MustD/bag-please">github</Link>
+        </Typography>
       </Paper>
     </Box>
   );
