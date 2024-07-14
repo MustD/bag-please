@@ -41,14 +41,14 @@ export enum CategoryUpdateType {
 
 export type Item = {
   __typename?: 'Item';
-  category: Scalars['ID']['output'];
+  category: Scalars['String']['output'];
   checked: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
 };
 
 export type ItemInput = {
-  category: Scalars['ID']['input'];
+  category: Scalars['String']['input'];
   checked: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
   name: Scalars['String']['input'];

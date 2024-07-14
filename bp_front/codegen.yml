@@ -1,5 +1,7 @@
 schema:
-  - "http://localhost:2080/api/graphql"
+  - "http://localhost:2080/api/graphql":
+      headers:
+        Authorization: 'token here'
 documents:
   - "./src/**/*.tsx"
 ignoreNoDocuments: true

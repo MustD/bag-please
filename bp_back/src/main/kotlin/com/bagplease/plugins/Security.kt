@@ -27,6 +27,7 @@ fun Application.configureSecurity() {
     install(Authentication) {
         jwt(authMethod) {
             realm = myRealm
+
             verifier(
                 JWT.require(Algorithm.HMAC256(secret)).withAudience(audience).withIssuer(issuer).build()
             )
