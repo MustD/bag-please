@@ -92,7 +92,7 @@ export default function Navigation() {
               </Typography>
             </MenuItem>
             {currentPath.startsWith("/store") ? (
-              <>
+              <Box>
                 <Divider/>
                 <MenuItem onClick={() => {
                   onClose()
@@ -110,7 +110,7 @@ export default function Navigation() {
                     Categories
                   </Typography>
                 </MenuItem>
-              </>
+              </Box>
             ) : null}
           </Menu>
         </Grid>
