@@ -1,5 +1,5 @@
 'use client'
-import {Grid} from "@mui/material";
+import {Grid, IconButton, InputAdornment, OutlinedInput} from "@mui/material";
 import {useQuery} from "@apollo/client";
 import {getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
 import React, {useEffect, useState} from "react";
@@ -13,8 +13,7 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
-
-// export type Item = { id: string, name: string, checked: boolean, category: string }
+import {Clear} from "@mui/icons-material";
 
 export default function ItemsList() {
 
@@ -24,7 +23,13 @@ export default function ItemsList() {
     error: itemsError,
     subscribeToMore: itemSubscription
   } = useQuery(getItemsQuery);
-  const {data: categoryData, loading, error, subscribeToMore: categorySubscription} = useQuery(getCategoriesQuery);
+
+  const {
+    data: categoryData,
+    loading,
+    error,
+    subscribeToMore: categorySubscription
+  } = useQuery(getCategoriesQuery);
 
   const subscribe = () => {
     itemSubscription({
@@ -46,6 +51,7 @@ export default function ItemsList() {
   useEffect(() => subscribe(), [])
 
   const [filter, setFilter] = useState<"all" | "y" | "n">("all")
+  const [search, setSearch] = useState("")
   const items = List(itemsData?.getItems || []).sortBy(item =>
     item.name
   ).filter(item => {
@@ -57,6 +63,12 @@ export default function ItemsList() {
       case "n":
         return !item.checked
     }
+  }).filter(item => {
+    if ("" === search) {
+      return true
+    } else {
+      return item.name.includes(search)
+    }
   })
   const categories = List(categoryData?.getCategories || []).sortBy(category => category.name)
 
@@ -64,7 +76,27 @@ export default function ItemsList() {
     <Box>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
-      <FormControl sx={{m: 1, minWidth: 120}} size="small">
+      <FormControl sx={{m: 1, width: '16ch'}} size="small">
+        <InputLabel htmlFor="search-input">Search</InputLabel>
+        <OutlinedInput
+          id="search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          endAdornment={
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="clear search"
+                onClick={() => setSearch("")}
+                edge="end"
+              >
+                <Clear/>
+              </IconButton>
+            </InputAdornment>
+          }
+          label="Search"
+        />
+      </FormControl>
+      <FormControl sx={{m: 1, width: '16ch'}} size="small">
         <InputLabel id="select-filter-label">Filter</InputLabel>
         <Select
           labelId="select-filter-label"
