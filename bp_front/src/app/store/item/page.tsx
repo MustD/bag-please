@@ -5,15 +5,13 @@ import {
   Button,
   Checkbox,
   Fab,
-  IconButton,
   Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow,
-  TextField
+  TableRow
 } from "@mui/material";
 import CreateItem from "@/app/store/item/CreateItem";
 import {useMutation, useQuery} from "@apollo/client";
@@ -24,9 +22,7 @@ import {ItemUpdateType} from "@/__generated__/graphql";
 import {List} from "immutable";
 import Typography from "@mui/material/Typography";
 import {v4 as uuid} from "uuid"
-import SelectCategory from "@/app/store/category/SelectCategory";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
 
 
 /**
@@ -106,6 +102,7 @@ export default function ItemsPage() {
   }
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [itemToEdit, setItemToEdit] = React.useState<Item>();
 
   const items = List(itemsData?.getItems || []).sortBy(item => item.name)
   const categories = List(categoryData?.getCategories || [])
@@ -128,50 +125,19 @@ export default function ItemsPage() {
             {items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  {currentEdit === item.id ?
-                    <IconButton onClick={() => {
-                      deleteItemAction(item.id)
-                      setCurrentEdit(uuid())
-                    }}>
-                      <DeleteIcon color={"warning"} sx={{width: 32, height: 32}}/>
-                    </IconButton>
-                    :
-                    <Checkbox checked={item.checked} onChange={() => updateItemState(item, !item.checked)}/>
-                  }
+                  <Checkbox checked={item.checked} onChange={() => updateItemState(item, !item.checked)}/>
                 </TableCell>
                 <TableCell>
-                  {currentEdit === item.id ?
-                    <TextField
-                      value={editItemName}
-                      onChange={e => setEditItemName(e.target.value)}
-                    />
-                    :
-                    <Typography>{item.name}</Typography>
-                  }
+                  <Typography>{item.name}</Typography>
                 </TableCell>
                 <TableCell>
-                  {currentEdit === item.id ?
-                    <SelectCategory
-                      selectedId={editItemCategory === "" ? item.category : editItemCategory}
-                      setSelectedId={setEditItemCategory}
-                    />
-                    :
-                    <Typography>{categories.find(category => category.id === item.category)?.name || "not found"}</Typography>
-                  }
+                  <Typography>{categories.find(category => category.id === item.category)?.name || "not found"}</Typography>
                 </TableCell>
                 <TableCell align={"right"}>
-                  {currentEdit === item.id ?
-                    <Button onClick={() => {
-                      saveItemAction(item, editItemName, editItemCategory)
-                      setCurrentEdit(uuid())
-                    }}>Save</Button>
-                    :
-                    <Button onClick={() => {
-                      setCurrentEdit(item.id)
-                      setEditItemName(item.name)
-                      setEditItemCategory(item.category)
+                  <Button
+                    onClick={() => {
+                      setItemToEdit(item)
                     }}>Edit</Button>
-                  }
                 </TableCell>
               </TableRow>
             ))}
@@ -182,13 +148,19 @@ export default function ItemsPage() {
         size="large"
         color="secondary"
         aria-label="add"
-        onClick={() => setIsCreateOpen(true)}
+        onClick={() => setItemToEdit({
+          id: uuid(),
+          name: "",
+          checked: false,
+          category: ""
+        })}
         style={{position: "fixed", right: "60px", bottom: "60px"}}
       >
         <AddIcon/>
       </Fab>
-      <CreateItem isOpen={isCreateOpen} onClose={() => {
+      <CreateItem item={itemToEdit} onClose={() => {
         setIsCreateOpen(false)
+        setItemToEdit(undefined)
       }}
       />
     </Box>

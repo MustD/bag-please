@@ -2,28 +2,38 @@
 import {Dialog, Grid, Paper, TextField} from "@mui/material";
 import {useMutation} from "@apollo/client";
 import {createItemMutation} from "@/lib/item/Queries";
-import React, {useState} from "react";
-import {v4 as uuid} from "uuid"
+import React, {useEffect, useState} from "react";
 import SaveIcon from '@mui/icons-material/Save';
 import LoadingButton from '@mui/lab/LoadingButton';
 import SelectCategory from "@/app/store/category/SelectCategory";
 
+export type Item = { id: string, name: string, checked: boolean, category: string }
 export type CreateDialogProps = {
-  isOpen: boolean;
   onClose: () => void;
+  item?: Item;
 }
 
 export default function CreateItem(props: CreateDialogProps) {
-  const {isOpen, onClose} = props;
+  const {onClose, item} = props;
+
+  let isOpen: boolean;
+  isOpen = !!item;
+
+  useEffect(() => {
+    setNewItemName(item?.name || "")
+    setNewItemCat(item?.category || "")
+    setItemId(item?.id || "")
+  }, [item])
 
   const [createItem, {data, loading, error}] = useMutation(createItemMutation);
 
-  const [newItemName, setNewItemName] = useState<string>("")
-  const [newItemCat, setNewItemCat] = useState<string>("");
+  const [newItemName, setNewItemName] = useState<string>(item?.name || "");
+  const [newItemCat, setNewItemCat] = useState<string>(item?.category || "");
+  const [itemId, setItemId] = useState<string>(item?.id || "");
 
-  const saveItemAction = (name: string, category: string) => {
+  const saveItemAction = (name: string, category: string, id: string) => {
     createItem({
-      variables: {item: {id: uuid(), name: name, checked: false, category: category}},
+      variables: {item: {id: id, name: name, checked: false, category: category}},
     })
   }
 
@@ -35,8 +45,9 @@ export default function CreateItem(props: CreateDialogProps) {
             <TextField
               id="item_name"
               name="item_name"
-              label="Add new item"
+              label="Item name"
               variant="standard"
+              value={newItemName}
               onChange={(event) => setNewItemName(event.target.value)}
             />
           </Grid>
@@ -47,7 +58,7 @@ export default function CreateItem(props: CreateDialogProps) {
             <LoadingButton
               color="secondary"
               onClick={() => {
-                saveItemAction(newItemName, newItemCat)
+                saveItemAction(newItemName, newItemCat, itemId)
                 onClose()
               }}
               loadingPosition="start"
