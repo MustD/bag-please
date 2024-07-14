@@ -1,23 +1,29 @@
 'use client'
-import {Dialog, Grid, Paper, TextField} from "@mui/material";
+import {ButtonGroup, Dialog, Grid, Paper, TextField} from "@mui/material";
 import {useMutation} from "@apollo/client";
-import {createItemMutation} from "@/lib/item/Queries";
+import {createItemMutation, deleteItemMutation} from "@/lib/item/Queries";
 import React, {useEffect, useState} from "react";
 import SaveIcon from '@mui/icons-material/Save';
 import LoadingButton from '@mui/lab/LoadingButton';
 import SelectCategory from "@/app/store/category/SelectCategory";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 export type Item = { id: string, name: string, checked: boolean, category: string }
 export type CreateDialogProps = {
-  onClose: () => void;
   item?: Item;
+  onClose: () => void;
+  deletable: boolean
 }
 
 export default function CreateItem(props: CreateDialogProps) {
-  const {onClose, item} = props;
+  const {onClose, item, deletable} = props;
 
   let isOpen: boolean;
   isOpen = !!item;
+
+  const [newItemName, setNewItemName] = useState<string>("");
+  const [newItemCat, setNewItemCat] = useState<string>("");
+  const [itemId, setItemId] = useState<string>("");
 
   useEffect(() => {
     setNewItemName(item?.name || "")
@@ -26,14 +32,18 @@ export default function CreateItem(props: CreateDialogProps) {
   }, [item])
 
   const [createItem, {data, loading, error}] = useMutation(createItemMutation);
-
-  const [newItemName, setNewItemName] = useState<string>(item?.name || "");
-  const [newItemCat, setNewItemCat] = useState<string>(item?.category || "");
-  const [itemId, setItemId] = useState<string>(item?.id || "");
-
   const saveItemAction = (name: string, category: string, id: string) => {
     createItem({
       variables: {item: {id: id, name: name, checked: false, category: category}},
+    })
+  }
+
+  const [deleteItem] = useMutation(deleteItemMutation)
+  const deleteItemAction = (itemId: string) => {
+    deleteItem({
+      variables: {
+        id: itemId
+      }
     })
   }
 
@@ -55,18 +65,32 @@ export default function CreateItem(props: CreateDialogProps) {
             <SelectCategory selectedId={newItemCat} setSelectedId={setNewItemCat}/>
           </Grid>
           <Grid item>
-            <LoadingButton
-              color="secondary"
-              onClick={() => {
-                saveItemAction(newItemName, newItemCat, itemId)
-                onClose()
-              }}
-              loadingPosition="start"
-              startIcon={<SaveIcon/>}
-              variant="contained"
-            >
-              <span>Save</span>
-            </LoadingButton>
+            <ButtonGroup variant="text" fullWidth={true}>
+              <LoadingButton
+                color="success"
+                onClick={() => {
+                  saveItemAction(newItemName, newItemCat, itemId)
+                  onClose()
+                }}
+                loadingPosition="start"
+                startIcon={<SaveIcon/>}
+                variant="text"
+              >
+                <span>Save</span>
+              </LoadingButton>
+              {deletable ? <LoadingButton
+                  color="error"
+                  onClick={() => {
+                    deleteItemAction(itemId)
+                    onClose()
+                  }}
+                  loadingPosition="start"
+                  startIcon={<DeleteIcon/>}
+                  variant="text"
+                ><span>Delete</span>
+                </LoadingButton>
+                : null}
+            </ButtonGroup>
           </Grid>
         </Grid>
       </Paper>

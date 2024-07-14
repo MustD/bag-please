@@ -17,7 +17,7 @@ import CreateItem from "@/app/store/item/CreateItem";
 import {useMutation, useQuery} from "@apollo/client";
 import {getCategoriesQuery} from "@/lib/category/Queries";
 import React, {useEffect, useState} from "react";
-import {createItemMutation, deleteItemMutation, getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
+import {createItemMutation, getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
 import {ItemUpdateType} from "@/__generated__/graphql";
 import {List} from "immutable";
 import Typography from "@mui/material/Typography";
@@ -41,9 +41,6 @@ export default function ItemsPage() {
   } = useQuery(getItemsQuery);
   const {data: categoryData, subscribeToMore: categorySubscription} = useQuery(getCategoriesQuery);
 
-  const [saveItem] = useMutation(createItemMutation);
-  const [deleteItem] = useMutation(deleteItemMutation)
-
   const subscribe = () => {
     itemSubscription({
       document: itemsSubscription,
@@ -62,24 +59,7 @@ export default function ItemsPage() {
   }
   useEffect(() => subscribe(), [])
 
-
-  const [editItemName, setEditItemName] = useState("")
-  const [editItemCategory, setEditItemCategory] = useState("")
-  const [currentEdit, setCurrentEdit] = useState(uuid())
-
-  const saveItemAction = (itemToSave: Item, newName: string, newCategory: string) => {
-    saveItem({
-      variables: {
-        item: {
-          id: itemToSave.id,
-          name: newName,
-          checked: itemToSave.checked,
-          category: newCategory
-        }
-      }
-    })
-  }
-
+  const [saveItem] = useMutation(createItemMutation);
   const updateItemState = (itemToSave: Item, state: boolean) => {
     saveItem({
       variables: {
@@ -93,16 +73,8 @@ export default function ItemsPage() {
     })
   }
 
-  const deleteItemAction = (itemId: string) => {
-    deleteItem({
-      variables: {
-        id: itemId
-      }
-    })
-  }
-
-  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-  const [itemToEdit, setItemToEdit] = React.useState<Item>();
+  const [itemToEdit, setItemToEdit] = useState<Item>();
+  const [deletable, setDeletable] = useState(false);
 
   const items = List(itemsData?.getItems || []).sortBy(item => item.name)
   const categories = List(categoryData?.getCategories || [])
@@ -136,6 +108,7 @@ export default function ItemsPage() {
                 <TableCell align={"right"}>
                   <Button
                     onClick={() => {
+                      setDeletable(true)
                       setItemToEdit(item)
                     }}>Edit</Button>
                 </TableCell>
@@ -158,10 +131,13 @@ export default function ItemsPage() {
       >
         <AddIcon/>
       </Fab>
-      <CreateItem item={itemToEdit} onClose={() => {
-        setIsCreateOpen(false)
-        setItemToEdit(undefined)
-      }}
+      <CreateItem
+        item={itemToEdit}
+        onClose={() => {
+          setItemToEdit(undefined)
+          setDeletable(false)
+        }}
+        deletable={deletable}
       />
     </Box>
   );
