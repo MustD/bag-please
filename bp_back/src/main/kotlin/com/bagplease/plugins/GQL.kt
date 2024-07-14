@@ -30,10 +30,10 @@ fun Application.configureGql() {
 }
 
 fun Routing.gqlRoutes() {
-    authenticate(authMethod) {
+    authenticate(authMethod, optional = true) {
         graphQLPostRoute()
         graphQLSDLRoute()
         graphiQLRoute()
+        graphQLSubscriptionsRoute()
     }
-    graphQLSubscriptionsRoute()
 }
