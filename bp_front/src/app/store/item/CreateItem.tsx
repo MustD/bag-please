@@ -11,12 +11,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 export type Item = { id: string, name: string, checked: boolean, category: string }
 export type CreateDialogProps = {
   item?: Item;
-  onClose: () => void;
-  deletable: boolean
+  isNew: boolean;
+  onClose: () => void
 }
 
 export default function CreateItem(props: CreateDialogProps) {
-  const {onClose, item, deletable} = props;
+  const {item, isNew, onClose} = props;
 
   let isOpen: boolean;
   isOpen = !!item;
@@ -78,7 +78,8 @@ export default function CreateItem(props: CreateDialogProps) {
               >
                 <span>Save</span>
               </LoadingButton>
-              {deletable ? <LoadingButton
+              {isNew ? null :
+                <LoadingButton
                   color="error"
                   onClick={() => {
                     deleteItemAction(itemId)
@@ -89,7 +90,7 @@ export default function CreateItem(props: CreateDialogProps) {
                   variant="text"
                 ><span>Delete</span>
                 </LoadingButton>
-                : null}
+              }
             </ButtonGroup>
           </Grid>
         </Grid>

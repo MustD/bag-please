@@ -1,25 +1,43 @@
 "use client"
-import {Dialog, Grid, Paper, TextField} from "@mui/material";
-import React, {useState} from "react";
-import {v4 as uuid} from "uuid";
+import {ButtonGroup, Dialog, Grid, Paper, TextField} from "@mui/material";
+import React, {useEffect, useState} from "react";
 import {useMutation} from "@apollo/client";
-import {createCategoryMutation} from "@/lib/category/Queries";
+import {createCategoryMutation, deleteCategoryMutation} from "@/lib/category/Queries";
 import SaveIcon from "@mui/icons-material/Save";
 import LoadingButton from "@mui/lab/LoadingButton";
+import DeleteIcon from "@mui/icons-material/Delete";
 
+export type Category = { id: string, name: string }
 export type CreateDialogProps = {
-  isOpen: boolean;
+  category?: Category;
+  isNew: boolean;
   onClose: () => void;
 }
 
 export default function CreateCategory(props: CreateDialogProps) {
-  const {isOpen, onClose} = props;
+  const {category, isNew, onClose} = props;
+
+  let isOpen: boolean;
+  isOpen = !!category;
+
+
+  const [newCatName, setNewCatName] = useState("")
+  const [catId, setCatId] = useState("")
+  useEffect(
+    () => {
+      setNewCatName(category?.name || "")
+      setCatId(category?.id || "")
+    },
+    [category]
+  )
 
   const [saveCategory, {data, loading, error}] = useMutation(createCategoryMutation);
-  const [newCatName, setNewCatName] = useState("")
-
-  const saveCategoryAction = (name: string) => {
-    saveCategory({variables: {category: {id: uuid().toString(), name: name}}})
+  const saveCategoryAction = (id: string, name: string) => {
+    saveCategory({variables: {category: {id: id, name: name}}})
+  }
+  const [deleteCategory, {data: catData, loading: catLoading, error: catError}] = useMutation(deleteCategoryMutation);
+  const deleteCategoryAction = (id: string) => {
+    deleteCategory({variables: {id: id}})
   }
 
   return (
@@ -30,24 +48,41 @@ export default function CreateCategory(props: CreateDialogProps) {
             <TextField
               id="category_name"
               name="category_name"
-              label="Add new category"
+              label="Category name"
               variant="standard"
+              value={newCatName}
               onChange={(event) => setNewCatName(event.target.value)}
             />
           </Grid>
           <Grid item>
-            <LoadingButton
-              color="secondary"
-              onClick={() => {
-                saveCategoryAction(newCatName)
-                onClose()
-              }}
-              loadingPosition="start"
-              startIcon={<SaveIcon/>}
-              variant="contained"
-            >
-              <span>Save</span>
-            </LoadingButton>
+            <ButtonGroup variant="text" fullWidth={true}>
+              <LoadingButton
+                color="success"
+                onClick={() => {
+                  saveCategoryAction(catId, newCatName)
+                  onClose()
+                }}
+                loadingPosition="start"
+                startIcon={<SaveIcon/>}
+                variant="text"
+              >
+                <span>Save</span>
+              </LoadingButton>
+              {isNew ? null :
+                <LoadingButton
+                  color="error"
+                  onClick={() => {
+                    deleteCategoryAction(catId)
+                    onClose()
+                  }}
+                  loadingPosition="start"
+                  startIcon={<DeleteIcon/>}
+                  variant="text"
+                >
+                  <span>Delete</span>
+                </LoadingButton>
+              }
+            </ButtonGroup>
           </Grid>
         </Grid>
       </Paper>
