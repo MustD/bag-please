@@ -74,7 +74,7 @@ export default function ItemsPage() {
   }
 
   const [itemToEdit, setItemToEdit] = useState<Item>();
-  const [deletable, setDeletable] = useState(false);
+  const [isNew, setIsNew] = useState(false);
 
   const items = List(itemsData?.getItems || []).sortBy(item => item.name)
   const categories = List(categoryData?.getCategories || [])
@@ -108,7 +108,6 @@ export default function ItemsPage() {
                 <TableCell align={"right"}>
                   <Button
                     onClick={() => {
-                      setDeletable(true)
                       setItemToEdit(item)
                     }}>Edit</Button>
                 </TableCell>
@@ -121,23 +120,27 @@ export default function ItemsPage() {
         size="large"
         color="secondary"
         aria-label="add"
-        onClick={() => setItemToEdit({
-          id: uuid(),
-          name: "",
-          checked: false,
-          category: ""
-        })}
+        onClick={() => {
+          setItemToEdit({
+            id: uuid(),
+            name: "",
+            checked: false,
+            category: ""
+          })
+          setIsNew(true)
+        }
+        }
         style={{position: "fixed", right: "60px", bottom: "60px"}}
       >
         <AddIcon/>
       </Fab>
       <CreateItem
         item={itemToEdit}
+        isNew={isNew}
         onClose={() => {
           setItemToEdit(undefined)
-          setDeletable(false)
+          setIsNew(false)
         }}
-        deletable={deletable}
       />
     </Box>
   );
