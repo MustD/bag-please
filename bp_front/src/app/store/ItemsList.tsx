@@ -67,7 +67,7 @@ export default function ItemsList() {
     if ("" === search) {
       return true
     } else {
-      return item.name.includes(search)
+      return item.name.toLowerCase().includes(search.toLowerCase())
     }
   })
   const categories = List(categoryData?.getCategories || []).sortBy(category => category.name)
@@ -76,7 +76,7 @@ export default function ItemsList() {
     <Box>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
-      <FormControl sx={{m: 1, width: '16ch'}} size="small">
+      <FormControl sx={{m: 1, width: '14ch'}} size="small">
         <InputLabel htmlFor="search-input">Search</InputLabel>
         <OutlinedInput
           id="search-input"
@@ -96,7 +96,7 @@ export default function ItemsList() {
           label="Search"
         />
       </FormControl>
-      <FormControl sx={{m: 1, width: '16ch'}} size="small">
+      <FormControl sx={{m: 1, width: '14ch'}} size="small">
         <InputLabel id="select-filter-label">Filter</InputLabel>
         <Select
           labelId="select-filter-label"
