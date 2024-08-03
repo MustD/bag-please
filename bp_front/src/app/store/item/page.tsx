@@ -5,6 +5,9 @@ import {
   Button,
   Checkbox,
   Fab,
+  IconButton,
+  InputAdornment,
+  OutlinedInput,
   Paper,
   Table,
   TableBody,
@@ -23,6 +26,11 @@ import {List} from "immutable";
 import Typography from "@mui/material/Typography";
 import {v4 as uuid} from "uuid"
 import AddIcon from "@mui/icons-material/Add";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import {Clear} from "@mui/icons-material";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 
 
 /**
@@ -75,14 +83,66 @@ export default function ItemsPage() {
 
   const [itemToEdit, setItemToEdit] = useState<Item>();
   const [isNew, setIsNew] = useState(false);
+  const [filter, setFilter] = useState("all")
+  const [search, setSearch] = useState("")
 
-  const items = List(itemsData?.getItems || []).sortBy(item => item.name)
-  const categories = List(categoryData?.getCategories || [])
+
+  const items = List(itemsData?.getItems || []).sortBy(item => item.name
+  ).filter(item => {
+    if (filter === "all") {
+      return true
+    } else {
+      return item.category === filter
+    }
+  }).filter(item => {
+    if (search === "") {
+      return true
+    } else {
+      return item.name.toLowerCase().includes(search.toLowerCase())
+    }
+  })
+
+  const categories = List(categoryData?.getCategories || []).sortBy(category => category.name)
 
   return (
     <Box sx={{p: 1}}>
       {itemsLoading && <Typography>Loading...</Typography>}
       {itemsError && <Typography variant={"caption"} sx={{color: "error.main"}}>{itemsError.message}</Typography>}
+      <FormControl sx={{m: 1, width: 4 / 9}} size="small">
+        <InputLabel htmlFor="search-input">Search</InputLabel>
+        <OutlinedInput
+          id="search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          endAdornment={
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="clear search"
+                onClick={() => setSearch("")}
+                edge="end"
+              >
+                <Clear/>
+              </IconButton>
+            </InputAdornment>
+          }
+          label="Search"
+        />
+      </FormControl>
+      <FormControl sx={{m: 1, width: 4 / 9}} size="small">
+        <InputLabel id="select-filter-label">Filter</InputLabel>
+        <Select
+          labelId="select-filter-label"
+          id="filter-small"
+          value={filter}
+          label="Filter"
+          onChange={(e) => setFilter(e.target.value)}
+        >
+          <MenuItem value={"all"}>All</MenuItem>
+          {categories.map(category => (
+            <MenuItem value={category.id}>{category.name}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       <TableContainer component={Paper}>
         <Table aria-label="items table" size={"small"}>
           <TableHead>

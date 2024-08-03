@@ -6,6 +6,9 @@ import {
   Box,
   Button,
   Fab,
+  IconButton,
+  InputAdornment,
+  OutlinedInput,
   Paper,
   Table,
   TableBody,
@@ -20,6 +23,9 @@ import Typography from "@mui/material/Typography";
 import AddIcon from '@mui/icons-material/Add';
 import CreateCategory from "@/app/store/category/CreateCategory";
 import {CategoryUpdateType} from "@/__generated__/graphql";
+import InputLabel from "@mui/material/InputLabel";
+import {Clear} from "@mui/icons-material";
+import FormControl from "@mui/material/FormControl";
 
 
 export type Category = { id: string, name: string }
@@ -51,18 +57,45 @@ export default function ManageCategories() {
 
   const [catToEdit, setCatToEdit] = useState<Category>()
   const [isNew, setIsNew] = useState(false)
+  const [search, setSearch] = useState("")
 
-  const categories = List(data?.getCategories).sortBy(cat => cat.name)
+  const categories = List(data?.getCategories).sortBy(cat => cat.name
+  ).filter(category => {
+    if (search === "") {
+      return true
+    } else {
+      return category.name.toLowerCase().includes(search.toLowerCase())
+    }
+  })
 
   return (
     <Box sx={{p: 1}}>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
+      <FormControl sx={{m: 1, width: 19 / 20}} size="small">
+        <InputLabel htmlFor="search-input">Search</InputLabel>
+        <OutlinedInput
+          id="search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          endAdornment={
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="clear search"
+                onClick={() => setSearch("")}
+                edge="end"
+              >
+                <Clear/>
+              </IconButton>
+            </InputAdornment>
+          }
+          label="Search"
+        />
+      </FormControl>
       <TableContainer component={Paper}>
         <Table aria-label="Categories table" size="small">
           <TableHead>
             <TableRow>
-              <TableCell></TableCell>
               <TableCell>Category name</TableCell>
               <TableCell></TableCell>
             </TableRow>
