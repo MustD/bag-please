@@ -76,7 +76,7 @@ export default function ItemsList() {
     <Box>
       {loading && <Typography>Loading...</Typography>}
       {error && <Typography variant={"caption"} sx={{color: "error.main"}}>{error.message}</Typography>}
-      <FormControl sx={{m: 1, width: '14ch'}} size="small">
+      <FormControl sx={{m: 1, width: '13ch'}} size="small">
         <InputLabel htmlFor="search-input">Search</InputLabel>
         <OutlinedInput
           id="search-input"
