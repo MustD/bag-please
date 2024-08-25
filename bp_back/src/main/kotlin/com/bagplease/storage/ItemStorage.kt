@@ -21,7 +21,6 @@ object ItemStorage {
 
     suspend fun save(item: Item): Item {
         sync()
-        if (storage.size >= 100) throw IllegalStateException("Max items count reached")
         storage[item.id] = item
         repository.save(item)
         return item

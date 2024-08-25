@@ -21,7 +21,6 @@ object CategoryStorage {
 
     suspend fun save(category: Category): Category {
         sync()
-        if (storage.size >= 50) throw IllegalStateException("Max items count reached")
         storage[category.id] = category
         repository.save(category)
         return category
