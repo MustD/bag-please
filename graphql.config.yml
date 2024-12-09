@@ -1,7 +1,0 @@
-documents: '**/*.graphql'
-projects:
-  local:
-    schema:
-      - "http://0.0.0.0:2080/api/graphql":
-          headers:
-            Authorization: 'token here'
