@@ -24,6 +24,7 @@ fun App() {
             Button(onClick = { showContent = !showContent }) {
                 Text("Click me!")
             }
+            Text("hello world")
             AnimatedVisibility(showContent) {
                 val greeting = remember { Greeting().greet() }
                 Column(
