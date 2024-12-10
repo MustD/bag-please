@@ -1,16 +1,12 @@
 package com.bag_please
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import bag_please.composeapp.generated.resources.Res
-import bag_please.composeapp.generated.resources.compose_multiplatform
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.unit.dp
+import com.bag_please.item.Item
+import com.bag_please.items.item
 
 @Composable
 fun mainLayout() {
@@ -21,18 +17,17 @@ fun mainLayout() {
         topBar = { TopAppBar(title = { Text("Bag please") }) },
         bottomBar = { BottomAppBar { Text("Menu") } },
     ) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+        Surface {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 240.dp)
+            ) {
+                items(count = 10) { i ->
+                    item(
+                        Item(
+                            checked = false,
+                            name = "Item name $i"
+                        )
+                    )
                 }
             }
         }
