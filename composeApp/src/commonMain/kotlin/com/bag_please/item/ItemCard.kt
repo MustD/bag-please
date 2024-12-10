@@ -1,4 +1,4 @@
-package com.bag_please.items
+package com.bag_please.item
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Row
@@ -11,17 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.bag_please.item.Item
 
 @Composable
-fun item(data: Item) {
+fun itemCard(data: Item, onToggle: (Item) -> Unit) {
     Card(
         modifier = Modifier.padding(4.dp),
         elevation = 4.dp,
         border = BorderStroke(1.dp, MaterialTheme.colors.secondary)
     ) {
         Row {
-            Checkbox(checked = data.checked, onCheckedChange = {})
+            Checkbox(checked = data.checked, onCheckedChange = { onToggle(data) })
             Text(
                 modifier = Modifier.align(Alignment.CenterVertically),
                 text = data.name
