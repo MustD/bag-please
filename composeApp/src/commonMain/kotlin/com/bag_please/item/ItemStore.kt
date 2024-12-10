@@ -7,5 +7,6 @@ object ItemStore {
     private val _items = MutableStateFlow(emptyMap<ItemId, Item>())
     val items: StateFlow<Map<ItemId, Item>> = _items
 
+    fun findById(id: ItemId): Item? = _items.value[id]
     suspend fun save(item: Item): Unit = _items.emit(_items.value + (item.id to item))
 }

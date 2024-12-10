@@ -9,5 +9,8 @@ import kotlin.uuid.Uuid
 value class ItemId(val id: Uuid) {
     companion object {
         fun random() = ItemId(Uuid.random())
+        fun fromString(uuidString: String) = ItemId(Uuid.parse(uuidString))
     }
+
+    override fun toString() = id.toString()
 }
