@@ -12,9 +12,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun itemCard(data: Item, onToggle: (Item) -> Unit) {
-    Card(
-        modifier = Modifier.padding(4.dp),
-    ) {
+    Card(modifier = Modifier.padding(4.dp)) {
         Row {
             Checkbox(checked = data.checked, onCheckedChange = { onToggle(data) })
             Text(
