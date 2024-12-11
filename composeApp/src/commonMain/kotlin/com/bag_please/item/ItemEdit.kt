@@ -14,8 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bag_please.item.logic.ItemService.saveItem
+import com.bag_please.item.logic.ItemService.stateItemById
 import com.bag_please.layout.Style.padding1
-import kotlinx.coroutines.launch
 
 @Composable
 fun itemEdit(
@@ -25,11 +26,11 @@ fun itemEdit(
     val coroutineScope = rememberCoroutineScope()
 
     val itemState = remember {
-        mutableStateOf(ItemStore.findById(itemId) ?: Item(checked = false, name = ""))
+        mutableStateOf(coroutineScope.stateItemById(itemId).value)
     }
 
     val saveItem = { el: Item ->
-        coroutineScope.launch { ItemStore.save(el) }
+        coroutineScope.saveItem(el)
         onSave()
     }
 
@@ -37,8 +38,8 @@ fun itemEdit(
         Column {
             OutlinedTextField(
                 modifier = Modifier.padding1(),
-                value = itemState.value.name,
-                onValueChange = { newName -> itemState.value = itemState.value.copy(name = newName) }
+                value = itemState.value.title,
+                onValueChange = { newName -> itemState.value = itemState.value.copy(title = newName) }
             )
             Row {
                 Checkbox(

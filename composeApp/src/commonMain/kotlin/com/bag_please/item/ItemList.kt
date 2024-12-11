@@ -13,12 +13,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.bag_please.item.components.itemCard
+import com.bag_please.item.logic.ItemService
 
 @Composable
 fun itemList(
     onEdit: (ItemId) -> Unit = {},
 ) {
-    val itemsState = ItemStore.items.collectAsState()
+    val itemsState = ItemService.stateFlow().collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
