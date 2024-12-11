@@ -11,7 +11,7 @@ import kotlinx.rpc.krpc.ktor.server.rpc
 import kotlinx.rpc.krpc.serialization.json.json
 
 fun main() {
-    embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module).start(wait = true)
+    embeddedServer(Netty, port = SERVER_PORT, host = "127.0.0.1", module = Application::module).start(wait = true)
 }
 
 fun Application.module() {
