@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.0.21"
 
-agp = "8.5.2"
+agp = "8.5.2"                           # https://mvnrepository.com/artifact/com.android.application/com.android.application.gradle.plugin
 android-compileSdk = "34"
 android-minSdk = "24"
 android-targetSdk = "34"

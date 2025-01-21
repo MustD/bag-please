@@ -16,4 +16,6 @@ interface UserService : RemoteService {
     suspend fun hello(user: String, userData: UserData): String
 
     suspend fun subscribeToNews(): Flow<String>
+
+    suspend fun duplicate(input: Flow<Int>): Flow<Int>
 }

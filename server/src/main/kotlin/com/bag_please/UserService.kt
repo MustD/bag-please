@@ -5,6 +5,7 @@ import com.bag_please.rpc.UserService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlin.coroutines.CoroutineContext
 
 class UserServiceImpl(override val coroutineContext: CoroutineContext) : UserService {
@@ -13,11 +14,16 @@ class UserServiceImpl(override val coroutineContext: CoroutineContext) : UserSer
     }
 
     override suspend fun subscribeToNews(): Flow<String> {
+
         return flow {
             repeat(10) {
                 delay(300)
                 emit("Article number $it")
             }
         }
+    }
+
+    override suspend fun duplicate(input: Flow<Int>): Flow<Int> {
+        return input.map { it * 2 }
     }
 }
