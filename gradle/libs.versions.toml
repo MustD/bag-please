@@ -1,11 +1,11 @@
 [versions]
-kotlin = "2.0.21"
+kotlin = "2.1.0"
 
 agp = "8.5.2"                           # https://mvnrepository.com/artifact/com.android.application/com.android.application.gradle.plugin
 android-compileSdk = "34"
 android-minSdk = "24"
 android-targetSdk = "34"
-androidx-activityCompose = "1.9.3"
+androidx-activityCompose = "1.10.0"
 androidx-appcompat = "1.7.0"
 androidx-constraintlayout = "2.2.0"
 androidx-core-ktx = "1.15.0"
@@ -17,12 +17,12 @@ androidx-navigation = "2.8.0-alpha10"
 compose-multiplatform = "1.7.0"
 
 junit = "4.13.2"
-coroutines = "1.9.0"
-ktor = "3.0.1"
+coroutines = "1.10.1"
+ktor = "3.0.3"
 logback = "1.5.11"
 
-serialization = "1.7.3"
-kotlinx-rpc = "0.4.0"
+serialization = "1.8.0"
+kotlinx-rpc = "0.5.0"
 
 
 [libraries]

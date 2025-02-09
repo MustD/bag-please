@@ -8,15 +8,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.bag_please.layout.Style.padding1
-import com.bag_please.rpc.UserData
-import com.bag_please.rpc.UserService
+import com.bag_please.rpc.AuthRequest
+import com.bag_please.rpc.AuthService
 import io.ktor.client.*
 import io.ktor.http.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.rpc.krpc.ktor.client.installRPC
+import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
@@ -27,13 +24,13 @@ expect val DEV_SERVER_HOST: String
 
 val client by lazy {
     HttpClient {
-        installRPC()
+        installKrpc()
     }
 }
 
 @Composable
 fun home() {
-    var serviceOrNull: UserService? by remember { mutableStateOf(null) }
+    var serviceOrNull: AuthService? by remember { mutableStateOf(null) }
 
     LaunchedEffect(Unit) {
         serviceOrNull = client.rpc {
@@ -56,35 +53,20 @@ fun home() {
     if (service != null) {
         var greeting by remember { mutableStateOf<String?>(null) }
         val news = remember { mutableStateListOf<String>() }
-        var counter by remember { mutableStateOf(0) }
-        var input by remember { mutableStateOf(0) }
+        var counter by remember { mutableStateOf("") }
+        var input by remember { mutableStateOf("") }
         val output = MutableSharedFlow<Int>()
 
         LaunchedEffect(service) {
-            greeting = service.hello(
-                "User from ${getPlatform().name} platform",
-                UserData("Berlin", "Smith")
-            )
+            greeting = service.authenticate(
+                AuthRequest("anonymous", "none")
+            ).message
         }
 
         LaunchedEffect(service) {
             streamScoped {
                 service.subscribeToNews().collect { article ->
                     news.add(article)
-                }
-            }
-        }
-
-        LaunchedEffect(service) {
-            val flow = flow {
-                delay(5000)
-                emit(1)
-                delay(1000)
-                emit(2)
-            }
-            streamScoped {
-                service.duplicate(emptyFlow()).collect { result ->
-                    counter = result
                 }
             }
         }
@@ -98,8 +80,8 @@ fun home() {
 
             OutlinedTextField(
                 modifier = Modifier.padding1(),
-                value = if (input == 0) "" else input.toString(),
-                onValueChange = { newVal -> input = newVal.toIntOrNull() ?: 0 }
+                value = input,
+                onValueChange = { newVal -> input = newVal }
             )
             Text("Counter: $counter")
 

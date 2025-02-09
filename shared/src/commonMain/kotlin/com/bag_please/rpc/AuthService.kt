@@ -6,16 +6,19 @@ import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class UserData(
-    val address: String,
-    val lastName: String,
+data class AuthRequest(
+    val user: String,
+    val pass: String,
+)
+
+@Serializable
+data class AuthResponse(
+    val message: String
 )
 
 @Rpc
-interface UserService : RemoteService {
-    suspend fun hello(user: String, userData: UserData): String
+interface AuthService : RemoteService {
+    suspend fun authenticate(req: AuthRequest): AuthResponse
 
     suspend fun subscribeToNews(): Flow<String>
-
-    suspend fun duplicate(input: Flow<Int>): Flow<Int>
 }
