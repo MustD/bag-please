@@ -23,7 +23,7 @@ object ItemService {
         }
     }
 
-    fun stateFlow(): StateFlow<Map<ItemId, Item>> = repository.items
+    fun stateFlow() = repository.items
 
     private fun createDefaultItem(
         id: ItemId = ItemId.random(),

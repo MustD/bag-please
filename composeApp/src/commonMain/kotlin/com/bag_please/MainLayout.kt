@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.bag_please.auth.auth
 import com.bag_please.item.ItemId
 import com.bag_please.item.itemEdit
 import com.bag_please.item.itemList
@@ -36,6 +37,11 @@ fun mainLayout() {
                             home()
                         }
 
+                        BagPleaseRoutes.Auth -> composable(route = route.name) {
+                            Text(text = "${route.title} page", modifier = Modifier.padding(4.dp))
+                            auth()
+                        }
+
                         BagPleaseRoutes.ItemList -> composable(route = route.name) {
                             itemList(
                                 onEdit = { itemId ->
@@ -55,6 +61,7 @@ fun mainLayout() {
                                 onSave = { navController.navigate(BagPleaseRoutes.ItemList.name) }
                             )
                         }
+
                     }
                 }
             }

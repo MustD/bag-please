@@ -1,9 +1,0 @@
-package com.bag_please
-
-class Greeting {
-    private val platform = getPlatform()
-
-    fun greet(): String {
-        return "Hello, ${platform.name}!"
-    }
-}
