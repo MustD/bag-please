@@ -33,6 +33,7 @@ fun mainLayout() {
                     when (route) {
                         BagPleaseRoutes.Home -> composable(route = route.name) {
                             Text(text = "${route.title} page", modifier = Modifier.padding(4.dp))
+                            home()
                         }
 
                         BagPleaseRoutes.ItemList -> composable(route = route.name) {
