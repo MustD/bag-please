@@ -23,10 +23,13 @@ dependencies {
     implementation(libs.ktor.server.cors.jvm)
     implementation(libs.ktor.server.websockets.jvm)
     implementation(libs.ktor.server.host.common.jvm)
+    implementation(libs.ktor.server.auth)
+    implementation(libs.ktor.server.auth.jwt)
 
     implementation(libs.kotlinx.rpc.krpc.server)
     implementation(libs.kotlinx.rpc.krpc.serialization.json)
     implementation(libs.kotlinx.rpc.krpc.ktor.server)
+    implementation(libs.kotlinx.datetime)
 
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlinx.rpc.krpc.client)

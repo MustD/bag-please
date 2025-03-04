@@ -6,18 +6,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bag_please.auth.logic.AuthService
 import kotlinx.rpc.krpc.streamScoped
 
 
 @Composable
 fun home() {
     val connection = Backend.service.collectAsState()
+    val authState = AuthService.stateFlow().collectAsState()
 
     val news = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(connection.value) {
         streamScoped {
-            connection.value?.subscribeToNews()?.collect { article ->
+            connection.value?.subscribeToNews(authState.value.message)?.collect { article ->
                 news.add(article)
             }
         }

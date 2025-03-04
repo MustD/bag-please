@@ -20,5 +20,5 @@ data class AuthResponse(
 interface AuthService : RemoteService {
     suspend fun authenticate(req: AuthRequest): AuthResponse
 
-    suspend fun subscribeToNews(): Flow<String>
+    suspend fun subscribeToNews(token: String = ""): Flow<String>
 }
