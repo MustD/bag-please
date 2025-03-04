@@ -12,7 +12,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.bag_please.Backend
 import com.bag_please.auth.logic.AuthService
 import com.bag_please.layout.Style.padding1
-import com.bag_please.rpc.AuthRequest
+import com.bag_please.rpc.api.AuthRequest
 import kotlinx.coroutines.launch
 
 @Composable
@@ -34,7 +34,7 @@ fun auth() {
     }
 
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(authState.value.message)
+        Text(authState.value.user.toString())
 
         OutlinedTextField(
             label = { Text("User") },

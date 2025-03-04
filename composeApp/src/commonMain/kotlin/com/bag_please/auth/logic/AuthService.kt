@@ -1,6 +1,6 @@
 package com.bag_please.auth.logic
 
-import com.bag_please.rpc.AuthResponse
+import com.bag_please.rpc.api.AuthResponse
 
 object AuthService {
     private val repository = AuthRepository

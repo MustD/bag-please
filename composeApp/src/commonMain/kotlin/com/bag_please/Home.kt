@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.bag_please.auth.logic.AuthService
+import com.bag_please.rpc.api.AuthHolder
 import kotlinx.rpc.krpc.streamScoped
 
 
@@ -19,7 +20,7 @@ fun home() {
 
     LaunchedEffect(connection.value) {
         streamScoped {
-            connection.value?.subscribeToNews(authState.value.message)?.collect { article ->
+            connection.value?.subscribeToNews(AuthHolder(authState.value.token))?.collect { article ->
                 news.add(article)
             }
         }

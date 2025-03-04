@@ -6,7 +6,7 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 @JvmInline
-value class ItemId(val id: Uuid) {
+value class ItemId(private val id: Uuid) {
     companion object {
         fun random() = ItemId(Uuid.random())
         fun fromString(uuidString: String) = ItemId(Uuid.parse(uuidString))
