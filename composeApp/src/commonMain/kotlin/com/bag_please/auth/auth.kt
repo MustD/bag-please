@@ -25,6 +25,7 @@ fun auth() {
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
 
+    //todo: think about to extract this into service
     val authenticate = {
         scope.launch {
             connection.value?.authenticate(AuthRequest(user, pass))?.let {

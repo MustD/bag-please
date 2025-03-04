@@ -1,6 +1,7 @@
 package com.bag_please.item.logic
 
 import com.bag_please.AppEventBus
+import com.bag_please.auth.logic.AuthService
 import com.bag_please.item.Item
 import com.bag_please.item.ItemId
 import com.bag_please.item.logic.events.SaveItem
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 object ItemService {
     private val eventBus = AppEventBus
     private val repository = ItemRepository
+    private val getCurrentUserId = { AuthService.stateFlow().value.user.id }
 
     fun CoroutineScope.startItemEventHandler() = launch {
         AppEventBus.events.collect { event ->
@@ -25,14 +27,9 @@ object ItemService {
 
     fun stateFlow() = repository.items
 
-    private fun createDefaultItem(
-        id: ItemId = ItemId.random(),
-        checked: Boolean = false,
-        title: String = "",
-    ) = Item(id, checked, title)
 
     fun CoroutineScope.stateItemById(id: ItemId): StateFlow<Item> {
-        val initial = repository.items.value[id] ?: createDefaultItem(id)
+        val initial = repository.items.value[id] ?: Item(id, owner = getCurrentUserId())
         return repository.items.mapNotNull { items ->
             items[id]
         }.stateIn(scope = this, started = SharingStarted.Lazily, initialValue = initial)

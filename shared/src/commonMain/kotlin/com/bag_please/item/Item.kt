@@ -1,9 +1,12 @@
 package com.bag_please.item
 
+import com.bag_please.user.UserId
+
 data class Item(
     val id: ItemId = ItemId.random(),
-    val checked: Boolean,
-    val title: String,
+    val owner: UserId = UserId.empty(),
+    val checked: Boolean = false,
+    val title: String = "",
 )
 
 

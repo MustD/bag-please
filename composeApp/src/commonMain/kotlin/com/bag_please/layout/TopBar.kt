@@ -5,15 +5,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import com.bag_please.auth.logic.AuthService
 import com.bag_please.layout.Style.padding1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun topBar(navigation: NavHostController) {
+    val authState = AuthService.stateFlow().collectAsState()
+    val username = authState.value.user.username.ifBlank { "Guest" }
+
     TopAppBar(
-        title = { Text("Bag please") },
+        title = { Text("Bag please, welcome $username") },
         actions = {
             BagPleaseRoutes.entries.filter {
                 when (it) {
