@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.1.0"
+kotlin = "2.1.10"
 
 agp = "8.5.2"                           # https://mvnrepository.com/artifact/com.android.application/com.android.application.gradle.plugin
 android-compileSdk = "34"
@@ -18,11 +18,11 @@ compose-multiplatform = "1.7.0"
 
 junit = "4.13.2"
 coroutines = "1.10.1"
-ktor = "3.0.3"
+ktor = "3.1.0"
 logback = "1.5.11"
 
 serialization = "1.8.0"
-kotlinx-rpc = "0.5.0"
+kotlinx-rpc = "0.5.1"
 
 
 [libraries]
