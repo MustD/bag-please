@@ -24,7 +24,7 @@ export default function Navigation() {
   return (
     <Box sx={{p: 1}}>
       <Grid container spacing={1}>
-        <Grid item>
+        <Grid>
           <IconButton
             onClick={onOpen}
             size="small"

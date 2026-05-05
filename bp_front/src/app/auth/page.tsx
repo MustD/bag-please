@@ -1,7 +1,7 @@
 'use client'
 
 import React from "react";
-import {Box, Grid, IconButton, TextField, Typography} from "@mui/material";
+import {Box, IconButton, Stack, TextField, Typography} from "@mui/material";
 import LoginIcon from "@mui/icons-material/Login";
 import {useRouter} from "next/navigation";
 
@@ -65,35 +65,31 @@ export default function LoginPage() {
 
   return (
     <Box component="form" noValidate onSubmit={handleLogin}>
-      <Grid container spacing={1} direction="column" justifyContent="flex-start" alignItems="center">
-        <Grid item><Typography>Login</Typography></Grid>
-        <Grid item>
-          <TextField
-            id="user"
-            name="user"
-            label="User"
-            variant="standard"
-            error={formValues.usernameValidationError != ""}
-            helperText={formValues.usernameValidationError}
-            value={formValues.username}
-            onChange={(event) => changeForm(event.target.value, formValues.password)}
-          />
-        </Grid>
-        <Grid item>
-          <TextField
-            id="password"
-            name="password"
-            label="Password"
-            variant="standard"
-            type="password"
-            error={formValues.passwordValidationError != ""}
-            helperText={formValues.passwordValidationError}
-            value={formValues.password}
-            onChange={(event) => changeForm(formValues.username, event.target.value)}
-          />
-        </Grid>
-        <Grid item><IconButton type={"submit"} aria-label="login"> <LoginIcon/> </IconButton></Grid>
-      </Grid>
+      <Stack spacing={1} sx={{justifyContent: "flex-start", alignItems: "center"}}>
+        <Typography>Login</Typography>
+        <TextField
+          id="user"
+          name="user"
+          label="User"
+          variant="standard"
+          error={formValues.usernameValidationError != ""}
+          helperText={formValues.usernameValidationError}
+          value={formValues.username}
+          onChange={(event) => changeForm(event.target.value, formValues.password)}
+        />
+        <TextField
+          id="password"
+          name="password"
+          label="Password"
+          variant="standard"
+          type="password"
+          error={formValues.passwordValidationError != ""}
+          helperText={formValues.passwordValidationError}
+          value={formValues.password}
+          onChange={(event) => changeForm(formValues.username, event.target.value)}
+        />
+        <IconButton type={"submit"} aria-label="login"> <LoginIcon/> </IconButton>
+      </Stack>
     </Box>
   )
 }

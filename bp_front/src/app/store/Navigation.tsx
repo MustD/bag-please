@@ -23,8 +23,8 @@ export default function Navigation() {
   return (
     <Box sx={{p: 1}}>
       <Grid container spacing={1}>
-        <Grid item sx={{flexGrow: 1}}></Grid>
-        <Grid item>
+        <Grid sx={{flexGrow: 1}}></Grid>
+        <Grid>
           <IconButton
             onClick={onOpen}
             size="small"

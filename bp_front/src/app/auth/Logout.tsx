@@ -31,16 +31,16 @@ export default function Logout() {
 
   return activeUser === "" ? (
     <Box component="form" noValidate onSubmit={handleLogin}>
-      <Grid container spacing={1} direction="row" justifyContent="flex-end" alignItems="center">
-        <Grid item><Button type={"submit"}>Login</Button></Grid>
-        <Grid item><IconButton type={"submit"} aria-label="logout"> <LoginIcon/> </IconButton></Grid>
+      <Grid container spacing={1} direction="row" sx={{justifyContent: "flex-end", alignItems: "center"}}>
+        <Grid><Button type={"submit"}>Login</Button></Grid>
+        <Grid><IconButton type={"submit"} aria-label="logout"> <LoginIcon/> </IconButton></Grid>
       </Grid>
     </Box>
   ) : (
     <Box component="form" noValidate onSubmit={handleLogout}>
-      <Grid container spacing={1} direction="row" justifyContent="flex-end" alignItems="center">
-        <Grid item><Typography>{activeUser}</Typography></Grid>
-        <Grid item><IconButton type={"submit"} aria-label="logout"> <LogoutIcon/> </IconButton></Grid>
+      <Grid container spacing={1} direction="row" sx={{justifyContent: "flex-end", alignItems: "center"}}>
+        <Grid><Typography>{activeUser}</Typography></Grid>
+        <Grid><IconButton type={"submit"} aria-label="logout"> <LogoutIcon/> </IconButton></Grid>
       </Grid>
     </Box>
   )

@@ -1,5 +1,5 @@
 "use client"
-import {ButtonGroup, Dialog, Grid, Paper, TextField} from "@mui/material";
+import {ButtonGroup, Dialog, Grid, Paper, Stack, TextField} from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {useMutation} from "@apollo/client";
 import {createCategoryMutation, deleteCategoryMutation} from "@/lib/category/Queries";
@@ -43,8 +43,8 @@ export default function CreateCategory(props: CreateDialogProps) {
   return (
     <Dialog onClose={onClose} open={isOpen}>
       <Paper sx={{p: 3}}>
-        <Grid container direction={"column"} gap={2}>
-          <Grid item>
+        <Stack spacing={2}>
+          <Grid>
             <TextField
               id="category_name"
               name="category_name"
@@ -54,7 +54,7 @@ export default function CreateCategory(props: CreateDialogProps) {
               onChange={(event) => setNewCatName(event.target.value)}
             />
           </Grid>
-          <Grid item>
+          <Grid>
             <ButtonGroup variant="text" fullWidth={true}>
               <LoadingButton
                 color="success"
@@ -84,7 +84,7 @@ export default function CreateCategory(props: CreateDialogProps) {
               }
             </ButtonGroup>
           </Grid>
-        </Grid>
+        </Stack>
       </Paper>
     </Dialog>
   )
