@@ -1,24 +1,24 @@
-import {gql} from "@/__generated__";
+import {graphql} from "@/__generated__";
 
-export const getItemsQuery = gql(`query getItems {
+export const getItemsQuery = graphql(`query getItems {
     getItems {
         id, name, checked, category
     }
 }`);
 
-export const createItemMutation = gql(`mutation saveItem($item: ItemInput!) {
+export const createItemMutation = graphql(`mutation saveItem($item: ItemInput!) {
     saveItem(item: $item){
         id, name, checked, category
     }
 }`);
 
-export const deleteItemMutation = gql(`mutation delete($id: ID!) {
+export const deleteItemMutation = graphql(`mutation delete($id: ID!) {
     deleteItem(id: $id){
         id, name, checked, category
     }
 }`);
 
-export const itemsSubscription = gql(`subscription ItemUpdates {
+export const itemsSubscription = graphql(`subscription ItemUpdates {
     getItemUpdates {
         type
         item {

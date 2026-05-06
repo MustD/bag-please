@@ -1,6 +1,6 @@
 'use client'
-import {Grid, IconButton, InputAdornment, OutlinedInput} from "@mui/material";
-import {useQuery} from "@apollo/client";
+import {IconButton, InputAdornment, OutlinedInput, Stack} from "@mui/material";
+import {useQuery} from "@apollo/client/react";
 import {getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
 import React, {useEffect, useState} from "react";
 import Box from '@mui/material/Box';
@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 import {getCategoriesQuery} from "@/lib/category/Queries";
 import {List} from "immutable";
 import ItemView from "@/app/store/ItemView";
-import {ItemUpdateType} from "@/__generated__/graphql";
+import {GetItemsQuery} from "@/__generated__/graphql";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
@@ -35,14 +35,14 @@ export default function ItemsList() {
     itemSubscription({
       document: itemsSubscription,
       updateQuery: (prev, {subscriptionData}) => {
-        if (!subscriptionData.data) return prev;
-        const data = prev.getItems
+        if (!subscriptionData.data) return prev as GetItemsQuery;
+        const data = prev.getItems ?? []
         const update = subscriptionData.data.getItemUpdates
         const updatedData = data.filter((item) => item.id !== update.item.id)
-        if (update.type == ItemUpdateType.Deleted) {
-          return Object.assign({}, prev, {getItems: updatedData})
+        if (update.type === 'DELETED') {
+          return {...prev, getItems: updatedData} as GetItemsQuery
         } else {
-          return Object.assign({}, prev, {getItems: [update.item, ...updatedData]})
+          return {...prev, getItems: [update.item, ...updatedData]} as GetItemsQuery
         }
       }
     })
@@ -110,20 +110,20 @@ export default function ItemsList() {
           <MenuItem value={"n"}>Unchecked</MenuItem>
         </Select>
       </FormControl>
-      <Grid container gap={2} direction={"column"}>
+      <Stack direction="column" spacing={2}>
         {categories.map(category => (
-          <Grid item key={category.id}>
+          <Box key={category.id}>
             <Typography variant={"h6"}>{category.name}</Typography>
-            <Grid container direction={"column"} gap={1}>
+            <Stack direction="column" spacing={1}>
               {items.filter(item => item.category === category.id).map(item => (
-                <Grid sx={{paddingLeft: 2}} item key={item.id}>
+                <Box sx={{paddingLeft: 2}} key={item.id}>
                   <ItemView id={item.id} name={item.name} checked={item.checked} category={item.category}></ItemView>
-                </Grid>
+                </Box>
               ))}
-            </Grid>
-          </Grid>
+            </Stack>
+          </Box>
         ))}
-      </Grid>
+      </Stack>
     </Box>
   );
 }

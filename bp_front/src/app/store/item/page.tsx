@@ -17,11 +17,11 @@ import {
   TableRow
 } from "@mui/material";
 import CreateItem from "@/app/store/item/CreateItem";
-import {useMutation, useQuery} from "@apollo/client";
+import {useMutation, useQuery} from "@apollo/client/react";
 import {getCategoriesQuery} from "@/lib/category/Queries";
 import React, {useEffect, useState} from "react";
 import {createItemMutation, getItemsQuery, itemsSubscription} from "@/lib/item/Queries";
-import {ItemUpdateType} from "@/__generated__/graphql";
+import {GetItemsQuery} from "@/__generated__/graphql";
 import {List} from "immutable";
 import Typography from "@mui/material/Typography";
 import {v4 as uuid} from "uuid"
@@ -53,14 +53,14 @@ export default function ItemsPage() {
     itemSubscription({
       document: itemsSubscription,
       updateQuery: (prev, {subscriptionData}) => {
-        if (!subscriptionData.data) return prev;
-        const data = prev.getItems
+        if (!subscriptionData.data) return prev as GetItemsQuery;
+        const data = prev.getItems ?? []
         const update = subscriptionData.data.getItemUpdates
         const updatedData = data.filter((item) => item.id !== update.item.id)
-        if (update.type == ItemUpdateType.Deleted) {
-          return Object.assign({}, prev, {getItems: updatedData})
+        if (update.type === 'DELETED') {
+          return {...prev, getItems: updatedData} as GetItemsQuery
         } else {
-          return Object.assign({}, prev, {getItems: [update.item, ...updatedData]})
+          return {...prev, getItems: [update.item, ...updatedData]} as GetItemsQuery
         }
       }
     })

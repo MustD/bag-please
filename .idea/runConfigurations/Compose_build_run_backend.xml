@@ -3,11 +3,17 @@
     <deployment type="docker-compose.yml">
       <settings>
         <option name="envFilePath" value="" />
+        <option name="envFilePaths">
+          <list>
+            <option value="" />
+          </list>
+        </option>
         <option name="commandLineOptions" value="--build" />
         <option name="services">
           <list>
             <option value="bp_back" />
             <option value="router" />
+            <option value="mongo" />
           </list>
         </option>
         <option name="sourceFilePath" value="docker-compose.yaml" />

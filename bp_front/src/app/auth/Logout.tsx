@@ -1,7 +1,7 @@
 "use client"
 
 import React, {useEffect} from "react";
-import {Box, Button, Grid, IconButton, Typography} from "@mui/material";
+import {Box, Button, IconButton, Stack, Typography} from "@mui/material";
 import {usePathname, useRouter} from "next/navigation";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LoginIcon from "@mui/icons-material/Login";
@@ -31,17 +31,17 @@ export default function Logout() {
 
   return activeUser === "" ? (
     <Box component="form" noValidate onSubmit={handleLogin}>
-      <Grid container spacing={1} direction="row" sx={{justifyContent: "flex-end", alignItems: "center"}}>
-        <Grid><Button type={"submit"}>Login</Button></Grid>
-        <Grid><IconButton type={"submit"} aria-label="logout"> <LoginIcon/> </IconButton></Grid>
-      </Grid>
+      <Stack direction="row" spacing={1} sx={{justifyContent: "flex-end", alignItems: "center"}}>
+        <Button type={"submit"}>Login</Button>
+        <IconButton type={"submit"} aria-label="logout"> <LoginIcon/> </IconButton>
+      </Stack>
     </Box>
   ) : (
     <Box component="form" noValidate onSubmit={handleLogout}>
-      <Grid container spacing={1} direction="row" sx={{justifyContent: "flex-end", alignItems: "center"}}>
-        <Grid><Typography>{activeUser}</Typography></Grid>
-        <Grid><IconButton type={"submit"} aria-label="logout"> <LogoutIcon/> </IconButton></Grid>
-      </Grid>
+      <Stack direction="row" spacing={1} sx={{justifyContent: "flex-end", alignItems: "center"}}>
+        <Typography>{activeUser}</Typography>
+        <IconButton type={"submit"} aria-label="logout"> <LogoutIcon/> </IconButton>
+      </Stack>
     </Box>
   )
 }

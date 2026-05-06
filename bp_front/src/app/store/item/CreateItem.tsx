@@ -1,10 +1,9 @@
 'use client'
-import {ButtonGroup, Dialog, Grid, Paper, TextField} from "@mui/material";
-import {useMutation} from "@apollo/client";
+import {Button, ButtonGroup, Dialog, Paper, Stack, TextField} from "@mui/material";
+import {useMutation} from "@apollo/client/react";
 import {createItemMutation, deleteItemMutation} from "@/lib/item/Queries";
 import React, {useEffect, useState} from "react";
 import SaveIcon from '@mui/icons-material/Save';
-import LoadingButton from '@mui/lab/LoadingButton';
 import SelectCategory from "@/app/store/category/SelectCategory";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -50,23 +49,18 @@ export default function CreateItem(props: CreateDialogProps) {
   return (
     <Dialog onClose={onClose} open={isOpen}>
       <Paper sx={{p: 3}}>
-        <Grid container direction={"column"} gap={2}>
-          <Grid item>
-            <TextField
-              id="item_name"
-              name="item_name"
-              label="Item name"
-              variant="standard"
-              value={newItemName}
-              onChange={(event) => setNewItemName(event.target.value)}
-            />
-          </Grid>
-          <Grid item>
-            <SelectCategory selectedId={newItemCat} setSelectedId={setNewItemCat}/>
-          </Grid>
-          <Grid item>
-            <ButtonGroup variant="text" fullWidth={true}>
-              <LoadingButton
+        <Stack direction="column" spacing={2}>
+          <TextField
+            id="item_name"
+            name="item_name"
+            label="Item name"
+            variant="standard"
+            value={newItemName}
+            onChange={(event) => setNewItemName(event.target.value)}
+          />
+          <SelectCategory selectedId={newItemCat} setSelectedId={setNewItemCat}/>
+          <ButtonGroup variant="text" fullWidth={true}>
+            <Button
                 color="success"
                 onClick={() => {
                   saveItemAction(newItemName, newItemCat, itemId)
@@ -77,9 +71,9 @@ export default function CreateItem(props: CreateDialogProps) {
                 variant="text"
               >
                 <span>Save</span>
-              </LoadingButton>
+            </Button>
               {isNew ? null :
-                <LoadingButton
+                <Button
                   color="error"
                   onClick={() => {
                     deleteItemAction(itemId)
@@ -89,11 +83,10 @@ export default function CreateItem(props: CreateDialogProps) {
                   startIcon={<DeleteIcon/>}
                   variant="text"
                 ><span>Delete</span>
-                </LoadingButton>
+                </Button>
               }
             </ButtonGroup>
-          </Grid>
-        </Grid>
+        </Stack>
       </Paper>
     </Dialog>
   )

@@ -15,6 +15,7 @@ class ApplicationTest : FunSpec({
 
         testApplication {
             setUpMongo(container)
+            setUpJwt()
             application { }
 
             client.get("/").apply {

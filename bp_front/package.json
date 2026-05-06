@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "generate": "graphql-codegen --config codegen.yml"
+    "generate": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
     "@apollo/client": "4.1.9",
@@ -20,7 +20,7 @@
     "@mui/lab": "9.0.0-beta.2",
     "@mui/material": "9.0.0",
     "@mui/material-nextjs": "9.0.0",
-    "graphql": "16.13.2",
+    "graphql": "16.14.0",
     "graphql-ws": "6.0.8",
     "immutable": "5.1.5",
     "next": "16.2.4",
@@ -39,7 +39,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/uuid": "11.0.0",
-    "eslint": "10.3.0",
+    "eslint": "9.39.4",
     "eslint-config-next": "16.2.4",
     "string-width": "8.2.1",
     "typescript": "6.0.3"

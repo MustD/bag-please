@@ -1,6 +1,6 @@
 'use client'
 import {Checkbox, FormControlLabel, FormGroup} from "@mui/material";
-import {useMutation} from "@apollo/client";
+import {useMutation} from "@apollo/client/react";
 import {createItemMutation} from "@/lib/item/Queries";
 import React from "react";
 

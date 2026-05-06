@@ -1,10 +1,9 @@
 "use client"
-import {ButtonGroup, Dialog, Grid, Paper, Stack, TextField} from "@mui/material";
+import {Button, ButtonGroup, Dialog, Paper, Stack, TextField} from "@mui/material";
 import React, {useEffect, useState} from "react";
-import {useMutation} from "@apollo/client";
+import {useMutation} from "@apollo/client/react";
 import {createCategoryMutation, deleteCategoryMutation} from "@/lib/category/Queries";
 import SaveIcon from "@mui/icons-material/Save";
-import LoadingButton from "@mui/lab/LoadingButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 
 export type Category = { id: string, name: string }
@@ -44,19 +43,16 @@ export default function CreateCategory(props: CreateDialogProps) {
     <Dialog onClose={onClose} open={isOpen}>
       <Paper sx={{p: 3}}>
         <Stack spacing={2}>
-          <Grid>
-            <TextField
-              id="category_name"
-              name="category_name"
-              label="Category name"
-              variant="standard"
-              value={newCatName}
-              onChange={(event) => setNewCatName(event.target.value)}
-            />
-          </Grid>
-          <Grid>
-            <ButtonGroup variant="text" fullWidth={true}>
-              <LoadingButton
+          <TextField
+            id="category_name"
+            name="category_name"
+            label="Category name"
+            variant="standard"
+            value={newCatName}
+            onChange={(event) => setNewCatName(event.target.value)}
+          />
+          <ButtonGroup variant="text" fullWidth={true}>
+            <Button
                 color="success"
                 onClick={() => {
                   saveCategoryAction(catId, newCatName)
@@ -67,9 +63,9 @@ export default function CreateCategory(props: CreateDialogProps) {
                 variant="text"
               >
                 <span>Save</span>
-              </LoadingButton>
+            </Button>
               {isNew ? null :
-                <LoadingButton
+                <Button
                   color="error"
                   onClick={() => {
                     deleteCategoryAction(catId)
@@ -80,10 +76,9 @@ export default function CreateCategory(props: CreateDialogProps) {
                   variant="text"
                 >
                   <span>Delete</span>
-                </LoadingButton>
+                </Button>
               }
             </ButtonGroup>
-          </Grid>
         </Stack>
       </Paper>
     </Dialog>
