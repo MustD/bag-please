@@ -35,7 +35,6 @@ dependencies {
     implementation(libs.ktor.serialization.jackson)
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.websockets)
-    implementation(libs.ktor.server.config.yaml)
     implementation(libs.graphql.kotlin.ktor.server)
     implementation(libs.logback.classic)
 
@@ -47,6 +46,8 @@ dependencies {
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotest.assertions.ktor)
+    testImplementation(libs.testcontainers.mongodb)
+    testImplementation(libs.kotest.testcontainers)
 }
 
 tasks.withType<Test>().configureEach {
