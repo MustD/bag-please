@@ -1,13 +1,13 @@
-package com.bagplease.gql.model
+package com.bagplease.entity.item.gql
 
-import com.bagplease.storage.Item
+import com.bagplease.entity.item.Item
 import com.expediagroup.graphql.generator.scalars.ID
 import java.util.*
 
 object GqlItemMapper {
 
     /**
-     * Maps an [Item] object to a [GqlItem] object.
+     * Maps an [com.bagplease.entity.item.Item] object to a [GqlItem] object.
      *
      * @param item The item to be mapped.
      * @return The mapped [GqlItem] object.

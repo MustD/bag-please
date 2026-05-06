@@ -6,13 +6,18 @@ import io.kotest.extensions.testcontainers.TestContainerProjectExtension
 import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.config.mergeWith
 import io.ktor.server.testing.ApplicationTestBuilder
-import org.testcontainers.containers.MongoDBContainer
+import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.mongodb.MongoDBContainer
 
-fun FunSpec.mongoContainer() = install(
+fun FunSpec.mongoContainer(): MongoDBContainer = install(
     TestContainerProjectExtension(
         MongoDBContainer("mongo:8")
     )
-)
+) {
+    withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
+    withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
+    waitingFor(Wait.forListeningPort())
+}
 
 fun ApplicationTestBuilder.setUpMongo(container: MongoDBContainer) = environment {
     config = config.mergeWith(
@@ -20,8 +25,8 @@ fun ApplicationTestBuilder.setUpMongo(container: MongoDBContainer) = environment
             "db.mongo.host" to "localhost",
             "db.mongo.port" to container.firstMappedPort.toString(),
             "db.mongo.db_name" to "test",
-            "db.mongo.user" to "",
-            "db.mongo.pass" to "",
+            "db.mongo.user" to "test_user",
+            "db.mongo.pass" to "test_pass",
         )
     )
 }

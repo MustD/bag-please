@@ -1,6 +1,6 @@
-package com.bagplease.storage
+package com.bagplease.entity.category
 
-import java.util.*
+import java.util.UUID
 
 data class Category(
     val id: UUID = UUID.randomUUID(),

@@ -1,15 +1,14 @@
-package com.bagplease.service
+package com.bagplease.entity.item
 
-import com.bagplease.storage.Item
-import com.bagplease.storage.ItemStorage
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import java.util.*
 
-object ItemService {
+class ItemService(
+    private val storage: ItemStorage,
+) {
 
-    private val storage = ItemStorage
     private val itemUpdateChannel = MutableSharedFlow<Item>(
         onBufferOverflow = BufferOverflow.DROP_OLDEST, extraBufferCapacity = 1
     )

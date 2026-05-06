@@ -1,7 +1,5 @@
 package com.bagplease
 
-import io.ktor.server.config.*
+import io.ktor.server.config.ApplicationConfig
 
-object Service {
-    val config = ApplicationConfig(null)
-}
+class Service(val config: ApplicationConfig)

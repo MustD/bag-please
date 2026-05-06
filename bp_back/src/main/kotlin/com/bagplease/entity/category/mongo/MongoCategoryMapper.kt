@@ -1,6 +1,6 @@
-package com.bagplease.mongo.model
+package com.bagplease.entity.category.mongo
 
-import com.bagplease.storage.Category
+import com.bagplease.entity.category.Category
 
 object MongoCategoryMapper {
 

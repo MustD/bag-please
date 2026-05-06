@@ -1,6 +1,6 @@
-package com.bagplease.mongo.model
+package com.bagplease.entity.item.mongo
 
-import com.bagplease.storage.Item
+import com.bagplease.entity.item.Item
 
 object MongoItemMapper {
 

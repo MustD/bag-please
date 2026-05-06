@@ -18,6 +18,7 @@ import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.config.mergeWith
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import io.ktor.server.testing.withTestApplication
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
@@ -40,6 +41,8 @@ class ItemApiTest : FunSpec({
             val itemId = UUID.randomUUID()
 
             testApplication {
+                setUpMongo(container)
+                setUpJwt()
                 application { module() }
                 val token = loginToken()
 
@@ -67,9 +70,9 @@ class ItemApiTest : FunSpec({
             val itemId = UUID.randomUUID()
 
             testApplication {
-                application { module() }
                 setUpMongo(container)
                 setUpJwt()
+                application { module() }
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(loginToken())
@@ -90,9 +93,9 @@ class ItemApiTest : FunSpec({
             val itemId = UUID.randomUUID()
 
             testApplication {
-                application { module() }
                 setUpMongo(container)
                 setUpJwt()
+                application { module() }
                 val token = loginToken()
 
                 client.post("/graphql") {
@@ -122,9 +125,9 @@ class ItemApiTest : FunSpec({
             val itemId = UUID.randomUUID()
 
             testApplication {
-                application { module() }
                 setUpMongo(container)
                 setUpJwt()
+                application { module() }
                 val token = loginToken()
 
                 client.post("/graphql") {
@@ -150,9 +153,10 @@ class ItemApiTest : FunSpec({
             val missingId = UUID.randomUUID()
 
             testApplication {
-                application { module() }
                 setUpMongo(container)
                 setUpJwt()
+                application { module() }
+
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(loginToken())

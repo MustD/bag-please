@@ -1,6 +1,6 @@
-package com.bagplease.gql.model
+package com.bagplease.entity.category.gql
 
-import com.bagplease.storage.Category
+import com.bagplease.entity.category.Category
 import com.expediagroup.graphql.generator.scalars.ID
 import java.util.*
 

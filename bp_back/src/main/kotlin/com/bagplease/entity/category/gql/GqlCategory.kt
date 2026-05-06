@@ -1,4 +1,4 @@
-package com.bagplease.gql.model
+package com.bagplease.entity.category.gql
 
 import com.expediagroup.graphql.generator.annotations.GraphQLName
 import com.expediagroup.graphql.generator.scalars.ID

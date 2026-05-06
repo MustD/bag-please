@@ -1,22 +1,21 @@
 package com.bagplease.mongo
 
-import com.bagplease.Service
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
 import com.mongodb.MongoCredential
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import com.mongodb.kotlin.client.coroutine.MongoDatabase
-import io.ktor.util.logging.*
+import io.ktor.server.config.ApplicationConfig
+import io.ktor.util.logging.KtorSimpleLogger
 import org.bson.UuidRepresentation
 
-object Connection {
+class MongoConnection(config: ApplicationConfig) {
 
-    private val logger = KtorSimpleLogger("${Connection::class.qualifiedName}")
-
+    private val logger = KtorSimpleLogger("${MongoConnection::class.qualifiedName}")
     val db: MongoDatabase
 
     init {
-        val config = Service.config.config("db.mongo")
+        val config = config.config("db.mongo")
         val dbName = config.property("db_name").getString()
         val host = config.property("host").getString()
         val port = config.property("port").getString()

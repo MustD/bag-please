@@ -1,4 +1,4 @@
-package com.bagplease.mongo.model
+package com.bagplease.entity.category.mongo
 
 import com.bagplease.mongo.model.serialization.UUIDMongoSerializer
 import kotlinx.serialization.SerialName

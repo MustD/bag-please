@@ -2,7 +2,19 @@
 
 package com.bagplease.plugins
 
-import com.bagplease.gql.GqlDefinition
+import com.bagplease.entity.category.CategoryService
+import com.bagplease.entity.category.CategoryStorage
+import com.bagplease.entity.category.gql.CategoryMutations
+import com.bagplease.entity.category.gql.CategoryQueries
+import com.bagplease.entity.category.gql.CategorySubscriptions
+import com.bagplease.entity.category.mongo.CategoryRepository
+import com.bagplease.entity.item.ItemService
+import com.bagplease.entity.item.ItemStorage
+import com.bagplease.entity.item.gql.ItemMutations
+import com.bagplease.entity.item.gql.ItemQueries
+import com.bagplease.entity.item.gql.ItemSubscriptions
+import com.bagplease.entity.item.mongo.ItemRepository
+import com.bagplease.mongo.MongoConnection
 import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
 import com.expediagroup.graphql.server.ktor.GraphQL
 import com.expediagroup.graphql.server.ktor.graphQLPostRoute
@@ -14,6 +26,7 @@ import io.ktor.serialization.jackson.JacksonWebsocketContentConverter
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.request.ApplicationRequest
 import io.ktor.server.routing.Routing
 import io.ktor.server.websocket.WebSockets
@@ -22,12 +35,35 @@ import kotlin.time.Duration.Companion.seconds
 
 fun Application.configureGql() {
 
+    val connection: MongoConnection by dependencies
+
+    val itemRepository = ItemRepository(connection.db)
+    val itemStorage = ItemStorage(itemRepository)
+    val itemService = ItemService(itemStorage)
+
+
+    val categoryRepository = CategoryRepository(connection.db)
+    val categoryStorage = CategoryStorage(categoryRepository)
+    val categoryService = CategoryService(categoryStorage)
+
     install(GraphQL) {
         schema {
-            packages = listOf("com.bagplease.gql")
-            queries = GqlDefinition.queries
-            mutations = GqlDefinition.mutations
-            subscriptions = GqlDefinition.subscriptions
+            packages = listOf(
+                "com.bagplease.entity.item.gql",
+                "com.bagplease.entity.category.gql"
+            )
+            queries = listOf(
+                ItemQueries(itemService),
+                CategoryQueries(categoryService),
+            )
+            mutations = listOf(
+                ItemMutations(itemService),
+                CategoryMutations(categoryService)
+            )
+            subscriptions = listOf(
+                ItemSubscriptions(itemService),
+                CategorySubscriptions(categoryService)
+            )
         }
         server {
             contextFactory = CustomGraphQLContextFactory()

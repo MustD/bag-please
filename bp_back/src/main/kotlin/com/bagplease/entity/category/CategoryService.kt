@@ -1,15 +1,14 @@
-package com.bagplease.service
+package com.bagplease.entity.category
 
-import com.bagplease.storage.Category
-import com.bagplease.storage.CategoryStorage
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import java.util.*
 
-object CategoryService {
+class CategoryService(
+    private val storage: CategoryStorage,
+) {
 
-    private val storage = CategoryStorage
     private val categoryUpdateChannel = MutableSharedFlow<Category>(
         onBufferOverflow = BufferOverflow.DROP_OLDEST, extraBufferCapacity = 1
     )

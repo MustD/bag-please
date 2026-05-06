@@ -1,10 +1,6 @@
-package com.bagplease.gql
+package com.bagplease.entity.category.gql
 
-import com.bagplease.gql.model.GqlCategory
-import com.bagplease.gql.model.GqlCategoryMapper
-import com.bagplease.gql.model.GqlCategoryUpdate
-import com.bagplease.gql.model.GqlCategoryUpdateType
-import com.bagplease.service.CategoryService
+import com.bagplease.entity.category.CategoryService
 import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
@@ -15,9 +11,10 @@ import kotlinx.coroutines.flow.merge
 import java.util.*
 
 @Suppress("unused")
-object CategoryQueries : Query {
+class CategoryQueries(
+    private val service: CategoryService,
+) : Query {
 
-    private val service = CategoryService
 
     /**
      * Retrieves a list of GraphQL categories.
@@ -32,9 +29,9 @@ object CategoryQueries : Query {
 }
 
 @Suppress("unused")
-object CategoryMutations : Mutation {
-
-    private val service = CategoryService
+class CategoryMutations(
+    private val service: CategoryService,
+) : Mutation {
 
     /**
      * Saves a category to the storage.
@@ -60,9 +57,9 @@ object CategoryMutations : Mutation {
 }
 
 @Suppress("unused")
-object CategorySubscriptions : Subscription {
-
-    private val service = CategoryService
+class CategorySubscriptions(
+    private val service: CategoryService,
+) : Subscription {
 
     /**
      * Retrieves updates for categories.

@@ -1,13 +1,14 @@
-package com.bagplease.storage
+package com.bagplease.entity.item
 
-import com.bagplease.mongo.ItemRepository
-import io.ktor.util.collections.*
-import java.util.*
+import com.bagplease.entity.item.mongo.ItemRepository
+import io.ktor.util.collections.ConcurrentMap
+import java.util.UUID
 
 @Suppress("RedundantSuspendModifier")
-object ItemStorage {
+class ItemStorage(
+    private val repository: ItemRepository,
+) {
     private val storage: ConcurrentMap<UUID, Item> = ConcurrentMap()
-    private val repository = ItemRepository
     private var synced = false
 
     suspend fun sync() {

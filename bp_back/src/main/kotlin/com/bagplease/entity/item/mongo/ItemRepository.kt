@@ -1,26 +1,26 @@
-package com.bagplease.mongo
+package com.bagplease.entity.item.mongo
 
-import com.bagplease.mongo.model.MongoItem
-import com.bagplease.mongo.model.MongoItemMapper
-import com.bagplease.storage.Item
+import com.bagplease.entity.item.Item
 import com.mongodb.client.model.Filters
 import com.mongodb.client.model.UpdateOptions
 import com.mongodb.client.model.Updates
+import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import java.util.*
+import java.util.UUID
 
-object ItemRepository {
+class ItemRepository(
+    db: MongoDatabase,
+) {
 
-    private const val COLLECTION_NAME = "items"
-    private val db = Connection.db
-    private val col = db.getCollection<MongoItem>(COLLECTION_NAME)
-    private const val ID_COL = "_id"
+    private val collectionName = "items"
+    private val idCol = "_id"
+    private val col = db.getCollection<MongoItem>(collectionName)
 
     suspend fun getAll(): List<Item> = col.find().map(MongoItemMapper::mapItemFromMongo).toList()
 
     suspend fun save(item: Item) {
-        val filter = Filters.eq(ID_COL, item.id)
+        val filter = Filters.eq(idCol, item.id)
         val options = UpdateOptions().upsert(true)
         val update = Updates.combine(
             Updates.set(MongoItem::name.name, item.name),
@@ -31,7 +31,7 @@ object ItemRepository {
     }
 
     suspend fun delete(id: UUID) {
-        val filter = Filters.eq(ID_COL, id)
+        val filter = Filters.eq(idCol, id)
         col.deleteOne(filter)
     }
 }

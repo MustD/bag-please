@@ -1,23 +1,20 @@
-package com.bagplease.gql
+package com.bagplease.entity.item.gql
 
-import com.bagplease.gql.model.GqlItem
-import com.bagplease.gql.model.GqlItemMapper
-import com.bagplease.gql.model.GqlItemUpdate
-import com.bagplease.gql.model.GqlItemUpdateType
-import com.bagplease.service.ItemService
+import com.bagplease.entity.item.ItemService
 import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
 import com.expediagroup.graphql.server.operations.Subscription
+import io.ktor.server.application.Application
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import java.util.*
 
 @Suppress("unused")
-object ItemQueries : Query {
-
-    private val service = ItemService
+class ItemQueries(
+    private val service: ItemService,
+) : Query {
 
     /**
      * Retrieves a list of GraphQL items.
@@ -32,9 +29,10 @@ object ItemQueries : Query {
 }
 
 @Suppress("unused")
-object ItemMutations : Mutation {
+class ItemMutations(
+    private val service: ItemService,
+) : Mutation {
 
-    private val service = ItemService
 
     /**
      * Saves an item to the storage.
@@ -59,9 +57,9 @@ object ItemMutations : Mutation {
 }
 
 @Suppress("unused")
-object ItemSubscriptions : Subscription {
-
-    private val service = ItemService
+class ItemSubscriptions(
+    private val service: ItemService,
+) : Subscription {
 
     /**
      * Retrieves updates for items.
