@@ -40,7 +40,8 @@ services:
 
   bp_back:
     build:
-      context: ./bp_back
+      context: .
+      dockerfile: bp_back/Dockerfile
     ports:
       - "4000:4000"
     depends_on:

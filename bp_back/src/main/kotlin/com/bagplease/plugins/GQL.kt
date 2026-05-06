@@ -3,17 +3,22 @@
 package com.bagplease.plugins
 
 import com.bagplease.gql.GqlDefinition
-import com.expediagroup.graphql.generator.extensions.plus
-import com.expediagroup.graphql.server.ktor.*
+import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
+import com.expediagroup.graphql.server.ktor.GraphQL
+import com.expediagroup.graphql.server.ktor.graphQLPostRoute
+import com.expediagroup.graphql.server.ktor.graphQLSDLRoute
+import com.expediagroup.graphql.server.ktor.graphQLSubscriptionsRoute
+import com.expediagroup.graphql.server.ktor.graphiQLRoute
 import graphql.GraphQLContext
-import io.ktor.serialization.jackson.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.request.*
-import io.ktor.server.routing.*
-import io.ktor.server.websocket.*
-import java.time.Duration
+import io.ktor.serialization.jackson.JacksonWebsocketContentConverter
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.ApplicationRequest
+import io.ktor.server.routing.Routing
+import io.ktor.server.websocket.WebSockets
+import io.ktor.server.websocket.pingPeriod
+import kotlin.time.Duration.Companion.seconds
 
 fun Application.configureGql() {
 
@@ -30,7 +35,7 @@ fun Application.configureGql() {
     }
 
     install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(10)
+        pingPeriod = 10.seconds
         contentConverter = JacksonWebsocketContentConverter()
     }
 
@@ -57,9 +62,7 @@ class CustomGraphQLContextFactory : DefaultKtorGraphQLContextFactory() {
         }
 
      */
-
     override suspend fun generateContext(request: ApplicationRequest): GraphQLContext =
-        super.generateContext(request).plus(
-            mapOf(GQL_CALL_PRINCIPAL to request.call.principal<JWTPrincipal>())
-        )
+        super.generateContext(request)
+//            .plus(mapOf(GQL_CALL_PRINCIPAL to request.call.principal<JWTPrincipal>()))
 }
