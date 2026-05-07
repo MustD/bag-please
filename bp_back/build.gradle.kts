@@ -5,7 +5,6 @@ plugins {
 }
 
 group = "com.bagplease"
-version = "0.13.0"
 
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")
