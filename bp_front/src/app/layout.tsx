@@ -1,7 +1,8 @@
 import CssBaseline from "@mui/material/CssBaseline";
 import type {Metadata, Viewport} from "next";
 import {Inter} from "next/font/google";
-import {Container, ThemeProvider} from "@mui/material";
+import Box from "@mui/material/Box";
+import {ThemeProvider} from "@mui/material";
 import {AppRouterCacheProvider} from '@mui/material-nextjs/v13-appRouter';
 import theme from './theme'
 import AppHeader from "./AppHeader";
@@ -21,16 +22,18 @@ export const viewport: Viewport = {
 export default function RootLayout({children}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-    <CssBaseline/>
     <body className={inter.className}>
-    <ThemeProvider theme={theme}>
-      <Container maxWidth={false} sx={{height: '100vh', p: 1, bgcolor: 'background.default', overflow: "scroll"}}>
-        <AppHeader/>
-        <AppRouterCacheProvider>
-          {children}
-        </AppRouterCacheProvider>
-      </Container>
-    </ThemeProvider>
+    <AppRouterCacheProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline/>
+        <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh'}}>
+          <AppHeader/>
+          <Box sx={{flex: 1, overflow: 'auto', minHeight: 0, bgcolor: 'background.default'}}>
+            {children}
+          </Box>
+        </Box>
+      </ThemeProvider>
+    </AppRouterCacheProvider>
     </body>
     </html>
   );
