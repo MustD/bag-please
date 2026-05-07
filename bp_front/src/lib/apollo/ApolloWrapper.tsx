@@ -1,17 +1,13 @@
 "use client"
 
-import {ApolloLink, HttpLink, split,} from "@apollo/client"
-import {
-  ApolloClient,
-  ApolloNextAppProvider,
-  InMemoryCache,
-  SSRMultipartLink,
-} from "@apollo/experimental-nextjs-app-support"
+import {ApolloLink, HttpLink, split} from "@apollo/client"
+import {ApolloClient, ApolloNextAppProvider, InMemoryCache, SSRMultipartLink,} from "@apollo/client-integration-nextjs";
 import {getMainDefinition} from "@apollo/client/utilities"
 import {GraphQLWsLink} from '@apollo/client/link/subscriptions'
 import {createClient} from 'graphql-ws'
-import {setContext} from "@apollo/client/link/context"
-import {onError} from "@apollo/client/link/error";
+import {SetContextLink} from "@apollo/client/link/context"
+import {ErrorLink} from "@apollo/client/link/error";
+import {CombinedGraphQLErrors} from "@apollo/client/errors";
 
 function makeLink(onAuthError: () => void) {
 
@@ -36,24 +32,24 @@ function makeLink(onAuthError: () => void) {
     httpLink,
   );
 
-  const authLink = setContext((_, {headers}) => {
+  const authLink = new SetContextLink((prevContext) => {
     const token = localStorage.getItem('token') || ""
     return {
+      ...prevContext,
       headers: {
-        ...headers,
+        ...(prevContext.headers as Record<string, string>),
         authorization: `Bearer ${token}`,
       }
     }
   });
 
-  const authErrorLink = onError(({graphQLErrors, networkError}) => {
-    if (graphQLErrors) {
-      graphQLErrors.forEach(({message, locations, path}) =>
+  const authErrorLink = new ErrorLink(({error}) => {
+    if (CombinedGraphQLErrors.is(error)) {
+      error.errors.forEach(({message, locations, path}) =>
         console.log(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`)
       );
-    }
-    if (networkError) {
-      console.log(`[Network error]: ${networkError}`);
+    } else {
+      console.log(`[Network error]: ${error}`);
       onAuthError()
     }
   });
@@ -68,7 +64,7 @@ function makeLink(onAuthError: () => void) {
           }),
           httpLink,
         ])
-        : authLink.concat(authErrorLink).concat(splitLink),
+        : ApolloLink.from([authLink, authErrorLink, splitLink]),
   });
 }
 

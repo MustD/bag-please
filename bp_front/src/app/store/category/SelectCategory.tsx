@@ -1,7 +1,7 @@
 'use client'
 import {Box} from "@mui/material";
 import Typography from "@mui/material/Typography";
-import {useQuery} from "@apollo/client";
+import {useQuery} from "@apollo/client/react";
 import {getCategoriesQuery} from "@/lib/category/Queries";
 import React from "react";
 import InputLabel from '@mui/material/InputLabel';

@@ -1,5 +1,5 @@
 'use client'
-import {useQuery} from "@apollo/client";
+import {useQuery} from "@apollo/client/react";
 import {categoriesSubscription, getCategoriesQuery} from "@/lib/category/Queries";
 import React, {useEffect, useState} from "react";
 import {
@@ -22,7 +22,7 @@ import {List} from "immutable";
 import Typography from "@mui/material/Typography";
 import AddIcon from '@mui/icons-material/Add';
 import CreateCategory from "@/app/store/category/CreateCategory";
-import {CategoryUpdateType} from "@/__generated__/graphql";
+import {GetCategoriesQuery} from "@/__generated__/graphql";
 import InputLabel from "@mui/material/InputLabel";
 import {Clear} from "@mui/icons-material";
 import FormControl from "@mui/material/FormControl";
@@ -41,14 +41,14 @@ export default function ManageCategories() {
     subscribeToMore({
       document: categoriesSubscription,
       updateQuery: (prev, {subscriptionData}) => {
-        if (!subscriptionData.data) return prev;
-        const data = prev.getCategories
+        if (!subscriptionData.data) return prev as GetCategoriesQuery;
+        const data = prev.getCategories ?? []
         const update = subscriptionData.data.getCategoryUpdates
         const updatedData = data.filter((cat) => cat.id !== update.item.id)
-        if (update.type == CategoryUpdateType.Deleted) {
-          return Object.assign({}, prev, {getCategories: updatedData})
+        if (update.type === 'DELETED') {
+          return {...prev, getCategories: updatedData} as GetCategoriesQuery
         } else {
-          return Object.assign({}, prev, {getCategories: [update.item, ...updatedData]})
+          return {...prev, getCategories: [update.item, ...updatedData]} as GetCategoriesQuery
         }
       }
     })

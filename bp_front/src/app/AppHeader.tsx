@@ -7,7 +7,7 @@ import Navigation from "@/app/Navigation";
 
 export default function AppHeader() {
   return (
-    <Box sx={{flexGrow: 1}}>
+    <Box>
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{flexGrow: 1}}>Bag please</Typography>

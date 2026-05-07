@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   bp_network:
     driver: bridge
@@ -16,7 +14,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   mongo:
-    image: mongo:7
+    image: mongo:8
     volumes:
       - ./db/data:/data/db
     ports:
@@ -26,6 +24,14 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: "user"
       MONGO_INITDB_ROOT_PASSWORD: "pass"
+      #kernel >= 6.19 workaround
+      GLIBC_TUNABLES: "glibc:pthread:rseq=1"
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   bp_front:
     build:
@@ -33,18 +39,22 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - mongo
-      - bp_back
+      mongo:
+        condition: service_healthy
+      bp_back:
+        condition: service_started
     networks:
       - bp_network
 
   bp_back:
     build:
-      context: ./bp_back
+      context: .
+      dockerfile: bp_back/Dockerfile
     ports:
       - "4000:4000"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     networks:
       - bp_network
     environment:

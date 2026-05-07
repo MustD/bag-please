@@ -1,6 +1,6 @@
 'use client'
 
-import {Box, Divider, Grid, IconButton, Menu} from "@mui/material";
+import {Box, Divider, IconButton, Menu} from "@mui/material";
 import {usePathname, useRouter} from "next/navigation";
 import * as React from "react";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -23,9 +23,7 @@ export default function Navigation() {
 
   return (
     <Box sx={{p: 1}}>
-      <Grid container spacing={1}>
-        <Grid item>
-          <IconButton
+      <IconButton
             onClick={onOpen}
             size="small"
             sx={{ml: 2}}
@@ -113,8 +111,6 @@ export default function Navigation() {
               </Box>
             ) : null}
           </Menu>
-        </Grid>
-      </Grid>
     </Box>
   )
 }

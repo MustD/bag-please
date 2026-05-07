@@ -48,7 +48,7 @@ fun Application.configureSecurity() {
 }
 
 fun Routing.securityRoutes() {
-    val config = Service.config.config("jwt")
+    val config = environment.config.config("jwt")
     val secret = config.property("secret").getString()
     val issuer = config.property("issuer").getString()
     val audience = config.property("audience").getString()

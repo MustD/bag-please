@@ -1,24 +1,24 @@
-import {gql} from "@/__generated__";
+import {graphql} from "@/__generated__";
 
-export const getCategoriesQuery = gql(`query getCategories {
+export const getCategoriesQuery = graphql(`query getCategories {
     getCategories {
         id, name
     }
 }`);
 
-export const createCategoryMutation = gql(`mutation saveCategory($category: CategoryInput!) {
+export const createCategoryMutation = graphql(`mutation saveCategory($category: CategoryInput!) {
     saveCategory(category: $category){
         id, name
     }
 }`);
 
-export const deleteCategoryMutation = gql(`mutation deleteCategory($id: ID!) {
+export const deleteCategoryMutation = graphql(`mutation deleteCategory($id: ID!) {
     deleteCategory(id: $id){
         id, name
     }
 }`);
 
-export const categoriesSubscription = gql(`subscription CategoryUpdates {
+export const categoriesSubscription = graphql(`subscription CategoryUpdates {
     getCategoryUpdates {
         type
         item {
