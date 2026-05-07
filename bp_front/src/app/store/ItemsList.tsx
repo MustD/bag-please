@@ -52,8 +52,8 @@ export default function ItemsList() {
 
   const [filter, setFilter] = useState<"all" | "y" | "n">("all")
   const [search, setSearch] = useState("")
-  const items = List(itemsData?.getItems || []).sortBy(item =>
-    item.name
+  const items = List(itemsData?.getItems || []).sort((a, b) =>
+    a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
   ).filter(item => {
     switch (filter) {
       case "all":
