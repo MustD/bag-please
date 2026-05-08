@@ -1,5 +1,28 @@
 # Deferred Work
 
+## Deferred from: code review of 1-2-login-token-system-session-security-backend (2026-05-08)
+
+- Admin timing attack — plain-text `==` on admin password is faster than bcrypt+DB; spec intentionally chose this;
+  timing side-channel exists but is an accepted design trade-off
+- Admin password in JVM heap — config-sourced String not zeroed; general JVM concern; not actionable without moving to
+  char[]
+- Refresh tokens stored as plaintext in MongoDB — should hash with SHA-256 before storing; DB exfiltration exposes all
+  active sessions; security hardening deferred
+- Access token not revoked on password change — 15-min JWTs stay valid after change-password; requires a token blocklist
+  to fix; known JWT architecture limitation
+- Admin timing leak vs regular user — admin check bypasses bcrypt+DB; ~100ms timing difference reveals admin account;
+  inherent in plain-text design choice
+- No `iat` (issued-at) claim in JWT — prevents "invalidate tokens issued before T" without a blocklist; security
+  hardening
+- `UserStorage.sync()` check-then-act race — `synced` flag is not atomically guarded; double-sync possible under
+  coroutine concurrency; pre-existing in storage layer
+- CORS plugin does not allow credentials or expose Authorization header — frontend is same-origin via nginx;
+  cross-origin clients (API playground, mobile) will fail; pre-existing config
+- MongoDB error handling absent in repositories — `insertOne`/`deleteOne` throw MongoWriteException as 500; pre-existing
+  pattern across all repositories; needs global error handler
+- AC2 log sanitization — Ktor monitoring may log request bodies including credentials; audit `configureMonitoring()`
+  before production; flagged in Story 1.1 deferred items
+
 ## Deferred from: code review of 1-1-user-entity-registration-backend (2026-05-08)
 
 - No input validation on username/password (length, blank, character set) — out of scope for Story 1.1; consider a

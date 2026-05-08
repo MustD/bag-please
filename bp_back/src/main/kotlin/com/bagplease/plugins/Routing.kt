@@ -15,7 +15,6 @@ fun Application.configureRouting() {
             jackson()
         }
 
-        securityRoutes()
         gqlRoutes()
     }
 }
