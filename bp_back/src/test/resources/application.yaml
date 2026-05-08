@@ -1,0 +1,11 @@
+jwt:
+  secret: "secret"
+  issuer: "localhost"
+  audience: "localhost"
+  realm: "localhost"
+  admin_login: "admin"
+  admin_pass: "admin"
+
+rateLimit:
+  attempts: "5"
+  windowSeconds: "60"

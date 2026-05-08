@@ -16,6 +16,10 @@ jwt:
   admin_login: "$KTOR_ADMIN_LOGIN:admin"
   admin_pass: "$KTOR_ADMIN_PASS:admin"
 
+rateLimit:
+  attempts: "$KTOR_RATE_LIMIT_ATTEMPTS:5"
+  windowSeconds: "$KTOR_RATE_LIMIT_WINDOW_SECONDS:60"
+
 db:
   mongo:
     host: "$KTOR_MONGO_HOST:localhost"
