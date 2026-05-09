@@ -1,35 +1,33 @@
 "use client"
 
-import React, {useEffect} from "react";
+import React from "react";
 import {Box, Button, IconButton, Stack, Typography} from "@mui/material";
-import {usePathname, useRouter} from "next/navigation";
+import {useRouter} from "next/navigation";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LoginIcon from "@mui/icons-material/Login";
+import {useAuth} from "@/lib/auth/AuthContext";
+import {authApi} from "@/lib/auth/authApi";
 
 
 export default function Logout() {
-  const path = usePathname()
   const router = useRouter()
+  const {username, clearAuth, isLoading} = useAuth()
 
-  const [activeUser, setActiveUser] = React.useState("");
-  useEffect(() => {
-    setActiveUser(localStorage.getItem("username") || "");
-  }, [path])
+  if (isLoading) return null
 
   const handleLogin = (e?: React.FormEvent) => {
     e?.preventDefault()
     router.push("/auth")
   }
 
-  const handleLogout = (e?: React.FormEvent) => {
+  const handleLogout = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    localStorage.removeItem("token")
-    localStorage.removeItem("username")
-    setActiveUser("");
-    router.push("/")
+    await authApi.logout()
+    clearAuth()
+    router.push('/auth')
   }
 
-  return activeUser === "" ? (
+  return username === null ? (
     <Box component="form" noValidate onSubmit={handleLogin}>
       <Stack direction="row" spacing={1} sx={{justifyContent: "flex-end", alignItems: "center"}}>
         <Button type={"submit"}>Login</Button>
@@ -39,7 +37,7 @@ export default function Logout() {
   ) : (
     <Box component="form" noValidate onSubmit={handleLogout}>
       <Stack direction="row" spacing={1} sx={{justifyContent: "flex-end", alignItems: "center"}}>
-        <Typography>{activeUser}</Typography>
+        <Typography>{username}</Typography>
         <IconButton type={"submit"} aria-label="logout"> <LogoutIcon/> </IconButton>
       </Stack>
     </Box>

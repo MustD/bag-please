@@ -1,5 +1,16 @@
 # Deferred Work
 
+## Deferred from: code review of 1-3-frontend-theme-auth-infrastructure (2026-05-09)
+
+- `auth/page.tsx` still calls bare `fetch('/api/login')` + writes `localStorage` — full replacement is story 1.4 scope;
+  currently broken but unreachable because RouteGuard redirects to `/auth` (which then fails to populate AuthContext)
+- `AuthProvider` refresh failure silently swallowed — `.catch(() => {})` per spec intent; no user-visible error on
+  session expiry; consider a toast or redirect with message in a future UX pass
+- No inverse guard for authenticated users visiting `/auth` — authenticated users land on the login page; they must
+  manually navigate away; add redirect-if-authenticated logic before or during story 1.4 login UI
+- `isLoading` stays `true` on `AuthProvider` unmount before refresh resolves — React StrictMode double-invoke in dev
+  causes two parallel refresh calls; add `AbortController` cleanup to the `useEffect` as a hardening step
+
 ## Deferred from: code review of 1-2-login-token-system-session-security-backend (2026-05-08)
 
 - Admin timing attack — plain-text `==` on admin password is faster than bcrypt+DB; spec intentionally chose this;
