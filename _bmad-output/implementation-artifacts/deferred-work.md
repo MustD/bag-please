@@ -1,5 +1,17 @@
 # Deferred Work
 
+## Deferred from: code review of 1-5-user-identity-account-management-ui (2026-05-11)
+
+- Silent return when `accessToken` is null gives user no feedback — spec-designed loading-window guard; UX improvement
+  is post-scope
+- UserChip causes layout shift during hydration — AppHeader renders chip once auth context resolves; needs
+  skeleton/loading state design
+- No client-side check that new password differs from current — server enforced
+- No minimum password length client validation — server enforced; depends on backend password policy rules
+- Non-wrong-password server errors (401, 500) surfaced under "Current password" field — only AC4 wrong-password case is
+  spec'd; general error placement is post-scope design
+- No spacing `sx` between UserChip and Navigation icon in Toolbar — no spec requirement; adjust if design calls for it
+
 ## Deferred from: code review of 1-4-login-registration-ui (2026-05-11)
 
 - `LoginForm` / `RegisterPage` near-identical components — same layout, state structure, and submit pattern with zero

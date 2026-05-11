@@ -32,6 +32,21 @@ export const authApi = {
     return res.json() as Promise<{ username: string; role: string }>
   },
 
+  changePassword: async (currentPassword: string, newPassword: string, accessToken: string) => {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({currentPassword, newPassword}),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      throw new Error(data.error ?? res.statusText ?? 'Password change failed')
+    }
+  },
+
   refresh: async () => {
     if (refreshPromise) return refreshPromise
     refreshPromise = fetch('/api/auth/refresh', {method: 'POST'})
