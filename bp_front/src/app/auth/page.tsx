@@ -43,7 +43,7 @@ export default function LoginPage() {
 
     const submitData = {username: formValues.username, password: formValues.password}
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(submitData),
         headers: {'content-type': 'application/json'}
