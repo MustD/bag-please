@@ -103,8 +103,14 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Protected endpoints must be tested with valid auth** — every test exercising a mutation or query must supply a valid token; the exact auth pattern is flexible but auth cannot be skipped
 - **Test GraphQL the most readable way** — no restriction on using helper libraries to build queries or parse responses; prefer clarity
 
-#### Frontend
-- **No frontend test framework is settled yet** — configuration is TBD; do not assume any specific framework is in place
+#### Frontend (Playwright e2e)
+
+- **Framework**: Playwright — config at `bp_front/playwright.config.ts`, tests at `bp_front/e2e/`, run via
+  `npm run test:e2e`
+- **Base URL**: `http://localhost:2080` — full stack (nginx + backend + MongoDB) must be running before tests execute
+- **Auth isolation**: each test file is browser-isolated; authenticated scenarios use a Playwright `setup` fixture
+  calling `POST /api/auth/login` and saving `storageState` — never drive the UI login form in every test
+- **No component/unit test framework** settled yet — do not assume any specific framework; TBD for future scope
 
 ### Code Quality & Style Rules
 

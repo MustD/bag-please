@@ -642,3 +642,59 @@ So that user onboarding is controlled and the login screen is never in a confusi
 **Given** `GET /admin/config` is fetched once on app load
 **When** the registration state is resolved
 **Then** it is available in app context so the login page uses it without an additional network request
+
+### Story 1.6: E2E Test Infrastructure & Auth Flow Coverage
+
+As a developer maintaining bag-please,
+I want a Playwright e2e test suite covering the core auth flows,
+So that regressions in login, registration, session handling, and route guards are caught before they reach
+production.
+
+**Acceptance Criteria:**
+
+**Given** the Playwright suite is configured in `bp_front/`
+**When** `npx playwright test` is run against a locally running app (nginx on `:2080`, backend on `:4000`,
+MongoDB running)
+**Then** all tests pass and an HTML report is produced
+
+**Given** an unauthenticated user visits any protected route (e.g. `/`)
+**When** the route guard evaluates
+**Then** the browser is redirected to `/auth`
+
+**Given** the login form is submitted with valid credentials
+**When** the server responds with a token and username
+**Then** the user lands on `/` and the `UserChip` shows the correct username in the AppBar
+
+**Given** the login form is submitted with invalid credentials
+**When** the server returns an error
+**Then** an inline `FormHelperText` error appears below the password field
+**And** no redirect occurs
+
+**Given** a new username not already in the database
+**When** the registration form is submitted
+**Then** the user is auto-logged-in and redirected to `/`
+**And** the `WelcomeBanner` is visible on the home page
+
+**Given** the registration form is submitted with a username already taken
+**When** the server returns an error
+**Then** an inline `FormHelperText` error appears below the username field
+
+**Given** a logged-in user clicks Logout
+**When** the logout action fires
+**Then** the browser is redirected to `/auth`
+**And** a subsequent navigation to `/` redirects back to `/auth`
+
+**Given** the user was redirected to `/auth` due to session expiry
+**When** the login page renders
+**Then** an `Alert` with session-expiry text is visible above the form heading
+
+**Technical Notes:**
+
+- Playwright config lives at `bp_front/playwright.config.ts`
+- Tests live at `bp_front/e2e/`
+- Base URL: `http://localhost:2080`
+- Use Playwright's built-in browser isolation; no shared auth state between test files
+- Tests requiring an authenticated user must use a setup fixture that calls `POST /api/auth/login` directly
+  and saves `storageState` — never drive the UI login form in every test
+- `npm run test:e2e` added to `bp_front/package.json` scripts
+- CI: tests run in `headed=false` mode; HTML report artifact retained

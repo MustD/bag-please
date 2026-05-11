@@ -118,8 +118,13 @@ No stack changes are required for this feature.
 
 **Frontend (`bp_front/package.json`):**
 
-- No new packages required. MUI v9, Apollo Client 4, Next.js 16 cover all auth and admin UI needs.
+- No new runtime packages required. MUI v9, Apollo Client 4, Next.js 16 cover all auth and admin UI needs.
   `next/font/google` for Inter font is built into the existing Next.js install.
+- Dev dependency added: `@playwright/test` for e2e testing.
+  Config: `bp_front/playwright.config.ts` | Tests: `bp_front/e2e/` | Script: `npm run test:e2e`
+  Base URL: `http://localhost:2080` (full stack — nginx, backend, MongoDB — must be running)
+  Auth fixture: setup file calls `POST /api/auth/login` and saves `storageState` for authenticated tests;
+  never drives the UI login form repeatedly across tests.
 
 ### Note on Dependency Validation
 

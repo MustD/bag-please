@@ -49,6 +49,7 @@ development_status:
   1-3-frontend-theme-auth-infrastructure: done
   1-4-login-registration-ui: backlog
   1-5-user-identity-account-management-ui: backlog
+  1-6-e2e-test-infrastructure-auth-flow-coverage: backlog
   epic-1-retrospective: optional
 
   # Epic 2: Admin User Management & Application Configuration

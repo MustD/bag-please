@@ -411,3 +411,9 @@ slice before the next begins.
 - **NFR14:** Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 - **NFR15:** Form error messages are associated with their corresponding input fields
 - **NFR16:** Text and interactive elements on auth screens meet minimum colour contrast for readability
+- **NFR17:** The frontend has a Playwright e2e test suite covering all auth and session flows; the suite runs
+  against the full stack (nginx + backend + MongoDB) and must pass with zero failures before any Epic 1 or
+  Epic 2 story is marked done
+- **NFR18:** E2E tests use browser-level isolation (no shared auth state across test files); tests that require
+  an authenticated session establish it via a Playwright setup fixture calling `POST /api/auth/login` directly
+  rather than driving the UI login form each time
