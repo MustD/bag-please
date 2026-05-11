@@ -1,5 +1,16 @@
 # Deferred Work
 
+## Deferred from: code review of 1-4-login-registration-ui (2026-05-11)
+
+- `LoginForm` / `RegisterPage` near-identical components — same layout, state structure, and submit pattern with zero
+  shared abstraction; will diverge silently; architectural refactor deferred beyond story scope
+- Unsafe `role as 'admin' | 'user'` cast in both `auth/page.tsx` and `register/page.tsx` — unexpected backend role value
+  silently accepted; cross-cutting TypeScript concern; deferred as it matches the existing pattern
+- `authApi.register` success response JSON parse unguarded — if `res.ok` is true but body is not valid JSON the
+  rejection is unhandled; matches existing `authApi.login` behaviour; deferred as cross-cutting API hardening
+- `WelcomeBanner` reappears if `username` repopulates after auth expiry while `showBanner` is still `true` — edge case;
+  acceptable for v1
+
 ## Deferred from: code review of 1-3-frontend-theme-auth-infrastructure (2026-05-09)
 
 - `auth/page.tsx` still calls bare `fetch('/api/login')` + writes `localStorage` — full replacement is story 1.4 scope;

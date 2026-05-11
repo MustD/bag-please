@@ -1,15 +1,13 @@
 'use client'
 
-import {Suspense, useState} from 'react'
-import {useRouter, useSearchParams} from 'next/navigation'
+import {useState} from 'react'
+import {useRouter} from 'next/navigation'
 import NextLink from 'next/link'
-import {Alert, Box, Button, CircularProgress, Link, Stack, TextField, Typography} from '@mui/material'
+import {Box, Button, CircularProgress, Link, Stack, TextField, Typography} from '@mui/material'
 import {useAuth} from '@/lib/auth/AuthContext'
 import {authApi} from '@/lib/auth/authApi'
 
-function LoginForm() {
-  const searchParams = useSearchParams()
-  const expired = searchParams?.get('expired') === '1'
+export default function RegisterPage() {
   const {setAuth} = useAuth()
   const router = useRouter()
 
@@ -17,12 +15,10 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  const [serverError, setServerError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    setServerError('')
     let valid = true
     if (!username) {
       setUsernameError('Enter username')
@@ -36,11 +32,13 @@ function LoginForm() {
 
     setIsSubmitting(true)
     try {
+      await authApi.register(username, password)
       const data = await authApi.login(username, password)
       setAuth({username: data.username, role: data.role as 'admin' | 'user', accessToken: data.accessToken})
-      router.push('/')
+      router.push('/?welcome=1')
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Invalid username or password')
+      const msg = err instanceof Error ? err.message : 'Registration failed'
+      setUsernameError(msg)
     } finally {
       setIsSubmitting(false)
     }
@@ -49,10 +47,7 @@ function LoginForm() {
   return (
     <Box component="form" noValidate onSubmit={handleSubmit}>
       <Stack sx={{maxWidth: 360, mx: 'auto', px: 2, py: 5}} spacing={2}>
-        {expired && (
-          <Alert severity="warning">Your session has expired. Please sign in again.</Alert>
-        )}
-        <Typography variant="h6">Sign in</Typography>
+        <Typography variant="h6">Create account</Typography>
         <TextField
           id="username"
           name="username"
@@ -63,7 +58,6 @@ function LoginForm() {
           onChange={(e) => {
             setUsername(e.target.value)
             setUsernameError('')
-            setServerError('')
           }}
         />
         <TextField
@@ -72,27 +66,18 @@ function LoginForm() {
           label="Password"
           type="password"
           value={password}
-          error={!!passwordError || !!serverError}
-          helperText={passwordError || serverError}
+          error={!!passwordError}
+          helperText={passwordError}
           onChange={(e) => {
             setPassword(e.target.value)
             setPasswordError('')
-            setServerError('')
           }}
         />
         <Button type="submit" variant="contained" disabled={isSubmitting}>
-          {isSubmitting ? <CircularProgress size={20} color="inherit"/> : 'Sign in'}
+          {isSubmitting ? <CircularProgress size={20} color="inherit"/> : 'Register'}
         </Button>
-        <Link component={NextLink} href="/auth/register">Register</Link>
+        <Link component={NextLink} href="/auth">Back to sign in</Link>
       </Stack>
     </Box>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginForm/>
-    </Suspense>
   )
 }
