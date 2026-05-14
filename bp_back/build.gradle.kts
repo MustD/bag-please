@@ -36,6 +36,9 @@ dependencies {
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.websockets)
     implementation(libs.ktor.server.di)
+    implementation(libs.ktor.server.rate.limit)
+    implementation(libs.ktor.server.forwarded.header)
+    implementation(libs.bcrypt)
     implementation(libs.graphql.kotlin.ktor.server)
     implementation(libs.logback.classic)
 

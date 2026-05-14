@@ -39,7 +39,9 @@ fun ApplicationTestBuilder.setUpJwt() = environment {
             "jwt.audience" to "localhost",
             "jwt.realm" to "localhost",
             "jwt.admin_login" to "admin",
-            "jwt.admin_pass" to "admin"
+            "jwt.admin_pass" to "admin",
+            "jwt.accessExpiryMinutes" to "15",
+            "jwt.refreshExpiryDays" to "30",
         )
     )
 }

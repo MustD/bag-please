@@ -1,13 +1,13 @@
 import CssBaseline from "@mui/material/CssBaseline";
 import type {Metadata, Viewport} from "next";
-import {Inter} from "next/font/google";
 import Box from "@mui/material/Box";
 import {ThemeProvider} from "@mui/material";
 import {AppRouterCacheProvider} from '@mui/material-nextjs/v13-appRouter';
-import theme from './theme'
+import theme from '@/lib/theme'
 import AppHeader from "./AppHeader";
-
-const inter = Inter({subsets: ["latin"]});
+import {AuthProvider} from "@/lib/auth/AuthContext";
+import ApolloWrapper from "@/lib/apollo/ApolloWrapper";
+import RouteGuard from "@/app/RouteGuard";
 
 export const metadata: Metadata = {
   title: "Bag please",
@@ -22,16 +22,22 @@ export const viewport: Viewport = {
 export default function RootLayout({children}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-    <body className={inter.className}>
+    <body>
     <AppRouterCacheProvider>
       <ThemeProvider theme={theme}>
         <CssBaseline/>
-        <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh'}}>
-          <AppHeader/>
-          <Box sx={{flex: 1, overflow: 'auto', minHeight: 0, bgcolor: 'background.default'}}>
-            {children}
-          </Box>
-        </Box>
+        <AuthProvider>
+          <ApolloWrapper>
+            <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh'}}>
+              <AppHeader/>
+              <Box sx={{flex: 1, overflow: 'auto', minHeight: 0, bgcolor: 'background.default'}}>
+                <RouteGuard>
+                  {children}
+                </RouteGuard>
+              </Box>
+            </Box>
+          </ApolloWrapper>
+        </AuthProvider>
       </ThemeProvider>
     </AppRouterCacheProvider>
     </body>

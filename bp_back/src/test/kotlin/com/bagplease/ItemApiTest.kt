@@ -14,11 +14,8 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.config.MapApplicationConfig
-import io.ktor.server.config.mergeWith
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import io.ktor.server.testing.withTestApplication
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
@@ -28,11 +25,11 @@ class ItemApiTest : FunSpec({
     val container = mongoContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(): String {
-        val res = client.post("/login") {
+        val res = client.post("/auth/login") {
             contentType(ContentType.Application.Json)
             setBody("""{"username":"admin","password":"admin"}""")
         }
-        return mapper.readTree(res.bodyAsText())["token"].asText()
+        return mapper.readTree(res.bodyAsText())["accessToken"].asText()
     }
 
     context("getItems") {

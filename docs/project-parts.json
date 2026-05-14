@@ -1,0 +1,80 @@
+{
+  "repository_type": "multi-part",
+  "parts": [
+    {
+      "part_id": "bp_back",
+      "display_name": "Backend API",
+      "root_path": "bp_back/",
+      "project_type_id": "backend",
+      "language": "Kotlin",
+      "framework": "Ktor 3.4.3",
+      "port": 4000,
+      "entry_point": "bp_back/src/main/kotlin/com/bagplease/Application.kt",
+      "build_tool": "Gradle (wrapper at repo root)",
+      "dockerfile": "bp_back/Dockerfile",
+      "docker_build_context": "."
+    },
+    {
+      "part_id": "bp_front",
+      "display_name": "Frontend SPA",
+      "root_path": "bp_front/",
+      "project_type_id": "web",
+      "language": "TypeScript",
+      "framework": "Next.js 16.2.4",
+      "port": 3000,
+      "entry_point": "bp_front/src/app/layout.tsx",
+      "build_tool": "npm",
+      "dockerfile": "bp_front/Dockerfile",
+      "docker_build_context": "bp_front/"
+    },
+    {
+      "part_id": "routing",
+      "display_name": "nginx Reverse Proxy",
+      "root_path": "routing/",
+      "project_type_id": "infra",
+      "language": "nginx config",
+      "framework": "nginx",
+      "port": 2080,
+      "entry_point": "routing/nginx.conf",
+      "build_tool": "Docker",
+      "dockerfile": "routing/Dockerfile",
+      "docker_build_context": "routing/"
+    }
+  ],
+  "integration_points": [
+    {
+      "from": "bp_front",
+      "to": "bp_back",
+      "type": "GraphQL HTTP",
+      "path": "POST /api/graphql",
+      "auth": "JWT Bearer"
+    },
+    {
+      "from": "bp_front",
+      "to": "bp_back",
+      "type": "GraphQL WebSocket",
+      "path": "ws(s)://<host>/api/subscriptions",
+      "auth": "none (tech debt)"
+    },
+    {
+      "from": "bp_front",
+      "to": "bp_back",
+      "type": "REST HTTP",
+      "path": "POST /api/login",
+      "auth": "none (credential payload)"
+    },
+    {
+      "from": "bp_back",
+      "to": "mongodb",
+      "type": "MongoDB protocol",
+      "path": "mongodb://mongo:27017/bag_please",
+      "auth": "SCRAM-SHA-1"
+    }
+  ],
+  "database": {
+    "type": "MongoDB",
+    "version": "8",
+    "name": "bag_please",
+    "collections": ["items", "categories"]
+  }
+}

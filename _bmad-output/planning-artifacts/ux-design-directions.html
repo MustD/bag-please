@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>bag-please · UX Design Directions</title>
+  <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+      :root {
+          --bg: #0e0e10;
+          --surface: #1a1a1d;
+          --surface2: #222226;
+          --border: #2e2e32;
+          --primary: #4db6a8;
+          --primary-d: #3a9d96;
+          --error: #d9534f;
+          --text: #e8e8e8;
+          --text-sec: #9e9e9e;
+          --radius: 6px;
+      }
+
+      *, *::before, *::after {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+      }
+
+      body {
+          background: var(--bg);
+          color: var(--text);
+          font-family: Inter, system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          line-height: 1.5;
+      }
+
+      /* ── Nav ── */
+      .nav {
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          align-items: center;
+          gap: 0;
+          overflow-x: auto;
+          padding: 0 16px;
+      }
+
+      .nav-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-sec);
+          white-space: nowrap;
+          padding-right: 16px;
+          border-right: 1px solid var(--border);
+          margin-right: 8px;
+      }
+
+      .nav button {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-sec);
+          font: inherit;
+          font-size: 13px;
+          padding: 14px 14px;
+          white-space: nowrap;
+          border-bottom: 2px solid transparent;
+          transition: color .15s, border-color .15s;
+      }
+
+      .nav button:hover {
+          color: var(--text);
+      }
+
+      .nav button.active {
+          color: var(--primary);
+          border-bottom-color: var(--primary);
+      }
+
+      /* ── Sections ── */
+      .section {
+          display: none;
+          padding: 32px 24px;
+          max-width: 1100px;
+          margin: 0 auto;
+      }
+
+      .section.active {
+          display: block;
+      }
+
+      .section-label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: var(--text-sec);
+          margin-bottom: 24px;
+      }
+
+      .dir-header {
+          margin-bottom: 32px;
+      }
+
+      .dir-header h2 {
+          font-size: 20px;
+          font-weight: 600;
+          margin-bottom: 6px;
+      }
+
+      .dir-header p {
+          color: var(--text-sec);
+          max-width: 600px;
+      }
+
+      /* ── Grid ── */
+      .screens-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 24px;
+      }
+
+      .screen-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          overflow: hidden;
+      }
+
+      .screen-card-label {
+          padding: 10px 14px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          color: var(--text-sec);
+          border-bottom: 1px solid var(--border);
+      }
+
+      .screen-card-body {
+          padding: 0;
+      }
+
+      /* ── Shared UI atoms ── */
+      .mockup {
+          background: var(--bg);
+      }
+
+      .appbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          height: 56px;
+          border-bottom: 1px solid var(--border);
+      }
+
+      .appbar-title {
+          font-weight: 600;
+          font-size: 15px;
+      }
+
+      .appbar-user {
+          font-size: 13px;
+          color: var(--text-sec);
+      }
+
+      .appbar-menu {
+          display: flex;
+          gap: 4px;
+      }
+
+      .appbar-menu-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 4px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-sec);
+      }
+
+      .appbar-menu-btn:hover {
+          background: var(--surface2);
+          color: var(--text);
+      }
+
+      .hamburger {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+      }
+
+      .hamburger span {
+          width: 16px;
+          height: 1.5px;
+          background: currentColor;
+          display: block;
+      }
+
+      .page-content {
+          padding: 32px 16px;
+      }
+
+      .page-center {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 16px;
+          min-height: 320px;
+      }
+
+      /* ── Form card ── */
+      .form-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 32px;
+          width: 100%;
+          max-width: 360px;
+      }
+
+      .form-card h1 {
+          font-size: 18px;
+          font-weight: 600;
+          margin-bottom: 4px;
+      }
+
+      .form-card .subtitle {
+          color: var(--text-sec);
+          font-size: 13px;
+          margin-bottom: 24px;
+      }
+
+      .field {
+          margin-bottom: 16px;
+      }
+
+      .field label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+          margin-bottom: 6px;
+      }
+
+      .field input {
+          width: 100%;
+          padding: 10px 12px;
+          background: var(--bg);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          color: var(--text);
+          font: inherit;
+          font-size: 14px;
+          outline: none;
+          transition: border-color .15s;
+      }
+
+      .field input:focus {
+          border-color: var(--primary);
+      }
+
+      .field input.error {
+          border-color: var(--error);
+      }
+
+      .field-error {
+          font-size: 12px;
+          color: var(--error);
+          margin-top: 4px;
+      }
+
+      .field-helper {
+          font-size: 12px;
+          color: var(--text-sec);
+          margin-top: 4px;
+      }
+
+      .btn {
+          display: block;
+          width: 100%;
+          padding: 10px 16px;
+          margin-top: 8px;
+          background: var(--primary);
+          color: #0e0e10;
+          border: none;
+          border-radius: var(--radius);
+          font: inherit;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background .15s;
+      }
+
+      .btn:hover {
+          background: var(--primary-d);
+      }
+
+      .btn-ghost {
+          background: none;
+          border: 1px solid var(--border);
+          color: var(--text);
+          margin-top: 8px;
+      }
+
+      .btn-ghost:hover {
+          background: var(--surface2);
+      }
+
+      .btn-danger {
+          background: var(--error);
+          color: #fff;
+      }
+
+      .btn-danger:hover {
+          background: #c0403c;
+      }
+
+      .form-footer {
+          margin-top: 20px;
+          text-align: center;
+          font-size: 13px;
+          color: var(--text-sec);
+      }
+
+      .form-footer a {
+          color: var(--primary);
+          text-decoration: none;
+      }
+
+      .form-footer a:hover {
+          text-decoration: underline;
+      }
+
+      /* ── Welcome banner ── */
+      .welcome-banner {
+          background: color-mix(in srgb, var(--primary) 12%, transparent);
+          border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+          border-radius: var(--radius);
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          font-size: 13px;
+      }
+
+      .welcome-banner strong {
+          color: var(--primary);
+      }
+
+      .welcome-close {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-sec);
+          font-size: 16px;
+          line-height: 1;
+          padding: 0 4px;
+      }
+
+      /* ── Session expiry alert ── */
+      .session-alert {
+          background: color-mix(in srgb, #c9a84c 12%, transparent);
+          border: 1px solid color-mix(in srgb, #c9a84c 30%, transparent);
+          border-radius: var(--radius);
+          padding: 10px 14px;
+          font-size: 13px;
+          color: #c9a84c;
+          margin-bottom: 20px;
+          display: flex;
+          gap: 8px;
+          align-items: flex-start;
+      }
+
+      /* ── Admin table ── */
+      .table-wrap {
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          overflow: hidden;
+      }
+
+      .table-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border);
+      }
+
+      .table-toolbar h3 {
+          font-size: 14px;
+          font-weight: 600;
+      }
+
+      .btn-sm {
+          padding: 6px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          background: var(--primary);
+          color: #0e0e10;
+          border: none;
+          border-radius: var(--radius);
+          cursor: pointer;
+      }
+
+      table {
+          width: 100%;
+          border-collapse: collapse;
+      }
+
+      th {
+          text-align: left;
+          padding: 10px 16px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          color: var(--text-sec);
+          border-bottom: 1px solid var(--border);
+          background: var(--surface2);
+      }
+
+      td {
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border);
+          font-size: 13px;
+      }
+
+      tr:last-child td {
+          border-bottom: none;
+      }
+
+      .role-chip {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          background: color-mix(in srgb, var(--primary) 15%, transparent);
+          color: var(--primary);
+      }
+
+      .role-chip.admin {
+          background: color-mix(in srgb, #c9a84c 15%, transparent);
+          color: #c9a84c;
+      }
+
+      .row-actions {
+          display: flex;
+          gap: 4px;
+      }
+
+      .icon-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 4px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-sec);
+          font-size: 13px;
+          transition: background .12s, color .12s;
+      }
+
+      .icon-btn:hover {
+          background: var(--surface2);
+          color: var(--text);
+      }
+
+      .icon-btn.danger:hover {
+          background: color-mix(in srgb, var(--error) 15%, transparent);
+          color: var(--error);
+      }
+
+      /* ── Toggle row ── */
+      .toggle-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 16px;
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          margin-top: 16px;
+      }
+
+      .toggle-label {
+          font-size: 13px;
+          font-weight: 500;
+      }
+
+      .toggle-desc {
+          font-size: 12px;
+          color: var(--text-sec);
+          margin-top: 2px;
+      }
+
+      .toggle {
+          position: relative;
+          width: 40px;
+          height: 22px;
+          flex-shrink: 0;
+      }
+
+      .toggle input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+      }
+
+      .toggle-slider {
+          position: absolute;
+          inset: 0;
+          background: var(--border);
+          border-radius: 22px;
+          cursor: pointer;
+          transition: background .2s;
+      }
+
+      .toggle-slider::after {
+          content: '';
+          position: absolute;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #fff;
+          top: 3px;
+          left: 3px;
+          transition: transform .2s;
+      }
+
+      .toggle input:checked + .toggle-slider {
+          background: var(--primary);
+      }
+
+      .toggle input:checked + .toggle-slider::after {
+          transform: translateX(18px);
+      }
+
+      /* ── Dialog ── */
+      .dialog-backdrop {
+          position: relative;
+          background: rgba(0, 0, 0, .6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          min-height: 200px;
+      }
+
+      .dialog {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 24px;
+          max-width: 340px;
+          width: 100%;
+      }
+
+      .dialog h3 {
+          font-size: 15px;
+          font-weight: 600;
+          margin-bottom: 8px;
+      }
+
+      .dialog p {
+          font-size: 13px;
+          color: var(--text-sec);
+          margin-bottom: 20px;
+      }
+
+      .dialog-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+      }
+
+      .dialog-actions .btn {
+          width: auto;
+          margin: 0;
+          padding: 8px 16px;
+      }
+
+      /* ── AppBar username chip (Dir 3) ── */
+      .user-chip {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--text);
+      }
+
+      .user-chip-avatar {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: var(--primary);
+          color: #0e0e10;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 700;
+      }
+
+      /* ── Dir 2: Branded header ── */
+      .auth-brand {
+          text-align: center;
+          margin-bottom: 24px;
+      }
+
+      .auth-brand-mark {
+          width: 44px;
+          height: 44px;
+          border-radius: 10px;
+          background: var(--primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+          font-weight: 700;
+          color: #0e0e10;
+          margin: 0 auto 12px;
+      }
+
+      .auth-brand h1 {
+          font-size: 20px;
+          font-weight: 600;
+      }
+
+      .auth-brand p {
+          font-size: 13px;
+          color: var(--text-sec);
+          margin-top: 4px;
+      }
+
+      /* ── Dir 3: Edge-to-edge ── */
+      .edge-page {
+          padding: 40px 20px 32px;
+          min-height: 360px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          max-width: 360px;
+          margin: 0 auto;
+      }
+
+      .edge-page h1 {
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 4px;
+      }
+
+      .edge-page .subtitle {
+          color: var(--text-sec);
+          font-size: 13px;
+          margin-bottom: 28px;
+      }
+
+      /* ── Dir 4: Inline tab ── */
+      .auth-tabs {
+          display: flex;
+          border-bottom: 1px solid var(--border);
+          margin-bottom: 24px;
+      }
+
+      .auth-tab {
+          flex: 1;
+          padding: 10px;
+          text-align: center;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          color: var(--text-sec);
+          border-bottom: 2px solid transparent;
+          background: none;
+          border-top: none;
+          border-left: none;
+          border-right: none;
+          transition: color .15s, border-color .15s;
+      }
+
+      .auth-tab.active {
+          color: var(--primary);
+          border-bottom-color: var(--primary);
+      }
+
+      .auth-tab:hover {
+          color: var(--text);
+      }
+
+      /* ── Notes ── */
+      .notes {
+          margin-top: 24px;
+          padding: 16px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+      }
+
+      .notes h4 {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+          color: var(--text-sec);
+          margin-bottom: 10px;
+      }
+
+      .notes ul {
+          padding-left: 16px;
+      }
+
+      .notes li {
+          font-size: 13px;
+          color: var(--text-sec);
+          margin-bottom: 4px;
+      }
+
+      .notes li strong {
+          color: var(--text);
+      }
+
+      .notes li.pro::before {
+          content: '✓ ';
+          color: var(--primary);
+      }
+
+      .notes li.con::before {
+          content: '· ';
+          color: var(--text-sec);
+      }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-title">bag-please · Design Directions</span>
+  <button class="active" onclick="show(0)">1 · Minimal Card</button>
+  <button onclick="show(1)">2 · Branded Entry</button>
+  <button onclick="show(2)">3 · Edge-to-Edge</button>
+  <button onclick="show(3)">4 · Inline Tabs</button>
+  <button onclick="show(4)">Admin Panel</button>
+  <button onclick="show(5)">States</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════
+     DIRECTION 1 — Minimal Card
+     Closest to GitHub: card, no branding, just the form.
+═══════════════════════════════════════════════════════ -->
+<section class="section active" id="s0">
+  <div class="dir-header">
+    <h2>Direction 1 — Minimal Card</h2>
+    <p>Pure utility. Centered card, no branding, no decoration. Login/register are separate pages linked by a footer
+      line. Closest to the GitHub reference.</p>
+  </div>
+  <div class="screens-grid">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Login</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <h1>Sign in</h1>
+            <p class="subtitle">Welcome back to bag-please</p>
+            <div class="field">
+              <label for="u1">Username</label>
+              <input id="u1" type="text" value="mia"/>
+            </div>
+            <div class="field">
+              <label for="p1">Password</label>
+              <input id="p1" type="password" value="••••••••"/>
+            </div>
+            <button class="btn">Sign in</button>
+            <div class="form-footer">
+              Don't have an account? <a href="#">Register</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Login — error state</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <h1>Sign in</h1>
+            <p class="subtitle">Welcome back to bag-please</p>
+            <div class="field">
+              <label>Username</label>
+              <input class="error" type="text" value="mia"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input class="error" type="password" value="••••••"/>
+              <div class="field-error">Invalid username or password</div>
+            </div>
+            <button class="btn">Sign in</button>
+            <div class="form-footer">
+              Don't have an account? <a href="#">Register</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Register</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <h1>Create account</h1>
+            <p class="subtitle">Join bag-please</p>
+            <div class="field">
+              <label>Username</label>
+              <input placeholder="Choose a username" type="text"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input placeholder="Create a password" type="password"/>
+              <div class="field-helper">At least 8 characters</div>
+            </div>
+            <button class="btn">Create account</button>
+            <div class="form-footer">
+              Already have an account? <a href="#">Sign in</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Login — registration off</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <h1>Sign in</h1>
+            <p class="subtitle">Welcome back to bag-please</p>
+            <div class="field">
+              <label>Username</label>
+              <input type="text"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password"/>
+            </div>
+            <button class="btn">Sign in</button>
+            <div class="form-footer">
+              Need access? Contact your admin
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="notes">
+    <h4>Notes</h4>
+    <ul>
+      <li class="pro"><strong>Fastest to implement</strong> — no branding decisions required</li>
+      <li class="pro"><strong>GitHub-faithful</strong> — exact pattern requested as reference</li>
+      <li class="pro"><strong>Adapts well</strong> to registration toggle (footer line changes)</li>
+      <li class="con"><strong>No visual identity</strong> on the auth screens — neutral feel</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     DIRECTION 2 — Branded Entry
+     Same card form but the app name/mark is prominent above.
+═══════════════════════════════════════════════════════ -->
+<section class="section" id="s1">
+  <div class="dir-header">
+    <h2>Direction 2 — Branded Entry</h2>
+    <p>Same minimal form as Direction 1, but preceded by an app mark + name. Adds a sense of place without adding
+      complexity. Works well if a logo or wordmark exists later.</p>
+  </div>
+  <div class="screens-grid">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Login</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div style="width:100%;max-width:360px;">
+            <div class="auth-brand">
+              <div class="auth-brand-mark">B</div>
+              <h1>bag-please</h1>
+              <p>Sign in to continue</p>
+            </div>
+            <div class="form-card" style="border-radius:8px;">
+              <div class="field">
+                <label>Username</label>
+                <input type="text" value="mia"/>
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input type="password" value="••••••••"/>
+              </div>
+              <button class="btn">Sign in</button>
+              <div class="form-footer">
+                Don't have an account? <a href="#">Register</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Register</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div style="width:100%;max-width:360px;">
+            <div class="auth-brand">
+              <div class="auth-brand-mark">B</div>
+              <h1>bag-please</h1>
+              <p>Create your account</p>
+            </div>
+            <div class="form-card" style="border-radius:8px;">
+              <div class="field">
+                <label>Username</label>
+                <input placeholder="Choose a username" type="text"/>
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input placeholder="Create a password" type="password"/>
+              </div>
+              <button class="btn">Create account</button>
+              <div class="form-footer">
+                Already have an account? <a href="#">Sign in</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="notes">
+    <h4>Notes</h4>
+    <ul>
+      <li class="pro"><strong>App identity visible</strong> at the auth entry point</li>
+      <li class="pro"><strong>Ready for a logo</strong> — mark placeholder swaps out cleanly</li>
+      <li class="pro"><strong>Minimal extra code</strong> — just a header above the same card</li>
+      <li class="con"><strong>Slightly taller</strong> on small phones — brand block adds ~80px</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     DIRECTION 3 — Edge-to-Edge
+     No card, form fills the viewport. Mobile-native feel.
+═══════════════════════════════════════════════════════ -->
+<section class="section" id="s2">
+  <div class="dir-header">
+    <h2>Direction 3 — Edge-to-Edge</h2>
+    <p>No card wrapper. Form sits directly on the dark background with generous padding. Feels most native on mobile.
+      Username in AppBar uses a small chip with avatar initial for extra identity signal.</p>
+  </div>
+  <div class="screens-grid">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Login — mobile view</div>
+      <div class="screen-card-body mockup">
+        <div class="edge-page">
+          <h1>Sign in</h1>
+          <p class="subtitle">Welcome back to bag-please</p>
+          <div class="field">
+            <label>Username</label>
+            <input type="text" value="mia"/>
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" value="••••••••"/>
+          </div>
+          <button class="btn" style="margin-top:20px;">Sign in</button>
+          <div class="form-footer" style="margin-top:16px;">
+            Don't have an account? <a href="#">Register</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">AppBar — username chip variant</div>
+      <div class="screen-card-body mockup">
+        <div class="appbar">
+          <span class="appbar-title">Bag please</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="user-chip">
+              <div class="user-chip-avatar">M</div>
+              mia
+            </div>
+            <button class="appbar-menu-btn">
+              <div class="hamburger"><span></span><span></span><span></span></div>
+            </button>
+          </div>
+        </div>
+        <div class="page-content" style="color:var(--text-sec);font-size:13px;">
+          App content here…
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="notes">
+    <h4>Notes</h4>
+    <ul>
+      <li class="pro"><strong>Most mobile-native</strong> — no card feel, fills the screen</li>
+      <li class="pro"><strong>Username chip</strong> adds a stronger identity signal in the AppBar</li>
+      <li class="con"><strong>Less structure</strong> — no card boundary; may feel looser on desktop</li>
+      <li class="con"><strong>Username chip</strong> is more complex to implement than plain text</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     DIRECTION 4 — Inline Tabs
+     Login and Register on the same card, tab-switched.
+═══════════════════════════════════════════════════════ -->
+<section class="section" id="s3">
+  <div class="dir-header">
+    <h2>Direction 4 — Inline Tabs</h2>
+    <p>Login and Register live on the same card, switching via tabs. Reduces navigation between pages. Best if
+      registration is usually open; awkward when registration is disabled (tab hidden).</p>
+  </div>
+  <div class="screens-grid">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Sign in tab active</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <div class="auth-tabs">
+              <button class="auth-tab active">Sign in</button>
+              <button class="auth-tab">Register</button>
+            </div>
+            <div class="field">
+              <label>Username</label>
+              <input type="text" value="mia"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" value="••••••••"/>
+            </div>
+            <button class="btn">Sign in</button>
+            <div class="form-footer" style="margin-top:12px;">
+              Locked out? Contact your admin
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Register tab active</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <div class="auth-tabs">
+              <button class="auth-tab">Sign in</button>
+              <button class="auth-tab active">Register</button>
+            </div>
+            <div class="field">
+              <label>Username</label>
+              <input placeholder="Choose a username" type="text"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input placeholder="Create a password" type="password"/>
+            </div>
+            <button class="btn">Create account</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Registration off — single tab</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <h1 style="margin-bottom:4px;">Sign in</h1>
+            <p class="subtitle">Registration is currently closed</p>
+            <div class="field">
+              <label>Username</label>
+              <input type="text"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password"/>
+            </div>
+            <button class="btn">Sign in</button>
+            <div class="form-footer">
+              Need access? Contact your admin
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="notes">
+    <h4>Notes</h4>
+    <ul>
+      <li class="pro"><strong>One URL</strong> — no page navigation between login/register</li>
+      <li class="pro"><strong>Compact</strong> — both forms in one card</li>
+      <li class="con"><strong>Awkward when registration is off</strong> — tab disappears, layout shifts</li>
+      <li class="con"><strong>Slightly more complex</strong> — tab state management in the component</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     ADMIN PANEL
+═══════════════════════════════════════════════════════ -->
+<section class="section" id="s4">
+  <div class="dir-header">
+    <h2>Admin Panel — /admin/users</h2>
+    <p>User management table with row actions. Consistent across all four auth directions — the admin panel layout is
+      fixed.</p>
+  </div>
+  <div class="screens-grid" style="grid-template-columns:1fr;">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Users list</div>
+      <div class="screen-card-body mockup">
+        <div class="appbar">
+          <span class="appbar-title">Bag please</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="appbar-user">alex</span>
+            <button class="appbar-menu-btn">
+              <div class="hamburger"><span></span><span></span><span></span></div>
+            </button>
+          </div>
+        </div>
+        <div class="page-content">
+          <div class="table-wrap">
+            <div class="table-toolbar">
+              <h3>Users</h3>
+              <button class="btn-sm">+ Create user</button>
+            </div>
+            <table>
+              <thead>
+              <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr>
+                <td>alex</td>
+                <td><span class="role-chip admin">admin</span></td>
+                <td style="text-align:right;">
+                  <div class="row-actions" style="justify-content:flex-end;">
+                    <button class="icon-btn" title="Reset password">🔑</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>mia</td>
+                <td><span class="role-chip">user</span></td>
+                <td style="text-align:right;">
+                  <div class="row-actions" style="justify-content:flex-end;">
+                    <button class="icon-btn" title="Reset password">🔑</button>
+                    <button class="icon-btn danger" title="Delete">🗑</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>tom</td>
+                <td><span class="role-chip">user</span></td>
+                <td style="text-align:right;">
+                  <div class="row-actions" style="justify-content:flex-end;">
+                    <button class="icon-btn" title="Reset password">🔑</button>
+                    <button class="icon-btn danger" title="Delete">🗑</button>
+                  </div>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Public registration</div>
+              <div class="toggle-desc">Allow anyone to create an account</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox"/>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Delete confirmation dialog</div>
+      <div class="screen-card-body mockup">
+        <div class="dialog-backdrop">
+          <div class="dialog">
+            <h3>Delete user?</h3>
+            <p>This will permanently remove <strong style="color:var(--text);">tom</strong>. Their contributions to the
+              shared list will remain. This cannot be undone.</p>
+            <div class="dialog-actions">
+              <button class="btn btn-ghost" style="width:auto;margin:0;padding:8px 16px;">Cancel</button>
+              <button class="btn btn-danger" style="width:auto;margin:0;padding:8px 16px;">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Reset password confirmation dialog</div>
+      <div class="screen-card-body mockup">
+        <div class="dialog-backdrop">
+          <div class="dialog">
+            <h3>Reset password?</h3>
+            <p>This will set a new password for <strong style="color:var(--text);">tom</strong> and invalidate their
+              current session.</p>
+            <div class="field" style="margin-bottom:16px;">
+              <label>New password</label>
+              <input placeholder="Enter new password" type="password"/>
+            </div>
+            <div class="dialog-actions">
+              <button class="btn btn-ghost" style="width:auto;margin:0;padding:8px 16px;">Cancel</button>
+              <button class="btn" style="width:auto;margin:0;padding:8px 16px;">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     STATES — Welcome banner, session expiry, AppBar
+═══════════════════════════════════════════════════════ -->
+<section class="section" id="s5">
+  <div class="dir-header">
+    <h2>UI States</h2>
+    <p>Welcome banner, session expiry message, and AppBar username — common across all directions.</p>
+  </div>
+  <div class="screens-grid" style="grid-template-columns:1fr;">
+
+    <div class="screen-card">
+      <div class="screen-card-label">Post-registration — welcome banner (one-time)</div>
+      <div class="screen-card-body mockup">
+        <div class="appbar">
+          <span class="appbar-title">Bag please</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="appbar-user">mia</span>
+            <button class="appbar-menu-btn">
+              <div class="hamburger"><span></span><span></span><span></span></div>
+            </button>
+          </div>
+        </div>
+        <div class="page-content">
+          <div class="welcome-banner">
+            <span>Welcome, <strong>mia</strong>! You now have your own account.</span>
+            <button class="welcome-close">×</button>
+          </div>
+          <div style="color:var(--text-sec);font-size:13px;">App content here…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">Session expired — login redirect</div>
+      <div class="screen-card-body mockup">
+        <div class="page-center">
+          <div class="form-card">
+            <div class="session-alert">
+              <span>⚠</span>
+              <span>Your session has expired. Please sign in again.</span>
+            </div>
+            <h1>Sign in</h1>
+            <p class="subtitle" style="margin-bottom:20px;">Welcome back to bag-please</p>
+            <div class="field">
+              <label>Username</label>
+              <input type="text"/>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password"/>
+            </div>
+            <button class="btn">Sign in</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-card">
+      <div class="screen-card-label">AppBar — plain text username (all directions)</div>
+      <div class="screen-card-body mockup">
+        <div class="appbar">
+          <span class="appbar-title">Bag please</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="appbar-user">mia</span>
+            <button class="appbar-menu-btn">
+              <div class="hamburger"><span></span><span></span><span></span></div>
+            </button>
+          </div>
+        </div>
+        <div class="page-content" style="color:var(--text-sec);font-size:13px;">
+          Username appears in muted secondary colour — visible but not dominant.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+    function show(idx) {
+        document.querySelectorAll('.section').forEach((s, i) => s.classList.toggle('active', i === idx));
+        document.querySelectorAll('.nav button').forEach((b, i) => b.classList.toggle('active', i === idx));
+    }
+</script>
+</body>
+</html>

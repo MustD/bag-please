@@ -7,7 +7,7 @@ services:
     build:
       context: ./routing
     ports:
-      - "2080:80"
+      - "127.0.0.1:2080:80"
     networks:
       - bp_network
     extra_hosts:
@@ -63,3 +63,5 @@ services:
       KTOR_MONGO_DB_NAME: "bag_please"
       KTOR_MONGO_USER: "user"
       KTOR_MONGO_PASS: "pass"
+
+      KTOR_RATE_LIMIT_ATTEMPTS: 6000

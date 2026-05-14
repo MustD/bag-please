@@ -1,95 +1,98 @@
 'use client'
 
-import React from "react";
-import {Box, IconButton, Stack, TextField, Typography} from "@mui/material";
-import LoginIcon from "@mui/icons-material/Login";
-import {useRouter} from "next/navigation";
+import {Suspense, useState} from 'react'
+import {useRouter, useSearchParams} from 'next/navigation'
+import NextLink from 'next/link'
+import {Alert, Box, Button, CircularProgress, Link, Stack, TextField, Typography} from '@mui/material'
+import {useAuth} from '@/lib/auth/AuthContext'
+import {authApi} from '@/lib/auth/authApi'
 
-type LoginForm = {
-  username: string,
-  password: string,
-  usernameValidationError: string,
-  passwordValidationError: string,
-}
-
-export default function LoginPage() {
-  const initialForm = {
-    username: "",
-    password: "",
-    usernameValidationError: "",
-    passwordValidationError: ""
-  }
-
-  const [formValues, setFormValues] = React.useState<LoginForm>(initialForm);
-  const changeForm = (user: string, pass: string) => {
-    setFormValues({
-      username: user, password: pass, usernameValidationError: "", passwordValidationError: ""
-    });
-  };
-
+function LoginForm() {
+  const searchParams = useSearchParams()
+  const expired = searchParams?.get('expired') === '1'
+  const {setAuth} = useAuth()
   const router = useRouter()
 
-  const handleLogin = async (e?: React.FormEvent) => {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [usernameError, setUsernameError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [serverError, setServerError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-
-    if (formValues.username === "" || formValues.password === "") {
-      setFormValues({
-        ...formValues,
-        usernameValidationError: formValues.username === "" ? "Enter username" : "",
-        passwordValidationError: formValues.password === "" ? "Enter password" : "",
-      });
-      return
+    setServerError('')
+    let valid = true
+    if (!username) {
+      setUsernameError('Enter username')
+      valid = false
     }
+    if (!password) {
+      setPasswordError('Enter password')
+      valid = false
+    }
+    if (!valid) return
 
-    const submitData = {username: formValues.username, password: formValues.password}
+    setIsSubmitting(true)
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        body: JSON.stringify(submitData),
-        headers: {'content-type': 'application/json'}
-      })
-      if (res.ok) {
-        const data = await res.json() as { user: string, token: string }
-        localStorage.setItem("token", data.token)
-        localStorage.setItem("username", data.user)
-        router.push("/")
-      } else {
-        console.log("Auth failed.")
-      }
-    } catch (error) {
-      console.log(error)
+      const data = await authApi.login(username, password)
+      setAuth({username: data.username, role: data.role as 'admin' | 'user', accessToken: data.accessToken})
+      router.push('/')
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Invalid username or password')
+    } finally {
+      setIsSubmitting(false)
     }
-    setFormValues(initialForm)
   }
 
-
   return (
-    <Box component="form" noValidate onSubmit={handleLogin}>
-      <Stack spacing={1} sx={{justifyContent: "flex-start", alignItems: "center"}}>
-        <Typography>Login</Typography>
+    <Box component="form" noValidate onSubmit={handleSubmit}>
+      <Stack sx={{maxWidth: 360, mx: 'auto', px: 2, py: 5}} spacing={2}>
+        {expired && (
+          <Alert severity="warning">Your session has expired. Please sign in again.</Alert>
+        )}
+        <Typography variant="h6">Sign in</Typography>
         <TextField
-          id="user"
-          name="user"
-          label="User"
-          variant="standard"
-          error={formValues.usernameValidationError != ""}
-          helperText={formValues.usernameValidationError}
-          value={formValues.username}
-          onChange={(event) => changeForm(event.target.value, formValues.password)}
+          id="username"
+          name="username"
+          label="Username"
+          value={username}
+          error={!!usernameError}
+          helperText={usernameError}
+          onChange={(e) => {
+            setUsername(e.target.value)
+            setUsernameError('')
+            setServerError('')
+          }}
         />
         <TextField
           id="password"
           name="password"
           label="Password"
-          variant="standard"
           type="password"
-          error={formValues.passwordValidationError != ""}
-          helperText={formValues.passwordValidationError}
-          value={formValues.password}
-          onChange={(event) => changeForm(formValues.username, event.target.value)}
+          value={password}
+          error={!!passwordError || !!serverError}
+          helperText={passwordError || serverError}
+          onChange={(e) => {
+            setPassword(e.target.value)
+            setPasswordError('')
+            setServerError('')
+          }}
         />
-        <IconButton type={"submit"} aria-label="login"> <LoginIcon/> </IconButton>
+        <Button type="submit" variant="contained" disabled={isSubmitting}>
+          {isSubmitting ? <CircularProgress size={20} color="inherit"/> : 'Sign in'}
+        </Button>
+        <Link component={NextLink} href="/auth/register">Register</Link>
       </Stack>
     </Box>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm/>
+    </Suspense>
   )
 }

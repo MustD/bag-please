@@ -35,12 +35,15 @@ class AuthApiTest : FunSpec({
             setUpMongo(container)
             setUpJwt()
             application { module() }
-            client.post("/login") {
+            client.post("/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody("""{"username":"admin","password":"admin"}""")
             }.apply {
                 shouldHaveStatus(HttpStatusCode.OK)
-                bodyAsText() shouldContain "token"
+                val body = bodyAsText()
+                body shouldContain "accessToken"
+                body shouldContain """"username":"admin""""
+                body shouldContain """"role":"admin""""
             }
         }
     }
@@ -50,7 +53,7 @@ class AuthApiTest : FunSpec({
             setUpMongo(container)
             setUpJwt()
             application { module() }
-            client.post("/login") {
+            client.post("/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody("""{"username":"admin","password":"wrong"}""")
             }.shouldHaveStatus(HttpStatusCode.Unauthorized)

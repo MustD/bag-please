@@ -15,6 +15,12 @@ jwt:
   realm: "bag-please.com"
   admin_login: "$KTOR_ADMIN_LOGIN:admin"
   admin_pass: "$KTOR_ADMIN_PASS:admin"
+  accessExpiryMinutes: "$KTOR_JWT_ACCESS_EXPIRY_MINUTES:15"
+  refreshExpiryDays: "$KTOR_JWT_REFRESH_EXPIRY_DAYS:30"
+
+rateLimit:
+  attempts: "$KTOR_RATE_LIMIT_ATTEMPTS:5"
+  windowSeconds: "$KTOR_RATE_LIMIT_WINDOW_SECONDS:60"
 
 db:
   mongo:

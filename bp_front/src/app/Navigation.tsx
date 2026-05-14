@@ -7,10 +7,12 @@ import MenuIcon from "@mui/icons-material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import Logout from "@/app/auth/Logout";
+import {useAuth} from "@/lib/auth/AuthContext";
 
 export default function Navigation() {
   const currentPath = usePathname()
   const router = useRouter()
+  const {username} = useAuth()
 
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(menuAnchor);
@@ -110,6 +112,15 @@ export default function Navigation() {
                 </MenuItem>
               </Box>
             ) : null}
+            {username && <>
+              <Divider/>
+              <MenuItem onClick={() => {
+                onClose()
+                router.push('/account/password')
+              }}>
+                <Typography>Change Password</Typography>
+              </MenuItem>
+            </>}
           </Menu>
     </Box>
   )

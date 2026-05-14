@@ -26,6 +26,8 @@ import io.ktor.serialization.jackson.JacksonWebsocketContentConverter
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.jwt.JWTPrincipal
+import io.ktor.server.auth.principal
 import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.request.ApplicationRequest
 import io.ktor.server.routing.Routing
@@ -98,7 +100,10 @@ class CustomGraphQLContextFactory : DefaultKtorGraphQLContextFactory() {
         }
 
      */
-    override suspend fun generateContext(request: ApplicationRequest): GraphQLContext =
-        super.generateContext(request)
-//            .plus(mapOf(GQL_CALL_PRINCIPAL to request.call.principal<JWTPrincipal>()))
+    override suspend fun generateContext(request: ApplicationRequest): GraphQLContext {
+        val ctx = super.generateContext(request)
+        val principal = request.call.principal<JWTPrincipal>()
+        if (principal != null) ctx.put(GQL_CALL_PRINCIPAL, principal)
+        return ctx
+    }
 }
