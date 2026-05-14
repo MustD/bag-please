@@ -6,3 +6,5 @@
   id
 - [testApplication config loading](feedback_testapplication_yaml.md) — testApplication does not auto-load YAML;
   setUpJwt() still required
+- [Epic 2 architectural decisions](project_epic2_arch_decisions.md) — No UserStorage, GraphQL for admin ops,
+  ApplicationConfig direct to MongoDB

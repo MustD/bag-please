@@ -1,5 +1,21 @@
 # Deferred Work
 
+## Deferred from: code review of 1-6-e2e-test-infrastructure-auth-flow-coverage (2026-05-14)
+
+- Hardcoded admin/admin credentials in test files — documented default dev credentials; swap to env var pattern if
+  credentials become environment-specific
+- Registration test accumulates test users with no teardown — explicitly accepted in dev notes; clean dev DB
+  periodically or add a purge script before prod migration
+- `button[aria-haspopup="true"]` selector not scoped to AppBar — stable for current UI; refactor to scoped selector if
+  additional `aria-haspopup` buttons are added to the header
+- `[aria-label="logout"]` selector fragile to future label/i18n changes — use `data-testid` for logout trigger when
+  accessibility labels evolve
+- No `webServer` config in playwright.config.ts — out of scope per story; add `webServer` block with `docker compose`
+  invocation when CI pipeline is configured
+- No `playwright install` step in `test:e2e` script — one-time manual setup; document in CI pipeline onboarding
+- No explicit timeout overrides on URL/element assertions — Playwright default (5s) is adequate for local dev; increase
+  if flakiness observed in CI
+
 ## Deferred from: code review of 1-5-user-identity-account-management-ui (2026-05-11)
 
 - Silent return when `accessToken` is null gives user no feedback — spec-designed loading-window guard; UX improvement

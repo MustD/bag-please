@@ -74,7 +74,8 @@ NFR9: Authentication operations (login, register, token refresh) complete in und
 NFR10: Auth UI screens (login, registration) render without perceptible layout shift or blocking on mobile devices
 NFR11: System supports a small user base (tens of users) in v1; no horizontal scaling or distributed session management
 required
-NFR12: ApplicationConfig is loaded at startup and may be cached in memory; writes invalidate the cache immediately
+NFR12: ApplicationConfig is read directly from MongoDB on each request; no in-memory cache required for v1 given the low
+read frequency of admin config operations
 NFR13: All input fields on auth forms have visible, associated labels
 NFR14: Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 NFR15: Form error messages are associated with their corresponding input fields
@@ -86,13 +87,15 @@ From Architecture (Backend):
 
 - AR1: New auth REST endpoints replace the current single `/api/login` endpoint — `POST /auth/register`,
   `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` — all under Ktor's `/api/` root path
-- AR2: Admin REST endpoints required: `GET /admin/users`, `POST /admin/users`, `DELETE /admin/users/{id}`,
-  `POST /admin/users/{id}/reset-password`, `PUT /admin/config`
-- AR3: `User` entity requires the full project vertical slice: domain model (`User`), Mongo model + mapper (
-  `MongoUser`), `UserStorage` with lazy-sync pattern, `UserService` with Arrow Either error handling, registration in
-  Routing.kt (REST, not GQL)
-- AR4: `ApplicationConfig` entity for runtime flags (registration toggle): MongoDB `app_config` collection, loaded at
-  startup, in-memory cached, cache invalidated on write
+- AR2: Admin operations are exposed via GraphQL mutations/queries (not REST): `users` query, `createUser`,
+  `deleteUser`, `resetUserPassword` mutations, `applicationConfig` query, `setRegistrationEnabled` mutation. Auth
+  endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`, `/auth/change-password`) remain REST
+  because httpOnly cookie mechanics are not compatible with Apollo Client's response handling.
+- AR3: `User` entity vertical slice: domain model (`User`), Mongo model + mapper (`MongoUser`), `UserService` calling
+  `UserRepository` directly — no `UserStorage` in-memory cache layer. `UserStorage` is removed in Story 2.0.
+  Registration in Routing.kt (REST, not GQL).
+- AR4: `ApplicationConfig` entity for runtime flags (registration toggle): MongoDB `app_config` collection, read and
+  written directly via `ApplicationConfigRepository` — no in-memory cache. Each read hits MongoDB.
 - AR5: `Principal` must be threaded through the GraphQL context via `CustomGraphQLContextFactory` (currently
   commented-out code in `GQL.kt`) so downstream services can use it
 - AR6: New MongoDB collections: `users`, `refresh_tokens`, `app_config`; `refresh_tokens` requires a TTL index on the
@@ -489,6 +492,33 @@ confirmation dialogs on destructive actions. Admin can toggle public registratio
 is accessible only to the admin role; non-admin users are blocked. The login screen adapts to the registration state (
 link hidden / "contact admin" copy shown).
 
+### Story 2.0: Remove UserStorage — Simplify UserService to Direct MongoDB
+
+As a developer,
+I want to eliminate the in-memory UserStorage cache layer,
+So that the user data path is simpler, the concurrency hazards from the dual-map pattern are gone, and the codebase
+is easier to maintain going into Epic 2.
+
+**Acceptance Criteria:**
+
+**Given** `UserStorage.kt` and its dual-map pattern exist from Epic 1
+**When** this story is complete
+**Then** `UserStorage.kt` is deleted
+**And** `UserService` calls `UserRepository` methods directly for all user operations
+**And** `UserRepository.findByUsername` (previously dead code) is the primary lookup for login and duplicate checks
+**And** the MongoDB unique index on `username` (patched in Story 1.1 review) serves as the sole duplicate-prevention
+mechanism
+
+**Given** a user attempts to register with a username that already exists
+**When** `UserRepository.save()` is called
+**Then** MongoDB rejects the write via the unique index
+**And** `UserService` maps the `MongoWriteException` to the same HTTP 400 response as before
+
+**Given** all existing Story 1.1 and 1.2 backend tests
+**When** this story is complete
+**Then** all tests pass against the simplified `UserService` (tests updated to remove `UserStorage` setup/mocking)
+**And** no test relies on in-memory map state
+
 ### Story 2.1: ApplicationConfig Entity & Registration Toggle Backend
 
 As an admin,
@@ -499,64 +529,61 @@ So that I can manage who can join the app without restarting the service.
 
 **Given** the `app_config` MongoDB collection is empty on first startup
 **When** the application starts
-**Then** the ApplicationConfig is initialized with `registrationEnabled: false`
-**And** the config is loaded into the in-memory cache
+**Then** the ApplicationConfig is initialized with `registrationEnabled: false` and persisted to MongoDB
 
-**Given** the ApplicationConfig is cached in memory
-**When** `GET /admin/config` is called with a valid admin JWT
-**Then** the response is HTTP 200 with `{"registrationEnabled": false}` (or the current state)
-**And** the value is served from the in-memory cache — no MongoDB read is required
-
-**Given** the admin sends `PUT /admin/config` with `{"registrationEnabled": true}`
+**Given** the GraphQL `applicationConfig` query is called with a valid admin JWT
 **When** processed
-**Then** the response is HTTP 200
-**And** the `app_config` MongoDB document is updated
-**And** the in-memory cache reflects the new value immediately
-**And** a subsequent `GET /admin/config` returns `{"registrationEnabled": true}`
+**Then** the response contains `registrationEnabled` reflecting the current value read from MongoDB
 
-**Given** a non-admin user calls `PUT /admin/config`
-**Then** the response is HTTP 403
+**Given** the admin calls `setRegistrationEnabled(enabled: true)` mutation
+**When** processed
+**Then** the `app_config` MongoDB document is updated
+**And** a subsequent `applicationConfig` query returns `registrationEnabled: true`
 
-**Given** `GET /admin/config` is called without a valid JWT
-**Then** the response is HTTP 401
+**Given** a non-admin user calls any admin GraphQL mutation
+**When** the GQL context principal is checked
+**Then** a GraphQL error with code FORBIDDEN is returned
+
+**Given** an unauthenticated request calls any admin GraphQL mutation
+**Then** a GraphQL error with code UNAUTHENTICATED is returned
 
 ### Story 2.2: Admin User Management Backend
 
 As an admin,
-I want to manage user accounts via API,
-So that I can create, reset passwords, and remove users without direct database access.
+I want to manage user accounts via GraphQL,
+So that I can create, reset passwords, and remove users without direct database access, using the same API layer as
+the rest of the application.
 
 **Acceptance Criteria:**
 
 **Given** the admin is authenticated
-**When** `GET /admin/users` is called
-**Then** the response is HTTP 200 with an array of `{"id", "username", "role"}` for all DB users
+**When** the GraphQL `users` query is called
+**Then** the response contains an array of `{id, username, role}` for all MongoDB users
 **And** the admin account (env-var credentials) is NOT included in the list
 
 **Given** a valid admin JWT and username "tom" does not yet exist
-**When** `POST /admin/users` is called with `{"username": "tom", "password": "initial123"}`
-**Then** the response is HTTP 201 with `{"id", "username": "tom", "role": "user"}`
+**When** the `createUser(username: "tom", password: "initial123")` mutation is called
+**Then** the response contains `{id, username: "tom", role: "user"}`
 **And** "tom" is stored in MongoDB with a bcrypt-12 hashed password
-**And** a subsequent `GET /admin/users` includes "tom"
+**And** a subsequent `users` query includes "tom"
 
 **Given** user "tom" exists with a known UUID
-**When** `DELETE /admin/users/{id}` is called by the admin
-**Then** the response is HTTP 200
-**And** "tom" is removed from MongoDB
-**And** a subsequent `GET /admin/users` does not include "tom"
+**When** the `deleteUser(id: "…")` mutation is called by the admin
+**Then** "tom" is removed from MongoDB
+**And** a subsequent `users` query does not include "tom"
 
 **Given** user "tom" exists with a known UUID
-**When** `POST /admin/users/{id}/reset-password` is called with `{"newPassword": "newpass"}`
-**Then** the response is HTTP 200
-**And** "tom"'s password hash in MongoDB is updated to bcrypt-12("newpass")
+**When** the `resetUserPassword(id: "…", newPassword: "newpass")` mutation is called
+**Then** "tom"'s password hash in MongoDB is updated to bcrypt-12("newpass")
 **And** all of "tom"'s active refresh tokens are deleted from `refresh_tokens`
 **And** "tom" can subsequently log in with "newpass"
 
-**Given** a non-admin user calls any `/admin/*` endpoint
-**Then** the response is HTTP 403 regardless of the operation
+**Given** a non-admin user calls any admin GraphQL mutation
+**When** the GQL context principal is checked
+**Then** a GraphQL error with code FORBIDDEN is returned
 
-**Given** `DELETE /admin/users/{id}` is called with an ID that does not exist
-**Then** the response is HTTP 404
+**Given** `deleteUser` is called with an ID that does not exist
+**Then** a GraphQL error with code NOT_FOUND is returned
 
 ### Story 2.3: Admin User Management UI
 

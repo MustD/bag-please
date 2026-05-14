@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "generate": "graphql-codegen --config codegen.ts"
+    "generate": "graphql-codegen --config codegen.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@apollo/client": "4.1.9",
@@ -34,6 +35,7 @@
     "@graphql-codegen/typescript-graphql-request": "7.0.1",
     "@graphql-codegen/typescript-operations": "6.0.0",
     "@graphql-codegen/typescript-react-apollo": "4.4.2",
+    "@playwright/test": "^1.60.0",
     "@types/node": "25.6.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
