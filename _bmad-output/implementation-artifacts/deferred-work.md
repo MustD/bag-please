@@ -1,5 +1,17 @@
 # Deferred Work
 
+## Deferred from: code review of 2-4-registration-toggle-ui-adaptive-login-screen (2026-05-15)
+
+- `/auth/config` shares auth rate-limit bucket with `/auth/login` — page-load requests consume login quota per IP;
+  intentional per spec placement; revisit rate-limit config if exhaustion observed in production
+- `registrationEnabled` stays `null` permanently on `GET /api/auth/config` network failure — spec-accepted silent
+  failure; both Register link and "Contact admin" are suppressed while null; may confuse users on transient backend
+  outage
+- `/auth/register` page directly accessible when registration is disabled — backend correctly rejects POST but user sees
+  full form and gets no useful error message; frontend route guard is a follow-up UX enhancement
+- `ApplicationConfigService` in-memory cache can diverge from MongoDB if DB write fails after `cache.set` succeeds —
+  backend pre-existing issue; process restart recovers; fix with transactional write or cache invalidation on error
+
 ## Deferred from: code review of 2-3-admin-user-management-ui (2026-05-15)
 
 - Client-side-only admin guard — `getUsersQuery` fires before `layout.tsx` redirect executes in `useEffect`; a logged-in

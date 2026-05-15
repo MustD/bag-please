@@ -5,7 +5,7 @@ const config: CodegenConfig = {
   schema: {
     "http://localhost:2080/api/graphql": {
       headers: {
-        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJiYWctcGxlYXNlLmNvbSIsImlzcyI6ImJhZy1wbGVhc2UuY29tIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3ODg0NDczMH0.f3ank8R-Bnj9oIFXaGoI_CcJNZw0-OvM9XVBNz3B_Z4",
+        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJiYWctcGxlYXNlLmNvbSIsImlzcyI6ImJhZy1wbGVhc2UuY29tIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3ODg0NzI2N30.GN7NfssXGMP1d3MKyArrQJM-Sr1txkNRAUgssaHmZkw",
       },
     },
   },

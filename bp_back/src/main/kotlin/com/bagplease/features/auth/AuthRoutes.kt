@@ -20,6 +20,7 @@ import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 
@@ -36,6 +37,11 @@ fun Application.configureAuthRoutes(
 ) {
     routing {
         rateLimit(RateLimitName("auth")) {
+            get("/auth/config") {
+                val config = appConfigService.get()
+                call.respond(HttpStatusCode.OK, mapOf("registrationEnabled" to config.registrationEnabled))
+            }
+
             post("/auth/register") {
                 if (!appConfigService.get().registrationEnabled) {
                     call.respond(HttpStatusCode.Forbidden, ErrorResponse("Registration is disabled"))

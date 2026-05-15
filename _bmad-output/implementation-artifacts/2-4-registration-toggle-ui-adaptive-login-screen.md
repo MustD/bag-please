@@ -1,6 +1,6 @@
 # Story 2.4: Registration Toggle UI & Adaptive Login Screen
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -47,43 +47,43 @@ Then it is available in app context so the login page uses it without an additio
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add public REST endpoint on backend (AC: 4, 5, 6)
-    - [ ] In `bp_back/src/main/kotlin/com/bagplease/features/auth/AuthRoutes.kt`, add `get("/auth/config")` route (no
+- [x] Task 1: Add public REST endpoint on backend (AC: 4, 5, 6)
+    - [x] In `bp_back/src/main/kotlin/com/bagplease/features/auth/AuthRoutes.kt`, add `get("/auth/config")` route (no
       auth) returning `{ "registrationEnabled": Boolean }` from `appConfigService.get()`
-    - [ ] Place the new route inside the existing `rateLimit` block alongside `/auth/login`
+    - [x] Place the new route inside the existing `rateLimit` block alongside `/auth/login`
 
-- [ ] Task 2: Add GQL operations for admin toggle (AC: 1, 2, 3)
-    - [ ] Create `bp_front/src/lib/config/Queries.tsx` with `getApplicationConfigQuery` and
+- [x] Task 2: Add GQL operations for admin toggle (AC: 1, 2, 3)
+    - [x] Create `bp_front/src/lib/config/Queries.tsx` with `getApplicationConfigQuery` and
       `setRegistrationEnabledMutation`
-    - [ ] Run `npm run generate` from `bp_front/` to regenerate `__generated__/graphql.ts` (requires backend on `:2080`
+    - [x] Run `npm run generate` from `bp_front/` to regenerate `__generated__/graphql.ts` (requires backend on `:2080`
       with valid JWT in `codegen.ts`)
 
-- [ ] Task 3: Expose `registrationEnabled` in `AuthContext` (AC: 4, 5, 6)
-    - [ ] Add `getConfig: async () => fetch('/api/auth/config')...` helper to `bp_front/src/lib/auth/authApi.ts`
-    - [ ] Add `registrationEnabled: boolean | null` to `AuthContextValue` in `bp_front/src/lib/auth/AuthContext.tsx`
-    - [ ] In `AuthProvider` `useEffect`, fetch config in parallel with `authApi.refresh()` and set `registrationEnabled`
+- [x] Task 3: Expose `registrationEnabled` in `AuthContext` (AC: 4, 5, 6)
+    - [x] Add `getConfig: async () => fetch('/api/auth/config')...` helper to `bp_front/src/lib/auth/authApi.ts`
+    - [x] Add `registrationEnabled: boolean | null` to `AuthContextValue` in `bp_front/src/lib/auth/AuthContext.tsx`
+    - [x] In `AuthProvider` `useEffect`, fetch config in parallel with `authApi.refresh()` and set `registrationEnabled`
       state
-    - [ ] Expose `registrationEnabled` via `AuthContext.Provider` value
+    - [x] Expose `registrationEnabled` via `AuthContext.Provider` value
 
-- [ ] Task 4: Add toggle Switch to AdminUsersPage (AC: 1, 2, 3)
-    - [ ] In `bp_front/src/app/admin/users/page.tsx`, add `useQuery(getApplicationConfigQuery)` to load current state
-    - [ ] Add `useMutation(setRegistrationEnabledMutation)` with Apollo cache update (write back to
+- [x] Task 4: Add toggle Switch to AdminUsersPage (AC: 1, 2, 3)
+    - [x] In `bp_front/src/app/admin/users/page.tsx`, add `useQuery(getApplicationConfigQuery)` to load current state
+    - [x] Add `useMutation(setRegistrationEnabledMutation)` with Apollo cache update (write back to
       `getApplicationConfigQuery` cache)
-    - [ ] Render `FormControlLabel` + `Switch` labeled "Allow public registration" above the user table
-    - [ ] Switch `checked` = `data?.applicationConfig?.registrationEnabled ?? false`; on `onChange` call the mutation
+    - [x] Render `FormControlLabel` + `Switch` labeled "Allow public registration" above the user table
+    - [x] Switch `checked` = `data?.applicationConfig?.registrationEnabled ?? false`; on `onChange` call the mutation
       immediately (no confirm dialog needed)
-    - [ ] Disable Switch while mutation is in-flight
+    - [x] Disable Switch while mutation is in-flight
 
-- [ ] Task 5: Make LoginPage adaptive (AC: 4, 5)
-    - [ ] In `bp_front/src/app/auth/page.tsx`, read `registrationEnabled` from `useAuth()`
-    - [ ] Show `<Link component={NextLink} href="/auth/register">Register</Link>` only when
+- [x] Task 5: Make LoginPage adaptive (AC: 4, 5)
+    - [x] In `bp_front/src/app/auth/page.tsx`, read `registrationEnabled` from `useAuth()`
+    - [x] Show `<Link component={NextLink} href="/auth/register">Register</Link>` only when
       `registrationEnabled === true`
-    - [ ] Show `<Typography color="text.secondary">Contact your admin to get access</Typography>` only when
+    - [x] Show `<Typography color="text.secondary">Contact your admin to get access</Typography>` only when
       `registrationEnabled === false`
-    - [ ] When `registrationEnabled` is `null` (still loading), render neither (no flash of wrong content)
+    - [x] When `registrationEnabled` is `null` (still loading), render neither (no flash of wrong content)
 
-- [ ] Task 6: TypeScript check (AC: all)
-    - [ ] From `bp_front/`: `npx tsc --noEmit` — no new errors
+- [x] Task 6: TypeScript check (AC: all)
+    - [x] From `bp_front/`: `npx tsc --noEmit` — no new errors
 
 ## Dev Notes
 
@@ -345,6 +345,49 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+codegen.ts JWT had expired; fetched fresh token via `POST /api/auth/login` before running `npm run generate`.
+
 ### Completion Notes List
 
+- Added `GET /auth/config` (no auth) inside the `rateLimit` block in `AuthRoutes.kt`; serialized via Jackson mapOf
+- Created `bp_front/src/lib/config/Queries.tsx` with `getApplicationConfigQuery` and `setRegistrationEnabledMutation`;
+  ran codegen to generate `GetApplicationConfig` and `SetRegistrationEnabled` types
+- Added `authApi.getConfig()` to `authApi.ts`; added `registrationEnabled: boolean | null` state to `AuthContext`;
+  fetched config in parallel with auth refresh in `useEffect`
+- Extended `AdminUsersPage` with `useQuery(getApplicationConfigQuery)` + `useMutation(setRegistrationEnabledMutation)`
+  with Apollo cache update; rendered `FormControlLabel`+`Switch` above Create button
+- `LoginForm` now reads `registrationEnabled` from `useAuth()` and conditionally renders Register link or "Contact
+  admin" text (null → renders neither)
+- `npx tsc --noEmit` passed with zero errors; backend `../gradlew build -x test` passed
+
 ### File List
+
+bp_back/src/main/kotlin/com/bagplease/features/auth/AuthRoutes.kt
+bp_front/src/lib/config/Queries.tsx
+bp_front/src/lib/auth/authApi.ts
+bp_front/src/lib/auth/AuthContext.tsx
+bp_front/src/app/admin/users/page.tsx
+bp_front/src/app/auth/page.tsx
+bp_front/src/__generated__/graphql.ts
+bp_front/src/__generated__/gql.ts
+bp_front/codegen.ts
+
+## Review Findings
+
+- [x] [Review][Defer] `/auth/config` shares auth rate-limit bucket with `/auth/login` and
+  `/auth/register` [AuthRoutes.kt] — deferred, intentional per spec ("Place inside existing rateLimit block"); page-load
+  requests consume login quota per IP; revisit rate-limit config if real-world exhaustion observed
+- [x] [Review][Defer] `registrationEnabled` stays `null` permanently on network failure [AuthContext.tsx:50] — deferred,
+  spec-accepted silent failure (`.catch(() => {})`); both Register link and "Contact admin" text are hidden when null;
+  acceptable v1 behavior
+- [x] [Review][Defer] `/auth/register` page directly accessible when registration is disabled — deferred, out of story
+  scope; AC4/AC5 only cover the login page link; backend correctly rejects the POST; frontend route guard is a follow-up
+  enhancement
+- [x] [Review][Defer] `ApplicationConfigService` in-memory cache can diverge from MongoDB if DB write fails after cache
+  update — deferred, pre-existing backend issue in `ApplicationConfigService`, not introduced by this story
+
+## Change Log
+
+- 2026-05-15: Implemented story 2.4 — public REST config endpoint, GQL queries file, AuthContext registrationEnabled,
+  AdminUsersPage toggle, adaptive LoginPage
+- 2026-05-15: Code review passed — 0 patches, 4 deferred, 5 dismissed

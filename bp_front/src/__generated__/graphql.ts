@@ -55,6 +55,22 @@ export type CategoryUpdatesSubscription = {
   }
 };
 
+export type GetApplicationConfigQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetApplicationConfigQuery = {
+  applicationConfig: { __typename: 'ApplicationConfig', registrationEnabled: boolean }
+};
+
+export type SetRegistrationEnabledMutationVariables = Exact<{
+  enabled: boolean;
+}>;
+
+
+export type SetRegistrationEnabledMutation = {
+  setRegistrationEnabled: { __typename: 'ApplicationConfig', registrationEnabled: boolean }
+};
+
 export type GetItemsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -235,6 +251,54 @@ export const CategoryUpdatesDocument = {
     }
   }]
 } as unknown as DocumentNode<CategoryUpdatesSubscription, CategoryUpdatesSubscriptionVariables>;
+export const GetApplicationConfigDocument = {
+  "kind": "Document",
+  "definitions": [{
+    "kind": "OperationDefinition",
+    "operation": "query",
+    "name": {"kind": "Name", "value": "GetApplicationConfig"},
+    "selectionSet": {
+      "kind": "SelectionSet",
+      "selections": [{
+        "kind": "Field",
+        "name": {"kind": "Name", "value": "applicationConfig"},
+        "selectionSet": {
+          "kind": "SelectionSet",
+          "selections": [{"kind": "Field", "name": {"kind": "Name", "value": "registrationEnabled"}}]
+        }
+      }]
+    }
+  }]
+} as unknown as DocumentNode<GetApplicationConfigQuery, GetApplicationConfigQueryVariables>;
+export const SetRegistrationEnabledDocument = {
+  "kind": "Document",
+  "definitions": [{
+    "kind": "OperationDefinition",
+    "operation": "mutation",
+    "name": {"kind": "Name", "value": "SetRegistrationEnabled"},
+    "variableDefinitions": [{
+      "kind": "VariableDefinition",
+      "variable": {"kind": "Variable", "name": {"kind": "Name", "value": "enabled"}},
+      "type": {"kind": "NonNullType", "type": {"kind": "NamedType", "name": {"kind": "Name", "value": "Boolean"}}}
+    }],
+    "selectionSet": {
+      "kind": "SelectionSet",
+      "selections": [{
+        "kind": "Field",
+        "name": {"kind": "Name", "value": "setRegistrationEnabled"},
+        "arguments": [{
+          "kind": "Argument",
+          "name": {"kind": "Name", "value": "enabled"},
+          "value": {"kind": "Variable", "name": {"kind": "Name", "value": "enabled"}}
+        }],
+        "selectionSet": {
+          "kind": "SelectionSet",
+          "selections": [{"kind": "Field", "name": {"kind": "Name", "value": "registrationEnabled"}}]
+        }
+      }]
+    }
+  }]
+} as unknown as DocumentNode<SetRegistrationEnabledMutation, SetRegistrationEnabledMutationVariables>;
 export const GetItemsDocument = {
   "kind": "Document",
   "definitions": [{

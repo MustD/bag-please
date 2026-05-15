@@ -47,6 +47,12 @@ export const authApi = {
     }
   },
 
+  getConfig: async (): Promise<{ registrationEnabled: boolean }> => {
+    const res = await fetch('/api/auth/config')
+    if (!res.ok) throw new Error('Failed to fetch config')
+    return res.json()
+  },
+
   refresh: async () => {
     if (refreshPromise) return refreshPromise
     refreshPromise = fetch('/api/auth/refresh', {method: 'POST'})

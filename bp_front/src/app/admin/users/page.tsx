@@ -6,8 +6,10 @@ import {
   Box,
   Button,
   CircularProgress,
+  FormControlLabel,
   IconButton,
   Paper,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -20,10 +22,22 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete'
 import LockResetIcon from '@mui/icons-material/LockReset'
 import {createUserMutation, deleteUserMutation, getUsersQuery, resetUserPasswordMutation,} from '@/lib/user/Queries'
+import {getApplicationConfigQuery, setRegistrationEnabledMutation} from '@/lib/config/Queries'
 import ConfirmDialog from '@/app/admin/ConfirmDialog'
 
 export default function AdminUsersPage() {
   const {data, loading} = useQuery(getUsersQuery)
+  const {data: configData, loading: configLoading} = useQuery(getApplicationConfigQuery)
+  const [setRegistrationEnabled, {loading: toggleLoading}] = useMutation(setRegistrationEnabledMutation, {
+    update(cache, {data: mutData}) {
+      if (mutData?.setRegistrationEnabled) {
+        cache.writeQuery({
+          query: getApplicationConfigQuery,
+          data: {applicationConfig: mutData.setRegistrationEnabled},
+        })
+      }
+    },
+  })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; username: string } | null>(null)
@@ -82,7 +96,19 @@ export default function AdminUsersPage() {
 
   return (
     <Box sx={{p: 2}}>
-      <Box sx={{mb: 2}}>
+      <Box sx={{mb: 2, display: 'flex', alignItems: 'center', gap: 2}}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={configData?.applicationConfig?.registrationEnabled ?? false}
+              disabled={configLoading || toggleLoading}
+              onChange={(_, checked) =>
+                setRegistrationEnabled({variables: {enabled: checked}})
+              }
+            />
+          }
+          label="Allow public registration"
+        />
         <Button variant="contained" onClick={() => setCreateOpen(true)}>
           Create user
         </Button>

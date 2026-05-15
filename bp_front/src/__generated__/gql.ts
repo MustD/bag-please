@@ -18,28 +18,32 @@ type Documents = {
   "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}": typeof types.SaveCategoryDocument,
   "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}": typeof types.DeleteCategoryDocument,
   "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}": typeof types.CategoryUpdatesDocument,
+  "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": typeof types.GetApplicationConfigDocument,
+  "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": typeof types.SetRegistrationEnabledDocument,
   "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}": typeof types.GetItemsDocument,
   "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}": typeof types.SaveItemDocument,
   "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}": typeof types.DeleteDocument,
   "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}": typeof types.ItemUpdatesDocument,
-  "query GetUsers {\n    users {\n        id\n        username\n        role\n    }\n}": typeof types.GetUsersDocument,
-  "mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n        id\n        username\n        role\n    }\n}": typeof types.CreateUserDocument,
-  "mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n        id\n        username\n        role\n    }\n}": typeof types.DeleteUserDocument,
-  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n        id\n        username\n    }\n}": typeof types.ResetUserPasswordDocument,
+  "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": typeof types.GetUsersDocument,
+  "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": typeof types.CreateUserDocument,
+  "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": typeof types.DeleteUserDocument,
+  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": typeof types.ResetUserPasswordDocument,
 };
 const documents: Documents = {
   "query getCategories {\n    getCategories {\n        id, name\n    }\n}": types.GetCategoriesDocument,
   "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}": types.SaveCategoryDocument,
   "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}": types.DeleteCategoryDocument,
   "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}": types.CategoryUpdatesDocument,
+  "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": types.GetApplicationConfigDocument,
+  "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": types.SetRegistrationEnabledDocument,
   "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}": types.GetItemsDocument,
   "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}": types.SaveItemDocument,
   "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}": types.DeleteDocument,
   "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}": types.ItemUpdatesDocument,
-  "query GetUsers {\n    users {\n        id\n        username\n        role\n    }\n}": types.GetUsersDocument,
-  "mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n        id\n        username\n        role\n    }\n}": types.CreateUserDocument,
-  "mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n        id\n        username\n        role\n    }\n}": types.DeleteUserDocument,
-  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n        id\n        username\n    }\n}": types.ResetUserPasswordDocument,
+  "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": types.GetUsersDocument,
+  "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": types.CreateUserDocument,
+  "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": types.DeleteUserDocument,
+  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": types.ResetUserPasswordDocument,
 };
 
 /**
@@ -75,6 +79,14 @@ export function graphql(source: "subscription CategoryUpdates {\n    getCategory
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
+export function graphql(source: "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}"): (typeof documents)["query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}"): (typeof documents)["mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
 export function graphql(source: "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"): (typeof documents)["query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -91,19 +103,19 @@ export function graphql(source: "subscription ItemUpdates {\n    getItemUpdates 
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query GetUsers {\n    users {\n        id\n        username\n        role\n    }\n}"): (typeof documents)["query GetUsers {\n    users {\n        id\n        username\n        role\n    }\n}"];
+export function graphql(source: "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}"): (typeof documents)["query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n        id\n        username\n        role\n    }\n}"): (typeof documents)["mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n        id\n        username\n        role\n    }\n}"];
+export function graphql(source: "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}"): (typeof documents)["mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n        id\n        username\n        role\n    }\n}"): (typeof documents)["mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n        id\n        username\n        role\n    }\n}"];
+export function graphql(source: "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}"): (typeof documents)["mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n        id\n        username\n    }\n}"): (typeof documents)["mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n        id\n        username\n    }\n}"];
+export function graphql(source: "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}"): (typeof documents)["mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};
