@@ -13,14 +13,15 @@ class RefreshTokenRepository(db: MongoDatabase) {
 
     init {
         runBlocking {
-            try {
+            runCatching {
                 col.createIndex(
                     Indexes.ascending(RefreshToken::expiresAt.name),
                     IndexOptions().expireAfter(0, TimeUnit.SECONDS),
                 )
-            } catch (e: Exception) {
+            }.getOrElse { e ->
                 throw IllegalStateException(
-                    "Failed to create TTL index on refresh_tokens.expiresAt — expired tokens will not be auto-deleted: ${e.message}",
+                    """Failed to create TTL index on refresh_tokens.expiresAt —
+                        | expired tokens will not be auto-deleted: ${e.message}""".trimMargin(),
                     e,
                 )
             }

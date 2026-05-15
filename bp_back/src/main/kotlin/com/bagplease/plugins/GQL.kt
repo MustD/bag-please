@@ -44,9 +44,9 @@ import kotlin.time.Duration.Companion.seconds
 
 fun Application.configureGql(
     appConfigService: ApplicationConfigService,
-    userService: UserService,
-    authService: AuthService,
     adminLogin: String,
+    authService: AuthService,
+    userService: UserService,
 ) {
 
     val connection: MongoConnection by dependencies

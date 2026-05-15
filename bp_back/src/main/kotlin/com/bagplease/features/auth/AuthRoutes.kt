@@ -30,10 +30,10 @@ fun ApplicationCall.requireAdmin(): Boolean =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() == "admin"
 
 fun Application.configureAuthRoutes(
-    userService: UserService,
-    authService: AuthService,
-    adminLogin: String,
     appConfigService: ApplicationConfigService,
+    adminLogin: String,
+    authService: AuthService,
+    userService: UserService,
 ) {
     routing {
         rateLimit(RateLimitName("auth")) {
