@@ -1,6 +1,6 @@
 package com.bagplease.entity.user.mongo
 
-import com.bagplease.mongo.model.serialization.UUIDMongoSerializer
+import com.bagplease.mongo.model.serialization.UUIDSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.*
@@ -8,7 +8,7 @@ import java.util.*
 @Serializable
 data class MongoUser(
     @SerialName("_id")
-    @Serializable(with = UUIDMongoSerializer::class)
+    @Serializable(with = UUIDSerializer::class)
     val id: UUID,
     val username: String,
     val passwordHash: String,

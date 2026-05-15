@@ -9,17 +9,17 @@ import java.util.*
 
 class ApplicationConfigRepository(db: MongoDatabase) {
     private val collection = db.getCollection<MongoApplicationConfig>("app_config")
-    private val CONFIG_ID = UUID.fromString("00000000-0000-0000-0000-000000000001")
+    private val configId = UUID.fromString("00000000-0000-0000-0000-000000000001")
 
     suspend fun load(): ApplicationConfig =
-        collection.find(Filters.eq("_id", CONFIG_ID.toString())).toList().firstOrNull()
+        collection.find(Filters.eq("_id", configId.toString())).toList().firstOrNull()
             ?.let { ApplicationConfig(it.registrationEnabled) }
             ?: ApplicationConfig().also { save(it) }
 
     suspend fun save(config: ApplicationConfig) {
         collection.replaceOne(
-            Filters.eq("_id", CONFIG_ID.toString()),
-            MongoApplicationConfig(CONFIG_ID, config.registrationEnabled),
+            Filters.eq("_id", configId.toString()),
+            MongoApplicationConfig(configId, config.registrationEnabled),
             ReplaceOptions().upsert(true),
         )
     }
