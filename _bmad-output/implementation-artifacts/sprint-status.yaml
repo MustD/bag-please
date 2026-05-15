@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-05-15"  # story 2-4 done
+last_updated: "2026-05-15"  # epic-2 retrospective done; epic-3 defined
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -59,4 +59,10 @@ development_status:
   2-2-admin-user-management-backend: done
   2-3-admin-user-management-ui: done
   2-4-registration-toggle-ui-adaptive-login-screen: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
+
+  # Epic 3: Technical Foundation
+  epic-3: backlog
+  3-1-deferred-work-triage-high-priority-fixes: backlog
+  3-2-e2e-test-coverage-admin-panel: backlog
+  epic-3-retrospective: optional
