@@ -12,6 +12,7 @@ interface AuthContextValue extends AuthState {
   setAuth: (state: AuthState) => void
   clearAuth: () => void
   isLoading: boolean
+  registrationEnabled: boolean | null
 }
 
 function parseJwt(token: string): { username: string; role: string } | null {
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextValue>({
   role: null,
   accessToken: null,
   isLoading: true,
+  registrationEnabled: null,
   setAuth: () => {
   },
   clearAuth: () => {
@@ -45,8 +47,14 @@ export function AuthProvider({children}: React.PropsWithChildren) {
     accessToken: null,
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
+    authApi.getConfig()
+      .then(d => setRegistrationEnabled(d.registrationEnabled))
+      .catch(() => {
+      })
+
     authApi.refresh()
       .then(({accessToken}) => {
         const payload = parseJwt(accessToken)
@@ -70,7 +78,7 @@ export function AuthProvider({children}: React.PropsWithChildren) {
   }
 
   return (
-    <AuthContext.Provider value={{...auth, isLoading, setAuth, clearAuth}}>
+    <AuthContext.Provider value={{...auth, isLoading, registrationEnabled, setAuth, clearAuth}}>
       {children}
     </AuthContext.Provider>
   )

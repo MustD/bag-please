@@ -10,7 +10,7 @@ import {authApi} from '@/lib/auth/authApi'
 function LoginForm() {
   const searchParams = useSearchParams()
   const expired = searchParams?.get('expired') === '1'
-  const {setAuth} = useAuth()
+  const {setAuth, registrationEnabled} = useAuth()
   const router = useRouter()
 
   const [username, setUsername] = useState('')
@@ -83,7 +83,14 @@ function LoginForm() {
         <Button type="submit" variant="contained" disabled={isSubmitting}>
           {isSubmitting ? <CircularProgress size={20} color="inherit"/> : 'Sign in'}
         </Button>
-        <Link component={NextLink} href="/auth/register">Register</Link>
+        {registrationEnabled === true && (
+          <Link component={NextLink} href="/auth/register">Register</Link>
+        )}
+        {registrationEnabled === false && (
+          <Typography color="text.secondary" variant="body2">
+            Contact your admin to get access
+          </Typography>
+        )}
       </Stack>
     </Box>
   )

@@ -1,5 +1,50 @@
 # Deferred Work
 
+## Deferred from: code review of 2-4-registration-toggle-ui-adaptive-login-screen (2026-05-15)
+
+- `/auth/config` shares auth rate-limit bucket with `/auth/login` — page-load requests consume login quota per IP;
+  intentional per spec placement; revisit rate-limit config if exhaustion observed in production
+- `registrationEnabled` stays `null` permanently on `GET /api/auth/config` network failure — spec-accepted silent
+  failure; both Register link and "Contact admin" are suppressed while null; may confuse users on transient backend
+  outage
+- `/auth/register` page directly accessible when registration is disabled — backend correctly rejects POST but user sees
+  full form and gets no useful error message; frontend route guard is a follow-up UX enhancement
+- `ApplicationConfigService` in-memory cache can diverge from MongoDB if DB write fails after `cache.set` succeeds —
+  backend pre-existing issue; process restart recovers; fix with transactional write or cache invalidation on error
+
+## Deferred from: code review of 2-3-admin-user-management-ui (2026-05-15)
+
+- Client-side-only admin guard — `getUsersQuery` fires before `layout.tsx` redirect executes in `useEffect`; a logged-in
+  non-admin user with a valid JWT receives the user list response before the React redirect runs; pre-existing Next.js
+  App Router client-auth limitation; proper fix is middleware-level auth or server component guard
+
+## Deferred from: code review of 2-2-admin-user-management-backend (2026-05-15)
+
+- AC4 test does not verify `refresh_tokens` collection is cleared after `resetUserPassword` — direct DB inspection
+  discouraged by project rules; `invalidateUserSessions` is tested as part of prior stories
+- `deleteUser` session invalidation has a TOCTOU window — concurrent login between `adminDeleteUser` success and
+  `invalidateUserSessions` call produces a live refresh token; requires transactional semantics not currently in
+  codebase
+- Password plaintext in GQL mutation arguments (`createUser`, `resetUserPassword`) — logged in debug mode; same pattern
+  as `register()` and `changePassword()`; broader API design concern
+- No pagination on `getAllRegularUsers` / `users` query — loads entire collection; out of scope for this story
+
+## Deferred from: code review of 2-1-applicationconfig-entity-registration-toggle-backend (2026-05-14)
+
+- Non-atomic AtomicReference cache init in `ApplicationConfigService.get()` — benign in practice (idempotent upsert
+  means double-load has no observable effect); use `compareAndSet` or a `Mutex` if stricter guarantees needed
+- Admin password compared with `==` (timing-vulnerable, no bcrypt) — pre-existing in UserService; accepted design
+  trade-off (also noted in story 1.2 deferred items)
+- `changePassword` uses upsert `save` rather than targeted atomic update — pre-existing pattern in UserService
+- Duplicate-username detection relies on MongoDB unique index not established in this diff — index should exist from
+  story 1.1; tests pass; verify index creation in UserRepository on startup
+- `DataFetchingException` used as error type for auth failure in `GraphQLForbiddenException` — clients should use
+  `extensions.code`; minor semantic; revisit when standardizing GQL error taxonomy
+- Magic number `11000` for MongoDB duplicate-key error in `UserService` — replace with `ErrorCategory.DUPLICATE_KEY`
+  check when tightening error handling
+- `CONFIG_ID` is an instance `val` in `ApplicationConfigRepository` rather than a companion-object constant — trivial;
+  move to companion object if additional instances are ever created
+
 ## Deferred from: code review of 1-6-e2e-test-infrastructure-auth-flow-coverage (2026-05-14)
 
 - Hardcoded admin/admin credentials in test files — documented default dev credentials; swap to env var pattern if

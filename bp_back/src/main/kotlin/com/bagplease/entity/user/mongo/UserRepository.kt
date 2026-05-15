@@ -10,6 +10,7 @@ import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import java.util.*
 
 class UserRepository(db: MongoDatabase) {
 
@@ -39,4 +40,15 @@ class UserRepository(db: MongoDatabase) {
             .map(MongoUserMapper::mapUserFromMongo)
             .toList()
             .firstOrNull()
+
+    suspend fun findById(id: UUID): User? =
+        col.find(Filters.eq("_id", id))
+            .map(MongoUserMapper::mapUserFromMongo)
+            .toList()
+            .firstOrNull()
+
+    suspend fun deleteById(id: UUID): Boolean {
+        val result = col.deleteOne(Filters.eq("_id", id))
+        return result.deletedCount > 0
+    }
 }

@@ -2,6 +2,9 @@
 
 package com.bagplease.plugins
 
+import com.bagplease.config.ApplicationConfigService
+import com.bagplease.config.gql.ApplicationConfigMutations
+import com.bagplease.config.gql.ApplicationConfigQueries
 import com.bagplease.entity.category.CategoryService
 import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.category.gql.CategoryMutations
@@ -14,6 +17,10 @@ import com.bagplease.entity.item.gql.ItemMutations
 import com.bagplease.entity.item.gql.ItemQueries
 import com.bagplease.entity.item.gql.ItemSubscriptions
 import com.bagplease.entity.item.mongo.ItemRepository
+import com.bagplease.entity.user.UserService
+import com.bagplease.entity.user.gql.UserAdminMutations
+import com.bagplease.entity.user.gql.UserAdminQueries
+import com.bagplease.features.auth.AuthService
 import com.bagplease.mongo.MongoConnection
 import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
 import com.expediagroup.graphql.server.ktor.GraphQL
@@ -35,7 +42,12 @@ import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.pingPeriod
 import kotlin.time.Duration.Companion.seconds
 
-fun Application.configureGql() {
+fun Application.configureGql(
+    appConfigService: ApplicationConfigService,
+    userService: UserService,
+    authService: AuthService,
+    adminLogin: String,
+) {
 
     val connection: MongoConnection by dependencies
 
@@ -52,15 +64,21 @@ fun Application.configureGql() {
         schema {
             packages = listOf(
                 "com.bagplease.entity.item.gql",
-                "com.bagplease.entity.category.gql"
+                "com.bagplease.entity.category.gql",
+                "com.bagplease.config.gql",
+                "com.bagplease.entity.user.gql",
             )
             queries = listOf(
                 ItemQueries(itemService),
                 CategoryQueries(categoryService),
+                ApplicationConfigQueries(appConfigService),
+                UserAdminQueries(userService),
             )
             mutations = listOf(
                 ItemMutations(itemService),
-                CategoryMutations(categoryService)
+                CategoryMutations(categoryService),
+                ApplicationConfigMutations(appConfigService),
+                UserAdminMutations(userService, authService),
             )
             subscriptions = listOf(
                 ItemSubscriptions(itemService),

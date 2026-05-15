@@ -1,5 +1,6 @@
 package com.bagplease.features.auth
 
+import com.bagplease.config.ApplicationConfigService
 import com.bagplease.entity.user.UserService
 import com.bagplease.features.auth.dto.ChangePasswordRequest
 import com.bagplease.features.auth.dto.ErrorResponse
@@ -19,6 +20,7 @@ import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 
@@ -27,10 +29,24 @@ private const val REFRESH_TOKEN_COOKIE = "refresh_token"
 fun ApplicationCall.requireAdmin(): Boolean =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() == "admin"
 
-fun Application.configureAuthRoutes(userService: UserService, authService: AuthService, adminLogin: String) {
+fun Application.configureAuthRoutes(
+    userService: UserService,
+    authService: AuthService,
+    adminLogin: String,
+    appConfigService: ApplicationConfigService,
+) {
     routing {
         rateLimit(RateLimitName("auth")) {
+            get("/auth/config") {
+                val config = appConfigService.get()
+                call.respond(HttpStatusCode.OK, mapOf("registrationEnabled" to config.registrationEnabled))
+            }
+
             post("/auth/register") {
+                if (!appConfigService.get().registrationEnabled) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Registration is disabled"))
+                    return@post
+                }
                 val body = call.receive<RegisterRequest>()
                 userService.register(body.username, body.password).fold(
                     ifLeft = { call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid credentials")) },

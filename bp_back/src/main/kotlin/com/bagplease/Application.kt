@@ -1,7 +1,8 @@
 package com.bagplease
 
+import com.bagplease.config.ApplicationConfigService
+import com.bagplease.config.mongo.ApplicationConfigRepository
 import com.bagplease.entity.user.UserService
-import com.bagplease.entity.user.UserStorage
 import com.bagplease.entity.user.mongo.UserRepository
 import com.bagplease.features.auth.AuthService
 import com.bagplease.features.auth.RefreshTokenRepository
@@ -29,10 +30,9 @@ fun Application.module() {
 
     val connection: MongoConnection by dependencies
     val userRepository = UserRepository(connection.db)
-    val userStorage = UserStorage(userRepository)
     val adminLogin = config.property("jwt.admin_login").getString()
     val adminPass = config.property("jwt.admin_pass").getString()
-    val userService = UserService(userStorage, adminLogin, adminPass)
+    val userService = UserService(userRepository, adminLogin, adminPass)
 
     val refreshTokenRepository = RefreshTokenRepository(connection.db)
     val secret = config.property("jwt.secret").getString()
@@ -50,12 +50,15 @@ fun Application.module() {
         refreshExpiryDays
     )
 
+    val appConfigRepository = ApplicationConfigRepository(connection.db)
+    val appConfigService = ApplicationConfigService(appConfigRepository)
+
     configureCors()
     configureMonitoring()
     configureForwardedHeaders()
     configureRateLimiting()
     configureSecurity()
-    configureAuthRoutes(userService, authService, adminLogin)
-    configureGql()
+    configureAuthRoutes(userService, authService, adminLogin, appConfigService)
+    configureGql(appConfigService, userService, authService, adminLogin)
     configureRouting()
 }

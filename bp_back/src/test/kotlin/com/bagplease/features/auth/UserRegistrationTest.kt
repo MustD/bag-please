@@ -4,6 +4,7 @@ import com.bagplease.module
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpRegistration
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -29,6 +30,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -48,6 +50,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -68,6 +71,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -84,6 +88,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
 
                 client.post("/auth/register") {
@@ -105,12 +110,13 @@ class UserRegistrationTest : FunSpec({
             }
         }
 
-        test("storage lazy sync — registered user persists across app restart") {
+        test("registered user persists across app restart (MongoDB persistence)") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -118,10 +124,11 @@ class UserRegistrationTest : FunSpec({
                 }.shouldHaveStatus(HttpStatusCode.OK)
             }
 
-            // New app instance syncs from MongoDB on first access — duplicate must be detected
+            // Registers in one app instance, verifies second instance sees the user via MongoDB
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -134,6 +141,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
+                setUpRegistration(container, true)
                 application { module() }
 
                 repeat(5) { _ ->

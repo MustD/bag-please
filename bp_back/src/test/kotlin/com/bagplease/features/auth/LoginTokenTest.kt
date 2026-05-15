@@ -6,6 +6,7 @@ import com.bagplease.plugins.authMethod
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpRegistration
 import com.mongodb.client.model.Filters
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import io.kotest.assertions.ktor.client.shouldHaveStatus
@@ -41,6 +42,7 @@ class LoginTokenTest : FunSpec({
         username: String,
         password: String = "password123",
     ) {
+        setUpRegistration(container, true)
         client.post("/auth/register") {
             contentType(ContentType.Application.Json)
             setBody("""{"username":"$username","password":"$password"}""")
