@@ -12,7 +12,7 @@ import {useAuth} from "@/lib/auth/AuthContext";
 export default function Navigation() {
   const currentPath = usePathname()
   const router = useRouter()
-  const {username} = useAuth()
+  const {username, role} = useAuth()
 
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(menuAnchor);
@@ -119,6 +119,15 @@ export default function Navigation() {
                 router.push('/account/password')
               }}>
                 <Typography>Change Password</Typography>
+              </MenuItem>
+            </>}
+            {role === 'admin' && <>
+              <Divider/>
+              <MenuItem onClick={() => {
+                onClose()
+                router.push('/admin/users')
+              }}>
+                <Typography>User Management</Typography>
               </MenuItem>
             </>}
           </Menu>

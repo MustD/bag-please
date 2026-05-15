@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 2-3-admin-user-management-ui (2026-05-15)
+
+- Client-side-only admin guard — `getUsersQuery` fires before `layout.tsx` redirect executes in `useEffect`; a logged-in
+  non-admin user with a valid JWT receives the user list response before the React redirect runs; pre-existing Next.js
+  App Router client-auth limitation; proper fix is middleware-level auth or server component guard
+
 ## Deferred from: code review of 2-2-admin-user-management-backend (2026-05-15)
 
 - AC4 test does not verify `refresh_tokens` collection is cleared after `resetUserPassword` — direct DB inspection

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-05-15"  # story 2-3 ready-for-dev
+last_updated: "2026-05-15"  # story 2-4 ready-for-dev
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -57,6 +57,6 @@ development_status:
   2-0-remove-user-storage-simplify-user-service: done
   2-1-applicationconfig-entity-registration-toggle-backend: done
   2-2-admin-user-management-backend: done
-  2-3-admin-user-management-ui: ready-for-dev
-  2-4-registration-toggle-ui-adaptive-login-screen: backlog
+  2-3-admin-user-management-ui: done
+  2-4-registration-toggle-ui-adaptive-login-screen: ready-for-dev
   epic-2-retrospective: optional
