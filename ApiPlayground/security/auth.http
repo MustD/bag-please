@@ -1,4 +1,4 @@
-POST {{plain_host}}/login
+POST {{plain_host}}/auth/login
 Content-Type: application/json
 
 {

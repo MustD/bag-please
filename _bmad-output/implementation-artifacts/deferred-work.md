@@ -1,5 +1,32 @@
 # Deferred Work
 
+## Deferred from: code review of 2-2-admin-user-management-backend (2026-05-15)
+
+- AC4 test does not verify `refresh_tokens` collection is cleared after `resetUserPassword` — direct DB inspection
+  discouraged by project rules; `invalidateUserSessions` is tested as part of prior stories
+- `deleteUser` session invalidation has a TOCTOU window — concurrent login between `adminDeleteUser` success and
+  `invalidateUserSessions` call produces a live refresh token; requires transactional semantics not currently in
+  codebase
+- Password plaintext in GQL mutation arguments (`createUser`, `resetUserPassword`) — logged in debug mode; same pattern
+  as `register()` and `changePassword()`; broader API design concern
+- No pagination on `getAllRegularUsers` / `users` query — loads entire collection; out of scope for this story
+
+## Deferred from: code review of 2-1-applicationconfig-entity-registration-toggle-backend (2026-05-14)
+
+- Non-atomic AtomicReference cache init in `ApplicationConfigService.get()` — benign in practice (idempotent upsert
+  means double-load has no observable effect); use `compareAndSet` or a `Mutex` if stricter guarantees needed
+- Admin password compared with `==` (timing-vulnerable, no bcrypt) — pre-existing in UserService; accepted design
+  trade-off (also noted in story 1.2 deferred items)
+- `changePassword` uses upsert `save` rather than targeted atomic update — pre-existing pattern in UserService
+- Duplicate-username detection relies on MongoDB unique index not established in this diff — index should exist from
+  story 1.1; tests pass; verify index creation in UserRepository on startup
+- `DataFetchingException` used as error type for auth failure in `GraphQLForbiddenException` — clients should use
+  `extensions.code`; minor semantic; revisit when standardizing GQL error taxonomy
+- Magic number `11000` for MongoDB duplicate-key error in `UserService` — replace with `ErrorCategory.DUPLICATE_KEY`
+  check when tightening error handling
+- `CONFIG_ID` is an instance `val` in `ApplicationConfigRepository` rather than a companion-object constant — trivial;
+  move to companion object if additional instances are ever created
+
 ## Deferred from: code review of 1-6-e2e-test-infrastructure-auth-flow-coverage (2026-05-14)
 
 - Hardcoded admin/admin credentials in test files — documented default dev credentials; swap to env var pattern if

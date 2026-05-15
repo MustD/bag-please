@@ -1,5 +1,6 @@
 package com.bagplease.features.auth
 
+import com.bagplease.config.ApplicationConfigService
 import com.bagplease.entity.user.UserService
 import com.bagplease.features.auth.dto.ChangePasswordRequest
 import com.bagplease.features.auth.dto.ErrorResponse
@@ -27,10 +28,19 @@ private const val REFRESH_TOKEN_COOKIE = "refresh_token"
 fun ApplicationCall.requireAdmin(): Boolean =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() == "admin"
 
-fun Application.configureAuthRoutes(userService: UserService, authService: AuthService, adminLogin: String) {
+fun Application.configureAuthRoutes(
+    userService: UserService,
+    authService: AuthService,
+    adminLogin: String,
+    appConfigService: ApplicationConfigService,
+) {
     routing {
         rateLimit(RateLimitName("auth")) {
             post("/auth/register") {
+                if (!appConfigService.get().registrationEnabled) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Registration is disabled"))
+                    return@post
+                }
                 val body = call.receive<RegisterRequest>()
                 userService.register(body.username, body.password).fold(
                     ifLeft = { call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid credentials")) },
