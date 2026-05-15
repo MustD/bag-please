@@ -58,7 +58,7 @@ fun Application.module() {
     configureForwardedHeaders()
     configureRateLimiting()
     configureSecurity()
-    configureAuthRoutes(userService, authService, adminLogin, appConfigService)
-    configureGql(appConfigService, userService, authService, adminLogin)
+    configureAuthRoutes(appConfigService, adminLogin, authService, userService)
+    configureGql(appConfigService, adminLogin, authService, userService)
     configureRouting()
 }

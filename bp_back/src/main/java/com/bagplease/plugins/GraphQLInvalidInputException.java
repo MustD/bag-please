@@ -7,6 +7,11 @@ import graphql.language.SourceLocation;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Java implementation.
+ * Unable to implement GraphQL conflict exception in Kotlin
+ * <a href="https://youtrack.jetbrains.com/issue/KT-6653/Kotlin-properties-do-not-override-Java-style-getters-and-setters">reason</a>
+ */
 public class GraphQLInvalidInputException extends RuntimeException implements GraphQLError {
     public GraphQLInvalidInputException(String message) {
         super(message);
