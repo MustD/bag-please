@@ -73,7 +73,8 @@ export default function AdminUsersPage() {
   const [resetUserPassword] = useMutation(resetUserPasswordMutation)
 
   const handleCreate = async () => {
-    await createUser({variables: {username: newUsername, password: newPassword}})
+    const result = await createUser({variables: {username: newUsername, password: newPassword}})
+    if (result.error) throw result.error
     setCreateOpen(false)
     setNewUsername('')
     setNewPassword('')
@@ -81,13 +82,15 @@ export default function AdminUsersPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    await deleteUser({variables: {id: deleteTarget.id}})
+    const result = await deleteUser({variables: {id: deleteTarget.id}})
+    if (result.error) throw result.error
     setDeleteTarget(null)
   }
 
   const handleReset = async () => {
     if (!resetTarget) return
-    await resetUserPassword({variables: {id: resetTarget.id, newPassword: resetPassword}})
+    const result = await resetUserPassword({variables: {id: resetTarget.id, newPassword: resetPassword}})
+    if (result.error) throw result.error
     setResetTarget(null)
     setResetPassword('')
   }

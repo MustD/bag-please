@@ -1,3 +1,4 @@
+import path from 'path'
 import {defineConfig, devices} from '@playwright/test'
 
 export default defineConfig({
@@ -10,6 +11,13 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:2080',
     trace: 'on-first-retry',
+  },
+  webServer: {
+    command: 'docker compose up -d',
+    cwd: path.join(__dirname, '..'),
+    url: 'http://localhost:2080',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120 * 1000,
   },
   projects: [
     {

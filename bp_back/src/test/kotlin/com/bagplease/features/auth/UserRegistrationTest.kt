@@ -17,6 +17,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.util.*
 
 class UserRegistrationTest : FunSpec({
@@ -134,6 +136,36 @@ class UserRegistrationTest : FunSpec({
                     contentType(ContentType.Application.Json)
                     setBody("""{"username":"$username","password":"pass2"}""")
                 }.shouldHaveStatus(HttpStatusCode.BadRequest)
+            }
+        }
+
+        test("concurrent registration with same username: exactly one succeeds") {
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
+            testApplication {
+                setUpMongo(container)
+                setUpJwt()
+                setUpRegistration(container, true)
+                application { module() }
+
+                val results = coroutineScope {
+                    listOf(
+                        async {
+                            client.post("/auth/register") {
+                                contentType(ContentType.Application.Json)
+                                setBody("""{"username":"$username","password":"pass"}""")
+                            }.status
+                        },
+                        async {
+                            client.post("/auth/register") {
+                                contentType(ContentType.Application.Json)
+                                setBody("""{"username":"$username","password":"pass"}""")
+                            }.status
+                        }
+                    ).map { it.await() }
+                }
+
+                results.count { it == HttpStatusCode.OK } shouldBe 1
+                results.count { it == HttpStatusCode.BadRequest } shouldBe 1
             }
         }
 
