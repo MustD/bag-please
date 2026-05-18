@@ -62,7 +62,7 @@ export default function ConfirmDialog({
         {error && <Alert severity="error" sx={{mt: 1}}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel} variant="outlined" autoFocus disabled={loading}>
+        <Button onClick={onCancel} variant="outlined" autoFocus>
           Cancel
         </Button>
         <Button

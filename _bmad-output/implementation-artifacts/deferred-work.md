@@ -1,5 +1,29 @@
 # Deferred Work
 
+## Deferred from: code review of 3-2-e2e-test-coverage-admin-panel (2026-05-18)
+
+- `webServer` has no teardown command — containers started by `docker compose up -d` during the test suite are never
+  stopped; on CI this accumulates running containers across runs
+- `webServer` `url` health check only verifies nginx responds on port 2080, not that Ktor or Next.js are fully ready
+  inside containers; first tests may encounter 502 until backend warms up
+- `webServer` has no `stdout`/`stderr` filtering — on compose startup failure Playwright silently waits the full 120 s
+  timeout before surfacing the error
+- AC1 page-reload assertion absent — the spec calls out "without a page reload" but asserting absence of navigation in
+  Playwright requires a `framenavigated` listener; deferred as impractical at current test scope
+- Orphaned test users from guard tests (`guardtest_*`, `guardnav_*`) accumulate in DB per run — accepted same-pattern as
+  `auth.spec.ts`; clean dev DB periodically
+
+## Deferred from: code review of 3-1-deferred-work-triage-high-priority-fixes (2026-05-15)
+
+- Concurrent test in `UserRegistrationTest.kt` may only verify sequential duplicate-rejection; Ktor `testApplication`
+  may serialize requests on a single-threaded engine, making the TOCTOU proof vacuous; MongoDB unique index is the real
+  protection and the test still has regression value
+- Permanent blank page if auth config fetch permanently fails: `AuthContext` swallows `getConfig` errors silently,
+  leaving `registrationEnabled === null` forever; `/auth/register` shows a blank page indefinitely with no error message
+- Authenticated users can navigate to `/auth/register` and overwrite their session: `RegisterLayout` checks only
+  `registrationEnabled`, not auth state; an authenticated admin reaching `/auth/register` and submitting can overwrite
+  their own JWT with a newly registered user token
+
 ## Deferred from: code review of 2-4-registration-toggle-ui-adaptive-login-screen (2026-05-15)
 
 - `/auth/config` shares auth rate-limit bucket with `/auth/login` — page-load requests consume login quota per IP;
