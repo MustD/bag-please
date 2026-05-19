@@ -1,13 +1,14 @@
 ---
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
-lastStep: 8
-status: 'complete'
-completedAt: '2026-05-08'
+status: complete
+completedAt: '2026-05-18'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/epics.md
+  - _bmad-output/planning-artifacts/architecture-epics-1-2.md
   - _bmad-output/project-context.md
+  - _bmad-output/implementation-artifacts/epic-3-retro-2026-05-18.md
   - docs/index.md
   - docs/architecture-bp_back.md
   - docs/architecture-bp_front.md
@@ -19,14 +20,14 @@ inputDocuments:
   - docs/development-guide.md
   - docs/component-inventory-bp_front.md
   - docs/source-tree-analysis.md
-  - docs/project-overview.md
 workflowType: 'architecture'
 project_name: 'bag-please'
 user_name: 'md'
-date: '2026-05-08'
+date: '2026-05-18'
+epic: 'Epic 4 — Personal Lists & Sharing'
 ---
 
-# Architecture Decision Document
+# Architecture Decision Document — Epic 4: Personal Lists & Sharing
 
 _This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each
 architectural decision together._
@@ -35,102 +36,144 @@ architectural decision together._
 
 ### Requirements Overview
 
-**Functional Requirements:**
-33 FRs spanning: user registration/login, session management (access + refresh tokens), admin user CRUD,
-ApplicationConfig (registration toggle), RBAC enforcement, rate limiting, reserved username guard, and uniform error
-responses. The requirements are well-scoped for a single MVP phase with no ambiguity about what is deferred (Phase 2+).
+**Functional Requirements (from Epic 3 retro product decisions + design prototype):**
 
-**Non-Functional Requirements:**
-The NFRs with the highest architectural weight:
+Epic 4 introduces **personal lists with sharing** — the first feature that introduces multi-tenancy. Current items and
+categories are globally shared across all users; after Epic 4 they are scoped to a specific list. Nine high-level FRs
+drive the scope:
 
-- NFR1: bcrypt cost-12 — adds ~200–400ms per hash operation; acceptable but must not be done on the main coroutine
-  thread
-- NFR2-3: Refresh token in MongoDB with TTL index + httpOnly SameSite=Strict cookie delivery — defines the token
-  lifecycle architecture
-- NFR4: Access token 15 min, refresh token 30 days — determines frontend retry complexity
-- NFR6: Per-IP rate limiting on `/auth/login` and `/auth/register` — requires a new Ktor plugin
-- NFR12: ApplicationConfig loaded at startup, cached in memory, cache invalidated on write — a specific caching contract
+- User can create a named list (with emoji icon)
+- User can view and switch between their lists
+- User can delete a list they own
+- User can share a list with other users by username or email; invitee gains full peer write access (no
+  owner/collaborator role distinction)
+- Items and categories are scoped to a specific list
+- A user can only see and modify items in lists they own or are a member of
+- Existing global items and categories migrate to a default admin-owned list on first deploy after Epic 4
+- List navigation/selection layer in the frontend: bottom tab navigation (Today, Lists, Household) replaces the
+  current AppBar/drawer pattern
+- Item entity gains new optional fields: `store` (where to buy), `recurring` (replenish cadence), `addedBy` (who
+  added it)
+
+**Non-Functional Requirements (inferred from retro decisions + existing stack):**
+
+The NFRs with highest architectural weight:
+
+- **NFR-L1: Subscription scoping** — current global `MutableSharedFlow` broadcasts to all subscribers; subscriptions
+  must be scoped per-list so events from one list are invisible to users of another list
+- **NFR-L2: Authorization at the service layer** — every item/category operation must verify the requesting user (from
+  GQL context Principal, established in Epic 1 AR5) is a member of the target list
+- **NFR-L3: Migration idempotency** — the startup migration seeding admin's default list from existing items/categories
+  must be safe to run multiple times
+- **NFR-L4: No cross-list data leakage** — storage and subscription layers must not expose one list's data to another
+  list's members
+- **NFR-L5: WebSocket auth prerequisite** — subscription scoping requires knowing which user is subscribing; the
+  unauthenticated WebSocket path (tech debt from Epic 1) must be resolved as part of this epic
 
 **Scale & Complexity:**
 
-- Primary domain: full-stack web authentication (Kotlin backend + Next.js frontend + MongoDB)
-- Complexity level: medium (brownfield feature addition, new auth layer, token lifecycle, RBAC, admin controls)
-- Epics: 2 | Stories: 7
-- Estimated architectural components: 4 backend (UserService, ApplicationConfigService, UserStorage,
-  ApplicationConfigStorage), 3 MongoDB collections (users, refresh_tokens, app_config), 5+ new frontend components, 3
-  new pages, 2 updated existing components
+- Primary domain: Full-stack (backend entity slice + frontend structural redesign)
+- Complexity level: **High** — first multi-tenancy feature; changes two existing entity shapes (Item, Category gain
+  `listId`); introduces two new entities (List, ListMember); requires a one-time data migration; forces frontend
+  navigation restructure; mandates WebSocket auth resolution
+- Estimated architectural components: List *(new entity, full vertical slice)*, ListMember *(new join concept)*,
+  Item *(modified — add listId, store, recurring, addedBy)*, Category *(modified — add listId)*, MigrationService
+  *(new, startup-only)*, per-list subscription scoping strategy, frontend list-selection context layer, bottom tab
+  navigation
 
 ### Technical Constraints & Dependencies
 
-- **No second Apollo client** — `ApolloWrapper.tsx` is the single client instance; any auth state changes must integrate
-  with it, not replace it
-- **Ktor plugins pattern** — all new backend concerns go in `plugins/configure*()` functions registered from
-  `Application.kt`; no inline configuration
-- **Vertical slice mandatory** — every new entity needs domain model + GQL or REST mapper + Storage (with lazy sync) +
-  Service + registration
-- **Kotlin Serialization is BSON-only** — HTTP request/response bodies use Jackson; `@Serializable` is not used on REST
-  DTOs
-- **`synced` lazy init is mandatory** — every new Storage class must implement the sync guard; omitting it means the
-  in-memory store starts empty
-- **Brownfield integrity** — existing Item/Category functionality must not regress; auth layer additions are purely
-  additive except for Principal threading and the `localStorage`-to-context token migration
+- **Principal is available in the GQL context** — Epic 1 AR5 wired it through `CustomGraphQLContextFactory`; username
+  and role are accessible in every GQL operation today but not yet used by item/category operations
+- **Existing ItemStorage/CategoryStorage are flat `ConcurrentMap<UUID, Entity>`** — no list concept; adding `listId`
+  to items changes every query, mutation, and the storage key strategy
+- **UserService calls UserRepository directly** (post Story 2.0; no in-memory cache) — username → userId resolution is
+  a DB call; this matters for ListMember lookups when sharing by username
+- **No referential integrity in MongoDB** — deleting a list will not auto-delete its items or categories; the service
+  layer must handle cascades explicitly
+- **WebSocket subscriptions are currently unauthenticated** (tech debt from Epic 1 `GQL.kt`) — per-list scoping
+  requires auth on the WebSocket path; this is now a blocker, not deferred tech debt
+- **MUI v9 is retained** — the design prototype uses a custom CSS variable system; Epic 4 adapts MUI to match the
+  design's visual language (BottomNavigation, Drawer as bottom sheet, heavy theme customization) rather than replacing
+  MUI
 
 ### Cross-Cutting Concerns Identified
 
-1. **Auth state propagation** — Touches backend JWT issuance, Ktor auth plugin validation, Principal in GQL context
-   factory, React auth context, Apollo SetContextLink, and all route guards. A single shared mental model must govern
-   all layers.
-2. **Token lifecycle** — Access token (15 min, in-memory) + refresh token (30 days, httpOnly cookie + MongoDB TTL) must
-   behave consistently across login, refresh, logout, and password reset flows.
-3. **RBAC enforcement** — Role claim lives in JWT. Backend enforces it on all `/admin/*` endpoints. Frontend enforces it
-   via admin route guard and conditional navigation rendering. Both layers must agree on the role vocabulary (`"admin"`
-   vs `"user"`).
-4. **Registration toggle** — State lives in MongoDB (`app_config`), cached in backend memory, consumed by
-   `/auth/register` availability check, and reflected on the frontend login page. A write on the admin panel must
-   propagate to the login page without a full reload — requires the frontend to fetch config on load and cache it in
-   context.
-5. **bcrypt on the hot path** — Password hashing (cost 12) must run off the main dispatcher. Ktor coroutine context +
-   `withContext(Dispatchers.IO)` is the safe pattern.
-6. **Refresh token invalidation** — Three triggers: logout, admin reset-password, admin delete-user. All must delete
-   from the `refresh_tokens` MongoDB collection and take effect on the next `/auth/refresh` call.
+1. **Per-list authorization** — Every item/category GQL operation must check that the context Principal is a member of
+   the target list. Touches GQL layer, service layer, and storage layer for both existing entities. Currently neither
+   ItemService nor CategoryService consumes the Principal at all.
+
+2. **Subscription scoping** — The `MutableSharedFlow` broadcast pattern needs a per-list strategy. Two approaches are
+   in play: per-list flows (one `MutableSharedFlow` per list, keyed in a Map) vs. filtered global broadcast (one flow,
+   each subscriber filters by listId). The choice affects ItemService, CategoryService, and the GQL Subscription
+   classes.
+
+3. **Data migration** — On first startup after deploy: create an admin-owned default list, assign all existing
+   `items` and `categories` documents to its `listId`. Must be idempotent (safe on repeated restarts). Must run before
+   the in-memory storage sync, or the in-memory layer will load unscoped documents.
+
+4. **Frontend navigation restructure** — Current AppBar + side drawer must give way to a bottom tab bar (Today, Lists,
+   Household) matching the design prototype. The active list must be in React context so any nested screen (item
+   editor, category view) can read it without prop-drilling.
+
+5. **WebSocket authentication** — Resolving the unauthenticated subscription path is a hard prerequisite for per-list
+   scoping. The frontend will need to pass the JWT on the WebSocket handshake; the backend will need to validate it
+   before establishing the subscription stream.
+
+6. **Item entity shape change** — `store`, `recurring`, `addedBy` are new optional fields on Item. All three layers
+   (domain model, GQL model, Mongo model) and the item editor sheet must handle them. The item editor in the design
+   shows store suggestions and a recurring segmented control — these are new UX patterns not yet in the component
+   inventory.
 
 ## Starter Template Evaluation
 
 ### Primary Technology Domain
 
-Brownfield full-stack web application. No starter template applies — the existing
-Kotlin/Ktor + Next.js stack is already operational.
+Brownfield full-stack web application. No starter template applies — the existing Kotlin/Ktor + Next.js stack is
+already operational. No stack changes are required for Epic 4.
 
 ### Existing Stack Confirmed
 
-All core technology decisions are inherited from the existing codebase (see project-context.md).
-No stack changes are required for this feature.
+All core technology decisions are inherited from the existing codebase (see `project-context.md`). Epic 4 adds
+features on top of the working system from Epics 1–3. No new backend or frontend packages are required.
 
 ### New Dependencies Required
 
-**Backend (`gradle/libs.versions.toml`):**
+**Backend (`gradle/libs.versions.toml`):** None. The List and ListMember entities follow the same patterns as existing
+entities. No new libraries needed.
 
-- **bcrypt library** — password hashing at cost factor 12. Recommended: `at.favre.lib:bcrypt`
-  (pure Java, no native dependencies, well-maintained). Must be added to version catalog.
-- **Ktor rate limiting** — `ktor-server-rate-limit` is available in Ktor 3.x. Verify availability
-  for 3.4.3 before committing; fall back to a lightweight in-memory sliding window implementation
-  if the plugin is not stable in this version.
+**Frontend (`bp_front/package.json`):** None. All UI patterns for Epic 4 are available in `@mui/material` v9:
+`BottomNavigation`, `SwipeableDrawer`, `Chip`, `ToggleButtonGroup`, `LinearProgress`. All already installed.
 
-**Frontend (`bp_front/package.json`):**
+### Frontend Implementation Principles (Epic 4)
 
-- No new runtime packages required. MUI v9, Apollo Client 4, Next.js 16 cover all auth and admin UI needs.
-  `next/font/google` for Inter font is built into the existing Next.js install.
-- Dev dependency added: `@playwright/test` for e2e testing.
-  Config: `bp_front/playwright.config.ts` | Tests: `bp_front/e2e/` | Script: `npm run test:e2e`
-  Base URL: `http://localhost:2080` (full stack — nginx, backend, MongoDB — must be running)
-  Auth fixture: setup file calls `POST /api/auth/login` and saves `storageState` for authenticated tests;
-  never drives the UI login form repeatedly across tests.
+The `design/` prototype is the visual reference, not the implementation specification. The following principles govern
+all new frontend work in Epic 4:
 
-### Note on Dependency Validation
+**MUI-first, minimal customization:**
 
-The bcrypt library choice and Ktor rate-limit plugin availability must be verified during
-Story 1.1 (User Entity & Registration Backend) before committing to either. This is the first
-implementation story and the appropriate moment to lock these in.
+- Use the MUI component that most closely matches the design pattern; accept visual approximation over deep style
+  overrides
+- Keep component files free of visual style `sx` — layout/spacing `sx` is permitted; color/typography/shape overrides
+  belong in `theme.ts` only
+- Prioritize MUI implementation simplicity over pixel-perfect design prototype match
+
+**Resolved decisions:**
+
+1. **Bottom sheet peek state** — implement a `BPSheet` wrapper component that owns a state machine controlling
+   `SwipeableDrawer` open/closed and a secondary "peek" height via `PaperProps.style.height`. All bottom sheets in the
+   app use `BPSheet`, never `SwipeableDrawer` directly.
+
+2. **Theme switching** — use **MUI CSS variables mode** (`CssVarsProvider` from `@mui/material/styles`). Color tokens
+   are sourced from `design/theme.js` palette values and mapped to MUI CSS variable names in `theme.ts`. Supports
+   light/dark/sepia themes and multiple accent colors without re-rendering the provider. `ThemeProvider` is replaced by
+   `CssVarsProvider` in `app/layout.tsx`.
+
+3. **Font family** — MUI default (Roboto). The `next/font/google` Inter import from Epic 1 is removed in the first
+   Epic 4 frontend story.
+
+4. **Segmented controls** — MUI `ToggleButtonGroup` with minimal `sx` for border-radius and selected background.
+   Visual delta from the prototype's pill shape is accepted.
 
 ## Core Architectural Decisions
 
@@ -138,766 +181,658 @@ implementation story and the appropriate moment to lock these in.
 
 **Critical Decisions (Block Implementation):**
 
-- ApplicationConfig caching: AtomicReference singleton (not Storage pattern)
-- Auth context placement: separate AuthProvider wrapping ApolloWrapper
-- Route guard: client-side layout guard (not Next.js middleware)
-- bcrypt library: at.favre.lib:bcrypt
+- Subscription scoping: filtered broadcast with two-point membership enforcement
+- WebSocket auth: `connectionParams` JWT on `connection_init`; backend closes connection on token expiry
+- Migration ownership: `MIGRATION_TARGET_USER` env var; hard-fail if unset with existing items; `migrationComplete`
+  flag in `app_migrations` collection
+- List authorization: service-layer explicit `CallerUsername` value class parameter
+- Active list: URL is source of truth (`/list/[listId]`)
 
-**Already Established by PRD/Project Context:**
+**Important Decisions (Shape Architecture):**
 
-- Auth API: REST endpoints under /api/ rootPath (not GraphQL)
-- Token structure: 15-min access (JWT, in-memory) + 30-day refresh (httpOnly cookie + MongoDB TTL)
-- bcrypt cost factor: 12 (NFR1)
-- No refresh token rotation: Phase 1 scope matches PRD TTL model
-- RefreshToken: MongoDB-only repository, no domain/storage layer
-- Principal threading: activate commented-out code in CustomGraphQLContextFactory
+- ListMember storage: embedded UUID array in List document
+- Item/Category storage: nested `Map<UUID, Map<UUID, Item>>` with `evictList` on deletion;
+  `computeIfAbsent` for inner map creation
+- Route structure: `/list/[listId]`, `/lists`, `/household`; sheets are overlay state, no URL
+- Admin has no lists; admin has no personal data ownership
 
 **Deferred Decisions (Post-MVP):**
 
-- Refresh token rotation (Phase 2 security hardening)
-- Next.js middleware auth guard (if SSR requirements emerge)
+- Subscription auth hardening (periodic token re-validation mid-session)
+- Membership revocation UX (notify removed user vs. silent flow termination)
+
+---
 
 ### Data Architecture
 
-**ApplicationConfig Caching**
+**List Entity**
 
-- Pattern: `AtomicReference<ApplicationConfig>` singleton on the service
-- Load: from MongoDB on first access (lazy, same concept as Storage lazy sync)
-- Invalidate: atomic replace on every write
-- Rationale: Single-document config is a different shape from entity collections;
-  the full ConcurrentMap Storage pattern adds conformance overhead without value.
+```
+List
+  id: UUID
+  name: String
+  emoji: String
+  ownerId: UUID          ← references users.id
+  members: List<UUID>    ← embedded array; includes ownerId
+  createdAt: Instant     ← required for default-list ordering and migration sort
+```
 
-**RefreshToken**
+Members array stores UUID references to `users._id`. No separate `list_members` collection — small scale,
+member list always needed alongside list data, join overhead not justified.
 
-- No domain/storage layer — session artifact only
-- Direct MongoDB repository accessed from auth service
-- Collection: `refresh_tokens`; TTL index on `expiresAt` field (30 days)
-- Invalidation triggers: logout, admin reset-password, admin delete-user
+**Item Entity — extended**
 
-**UserStorage**
+```
+Item
+  id: UUID
+  name: String
+  checked: Boolean
+  category: UUID
+  listId: UUID           ← NEW — FK to List.id
+  store: String?         ← NEW — optional "where to buy"
+  recurring: String?     ← NEW — null | "weekly" | "biweekly" | "monthly"
+  addedBy: UUID?         ← NEW — references users.id; null for migrated items
+```
 
-- Follows existing lazy sync ConcurrentMap pattern (mandated by project-context AR3)
-- Collection: `users`
+**Category Entity — extended**
+
+```
+Category
+  id: UUID
+  name: String
+  listId: UUID           ← NEW — FK to List.id
+```
+
+**Storage keying — nested map**
+
+`ItemStorage` and `CategoryStorage` change from `ConcurrentHashMap<UUID, Entity>` to
+`ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Entity>>` (listId → entityId → entity).
+
+Key rules:
+
+- Inner map creation uses `computeIfAbsent` (atomic) — never `getOrPut`
+- `deleteList` must call `ItemStorage.evictList(listId)` and `CategoryStorage.evictList(listId)` — mandatory;
+  documented in project-context.md alongside the existing lazy-sync rule
+- Lazy `sync()` guard is preserved; outer map keyed by listId after MongoDB load
+
+**Admin has no lists**
+
+Admin credentials are env-var only; no `users` collection entry for admin. Admin interacts exclusively through
+user management and app config interfaces. Admin cannot own, create, or be a member of lists.
+
+**Data Migration**
+
+One-time startup migration running directly against MongoDB repositories (bypasses in-memory storage). Runs in
+`Application.module()` before route configuration — MongoDB documents are scoped before the first storage `sync()`.
+
+```yaml
+# application.yaml — new entry:
+migration:
+  targetUser: "$MIGRATION_TARGET_USER:"   # empty default triggers hard-fail
+```
+
+Logic:
+
+1. Check `app_migrations` for `{ type: "epic4-list-seed", complete: true }` → if found, **no-op**
+2. If `MIGRATION_TARGET_USER` unset and `items` non-empty → **hard-fail at startup** with descriptive error
+3. If `MIGRATION_TARGET_USER` unset and `items` empty → skip (fresh install, no migration needed)
+4. Verify named user exists in `users` → hard-fail if not found
+5. Create default list (`name: "Groceries"`, `emoji: "🛒"`) owned by named user
+6. `updateMany` items + categories to set `listId` where unset
+7. Write `{ type: "epic4-list-seed", complete: true }` to `app_migrations`
+8. Log outcome with item/category counts at INFO level
+
+**Operational requirement:** Set `MIGRATION_TARGET_USER` in the deployment environment before first Epic 4
+startup. Create the target user via admin panel before deploying.
+
+---
 
 ### Authentication & Security
 
-**bcrypt Library**
+**WebSocket Authentication**
 
-- Selected: `at.favre.lib:bcrypt` (pure Java, no native deps, active maintenance)
-- Cost factor: 12 (NFR1)
-- Must run in `withContext(Dispatchers.IO)` to keep off the main coroutine dispatcher
+The `graphql-ws` `connection_init` carries `connectionParams`. Frontend sends
+`{ Authorization: "Bearer <token>" }` from `AuthContext.accessToken`. Backend validates JWT before establishing
+the subscription stream.
 
-**JWT Token Structure**
+Connection lifecycle rules:
 
-- Access token: 15-min expiry, claims: `username` + `role` (NFR4/NFR8)
-- Refresh token: 30-day expiry, stored in MongoDB + httpOnly SameSite=Strict cookie (NFR3)
-- Signing: HMAC-256 (existing algorithm, same `KTOR_JWT_SECRET`)
-- No token rotation in Phase 1
+- Backend closes the WebSocket when the validated token expires — not just rejected at subscribe time
+- `ApolloWrapper.tsx` `clearAuth()` calls graphql-ws client `dispose()` before redirecting — prevents orphaned
+  connections delivering events after logout or password reset
 
-**Rate Limiting**
+**Per-List Authorization**
 
-- Verify `ktor-server-rate-limit` availability for Ktor 3.4.3 during Story 1.1
-- Fallback: in-memory sliding window `ConcurrentHashMap<String, Deque<Long>>`
-- Applied per-IP to `/auth/login` and `/auth/register`
-- Limit: 5 attempts per 60-second window (reasonable default; configurable via application.yaml)
+Enforced at the service layer via explicit non-nullable value class parameter:
+
+```kotlin
+@JvmInline value class CallerUsername(val value: String)
+
+// GQL resolver — only place CallerUsername is constructed:
+itemService.getItems(listId, CallerUsername(principal.username))
+
+// Service method — compile-enforced, non-nullable:
+suspend fun getItems(listId: UUID, caller: CallerUsername): List<Item>
+```
+
+Rules:
+
+- `CallerUsername` constructed from validated JWT `Principal` in GQL resolver only
+- Never accepted from client input; never nullable or defaulted
+- Service calls `listService.verifyMembership(caller, listId)` before any data access
+
+---
 
 ### API & Communication Patterns
 
-**Route Structure**
+**Subscription Scoping — Filtered Broadcast with Two-Point Membership Enforcement**
 
-- All new endpoints fall under Ktor's existing `rootPath: "api"`:
-    - `POST /api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`
-    - `POST /api/auth/change-password`
-    - `GET/POST/DELETE /api/admin/users`, `POST /api/admin/users/{id}/reset-password`
-    - `GET/PUT /api/admin/config`
-- nginx `/api/*` rule already proxies all of these correctly — no nginx changes required
+```kotlin
+fun itemUpdates(listId: ID, caller: CallerUsername): Flow<GqlItemUpdate> {
+    // Point 1: membership gate at subscribe time — throws if not member
+    listService.verifyMembership(caller, UUID.fromString(listId.value))
 
-**Error Response Format**
+    return merge(service.itemUpdates, service.itemDeletions)
+        .filter { it.listId == UUID.fromString(listId.value) }
+        // Point 2: re-evaluate on every event — terminates flow on revocation
+        .takeWhile { listService.isMember(caller, UUID.fromString(listId.value)) }
+        .map { GqlItemMapper.toUpdate(it) }
+}
+```
 
-- All auth endpoint errors return JSON: `{"error": "<message>"}` — consistent with existing REST pattern
-- Uniform "Invalid credentials" message for all login/register failures (FR27)
-- HTTP 400 for validation errors, 401 for auth failures, 403 for role violations, 429 for rate limit
+NFR-L4 (no cross-list leakage): satisfied by Point 1. Membership revocation: handled by Point 2 — revoked
+users' flows terminate at the next emitted event without waiting for WebSocket reconnect.
 
-**Existing /api/login**
+**GraphQL Schema Changes**
 
-- The existing single-user `/api/login` endpoint will be replaced by `/api/auth/login`
-  which handles both admin (env-var check) and registered users (DB lookup)
+- `lists: [List]` — new query; returns lists the caller owns or is a member of
+- `createList(name: String!, emoji: String!): List` — new mutation
+- `deleteList(id: ID!): Boolean` — new mutation; triggers `evictList` in storage
+- `shareList(listId: ID!, username: String!): List` — new mutation
+- `items(listId: ID!): [Item]` — existing query gains required `listId` argument
+- `categories(listId: ID!): [Category]` — existing query gains required `listId` argument
+- `saveItem(item: ItemInput!): Item` — `ItemInput` gains `listId`, `store`, `recurring`
+- `itemUpdates(listId: ID!): ItemUpdate` — existing subscription gains required `listId`
+- `categoryUpdates(listId: ID!): CategoryUpdate` — existing subscription gains required `listId`
+
+`npm run generate` required after schema changes; refresh codegen JWT token first.
+
+---
 
 ### Frontend Architecture
 
-**Auth Context**
+**URL Routing (Next.js App Router)**
 
-- Implementation: React `createContext` + `useState` — no external library
-- Provider: `AuthProvider` component wrapping `ApolloWrapper` in `layout.tsx`
-- State shape: `{ username: string | null, role: "admin" | "user" | null, accessToken: string | null }`
-- Token mutations: `setAuth({ username, role, accessToken })`, `clearAuth()`
-- `ApolloWrapper.tsx` SetContextLink reads `accessToken` via `useContext(AuthContext)`
+Active list encoded in URL — no `ListContext`. Main routes:
 
-**Route Guards**
+```
+/list/[listId]   ← Today view (shopping) for a specific list — shareable, deep-linkable
+/lists           ← All lists management + catalog
+/household       ← Household members + activity
+/               ← Redirects to user's oldest list by createdAt, or /lists if none
+```
 
-- Implementation: client-side `"use client"` component in root layout
-- Auth guard: checks `AuthContext.username`; if null, redirects to `/auth`
-- Admin guard: checks `AuthContext.role === "admin"`; non-admin on `/admin/*` redirects to `/`
-- Guards run after Apollo hydration — no flash of protected content on fast connections
+Sheets and overlays (item editor, new list, share) are in-memory React state only — no URL change.
 
-**Apollo 401 Retry**
+Edge cases:
 
-- `authErrorLink` enhanced: on network 401 → call `POST /api/auth/refresh` →
-  on success update `AuthContext.accessToken` and retry original request once
-- On refresh failure: call `clearAuth()` and redirect to `/auth?expired=1`
-- The `?expired=1` query param signals the login page to show the session expiry `Alert`
+- `/list/[listId]` unauthorized: `error.tsx` boundary catches GQL auth error and redirects to `/lists`
+- Zero-lists state: `/lists` page shows "Create your first list" CTA
+- Bottom nav active tab derived from `usePathname()` — no additional state
+
+**Bottom Navigation replaces AppHeader + Navigation drawer**
+
+`BPBottomNav` uses MUI `BottomNavigation` + `BottomNavigationAction`. `app/layout.tsx` removes existing
+`AppHeader` and `Navigation` components and renders `BPBottomNav` instead.
+
+**Apollo subscription connection update**
+
+`GraphQLWsLink` `connectionParams` supplies `Authorization: Bearer <token>` from `AuthContext`.
+`clearAuth()` calls `client.dispose()` before clearing state and redirecting to `/auth`.
+
+---
 
 ### Infrastructure & Deployment
 
-No changes to Docker Compose, nginx, or MongoDB infrastructure.
-New MongoDB collections (`users`, `refresh_tokens`, `app_config`) are created automatically
-by MongoDB on first write — no migration scripts required.
+No changes to Docker Compose, nginx, or MongoDB infrastructure. New MongoDB collections created automatically
+on first write: `lists`, `app_migrations`. New compound index on `items { listId, _id }` for per-list
+retrieval — added in `ItemRepository.init {}`.
+
+New env var: `MIGRATION_TARGET_USER` — required for first Epic 4 deploy when historical items exist.
+
+---
 
 ## Implementation Patterns & Consistency Rules
 
-### Backend Package Structure
-
-New auth code is split across two concerns:
-
-**Entity slice (`entity/user/`):**
-
-```
-entity/user/
-  User.kt                      ← domain model
-  UserStorage.kt               ← ConcurrentMap + lazy sync (per project-context rule)
-  UserService.kt               ← business logic; Arrow Either error handling
-  mongo/
-    MongoUser.kt               ← @Serializable BSON model
-    MongoUserMapper.kt         ← object singleton mapper
-    UserRepository.kt          ← MongoDB coroutine repository
-```
-
-**Auth plugin (`plugins/`):**
-
-```
-plugins/
-  Auth.kt                      ← configureSecurity() extension — JWT setup (existing, extend)
-  AuthRoutes.kt                ← configureAuthRoutes() — /auth/* handlers
-  AdminRoutes.kt               ← configureAdminRoutes() — /admin/* handlers
-  RateLimiting.kt              ← configureRateLimiting() — per-IP limiter plugin
-```
-
-**ApplicationConfig (not an entity slice — single-document config):**
-
-```
-config/
-  ApplicationConfig.kt         ← domain + AtomicReference service in one file (simple)
-  mongo/
-    MongoApplicationConfig.kt  ← @Serializable BSON model
-    ApplicationConfigRepository.kt
-```
-
-**RefreshToken (session artifact — no domain/storage layer):**
-
-```
-auth/
-  RefreshToken.kt              ← @Serializable BSON model only (no domain model)
-  RefreshTokenRepository.kt    ← MongoDB repository, called directly from UserService
-```
-
-**Registration in Application.kt:**
-
-```kotlin
-// In Application.module():
-configureRateLimiting()        // NEW — must be before auth routes
-configureSecurity()            // existing — extend for multi-user JWT
-configureAuthRoutes(userService, appConfigService)   // NEW
-configureAdminRoutes(userService, appConfigService)  // NEW
-configureRouting()             // existing — keep /api/login until fully replaced
-```
+These patterns are **additions** to the 77 rules in `project-context.md`. They cover Epic 4-specific territory where
+multiple AI agents could make different choices. Base conventions (naming, GQL registration, mapper boundaries, storage
+lazy-sync, etc.) are already in `project-context.md` and are not repeated here.
 
 ---
 
-### REST Handler Pattern (New Pattern)
+### Backend Patterns
 
-All auth/admin route handlers follow this structure — no existing REST handler pattern exists
-in the codebase, so this establishes the convention:
+#### Storage — Nested Map Operations
 
-```kotlin
-// In configureAuthRoutes():
-post("/auth/login") {
-    val body = call.receive<LoginRequest>()          // Jackson deserialization
-    val result = userService.login(body.username, body.password)
-    result.fold(
-        ifLeft = { err -> call.respond(err.status, ErrorResponse(err.message)) },
-        ifRight = { token -> call.respond(HttpStatusCode.OK, LoginResponse(...)) }
-    )
-}
-```
+**Inner map creation:** use `computeIfAbsent` only — never `getOrPut`. `getOrPut` is not atomic; concurrent writes on
+the same `listId` key can race and produce two inner maps, with one silently discarded.
 
-**Rules:**
+**List eviction:** `ListService.deleteList` owns both `ItemStorage.evictList(listId)` and
+`CategoryStorage.evictList(listId)` calls, in sequence, before returning. This is service-layer responsibility — not
+the GQL mutation. If the process crashes between the two calls, partial eviction self-heals on next access via the
+existing lazy-sync-from-Mongo guard — no custom locking or transactions are needed.
 
-- Request bodies use Jackson (`call.receive<T>()`) — NOT `@Serializable` (Kotlin Serialization is BSON-only)
-- All errors return `{"error": "<message>"}` JSON — use a shared `data class ErrorResponse(val error: String)`
-- Service layer returns `Arrow Either<AuthError, T>` — fold at the route handler, never throw
-- Route handlers are thin — no business logic; delegate entirely to service
+**Nonexistent `listId` in outer map:** accessing items or categories for a `listId` not present in the outer map
+returns an empty result (not a 404). This is consistent with how Mongo queries behave and avoids a null/missing
+distinction that would complicate GQL resolvers.
 
----
+#### Authorization — `CallerUsername`
 
-### bcrypt IO Dispatcher Pattern
+**Construction site:** `CallerUsername(principal.username)` is constructed in the GQL resolver only. Never in the
+service layer, never accepted from client input, never nullable.
 
-```kotlin
-// In UserService — ALWAYS wrap bcrypt in Dispatchers.IO:
-suspend fun hashPassword(password: String): String =
-    withContext(Dispatchers.IO) {
-        BCrypt.withDefaults().hashToString(12, password.toCharArray())
-    }
+**Missing principal:** if `principal` is absent on a GQL operation that requires it, the resolver throws
+`UnauthorizedException` before constructing `CallerUsername`. This path exists when the auth middleware passes an
+unauthenticated request through — treat it as a programming error, not a user error.
 
-suspend fun verifyPassword(password: String, hash: String): Boolean =
-    withContext(Dispatchers.IO) {
-        BCrypt.verifyer().verify(password.toCharArray(), hash).verified
-    }
-```
+**Ordering in service methods:** validate inputs first (fail fast on malformed data), then call
+`listService.verifyMembership(caller, listId)` as the first authorization step. This ordering ensures auth errors
+never leak information about whether a resource exists. Applies to **all** service methods that accept a `listId`,
+including read-only queries — no exceptions.
 
-**Anti-pattern to avoid:**
+#### Subscription Scoping — Two-Point Enforcement
 
-```kotlin
-// WRONG — blocks the coroutine dispatcher:
-val hash = BCrypt.withDefaults().hashToString(12, password.toCharArray())
-```
+Both points are required. Implementing only Point 1 misses the mid-session membership revocation case.
 
----
+**Point 1 (subscribe time):** `listService.verifyMembership(caller, listId)` throws if not a member. The GraphQL WS
+protocol delivers this as an `error` frame to the client. The frontend handler for a subscription `error` frame must
+redirect to `/auth` (not silently ignore).
 
-### Admin Credential Check Pattern
+**Point 2 (per event):** `takeWhile { listService.isMember(caller, listId) }` re-evaluates on every emitted event.
+Exceptions thrown by `isMember` inside `takeWhile` are caught and treated as `false` — the flow terminates cleanly
+rather than propagating to the WebSocket handler.
 
-Admin is from env vars — never stored in the `users` collection. The login handler
-must check admin credentials BEFORE the DB:
+#### Data Migration
 
-```kotlin
-// In UserService.login():
-suspend fun login(username: String, password: String): Either<AuthError, LoginResult> {
-    // 1. Check admin credentials first (env var comparison)
-    if (username == adminLogin && verifyPassword(password, adminPasswordHash)) {
-        return Right(LoginResult(username, Role.ADMIN))
-    }
-    // 2. Only then check the users collection
-    val user = userStorage.findByUsername(username) ?: return Left(AuthError.InvalidCredentials)
-    if (!verifyPassword(password, user.passwordHash)) return Left(AuthError.InvalidCredentials)
-    return Right(LoginResult(username, Role.USER))
-}
-```
+**Placement:** migration runs in `Application.module()` before route configuration. MongoDB documents are scoped to
+lists before the first storage `sync()` call. Do not move it after route config.
 
-**Rule:** Uniform "Invalid credentials" returned for ALL failures — wrong username,
-wrong password, and non-existent user all produce the same `AuthError.InvalidCredentials`.
+**Idempotency guard:** check `app_migrations` for `{ type: "epic4-list-seed", complete: true }` at the start. If
+found, skip everything and return. This is not optional — startup may be repeated across deploys and tests.
 
 ---
 
-### Refresh Token Cookie Pattern
+### Frontend Patterns
 
-All refresh token cookie writes must use exactly these attributes:
+#### WebSocket Auth & Teardown
 
-```kotlin
-response.cookies.append(
-    name = "refresh_token",
-    value = refreshToken,
-    maxAge = 30 * 24 * 60 * 60,   // 30 days in seconds
-    httpOnly = true,
-    secure = true,                  // HTTPS only in production; Ktor handles dev vs prod
-    extensions = mapOf("SameSite" to "Strict"),
-    path = "/api/auth"              // scope to auth endpoints only
-)
-```
+**Connection params:** `GraphQLWsLink` `connectionParams` supplies `{ Authorization: "Bearer <token>" }` sourced from
+`AuthContext.accessToken`. No other source.
 
-**Reading the cookie in handlers:**
+**`clearAuth()` sequence (strict ordering):**
 
-```kotlin
-val refreshToken = call.request.cookies["refresh_token"]
-    ?: return call.respond(HttpStatusCode.Unauthorized, ErrorResponse("No refresh token"))
-```
+1. `client.dispose()` — synchronous; stops all active subscription emissions immediately. No await needed.
+2. `localStorage.removeItem('token')` — clear persisted token.
+3. Clear React auth state (`setAccessToken(null)`, `setUsername(null)`, etc.)
 
----
+This order prevents in-flight subscription events from hitting React state after teardown, and prevents a spurious
+authenticated request from firing between state clear and disposal.
 
-### API Response DTO Shapes
+#### Navigation & Routing
 
-These must be consistent across all stories — agents must not invent their own shapes:
+**`listId` in mutations:** `listId` is sourced from `useParams()` in the page component and passed as a prop or
+argument down to mutation call sites. It is never read inside mutation hooks via `useParams()` directly, never stored
+in a context, never prop-drilled more than one level. Page component → direct child → mutation. If the chain is
+longer, the component tree needs restructuring.
 
-```kotlin
-// Shared DTOs (create in auth/dto/ package)
-data class ErrorResponse(val error: String)
+**`/lists` is always the list index:** `/lists` never auto-redirects to a specific list. It is always the list picker
+view, regardless of how many lists the user has. Cold-start navigation (e.g. redirect from `/`) may target
+`/list/[oldestListId]` but `/lists` itself does not.
 
-data class LoginRequest(val username: String, val password: String)
-data class LoginResponse(val accessToken: String, val username: String, val role: String)
+**On first list creation:** after `createList` succeeds, navigate to `/list/[newListId]` directly. Do not return to
+`/lists` first — that dead-end feel breaks the flow of someone creating their first list.
 
-data class RegisterRequest(val username: String, val password: String)
-// Register returns LoginResponse (same shape — auto-login chain)
+**Auth error redirects:** all auth-driven redirects (unauthorized list access, session expiry, membership loss)
+use `router.replace`, not `router.push`. `router.push` leaves the unauthorized route in history, causing a back-button
+loop. No exceptions.
 
-data class RefreshResponse(val accessToken: String)
-// Refresh returns only a new access token — username/role already in existing token
+**Membership loss mid-session:** if a query or mutation on `/list/[listId]` returns a 403/FORBIDDEN GQL error while
+the user is actively on that route, the `error.tsx` boundary catches it and calls `router.replace('/lists')`. Per-
+component inline handling of 403s is forbidden — it belongs in the boundary.
 
-data class UserResponse(val id: String, val username: String, val role: String)
-// Used by GET /admin/users and POST /admin/users
-```
+#### `BPSheet` Rules
 
----
+`BPSheet` wraps **all** bottom sheets. `SwipeableDrawer` is not used directly anywhere in application code.
 
-### ApplicationConfig Service Pattern
+**Peek height** is controlled by user gesture only. Data events (item saved, list updated, mutation completed) never
+trigger a peek height change or sheet collapse. A `useEffect` that closes or resizes a sheet in response to a data
+event is a bug.
 
-```kotlin
-// config/ApplicationConfig.kt
-data class ApplicationConfig(val registrationEnabled: Boolean = false)
+#### Theme
 
-class ApplicationConfigService(private val repository: ApplicationConfigRepository) {
-    private val cache = AtomicReference<ApplicationConfig?>(null)
+`CssVarsProvider` from `@mui/material/styles` replaces `ThemeProvider` in `app/layout.tsx`. This is a one-time swap
+in the first Epic 4 frontend story. All subsequent stories assume `CssVarsProvider` is in place — no story should
+import or use `ThemeProvider`.
 
-    suspend fun get(): ApplicationConfig {
-        return cache.get() ?: repository.load()
-            .also { cache.set(it) }
-    }
+#### Schema & Codegen
 
-    suspend fun update(config: ApplicationConfig) {
-        repository.save(config)
-        cache.set(config)              // invalidate immediately
-    }
-}
-```
-
-**Anti-pattern to avoid:**
-
-```kotlin
-// WRONG — do not use ConcurrentMap for single-document config:
-private val configMap = ConcurrentHashMap<String, ApplicationConfig>()
-```
+`items`, `categories`, and subscription operations gain required `listId` arguments — this is a breaking schema
+change. Frontend stories that depend on these operations **must not start** until the backend story adding `listId` to
+the schema is merged into the `epic-4` branch. After that merge, run `npm run generate` before writing any component
+code.
 
 ---
 
-### Frontend AuthContext Pattern
+### Testing Patterns
 
-```typescript
-// src/lib/auth/AuthContext.tsx
-interface AuthState {
-  username: string | null
-  role: "admin" | "user" | null
-  accessToken: string | null
-}
+These are required test shapes — not suggestions. An agent that ships a story without these tests has not met the
+acceptance criteria, even if all functional ACs pass.
 
-interface AuthContextValue extends AuthState {
-  setAuth: (state: AuthState) => void
-  clearAuth: () => void
-}
+**Per-list authorization — negative-path test:** every service test for a list-scoped method must include a case
+where the caller is not a member of the target list and must assert the expected exception is thrown. Read-only
+methods are not exempt.
 
-export const AuthContext = createContext<AuthContextValue>(...)
+**`evictList` isolation:** after deleting a list, assert (a) both `ItemStorage` and `CategoryStorage` return empty for
+that `listId`, and (b) items/categories belonging to a *different* list are unaffected. The second assertion is
+required — it proves the eviction is scoped, not global.
 
-// Always consume via hook — never useContext(AuthContext) directly in components:
-export function useAuth(): AuthContextValue {
-  return useContext(AuthContext)
-}
-```
+**Subscription `takeWhile` path:** the test for subscription scoping must exercise mid-stream membership removal.
+Sequence: open subscription → remove caller from list via mutation → emit an item event → assert subscriber flow
+completes (terminates, not just filters). A simpler "non-member can't subscribe" test does not cover the `takeWhile`
+path. Use a Flow testing library (e.g. Turbine) for async assertion.
 
-**Rules:**
+**Migration idempotency:** one test must pre-populate `app_migrations` with `{ type: "epic4-list-seed", complete: true
+}` before running the migration and assert that no list is created and no items are re-assigned. Without this test the
+idempotency guard is untested code.
 
-- Components always call `useAuth()` — never `useContext(AuthContext)` directly
-- `AuthProvider` wraps `ApolloWrapper` in `layout.tsx` — no exceptions
-- `ApolloWrapper.tsx` reads `useAuth().accessToken` for the SetContextLink
+**Cross-tenant isolation (required on all list-scoped query tests):** every test for a query that returns list-scoped
+data must include an assertion that a second user who is NOT a member of the target list either receives an auth error
+or an empty result when querying the same resource. This assertion proves the multi-tenancy boundary.
 
----
-
-### Apollo 401 Retry Pattern
-
-```typescript
-// In ApolloWrapper.tsx authErrorLink — enhanced:
-// On 401 network error:
-//   1. Set operation.getContext().retried = true to prevent loops
-//   2. Call POST /api/auth/refresh
-//   3. On success: call setAuth({ ...existing, accessToken: newToken }), retry once
-//   4. On failure: call clearAuth(), router.push('/auth?expired=1')
-// IMPORTANT: check operation.getContext().retried before retrying
-```
-
-**Rules:**
-
-- Retry the original request **exactly once** after successful token refresh
-- Use `operation.getContext().retried` flag to prevent infinite retry loops
-- On refresh failure: clear auth state and redirect — do not retry again
-- The `?expired=1` query param is the only mechanism for the session expiry Alert
+**Playwright — subscription event isolation:** at least one E2E test must have two authenticated users, two separate
+lists, with concurrent mutations, asserting that each user's UI reflects only their own list changes. This is the
+integration-level proof of the entire multi-tenancy guarantee.
 
 ---
 
-### Enforcement Guidelines
+### All Agents MUST
 
-**All AI Agents MUST:**
+- Call `listService.verifyMembership` as the first auth step in every list-scoped service method, after input
+  validation, including reads
+- Construct `CallerUsername` only in GQL resolvers
+- Use `computeIfAbsent` (not `getOrPut`) for inner map creation in `ItemStorage` and `CategoryStorage`
+- Call both `evictList` methods from `ListService.deleteList` — never from the GQL layer
+- Use `router.replace` for all auth-driven navigation redirects
+- Use `BPSheet` for all bottom sheets — never `SwipeableDrawer` directly
+- Source `listId` from `useParams()` at the page level only
+- Include the negative-path membership test and cross-tenant isolation assertion in every list-scoped test
 
-- Use `call.receive<T>()` (Jackson) for REST request bodies — never `@Serializable` on DTOs
-- Wrap all bcrypt operations in `withContext(Dispatchers.IO)`
-- Return `ErrorResponse(error = "...")` JSON for all REST errors — never plain text
-- Check admin env-var credentials before DB lookup in the login flow
-- Use the exact `LoginResponse` / `RefreshResponse` / `UserResponse` DTO shapes above
-- Consume auth state via `useAuth()` hook — never `useContext(AuthContext)` directly
-- Set a retry-once flag in Apollo 401 handling to prevent infinite loops
-
-**Anti-patterns to flag in review:**
-
-- `ConcurrentHashMap` or `ConcurrentMap` used for ApplicationConfig
-- bcrypt called without `withContext(Dispatchers.IO)`
-- Second Apollo client created anywhere
-- `localStorage` used for token storage in any new code
-- `@Serializable` annotation on HTTP request/response DTOs
+---
 
 ## Project Structure & Boundaries
 
-### Backend — Feature-Based Package Organization
+This section documents the **Epic 4 delta** only. The full project tree and base conventions are in
+`project-context.md` and `docs/source-tree-analysis.md`. Agents should read those before implementing any Epic 4
+story.
 
-Package root: `bp_back/src/main/kotlin/com/bagplease/`
+---
 
-**Design principle:** Entity slices own domain concerns; feature packages own HTTP, token, and
-session concerns. Route `configure*()` functions live in their feature package and are wired
-from `plugins/Routing.kt`.
+### New Backend Files
 
-```
-src/main/kotlin/com/bagplease/
-├── Application.kt
-├── entity/
-│   ├── item/                          (existing — unchanged)
-│   ├── category/                      (existing — unchanged)
-│   └── user/
-│       ├── User.kt                    domain model
-│       ├── UserStorage.kt             ConcurrentMap + lazy sync
-│       ├── UserService.kt             register, findByUsername, verifyPassword, changePassword
-│       └── mongo/
-│           ├── MongoUser.kt           @Serializable BSON model
-│           ├── MongoUserMapper.kt     object singleton mapper
-│           └── UserRepository.kt     MongoDB coroutine repository
-├── features/
-│   ├── auth/
-│   │   ├── dto/
-│   │   │   ├── LoginRequest.kt
-│   │   │   ├── LoginResponse.kt
-│   │   │   ├── RegisterRequest.kt
-│   │   │   ├── RefreshResponse.kt
-│   │   │   └── ErrorResponse.kt
-│   │   ├── AuthService.kt             token issuance, refresh, logout (calls UserService)
-│   │   ├── AuthRoutes.kt              configureAuthRoutes() — /auth/* handlers
-│   │   ├── RefreshToken.kt            @Serializable BSON model only (no domain layer)
-│   │   └── RefreshTokenRepository.kt  MongoDB repository; TTL index on expiresAt
-│   └── admin/
-│       ├── dto/
-│       │   ├── CreateUserRequest.kt
-│       │   ├── ResetPasswordRequest.kt
-│       │   ├── UserResponse.kt
-│       │   └── UpdateConfigRequest.kt
-│       └── AdminRoutes.kt             configureAdminRoutes() — /admin/* handlers
-├── config/
-│   ├── ApplicationConfig.kt           domain data class
-│   ├── ApplicationConfigService.kt    AtomicReference cache; lazy load; invalidate on write
-│   └── mongo/
-│       ├── MongoApplicationConfig.kt  @Serializable BSON model
-│       └── ApplicationConfigRepository.kt
-├── plugins/
-│   ├── Cors.kt                        (existing — unchanged)
-│   ├── GQL.kt                         (MODIFIED — activate Principal in context factory)
-│   ├── Monitoring.kt                  (existing — unchanged)
-│   ├── Routing.kt                     (MODIFIED — call configureAuthRoutes + configureAdminRoutes)
-│   ├── Security.kt                    (MODIFIED — multi-user JWT + role claim)
-│   └── RateLimiting.kt                [NEW] configureRateLimiting()
-└── mongo/
-    └── MongoConnection.kt             (existing — unchanged)
-```
+All paths relative to `bp_back/src/main/kotlin/com/bagplease/`.
 
-**Configuration changes:**
+**New entity — `entity/list/` (full vertical slice):**
 
 ```
-src/main/resources/application.yaml   [MODIFIED] new: jwt.accessExpiryMinutes,
-                                                       jwt.refreshExpiryDays,
-                                                       rateLimit.attempts,
-                                                       rateLimit.windowSeconds
-gradle/libs.versions.toml             [MODIFIED] add: bcrypt (at.favre.lib),
-                                                       ktor-server-rate-limit (verify 3.4.3)
+entity/list/
+  List.kt                        ← domain model; id, name, emoji, ownerId, members: List<UUID>, createdAt
+  ListStorage.kt                 ← ConcurrentHashMap<UUID, List>; lazy sync; standard Storage pattern
+  ListService.kt                 ← verifyMembership, isMember, createList, deleteList, shareList
+  gql/
+    GqlList.kt                   ← @GraphQLName("List") data class; id, name, emoji, ownerId, members
+    GqlListMapper.kt             ← object GqlListMapper; mapListToGql()
+    ListApi.kt                   ← @Suppress("unused") Query + Mutation; lists(), createList(), deleteList(), shareList()
+  mongo/
+    MongoList.kt                 ← @Serializable; _id mapped via UUIDMongoSerializer
+    MongoListMapper.kt           ← object MongoListMapper
+    ListRepository.kt            ← suspend fun findByMember, save, delete
 ```
 
-**Test files:**
+`ListApi.kt` follows the existing `ItemApi.kt` / `CategoryApi.kt` pattern (Query + Mutation in one file).
+No Subscription on List — list membership changes do not emit subscription events in Epic 4.
+
+**`CallerUsername` value class:**
 
 ```
-src/test/resources/application.yaml   [NEW] static JWT config — replaces setUpJwt() tech debt
-src/test/kotlin/com/bagplease/
-├── (existing tests — unchanged)
-├── features/
-│   ├── auth/
-│   │   ├── UserRegistrationTest.kt    Story 1.1 ACs
-│   │   └── LoginTokenTest.kt          Story 1.2 ACs
-│   └── admin/
-│       ├── AdminUserManagementTest.kt Stories 2.2 ACs
-│       └── ApplicationConfigTest.kt   Story 2.1 ACs
-└── TestContainers.kt                  [MODIFIED] remove setUpJwt() after test yaml is in place
+features/auth/
+  CallerUsername.kt              ← @JvmInline value class CallerUsername(val value: String)
+```
+
+Lives in `features/auth/` — it is an auth boundary marker derived from a validated JWT Principal. Used by
+`ItemService`, `CategoryService`, and `ListService`. Never instantiated outside a GQL resolver.
+
+**Migration:**
+
+```
+plugins/
+  Migration.kt                   ← fun Application.configureMigration(); called from Application.kt before
+                                   configureRouting(); reads MIGRATION_TARGET_USER from application.yaml;
+                                   checks app_migrations before running; hard-fails if env var unset and
+                                   items collection non-empty
 ```
 
 ---
 
-### Frontend — New Files (`bp_front/src/`)
+### Modified Backend Files
+
+| File                                     | Change                                                                                                                             |
+|------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `entity/item/Item.kt`                    | Add `listId: UUID`, `store: String?`, `recurring: String?`, `addedBy: UUID?`                                                       |
+| `entity/item/gql/GqlItem.kt`             | Add new fields; `GqlItemInput` gains `listId`, `store`, `recurring`                                                                |
+| `entity/item/gql/ItemApi.kt`             | `items(listId: ID!)` and subscriptions gain required `listId`; `saveItem` input updated                                            |
+| `entity/item/mongo/MongoItem.kt`         | Add new fields                                                                                                                     |
+| `entity/item/ItemStorage.kt`             | Refactor from `ConcurrentHashMap<UUID, Item>` to `ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Item>>`; add `evictList(listId)` |
+| `entity/item/ItemService.kt`             | All methods gain `caller: CallerUsername`; call `listService.verifyMembership` before storage access                               |
+| `entity/category/Category.kt`            | Add `listId: UUID`                                                                                                                 |
+| `entity/category/gql/CategoryApi.kt`     | `categories(listId: ID!)` and subscriptions gain required `listId`                                                                 |
+| `entity/category/mongo/MongoCategory.kt` | Add `listId` field                                                                                                                 |
+| `entity/category/CategoryStorage.kt`     | Same nested map refactor as `ItemStorage`; add `evictList(listId)`                                                                 |
+| `entity/category/CategoryService.kt`     | All methods gain `caller: CallerUsername`; call `listService.verifyMembership`                                                     |
+| `config/gql/GQL.kt`                      | Register `ListApi` in `packages`, `queries`, `mutations`                                                                           |
+| `Application.kt`                         | Call `configureMigration()` before `configureRouting()`                                                                            |
+
+---
+
+### New Frontend Files
+
+All paths relative to `bp_front/src/`.
 
 ```
-src/
-├── lib/
-│   ├── item/Queries.tsx              (existing — unchanged)
-│   ├── category/Queries.tsx          (existing — unchanged)
-│   ├── auth/
-│   │   ├── AuthContext.tsx           [NEW] AuthProvider, AuthContext, useAuth() hook
-│   │   └── authApi.ts                [NEW] plain fetch() calls for all auth REST endpoints
-│   └── theme.ts                      [NEW] MUI v9 dark theme (UX-DR1)
-├── app/
-│   ├── layout.tsx                    [MODIFIED] AuthProvider + ThemeProvider wrapping
-│   ├── AppHeader.tsx                 [MODIFIED] UserChip; admin nav link (UX-DR9)
-│   ├── Navigation.tsx                [MODIFIED] admin-only "User Management" MenuItem (UX-DR10)
-│   ├── ApolloWrapper.tsx             [MODIFIED] SetContextLink reads from AuthContext;
-│   │                                            enhanced 401 retry with refresh
-│   ├── auth/
-│   │   ├── page.tsx                  [MODIFIED] edge-to-edge; session expiry Alert;
-│   │   │                                        conditional Register link (UX-DR2)
-│   │   └── register/
-│   │       └── page.tsx              [NEW] RegisterPage (UX-DR3)
-│   ├── store/
-│   │   ├── page.tsx                  [MODIFIED] render WelcomeBanner
-│   │   └── WelcomeBanner.tsx         [NEW] one-time welcome banner (UX-DR5)
-│   ├── admin/
-│   │   ├── users/
-│   │   │   └── page.tsx              [NEW] AdminUsersPage (UX-DR6)
-│   │   └── ConfirmDialog.tsx         [NEW] reusable confirmation dialog (UX-DR7)
-│   └── account/
-│       └── password/
-│           └── page.tsx              [NEW] ChangePasswordPage (UX-DR8)
-└── __generated__/
-    └── graphql.ts                    (no change — auth is REST, no schema regeneration)
+app/
+  BPBottomNav.tsx                ← MUI BottomNavigation + BottomNavigationAction; replaces AppHeader + Navigation;
+                                   active tab from usePathname(); rendered in app/layout.tsx
+  BPSheet.tsx                    ← SwipeableDrawer wrapper; owns open/closed state + peek height state machine;
+                                   all bottom sheets in the app use this, never SwipeableDrawer directly
+  list/
+    [listId]/
+      page.tsx                   ← Today view (shopping list for active list); sources listId from useParams()
+      error.tsx                  ← catches GQL FORBIDDEN error; calls router.replace('/lists')
+  lists/
+    page.tsx                     ← list picker / all lists index; zero-lists state shows create CTA;
+                                   never auto-redirects even if user has lists
+  household/
+    page.tsx                     ← household members + activity
+lib/
+  list/
+    Queries.tsx                  ← LISTS_QUERY, CREATE_LIST_MUTATION, DELETE_LIST_MUTATION, SHARE_LIST_MUTATION
 ```
 
 ---
 
-### Requirements → File Mapping
+### Modified Frontend Files
 
-| Story                             | Backend Files                                                                                         | Frontend Files                                                                                               |
-|-----------------------------------|-------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| 1.1 User Entity & Registration    | `entity/user/*`, `features/auth/AuthRoutes.kt`, `features/auth/dto/*`, `plugins/RateLimiting.kt`      | —                                                                                                            |
-| 1.2 Login, Tokens & Security      | `features/auth/AuthService.kt`, `features/auth/RefreshToken*.kt`, `plugins/Security.kt`               | —                                                                                                            |
-| 1.3 Frontend Theme & Auth Infra   | —                                                                                                     | `lib/theme.ts`, `lib/auth/AuthContext.tsx`, `lib/auth/authApi.ts`, `app/layout.tsx`, `app/ApolloWrapper.tsx` |
-| 1.4 Login & Registration UI       | —                                                                                                     | `app/auth/page.tsx`, `app/auth/register/page.tsx`                                                            |
-| 1.5 Identity & Account UI         | —                                                                                                     | `app/AppHeader.tsx`, `app/store/WelcomeBanner.tsx`, `app/account/password/page.tsx`, `app/Navigation.tsx`    |
-| 2.1 ApplicationConfig Backend     | `config/*`, `features/admin/AdminRoutes.kt` (GET/PUT /admin/config)                                   | —                                                                                                            |
-| 2.2 Admin User Management Backend | `entity/user/UserService.kt` (admin methods), `features/admin/AdminRoutes.kt`, `features/admin/dto/*` | —                                                                                                            |
-| 2.3 Admin User Management UI      | —                                                                                                     | `app/admin/users/page.tsx`, `app/admin/ConfirmDialog.tsx`                                                    |
-| 2.4 Registration Toggle UI        | —                                                                                                     | `app/auth/page.tsx` (conditional Register link), `app/admin/users/page.tsx` (Switch)                         |
+| File                           | Change                                                                                                                                                                   |
+|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `app/layout.tsx`               | Swap `ThemeProvider` → `CssVarsProvider` from `@mui/material/styles`; remove `AppHeader` + `Navigation`; add `BPBottomNav`; remove Inter font import                     |
+| `app/page.tsx`                 | Redirect to `/list/[oldestListId]` if user has lists, else `/lists`                                                                                                      |
+| `lib/apollo/ApolloWrapper.tsx` | Add `connectionParams: { Authorization: "Bearer <token>" }` to `GraphQLWsLink`; update `clearAuth()` to dispose → clear localStorage → clear React state (in that order) |
+| `lib/theme.ts`                 | Migrate to MUI CSS variables mode; map color tokens from `design/theme.js`; remove Inter configuration                                                                   |
+| `lib/item/Queries.tsx`         | Add required `listId` to `ITEMS_QUERY`, `SAVE_ITEM_MUTATION`, `ITEM_UPDATES_SUBSCRIPTION`                                                                                |
+| `lib/category/Queries.tsx`     | Add required `listId` to `CATEGORIES_QUERY`, `CATEGORY_UPDATES_SUBSCRIPTION`                                                                                             |
 
 ---
 
-### Architectural Boundaries
+### Story-to-File Mapping
 
-**Backend:**
+This maps expected Epic 4 stories to the files they primarily touch. Exact story boundaries are defined in `epics.md`
+once it is updated for Epic 4; this is a structural guide, not a story specification.
 
-- `features/auth/AuthService.kt` and `features/admin/AdminRoutes.kt` depend on `entity/user/UserService.kt` and
-  `config/ApplicationConfigService.kt` — never on repositories directly
-- Route handlers in `features/*/` are thin: receive DTO, call service, fold Either, respond
-- `plugins/Routing.kt` is the single wiring point: calls `configureAuthRoutes()` and `configureAdminRoutes()` with
-  injected dependencies
-- `plugins/GQL.kt` receives `Principal` from the context factory — existing GQL operations pass it through without
-  acting on it
+| Concern                        | Primary Backend Files                                                                       | Primary Frontend Files                                      |
+|--------------------------------|---------------------------------------------------------------------------------------------|-------------------------------------------------------------|
+| List entity (CRUD + sharing)   | `entity/list/**`, `GQL.kt`, `Application.kt`                                                | `lib/list/Queries.tsx`, `app/lists/page.tsx`                |
+| Item/category list-scoping     | `Item.kt`, `ItemStorage.kt`, `ItemService.kt`, `ItemApi.kt` (+ category equivalents)        | `lib/item/Queries.tsx`, `lib/category/Queries.tsx`          |
+| Data migration                 | `plugins/Migration.kt`                                                                      | —                                                           |
+| WebSocket auth                 | `plugins/GQL.kt` (WS auth gate)                                                             | `lib/apollo/ApolloWrapper.tsx`                              |
+| Navigation redesign            | —                                                                                           | `app/layout.tsx`, `BPBottomNav.tsx`, `app/page.tsx`         |
+| List Today view                | —                                                                                           | `app/list/[listId]/page.tsx`, `app/list/[listId]/error.tsx` |
+| Theme migration                | —                                                                                           | `lib/theme.ts`, `app/layout.tsx`                            |
+| CallerUsername / authorization | `features/auth/CallerUsername.kt`, `ItemService.kt`, `CategoryService.kt`, `ListService.kt` | —                                                           |
 
-**Frontend:**
+---
 
-- `lib/auth/AuthContext.tsx` owns auth state — all components consume via `useAuth()`
-- `lib/auth/authApi.ts` owns all HTTP calls to auth REST endpoints — no bare `fetch()` in components or pages
-- `ApolloWrapper.tsx` reads token from `AuthContext` via `useAuth()` — does not own auth state
-- Route guards live as client components in `app/layout.tsx` — not in `middleware.ts`
+### Key Integration Boundaries
 
-**Data flow (login):**
+**Backend authorization boundary:** `CallerUsername` is constructed in GQL resolvers (`ListApi`, `ItemApi`,
+`CategoryApi`). It crosses into service layer as a non-nullable parameter. The service layer calls
+`listService.verifyMembership` — `ListService` is the single authority on membership. Services never call each
+other's membership checks.
 
-```
-POST /api/auth/login
-  → features/auth/AuthRoutes.kt (receive LoginRequest via Jackson)
-  → features/auth/AuthService.kt (admin env-var check → UserService.verifyPassword → issue tokens)
-  → features/auth/RefreshTokenRepository.kt (save refresh token to MongoDB)
-  → response: LoginResponse (access token in body) + Set-Cookie (refresh token httpOnly)
-  → lib/auth/authApi.ts (fetch call)
-  → lib/auth/AuthContext.tsx setAuth({ username, role, accessToken })
-  → ApolloWrapper SetContextLink picks up accessToken on next GQL request
-```
+**Storage eviction boundary:** `ListService.deleteList` is the only caller of `evictList` on both `ItemStorage` and
+`CategoryStorage`. No other code path evicts list data. GQL mutations do not touch storage directly.
+
+**Frontend list context boundary:** `listId` is URL state. It enters the component tree via `useParams()` at the page
+component level only (`app/list/[listId]/page.tsx`). It does not live in React context, is not stored in Apollo
+cache variables, and is not prop-drilled more than one level.
+
+**Theme boundary:** `CssVarsProvider` in `app/layout.tsx` is the single theme provider. No component imports or
+instantiates a theme provider. Color values come exclusively from `lib/theme.ts` CSS variable definitions mapped from
+`design/theme.js`.
+
+---
 
 ## Architecture Validation Results
 
 ### Coherence Validation ✅
 
-**Decision Compatibility:**
-All technology choices are mutually compatible. Kotlin/JDK 25 + Ktor 3.4.3 + at.favre.lib:bcrypt
-(pure JVM, no native deps) + Arrow Either + MongoDB coroutine driver 5.5.1 have no version conflicts.
-Frontend: Next.js 16 + React 19 + MUI v9 + Apollo Client 4 are already running together in
-production — no integration risk. AtomicReference and secondary Map indexes are standard JDK,
-compatible with Ktor coroutines without synchronization issues.
+**Decision Compatibility:** All technology choices are compatible. Kotlin 2.3.21 / Ktor 3.4.3 / graphql-kotlin 9.2.0 /
+MongoDB Kotlin Coroutine Driver 5.5.1 have no version conflicts. `CssVarsProvider` is available in `@mui/material`
+v9.0.0. `graphql-ws` 6.0.8 supports `connectionParams`. Arrow-kt 2.1.2 is available for service-layer error handling
+in `ListService`.
 
-**Pattern Consistency:**
-Implementation patterns are internally consistent. The REST handler pattern (thin route → Arrow
-fold → service) follows the existing GQL handler style. Feature package organization is consistent
-within itself. Frontend `useAuth()` hook pattern matches the existing Apollo `useQuery` consumption
-pattern. bcrypt IO dispatcher pattern is the standard Ktor coroutines approach.
+**Pattern Consistency:** `CallerUsername` construction → GQL resolver; `verifyMembership` → service layer; data
+access → storage. This chain is consistent across `ItemService`, `CategoryService`, and `ListService`. Naming
+follows established conventions: `GqlListMapper`, `MongoListMapper`, `ListApi.kt`, `ListStorage.kt`.
 
-**Structure Alignment:**
-Feature packages support the architectural boundaries: `features/auth/` and `features/admin/` own
-HTTP and session concerns; `entity/user/` owns domain concerns; `plugins/` is infrastructure-only.
-Route configure functions live in feature packages and are wired from `plugins/Routing.kt` —
-consistent with the existing `configureGql()`, `configureSecurity()` wiring pattern.
+**Structure Alignment:** `entity/list/` mirrors `entity/item/` and `entity/category/` exactly. `plugins/Migration.kt`
+follows the `configure*()` convention. `features/auth/CallerUsername.kt` sits with auth infrastructure, not entity code.
 
----
+### Requirements Coverage ✅
 
-### Requirements Coverage Validation ✅
+All nine Epic 4 functional requirements have architectural support:
 
-**All 33 Functional Requirements covered:**
-Every FR maps to a specific file in the project structure (see Requirements → File Mapping table).
-No FR is left architecturally unaddressed. Cross-feature FRs (FR24 RBAC, FR28 Principal) are
-covered by `plugins/Security.kt` + `GQL.kt` and consumed by both feature packages.
+| FR                      | Architectural Support                                               |
+|-------------------------|---------------------------------------------------------------------|
+| Create named list       | `createList` mutation, `ListService`, `ListStorage`                 |
+| View/switch lists       | `lists` query, `/lists` route, `/list/[listId]` route               |
+| Delete owned list       | `deleteList` mutation + `evictList` in `ListService.deleteList`     |
+| Share list              | `shareList` mutation, `members` array in List document              |
+| Items/categories scoped | `listId` on Item + Category; nested storage map                     |
+| Access control          | `verifyMembership` in all list-scoped service methods               |
+| Data migration          | `plugins/Migration.kt` with idempotency guard                       |
+| Bottom tab navigation   | `BPBottomNav.tsx` replaces AppHeader + Navigation                   |
+| Item extended fields    | `store`, `recurring`, `addedBy` in Item domain model and all layers |
 
-**All 16 Non-Functional Requirements covered:**
+All five NFRs (subscription scoping, service-layer auth, migration idempotency, no cross-list leakage, WebSocket
+auth) are covered by the decisions in this document.
 
-- NFR1 bcrypt-12: `withContext(Dispatchers.IO)` pattern + at.favre.lib:bcrypt
-- NFR2 TTL index: `RefreshTokenRepository.init {}` (see Gap 3 resolution)
-- NFR3 httpOnly cookie: exact cookie attributes specified in patterns section
-- NFR4 token expiry: `AuthService` token issuance with configured values
-- NFR6 rate limiting: `plugins/RateLimiting.kt` per-IP
-- NFR7 no credentials in logs: Arrow Either + no log statements on auth failure paths
-- NFR12 ApplicationConfig cached: `AtomicReference` invalidated on write
-
----
-
-### Gap Analysis Results
-
-Four important gaps identified and resolved during validation:
-
-**Gap 1 — UserStorage.findByUsername (RESOLVED)**
-The primary `Map<UUID, User>` cannot support O(1) username lookup required for login.
-
-Resolution: `UserStorage` maintains a secondary `Map<String, UUID>` (username → UUID) populated
-during lazy sync alongside the primary map. Both maps are updated atomically on every write.
-
-```kotlin
-// In UserStorage:
-private val byId = ConcurrentHashMap<UUID, User>()
-private val byUsername = ConcurrentHashMap<String, UUID>()
-
-fun findByUsername(username: String): User? =
-    byUsername[username]?.let { byId[it] }
-
-// sync() populates both maps from MongoDB on first access
-```
-
-**Gap 2 — RefreshToken `_id` (RESOLVED)**
-Refresh token lookup must be O(1) — the cookie value must be the document key.
-
-Resolution: The UUID token string IS the MongoDB `_id`. The cookie stores the same UUID.
-`RefreshTokenRepository` uses `findById(tokenValue)` and `deleteById(tokenValue)`.
-
-```kotlin
-@Serializable
-data class RefreshToken(
-    @SerialName("_id") val token: String,   // UUID string — IS the _id
-    val username: String,
-    val expiresAt: Instant
-)
-```
-
-**Gap 3 — TTL index creation (RESOLVED)**
-MongoDB does not auto-create indexes; `RefreshTokenRepository` must create the TTL index
-at startup — not per-operation.
-
-Resolution: `RefreshTokenRepository` creates the index in its `init {}` block:
-
-```kotlin
-init {
-    runBlocking {
-        collection.createIndex(
-            Indexes.ascending("expiresAt"),
-            IndexOptions().expireAfter(0, TimeUnit.SECONDS)
-        )
-    }
-}
-```
-
-**Gap 4 — ApplicationConfig document identity (RESOLVED)**
-`findOne()` with no filter fails on an empty collection (first startup before default is written).
-
-Resolution: Use a fixed UUID constant as `_id`. On startup, `ApplicationConfigService` upserts
-the default config using this constant if no document exists.
-
-```kotlin
-// In ApplicationConfigRepository:
-private val CONFIG_ID = UUID.fromString("00000000-0000-0000-0000-000000000001")
-
-suspend fun load(): ApplicationConfig =
-    collection.findOneById(CONFIG_ID.toString()) ?: ApplicationConfig().also { save(it) }
-```
-
----
+### Implementation Readiness ✅
 
 ### Architecture Completeness Checklist
 
 **Requirements Analysis**
-
 - [x] Project context thoroughly analyzed
 - [x] Scale and complexity assessed
 - [x] Technical constraints identified
 - [x] Cross-cutting concerns mapped
 
 **Architectural Decisions**
-
 - [x] Critical decisions documented with versions
 - [x] Technology stack fully specified
 - [x] Integration patterns defined
 - [x] Performance considerations addressed
 
 **Implementation Patterns**
-
 - [x] Naming conventions established
 - [x] Structure patterns defined
 - [x] Communication patterns specified
 - [x] Process patterns documented
 
 **Project Structure**
-
 - [x] Complete directory structure defined
 - [x] Component boundaries established
 - [x] Integration points mapped
 - [x] Requirements to structure mapping complete
 
----
+### Minor Clarifications (non-blocking)
+
+**1. `addedBy` is server-set, not client-provided.**
+`addedBy: UUID?` is populated in the GQL resolver from `principal.userId` — it is **not** included in `ItemInput`.
+Clients cannot supply or override this field. Migrated items have `addedBy: null`.
+
+**2. `recurring` is a Kotlin enum in the domain model.**
+Valid values (`weekly`, `biweekly`, `monthly`) are expressed as `enum class Recurring { WEEKLY, BIWEEKLY, MONTHLY }`
+with `recurring: Recurring?` in `Item.kt`. The GQL model exposes it as a String (graphql-kotlin serializes enums as
+strings by default). The Mongo model stores the enum name as a string field.
+
+**3. `app/store/` is replaced, not co-existed.**
+The current `app/store/` directory (Today view, item and category pages) is replaced by `app/list/[listId]/` during
+Epic 4. Store components (`ItemsList.tsx`, `ItemView.tsx`, `CreateItem.tsx`, etc.) are migrated to the new route
+structure or deleted. No story should leave `app/store/` as a live route alongside `app/list/[listId]/`.
 
 ### Architecture Readiness Assessment
 
-**Overall Status: READY FOR IMPLEMENTATION**
+**Overall Status:** READY FOR IMPLEMENTATION
 
-**Confidence Level:** High — brownfield project with a well-established codebase; all new
-patterns are extensions of existing ones; no unproven technology choices; all 16 checklist
-items confirmed.
+**Confidence Level:** High — all FRs architecturally covered, all critical decisions resolved, implementation patterns
+address the identified agent conflict points, project structure delta is precise.
 
 **Key Strengths:**
 
-- All decisions are constrained by the existing working codebase — no greenfield uncertainty
-- Feature-based package organization is clean and separates domain from HTTP/session concerns
-- Implementation patterns include executable code examples for the highest-risk patterns
-  (bcrypt IO dispatcher, admin credential check ordering, cookie attributes, Apollo 401 retry)
-- Four implementation gaps caught and resolved before code is written
+- `CallerUsername` value class makes authorization enforcement compile-time visible, not convention-only
+- Two-point subscription scoping handles both subscribe-time rejection and mid-session membership revocation
+- URL-as-list-state eliminates an entire category of context synchronization bugs
+- Idempotent migration with `app_migrations` guard is safe across repeated restarts and test runs
+- Testing patterns (negative-path, cross-tenant isolation, `takeWhile` test) are documented alongside implementation
+  patterns
 
-**Areas for Future Enhancement (Post-MVP):**
+**Areas for Future Enhancement (Post-Epic 4):**
 
-- Refresh token rotation (Phase 2 security hardening)
-- WebSocket subscription authentication (existing tech debt)
-- Next.js middleware auth guard if SSR requirements emerge
-- User status (active/suspended) — Phase 2 domain extension
-
----
+- Periodic WebSocket token re-validation mid-session (currently deferred)
+- Membership revocation UX notification (currently silent flow termination)
+- List-level subscription events (notify all members when someone joins/leaves)
 
 ### Implementation Handoff
 
+**For AI Agents:**
+
+- Read `project-context.md` before any implementation work — base conventions are there
+- Read this document for all Epic 4-specific decisions and patterns
+- The `Implementation Patterns & Consistency Rules` section contains mandatory rules; treat them as acceptance criteria
+- The `Project Structure` section shows exactly which files to create and which to modify
+- Run `npm run generate` after the backend schema story is merged, before starting any frontend story that touches
+  items, categories, or subscriptions
+
 **First Implementation Priority:**
-Story 1.1 — User Entity & Registration Backend. This story:
-
-1. Validates the bcrypt library choice (`at.favre.lib:bcrypt` — add to `libs.versions.toml`)
-2. Validates the rate-limit plugin availability for Ktor 3.4.3 (or triggers fallback)
-3. Establishes `entity/user/` and `features/auth/` as the first feature packages
-4. Creates `src/test/resources/application.yaml` to resolve the `setUpJwt()` tech debt
-
-**AI Agent Guidelines:**
-
-- Read this document before implementing any story in this feature
-- Follow all patterns exactly — especially bcrypt IO dispatcher, admin credential check ordering,
-  cookie attributes, and Apollo 401 retry flag
-- Use `useAuth()` hook exclusively — never `useContext(AuthContext)` directly in components
-- Auth operations are REST — do not add GraphQL operations; do not run `npm run generate`
-- All new Ktor route configuration functions follow `configure*()` convention and are registered
-  from `plugins/Routing.kt`
+Begin with the backend `List` entity vertical slice and `CallerUsername` value class — these unblock all downstream
+stories. `plugins/Migration.kt` should be implemented in the same story or immediately after, since it must run on
+startup before any list-scoped data can be correctly served.
