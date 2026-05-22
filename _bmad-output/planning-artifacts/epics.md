@@ -1,12 +1,14 @@
 ---
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
-status: complete
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8']
+status: in_progress
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - docs/architecture-bp_back.md
   - docs/architecture-bp_front.md
   - docs/integration-architecture.md
+  - _bmad-output/planning-artifacts/architecture.md
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
 ---
 
 # bag-please - Epic Breakdown
@@ -59,6 +61,47 @@ FR31: Non-admin users accessing admin-only interfaces are denied access
 FR32: System provides guidance on the login screen for users who cannot access their account (contact admin)
 FR33: System displays a specific message when a user is redirected to login due to session expiry
 
+#### Epic 4 — List Management
+
+FR34: User can create a named shopping list with an emoji icon and an optional description
+FR35: User can view all lists they own or are a member of
+FR36: User can switch between lists using a chip-row switcher in the shopping view; the active list is always visible in the chip row, the toolbar title, and the URL
+FR37: Only the list owner can delete a list; deletion permanently removes the list, all its items, and all its categories from the database; active subscribers to the list are disconnected on deletion; non-owner members cannot delete — they can leave the list instead (see FR55)
+FR38: The active list is identified by URL (/list/[listId]); navigating to that URL loads the list's items; / redirects to the user's oldest list by creation date, or to /lists if the user has no lists
+
+#### Epic 4 — List Sharing & Membership
+
+FR39: List owner can share a list with another registered user by exact username match; sharing creates a pending invite; the invited user sees the invite with Accept and Reject buttons on the Lists page; the list is not accessible to the invited user until they accept; sharing with an unknown username, an existing member, or oneself produces a specific descriptive error message
+FR40: All list members (owner and shared users) can add, check off, edit, and delete items in a shared list; no owner/member role distinction exists within a list for item operations; the list owner can remove any member at any time — the removed member's items remain on the list and the removal takes effect on the member's next list data access (active subscription terminates via membership re-evaluation on next emitted event)
+FR41: A user can only view and modify items and categories in lists they own or have been accepted as a member of; pending invites do not grant access; unauthorized access to /list/[listId] redirects to /lists
+FR55: A non-owner list member can leave a shared list at any time; leaving removes the user from the member array immediately; items they added remain on the list
+
+#### Epic 4 — Item Lifecycle
+
+FR42: User can designate an item as a one-timer at creation or via edit; checking off a one-timer soft-deletes it (deleted: true, deletedAt: now) and removes it from the list view with a directional exit animation; an undo snackbar is available until the user navigates away from the current screen — tapping undo clears the soft-delete flag and restores the item; the hourly background scheduler (FR54) permanently removes items soft-deleted for more than one hour
+FR43: User can set an item as recurring (weekly, biweekly, or monthly); the cadence and any changes to it are configured in the item editor; the hourly background scheduler (FR54) restores recurring items whose cadence has elapsed since check-off: weekly = 7 days, biweekly = 14 days, monthly = 30 days; each cycle produces exactly one restoration regardless of how many cycles have been missed; restored items have checked: false
+FR44: User can optionally specify a store for an item; the item editor surfaces pre-populated store suggestions derived from existing item data
+FR45: Each item displays the username of the user who added it (addedBy) as an avatar or label on the item row in the shopping view
+FR54: A background scheduler service runs every hour; it performs two tasks: (a) restores recurring items whose cadence has elapsed since check-off by setting checked: false; (b) permanently hard-deletes one-timer items that have been soft-deleted for more than one hour; compound indexes on the items collection back both queries (index definitions are in the architecture document)
+
+#### Epic 4 — Data Scoping & Migration
+
+FR46: All newly created items and categories are associated with a specific list at creation time; no unscoped global items exist after Epic 4
+FR47: On first application startup after Epic 4 deployment, all existing items and categories without a listId are migrated to a default list (name: "Groceries", emoji: "🛒") owned by the most recently created non-admin user in the database; if no non-admin users exist, startup fails with a descriptive error; the migration writes a completion record to app_migrations and does not re-run on subsequent startups
+FR56: The admin account is restricted to user management and application configuration only; admin callers are rejected by all list-related GQL operations (createList, lists, items, categories, shareList, deleteList, and all subscription operations); the admin cannot create, own, view, or be a member of any list
+
+#### Epic 4 — Navigation & UX
+
+FR48: Bottom tab navigation (Today, Lists, Household) is the primary navigation chrome, replacing the existing AppBar and navigation drawer; the Household tab displays the current user's list memberships and allows list owners to remove members from lists they own
+FR49: The Today tab displays the active list's items organized by category with a progress strip; category groups disappear from view when all items in the group are checked off; a completion state is shown when all items across all categories are checked; the Today tab includes a + button to add a new item directly — if the user has multiple lists, a list selector is shown so they can choose which list to add to
+FR50: The Lists tab displays all lists the user owns or is a member of, plus a pending invites section showing lists awaiting accept or reject; a zero-lists state with no pending invites shows an onboarding message with guidance to create a first list, category, and item
+FR51: All item creation and editing occurs in bottom sheet overlays without navigating away from the shopping view; the create-list sheet contains a name field (required) and a description field (optional); closing any sheet returns the user to their exact scroll position
+
+#### Epic 4 — Real-Time Collaboration & WebSocket Auth
+
+FR52: Item updates (check-off, add, edit, delete) from any list member appear in real-time on all other members' shopping views via GraphQL subscription without requiring a manual refresh
+FR53: WebSocket subscription connections require a valid JWT supplied in connectionParams on connection establishment; unauthenticated connections are rejected; the backend closes the connection when the token expires; the frontend disposes the connection before clearing auth state on logout or password reset
+
 ### NonFunctional Requirements
 
 NFR1: User passwords are hashed using bcrypt with cost factor 12; plaintext passwords are never stored or logged
@@ -80,6 +123,14 @@ NFR13: All input fields on auth forms have visible, associated labels
 NFR14: Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 NFR15: Form error messages are associated with their corresponding input fields
 NFR16: Text and interactive elements on auth screens meet minimum colour contrast for readability
+
+#### Epic 4 — Lists & Sharing
+
+NFR-L1: Subscription events are scoped per-list; a subscriber to list A receives no events originating from list B under any circumstances; scoping is enforced at both subscribe time (membership gate) and per-event (membership re-evaluation via takeWhile)
+NFR-L2: Every service-layer method that reads or writes list-scoped data verifies the caller's list membership before accessing data; the membership check precedes all data access including read-only queries; no exceptions
+NFR-L3: The Epic 4 data migration is idempotent; running it against an already-migrated database produces no changes, no duplicate lists, and no errors; idempotency is guaranteed by an app_migrations completion record checked at startup
+NFR-L4: No list's items or categories are accessible to users not listed as members of that list at any layer of the stack (GQL resolver, service, storage); unauthorized access returns a GQL error, not an empty result
+NFR-L5: WebSocket subscription connections require a valid JWT supplied in connectionParams; the backend validates the token before establishing any subscription stream; the connection is closed when the validated token expires; the clearAuth() frontend function disposes the WebSocket client before clearing auth state to prevent orphaned in-flight events reaching React state after logout
 
 ### Additional Requirements
 
@@ -121,6 +172,24 @@ From Architecture (Frontend):
   `app/account/password/page.tsx`
 - AR15: Any new GraphQL operations introduced (admin user management if exposed via GQL) go in
   `src/lib/auth/Queries.tsx`; `npm run generate` must be run after any schema change
+
+From Architecture (Epic 4):
+
+- AR-E4-1: New entity `entity/list/` full vertical slice — List.kt (id, name, emoji, ownerId, members: List<UUID>, createdAt), ListStorage.kt, ListService.kt (verifyMembership, isMember, createList, deleteList, shareList), gql/GqlList.kt, GqlListMapper.kt, ListApi.kt (Query + Mutation), mongo/MongoList.kt, MongoListMapper.kt, ListRepository.kt; follows the existing entity/item/ pattern exactly
+- AR-E4-2: CallerUsername value class: `@JvmInline value class CallerUsername(val value: String)` in `features/auth/CallerUsername.kt`; constructed only in GQL resolvers from validated JWT Principal; never nullable, never from client input; never accepted from service or storage layer
+- AR-E4-3: ItemStorage and CategoryStorage refactored from flat `ConcurrentHashMap<UUID, Entity>` to nested `ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Entity>>` (listId → entityId → entity); inner map creation uses `computeIfAbsent` (not `getOrPut` — not atomic); add `evictList(listId)` method to both
+- AR-E4-4: `ListService.deleteList` owns both `ItemStorage.evictList(listId)` and `CategoryStorage.evictList(listId)` calls in sequence — this is service-layer responsibility, never called from the GQL layer; partial eviction self-heals via lazy-sync-from-Mongo guard
+- AR-E4-5: Migration in `plugins/Migration.kt`; runs in `Application.module()` before `configureRouting()`; checks `app_migrations` for `{type: "epic4-list-seed", complete: true}` idempotency guard; `MIGRATION_TARGET_USER` env var from `application.yaml`; hard-fails if env var unset and items collection non-empty; hard-fails if named user not found in users collection
+- AR-E4-6: GraphQL schema changes — new queries: `lists`; new mutations: `createList(name, emoji)`, `deleteList(id)`, `shareList(listId, username)`; modified: `items(listId: ID!)`, `categories(listId: ID!)`, `saveItem` (ItemInput gains listId, store, recurring), `itemUpdates(listId: ID!)`, `categoryUpdates(listId: ID!)`; `npm run generate` required after schema merge; frontend stories depending on these operations must not start before the schema merge
+- AR-E4-7: Subscription scoping via filtered broadcast with two-point membership enforcement — Point 1: `listService.verifyMembership(caller, listId)` throws at subscribe time; Point 2: `.takeWhile { listService.isMember(caller, listId) }` re-evaluates on every emitted event; both points are mandatory; implementing only Point 1 misses mid-session membership revocation
+- AR-E4-8: WebSocket auth — `GraphQLWsLink` `connectionParams` supplies `{Authorization: "Bearer <token>"}` from `AuthContext.accessToken`; backend validates JWT before establishing stream; closes connection on token expiry; `clearAuth()` sequence (strict ordering): `client.dispose()` → `localStorage.removeItem('token')` → clear React state
+- AR-E4-9: Frontend routing — `/list/[listId]` (Today view), `/lists` (list index, never auto-redirects), `/household`; `BPBottomNav` component replaces `AppHeader` + `Navigation`; active tab from `usePathname()`; `app/layout.tsx` removes `AppHeader`/`Navigation`, adds `BPBottomNav`; `app/page.tsx` redirects to `/list/[oldestListId]` or `/lists`
+- AR-E4-10: `ThemeProvider` (NOT `CssVarsProvider`) per UX spec override; standard `createTheme` in `lib/theme.ts`; `CssVarsProvider` explicitly deferred — the UX spec overrides the architecture.md resolved decision on this point
+- AR-E4-11: `app/store/` directory replaced entirely by `app/list/[listId]/`; no parallel coexistence allowed; store components (ItemsList.tsx, ItemView.tsx, CreateItem.tsx, etc.) migrated to new route structure or deleted; no story may leave `app/store/` as a live route alongside `app/list/[listId]/`
+- AR-E4-12: `addedBy` populated server-side from `principal.userId` in GQL resolver; not in `ItemInput`; clients cannot supply or override this field; migrated items have `addedBy: null`
+- AR-E4-13: `recurring` is `enum class Recurring { WEEKLY, BIWEEKLY, MONTHLY }` with `recurring: Recurring?` in `Item.kt`; `null` = regular item (persists across check-offs); `"one-time"` is a separate lifecycle designation (soft-delete on check-off) represented as a distinct named value, not a flag; GQL exposes recurring as String; Mongo stores enum name as string
+- AR-E4-14: Compound indexes on items collection — `{listId, _id}` for per-list retrieval; `{listId, recurring, checkedAt}` and `{deleted, deletedAt}` for hourly scheduler queries; added in `ItemRepository.init {}` block
+- AR-E4-15: Testing requirements — every list-scoped service test must include: (a) negative-path membership test (caller not a member); (b) cross-tenant isolation assertion (second user cannot access); evictList test must assert both ItemStorage and CategoryStorage empty for deleted list AND that a different list is unaffected; subscription test must exercise mid-stream membership removal via takeWhile; migration test must assert idempotency guard; Playwright must include two-actor real-time collaboration E2E test
 
 ### UX Design Requirements
 
@@ -190,6 +259,46 @@ focus trap must not be suppressed; registration `Switch` wrapped in `FormControl
 session expiry uses MUI's default `role="alert"`; WCAG AA contrast verified; keyboard-only navigation smoke test on each
 new screen before merge
 
+#### Epic 4 UX Design Requirements
+
+UX-DR-E4-1: `lib/theme.ts` setup — `createTheme` with standard `ThemeProvider` (NOT `CssVarsProvider`; explicitly deferred); map color tokens from `design/theme.js` to MUI palette; TypeScript module augmentation for `theme.custom.bp.{bg2, card, ter, navBg, accentSoft}`; remove Inter font import; add commented `darkPalette` stub; document contrast exceptions as code comments (teal 3.04:1 passes UI components/large text only; error red 4.02:1 marginal for body text); no `--bp-*` CSS variable direct reads in components; no-sx-color ESLint rule (flags `sx` with color/bgcolor/borderRadius/fontFamily/fontSize) delivered in this story
+
+UX-DR-E4-2: `BPBottomNav` — MUI `BottomNavigation` + `BottomNavigationAction`; 3 tabs (Today/Lists/Household) with explicit pathname→tab map for active state (not auto-derived); frosted `navBg` background (`rgba(242,242,247,0.82)`); all scrolling screens get `padding-bottom: 96px`; replaces `AppHeader` + `Navigation` in `app/layout.tsx`
+
+UX-DR-E4-3: `BPSheet` — 3-state bottom sheet (CLOSED → PEEKED → OPEN) wrapping `SwipeableDrawer`; spike must pass all 4 ACs before sheet stories are scoped: (1) iOS Safari scroll inside OPEN sheet does not close, (2) keyboard viewport push in OPEN, (3) PEEKED→OPEN height transition < 16ms, (4) back-gesture contract (OPEN→PEEKED, PEEKED→CLOSED, no route change); Escape two-step via `onKeyDown` + `stopPropagation`; `triggerRef` prop for focus restore on close; opacity crossfade under `prefers-reduced-motion` (not instant snap); `role="dialog"` `aria-modal="true"` `aria-label="{sheet title}"`
+
+UX-DR-E4-4: `BPCheck` — circular checkbox as custom `<div>` element (NOT MUI Checkbox wrapper to avoid double-role violations); `role="checkbox"`, `aria-checked`, `tabIndex={0}`; `ariaLabel` required TypeScript prop (`"Check off {name}"` unchecked, `"{name}, checked"` checked); `Space` key toggles `onChange`; 150ms ease-out animation; visible 44×44px edit icon appears on focus (keyboard/switch access primary path to SheetItemEditor, not long-press)
+
+UX-DR-E4-5: `ItemCard` — item row component; anatomy: `[BPCheck 42px] [Body flex-1 (name 17px + meta line 13px)] [LifecycleBadge?]`; `removing`/`onRemoved` props (parent sets `removing=true`; component owns transition + calls `onRemoved` on `transitionEnd` + 400ms fallback); exit animation when `removing`: height 0 + opacity 0 + translateX(24px) over 280ms ease-out; instant removal under `prefers-reduced-motion` (no flash); `ItemCardSkeleton` variant (42px circle left + two text lines); live region announcement before animation on removal; optimistic check-off with rollback on mutation failure
+
+UX-DR-E4-6: `LifecycleBadge` — trailing pill inside `ItemCard`; labels: `"1×"` (error palette), `"W"`/`"2W"`/`"M"` (accent); `role="img"`; `aria-label` follows Voice Control Label-in-Name rule (e.g. `"W — repeats weekly"`, `"1× — one-time item"`); first-encounter tooltip on 1× badge pauses check action until dismissed; `localStorage` key `bp_seen_once_tooltip`; tooltip for keyboard/AT: `aria-describedby` on row pointing to visually-hidden description
+
+UX-DR-E4-7: `ProgressStrip` — custom `Box` (NOT `LinearProgress` — scaleX internals block `width` cubic-bezier); outer 6px rounded `bgcolor: bg2 overflow: hidden`; inner `Box` `width: {pct}%` transition `320ms cubic-bezier(0.2,0.7,0.2,1)` `bgcolor: isComplete ? success.main : primary.main`; `role="progressbar"` `aria-valuenow` `aria-valuemax`; on isComplete: `aria-label="All done"`; instant width change under reduced-motion; position fixed below toolbar outside scroll container
+
+UX-DR-E4-8: `ListChipRow` — horizontal scrollable MUI `Chip` row; `role="listbox"` `aria-label="Switch list"` `aria-multiselectable="false"`; each chip `role="option"` `aria-selected={id === activeListId}`; `onListSelect` callback (parent calls `router.push('/list/[id]', { scroll: false })`); scroll-to-active (`scrollIntoView` smooth center) on mount and `activeListId` change; Skeleton chips when `lists` empty; arrow key navigation; Tab focuses selected chip first
+
+UX-DR-E4-9: `ListCard` — list card with name, emoji, `BPAvatar` member avatars, item count, ⋯ `IconButton` overflow menu (Rename/Share & Members/Delete); inline rename is the only exception to sheet-only editing rule (single text field); Delete shows blocking `Dialog` with specific list name + item count in body copy; list-level mutations (rename, share changes) must emit subscription events
+
+UX-DR-E4-10: `BPAvatar` — MUI `Avatar` base; pending overlay: semi-transparent grey `rgba(0,0,0,0.35)` absolute inset + 12px clock icon centered white; `pointer-events: none` on overlay; 200ms opacity crossfade on pending→active transition; `aria-label="{displayName}"` active, `aria-label="{displayName} (pending invite)"` pending
+
+UX-DR-E4-11: `EmptyState` — configurable component with icon/title/subtitle/action props; 3 variants: (a) Today no active list — "Choose a list to start" / "Tap a list below"; (b) Today active list no items — "Nothing here yet" + "Add item" → FAB; (c) Lists tab no lists — "No lists yet" / "Create your first list to start shopping" + "Create list" → SheetNewList; CTA label and sheet header must read as one sentence
+
+UX-DR-E4-12: `SheetItemEditor` — PEEKED state: name field focused + "Regular ·" affordance signalling lifecycle controls below; OPEN state: full form with category selector, store `TextField` with suggestion chips, lifecycle `ToggleButtonGroup` (always-one-selected, 48px min height); auto-focus via callback ref on `transitionEnd` (not `autoFocus` prop); error states per sheet error spec: Snackbar "Couldn't save · Retry"
+
+UX-DR-E4-13: `SheetNewList` — name field (required) + emoji picker; error state: Snackbar "Couldn't create list · Retry"; `SheetShare` — member list with `BPAvatar` (pending/active state) + remove affordance via action sheet ("Remove {name}? / Destructive / Cancel"); `SheetInvite` — invite link generation or username input; error state: Snackbar "Couldn't generate invite link · Retry"; "Only you" copy when no collaborators
+
+UX-DR-E4-14: Invite acceptance screen — standalone deep-linkable view at `/invite/[token]` (NOT a sheet — must survive direct URL load); accept/decline actions; on acceptance navigate `router.replace('/list/[listId]')`; on decline navigate to `/lists`; shows list name + inviter name
+
+UX-DR-E4-15: `SRContext` — `bp_front/src/contexts/SRContext.tsx`; one visually-hidden `<div aria-live="polite" aria-atomic="false">` mounted at page root; `announceToSR(message: string)` via React context; 1.5s throttle/batch for rapid subscription events (e.g. "3 items added by Alex"); announcement triggers: one-timer removal (before animation), remote item add/remove (after subscription); optimistic local mutations do NOT trigger announcements
+
+UX-DR-E4-16: Snackbar system — 5s Undo window for one-timer `deleteItem` (mutation deferred 5s; if Undo tapped, mutation cancelled); snackbar replace queue policy (no FIFO — only latest Undo affordance shown); "Removed · Undo" copy; optimistic mutations (`checkItem`, `uncheckItem`, `addItem`, `renameList`) fire NO success Snackbar; async mutations (`createList`, `deleteList`, `inviteCollaborator`, `removeCollaborator`) fire success Snackbar; error Snackbar always offers "Retry"
+
+UX-DR-E4-17: Offline state — `navigator.onLine` + WebSocket `onclose` detection; persistent (no auto-dismiss) "You're offline · List may be out of date" Snackbar; all mutation interactions disabled (FABs disabled, `ItemCard` tap inert); on reconnect: "Back online" (2s auto-dismiss) then Apollo refetch; no offline mutation queue
+
+UX-DR-E4-18: Responsive — `maxWidth: 480, mx: 'auto'` global container; `100dvh` not `100vh`; content scroll area `calc(100dvh - {BPBottomNav height}px)`; `layout.tsx` must update existing `height: '100vh'`; 44px minimum touch target on all interactive elements; `rem`-only font sizes; single breakpoint (xs < 600px, sm ≥ 600px centered); no multi-column layout
+
+UX-DR-E4-19: Accessibility testing — `@axe-core/playwright` (Option B, no Storybook) on 3 routes in CI; CI-gated tests: contrast/ARIA/labels (axe), reduced-motion (Playwright `emulateMedia`), focus management after sheet open/close, focus unchanged after subscription update; manual per-story AC: VoiceOver+iOS, TalkBack+Android, keyboard-only, 200% text zoom; 5 specific required test cases: (1) one-timer deletion under SR with focus destination, (2) subscription batching 1.5s debounce, (3) two-actor real-time E2E, (4) WS disconnect with active 5s timer, (5) authorization boundary deleteItem on foreign listId
+
 ### FR Coverage Map
 
 FR1: Epic 1 — Registration endpoint + RegisterPage
@@ -226,6 +335,35 @@ FR31: Epic 2 — Admin guard redirecting non-admin from /admin/* to /
 FR32: Epic 2 — "Contact your admin" copy on login when registration is off
 FR33: Epic 1 — Session expiry Alert shown on login redirect
 
+FR34: Epic 4 — createList mutation + SheetNewList
+FR35: Epic 4 — lists query + Lists tab
+FR36: Epic 4 — ListChipRow + URL routing /list/[listId]
+FR37: Epic 4 — deleteList mutation + cascade evictList + owner-only guard
+FR38: Epic 4 — app/page.tsx redirect + /list/[listId] route
+FR39: Epic 4 — shareList mutation + pending invite model + SheetShare/SheetInvite
+FR40: Epic 4 — Per-list item operations + member removal by owner (Household tab)
+FR41: Epic 4 — CallerUsername + verifyMembership in service layer + error.tsx boundary
+FR42: Epic 4 — One-timer soft-delete on check-off + undo + hourly scheduler hard-delete
+FR43: Epic 4 — Recurring field + hourly scheduler restore
+FR44: Epic 4 — store field on Item + suggestion chips in SheetItemEditor
+FR45: Epic 4 — addedBy field (server-set) + BPAvatar on ItemCard
+FR46: Epic 4 — listId required on all new items/categories
+FR47: Epic 4 — plugins/Migration.kt + app_migrations idempotency guard
+FR48: Epic 4 — BPBottomNav + Household tab (member management)
+FR49: Epic 4 — Today tab (category groups, progress strip, + button with list selector)
+FR50: Epic 4 — Lists tab (pending invites section, zero-lists state)
+FR51: Epic 4 — BPSheet overlay for all create/edit + SheetNewList/SheetItemEditor
+FR52: Epic 4 — GraphQL subscriptions with listId scoping
+FR53: Epic 4 — WebSocket JWT auth in connectionParams + clearAuth() dispose sequence
+FR54: Epic 4 — Hourly background scheduler service (recurring restore + one-timer hard-delete)
+FR55: Epic 4 — Leave list mutation (non-owner)
+FR56: Epic 4 — Admin block on all list GQL operations (service-layer enforcement)
+NFR-L1: Epic 4 — Filtered broadcast + takeWhile two-point enforcement in subscription layer
+NFR-L2: Epic 4 — verifyMembership as first step in every list-scoped service method
+NFR-L3: Epic 4 — app_migrations idempotency guard in Migration.kt
+NFR-L4: Epic 4 — Service/storage/GQL layers all return auth error for unauthorized list access
+NFR-L5: Epic 4 — WebSocket JWT validation + clearAuth() dispose ordering
+
 ## Epic List
 
 ### Epic 1: User Authentication, Session Management & Identity
@@ -246,6 +384,13 @@ is accessible only to the admin role; non-admin users are blocked. The login scr
 link hidden / "contact admin" copy shown).
 
 **FRs covered:** FR13, FR14, FR15, FR16, FR17, FR19, FR20, FR21, FR22, FR23, FR30, FR31, FR32
+
+### Epic 4: Personal Lists & Sharing
+
+All data is scoped to lists. Each user owns their own lists, can share any list with other users by username, and collaborators receive full peer write access. Existing items are migrated to a default list on first deploy. The frontend moves to bottom tab navigation (Today · Lists · Household). Item lifecycle becomes explicit: one-timers auto-delete on check-off, recurring items restore automatically at the configured cadence. The backend introduces per-list authorization enforced at the service layer via `CallerUsername`, authenticated WebSocket subscriptions, and an idempotent startup migration.
+
+**FRs covered:** FR34, FR35, FR36, FR37, FR38, FR39, FR40, FR41, FR42, FR43, FR44, FR45, FR46, FR47, FR48, FR49, FR50, FR51, FR52, FR53, FR54, FR55, FR56
+**NFRs covered:** NFR-L1, NFR-L2, NFR-L3, NFR-L4, NFR-L5
 
 ---
 
@@ -724,4 +869,815 @@ MongoDB running)
 - Tests requiring an authenticated user must use a setup fixture that calls `POST /api/auth/login` directly
   and saves `storageState` — never drive the UI login form in every test
 - `npm run test:e2e` added to `bp_front/package.json` scripts
+
+---
+
+## Epic 4: Personal Lists & Sharing
+
+All data is scoped to lists. Each user owns their own lists, can share any list with other users by username, and collaborators receive full peer write access. Existing items are migrated to a default list on first deploy. The frontend moves to bottom tab navigation (Today · Lists · Household). Item lifecycle becomes explicit: one-timers auto-delete on check-off, recurring items restore automatically at the configured cadence. The backend introduces per-list authorization enforced at the service layer via `CallerUsername`, authenticated WebSocket subscriptions, and an idempotent startup migration.
+
+### Story 4.1: List Entity Backend — CRUD, Authorization & Migration
+
+As an authenticated non-admin user,
+I want my items and categories scoped to a specific list I own,
+So that my data is private to me and my collaborators from the moment Epic 4 ships.
+
+**Acceptance Criteria:**
+
+**Given** the `entity/list/` vertical slice is implemented (`List.kt`, `ListStorage.kt`, `ListService.kt`, `GqlList.kt`, `GqlListMapper.kt`, `ListApi.kt`, `MongoList.kt`, `MongoListMapper.kt`, `ListRepository.kt`) following the existing `entity/item/` pattern
+**When** any list GQL operation is invoked
+**Then** all layers compile and the GQL schema includes `lists`, `createList`, `deleteList` operations
+
+**Given** `@JvmInline value class CallerUsername(val value: String)` is defined in `features/auth/CallerUsername.kt`
+**When** a GQL resolver constructs it from `principal.username`
+**Then** it is the only valid entry point for caller identity into the service layer; service and storage methods never accept raw `String` usernames for caller identity
+
+**Given** `ItemStorage` and `CategoryStorage` are refactored to nested `ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Entity>>` (listId → entityId → entity) using `computeIfAbsent`
+**When** `sync()` runs for either storage
+**Then** it executes a single MongoDB `find()` over all documents in that collection, groups results in memory by `listId`, and populates the nested map in one pass
+**And** the `synced` flag is set to `true` after this first call
+
+**Given** `evictList(listId)` is called on `ItemStorage` or `CategoryStorage`
+**When** the eviction completes
+**Then** the inner map for `listId` is removed from the outer map
+**And** the `synced` flag is NOT reset — subsequent reads do not trigger a full re-sync
+**And** items and categories for all other `listId`s are unaffected
+**And** a subsequent `items(listId)` call on the evicted list returns an empty result — not phantom data re-populated from MongoDB re-sync
+
+**Given** a non-admin authenticated user calls `createList(name: "Groceries", emoji: "🛒")`
+**When** the mutation resolves
+**Then** a List document is created in MongoDB with `ownerId` = caller's userId, `members: [ownerId]`, `origin: "USER_CREATED"`
+**And** the GQL response returns the new list's `id`, `name`, `emoji`, and `ownerId`
+
+**Given** a non-admin authenticated user calls `createList` with `emoji` omitted or null
+**When** the mutation resolves
+**Then** the list is created with `emoji: null`; emoji is optional in the GraphQL input type and in the List output type
+
+**Given** a non-admin authenticated user calls `createList` with a name longer than 100 characters
+**When** the mutation is processed
+**Then** a GQL validation error is returned specifying the max-length constraint
+**And** no list document is written to MongoDB
+
+**Given** an authenticated user calls `lists`
+**When** the query resolves
+**Then** only lists where the caller's userId is in `members` OR equals `ownerId` are returned
+**And** lists the caller is not a member of are never included
+
+**Given** a newly registered user (no existing lists) calls `lists` after Epic 4 deployment
+**When** the query resolves
+**Then** an empty array is returned
+**And** no default list is auto-created; the frontend is responsible for the empty-state experience
+
+**Given** the list owner calls `deleteList(id)` on a list they own
+**When** the mutation resolves
+**Then** items are deleted from MongoDB first, then categories, then the list document (in that order — this order enables partial-failure recovery via lazy-sync guard)
+**And** `ItemStorage.evictList(listId)` and `CategoryStorage.evictList(listId)` are called after the MongoDB deletes succeed
+**And** the GQL response returns `DeleteListResult { deletedItemCount: Int, deletedCategoryCount: Int }`
+
+**Given** a non-owner authenticated user calls `deleteList(id)` on a list they are a member of
+**When** the mutation is processed
+**Then** a GQL error is returned — not an empty result, not HTTP 401
+**And** the list, its items, and its categories are unchanged in MongoDB
+
+**Given** `deleteList` successfully evicts from storage but the MongoDB item delete subsequently fails
+**When** the partial failure is detected
+**Then** a GQL error is returned
+**And** the next `items(listId)` call re-syncs from MongoDB via the lazy-sync guard, recovering the still-present items
+**And** the list document is not deleted until all cascade deletes (items → categories) succeed
+
+**Given** `ListService.verifyMembership(caller: CallerUsername, listId: UUID)` is implemented as a suspend function using Arrow `raise` pattern (raising a typed `ListAuthError` if the caller is not a member)
+**When** any service method reads or writes list-scoped data
+**Then** `verifyMembership()` is the FIRST operation in that method, before any data access
+**And** on failure it raises `ListAuthError`, which the GQL layer maps to a GQL error response (not an empty result)
+
+**Given** `items(listId: ID!)` or `categories(listId: ID!)` is called by a caller who is not a member of `listId`
+**When** `verifyMembership()` raises
+**Then** a GQL error is returned immediately with no data accessed or returned
+
+**Given** `saveItem` mutation is called with a `listId` in `ItemInput`
+**When** the item is created or updated
+**Then** the item is stored under the `listId` key in the nested storage map
+**And** the item's `listId` is persisted to MongoDB
+
+**Given** `saveItem` is called without a `listId` in `ItemInput`
+**When** the mutation is processed
+**Then** a GQL validation error is returned specifying that `listId` is required
+**And** no item is created or modified
+
+**Given** the admin account calls any of `createList`, `lists`, `items(listId)`, `categories(listId)`, or `deleteList`
+**When** the service layer processes the request
+**Then** a GQL error is returned for all these operations
+**And** the block is enforced at the service layer (not only the GQL resolver) for defense in depth
+**And** the error message communicates that admin accounts cannot manage lists *(this is a deliberate product decision — admins are operators, not list users; admin has no support-level read access to user lists in Epic 4)*
+
+**Given** `itemUpdates(listId: ID!)` and `categoryUpdates(listId: ID!)` subscription schema is updated
+**When** a subscription event fires
+**Then** `listId` is present and required as a filter parameter in the schema
+**And** each subscription event payload includes `listId: ID!` as a field, so the frontend can route events to the correct list when multiple lists are in state
+**And** `npm run generate` produces updated TypeScript types for these operations *(this is the gate for all frontend stories that depend on these subscriptions)*
+
+**Given** the application starts for the first time after Epic 4 deployment with existing items/categories that have no `listId`, and `MIGRATION_TARGET_USER` is set to a valid non-admin username
+**When** `plugins/Migration.kt` runs before `configureRouting()` and finds no `{type: "epic4-list-seed", complete: true}` record in `app_migrations`
+**Then** a default list (`name: "Groceries"`, `emoji: "🛒"`, `origin: "MIGRATED"`) is created and owned by that user
+**And** all existing items and categories are updated with the new list's `id` in MongoDB
+**And** a completion record `{type: "epic4-list-seed", complete: true, ranAt: <timestamp>}` is written to `app_migrations`
+
+**Given** the application restarts after a completed migration
+**When** `app_migrations` already contains `{type: "epic4-list-seed", complete: true}`
+**Then** the migration is skipped entirely; no list is created; no items are modified
+
+**Given** `MIGRATION_TARGET_USER` is not set and unscoped items exist in the items collection
+**When** `Migration.kt` evaluates whether migration is needed
+**Then** startup fails with: `"Epic 4 migration required but MIGRATION_TARGET_USER env var is not set. Set this to the username of the list owner before deploying."`
+**And** the app does not start
+
+**Given** `MIGRATION_TARGET_USER` is set but that username does not exist in the `users` collection
+**When** `Migration.kt` attempts to resolve the target user
+**Then** startup fails with: `"Epic 4 migration failed: MIGRATION_TARGET_USER '{username}' not found in users collection. Create this user before deploying Epic 4."`
+**And** the app does not start
+
+**Given** the application starts on a fresh install with no users and no items in MongoDB
+**When** `Migration.kt` evaluates whether migration is needed (no `app_migrations` record, no unscoped items)
+**Then** the migration is skipped with no error and no `app_migrations` record is written *(the completion record is only written when data is actually migrated)*
+
+**Given** `Migration.kt` evaluates whether to run
+**When** the detection logic executes
+**Then** it checks `app_migrations` first — if a completion record exists, it skips immediately
+**And** if no completion record, it queries the `items` collection for any documents missing the `listId` field
+**And** only if unscoped items exist does it proceed with the migration (requiring `MIGRATION_TARGET_USER`)
+
+**Technical Notes:**
+
+- `lists` MongoDB collection schema: `_id` (UUID via `UUIDMongoSerializer`), `name` (String, max 100), `emoji` (String?, nullable), `ownerId` (UUID), `members` (List\<UUID\>), `origin` (String: `"USER_CREATED"` | `"MIGRATED"`), `createdAt` (Instant)
+- `app_migrations` collection schema: `type` (String, idempotency key), `complete` (Boolean), `ranAt` (Instant)
+- `deleteList` cascade order: items → categories → list document; this order ensures the lazy-sync guard can recover from partial failure
+- `listId` is required (non-nullable) in `ItemInput` GraphQL input type
+- `emoji` is optional (nullable) in `createList` input and in the `List` GQL output type
+- `verifyMembership` uses Arrow `raise` pattern; the GQL layer maps `ListAuthError` to a GQL error response (not an empty result)
+- **Sharing and member management (FR39, FR40, FR55) are explicitly out of scope for this story** — the `members` field is structural groundwork only; it is populated with `[ownerId]` at creation; member additions come in Story 4.3
+- `MIGRATION_TARGET_USER` env var has no default; startup fails with a descriptive message if unset when migration is needed
+- `@GraphQLName` required on `GqlList` and all GQL input/output types per project convention
+
+**Test Requirements:**
+
+- Negative membership path: caller not a member of `listId` → `verifyMembership` raises → GQL error returned (not empty result)
+- Cross-tenant isolation: User A cannot access User B's list `items` or `categories`
+- `evictList` both storages: after `evictList(listId)`, both `ItemStorage` and `CategoryStorage` return empty for that `listId`; a different `listId` is unaffected
+- Phantom data guard: `evictList(listId)` followed immediately by `items(listId)` returns empty — not re-populated from MongoDB re-sync
+- Admin block: admin caller on each of `createList`, `lists`, `items(listId)`, `categories(listId)`, `deleteList` → GQL error for each (not empty, not 401)
+- `deleteList` cascade: after deletion, MongoDB items and categories for that `listId` are gone; a different list's items are untouched
+- Migration idempotency: run migration twice against same MongoDB state → exactly one `app_migrations` record; item `listId` values unchanged on second run
+- Migration failure — user not found: `MIGRATION_TARGET_USER` set but user absent → startup exception with exact expected message
+- Migration failure — env var missing: `MIGRATION_TARGET_USER` unset, unscoped items present → startup exception with exact expected message
+- Migration clean slate: no users, no items → migration skips, no error, no `app_migrations` record written
+- *Test fixture note: migration tests must seed the `users` collection with at least one non-admin user via the GraphQL mutations API before running migration assertions*
+
+### Story 4.2: WebSocket Auth & Per-List Subscription Scoping
+
+As a list member,
+I want real-time item and category updates to be delivered only to members of my list,
+So that my data never leaks to users of other lists and my subscriptions are as secure as the rest of the API.
+
+**Acceptance Criteria:**
+
+**Given** a frontend client establishes a WebSocket connection to `/api/subscriptions`
+**When** the connection init frame is sent
+**Then** the backend validates the JWT supplied in `connectionParams.Authorization` (`Bearer <token>`) before establishing any subscription stream
+**And** connections with a missing, malformed, or expired JWT are rejected immediately with a `4401` close code
+
+**Given** a valid JWT is supplied and the connection is established
+**When** the token expires during an active subscription session
+**Then** the backend closes the WebSocket connection with an appropriate close code
+**And** the frontend receives the close event
+
+**Given** a client calls `itemUpdates(listId: ID!)` over an authenticated WebSocket
+**When** the subscription is established
+**Then** `listService.verifyMembership(caller, listId)` is called at subscribe time (Point 1)
+**And** if the caller is not a member, the subscription is rejected with a GQL error — no events are ever delivered
+
+**Given** a member's subscription to `itemUpdates(listId)` is active
+**When** an item mutation event is emitted for that `listId`
+**Then** `.takeWhile { listService.isMember(caller, listId) }` re-evaluates membership on every emitted event (Point 2)
+**And** if the caller has been removed from the list since subscribing, the next emitted event terminates the flow — no further events are delivered to the removed member
+
+**Given** two lists exist with active subscribers on each
+**When** an item is mutated in list A
+**Then** only subscribers to list A's `itemUpdates` receive the event
+**And** subscribers to list B receive no event — no cross-list leakage under any circumstances
+
+**Given** `categoryUpdates(listId: ID!)` subscription follows the same scoping rules
+**When** a category mutation event is emitted
+**Then** Point 1 (subscribe-time membership gate) and Point 2 (`takeWhile` per-event re-evaluation) are both enforced identically to `itemUpdates`
+
+**Given** the frontend `ApolloWrapper.tsx` is updated to supply `connectionParams`
+**When** the WebSocket connection is initiated
+**Then** `connectionParams` supplies `{ Authorization: "Bearer <accessToken>" }` sourced from `AuthContext.accessToken` (not from `localStorage`)
+
+**Given** `clearAuth()` is called (logout or password reset)
+**When** the auth state is cleared
+**Then** the sequence is strictly: `client.dispose()` → clear React auth state
+**And** `client.dispose()` executes before auth state is cleared, preventing orphaned in-flight subscription events from reaching React state after logout
+
+**Given** an unauthenticated user (no token) attempts to access a protected route and the WebSocket client has not been initialized
+**When** the app initialises
+**Then** no WebSocket connection is attempted until a valid access token is present in `AuthContext`
+
+**Technical Notes:**
+
+- Both enforcement points are mandatory — Point 1 alone misses mid-session membership revocation; Point 2 alone allows an unauthenticated initial subscription
+- `isMember(caller, listId)` must be a lightweight in-memory check against `ListStorage` — not a MongoDB round-trip per event
+- WebSocket close codes: `4401` for auth failure on connection init; standard `1000` or `1001` for token expiry close
+- Backend implementation lives in the existing `GQL.kt` `configureGql()` function, extending the existing subscription setup
+- `clearAuth()` is defined in `AuthContext.tsx`; the dispose-before-clear ordering is a required implementation note, not an optional best practice
+- Subscription SharedFlow per-entity pattern still applies — `MutableSharedFlow` instances are unchanged; scoping is applied at the subscriber/collector level via `verifyMembership` + `takeWhile`, not by routing to per-list flows
+
+**Test Requirements:**
+
+- Unauthenticated connection rejected: WebSocket connect without JWT → `4401` close, no subscription established
+- Expired token rejected: valid JWT at connect time, token expires mid-session → backend closes connection
+- Subscribe-time membership gate: caller not a member of `listId` at subscribe time → subscription rejected, zero events delivered
+- Mid-session removal: caller is a member at subscribe time, then removed → next emitted event terminates the flow, no further events delivered to removed member
+- Cross-list isolation: item mutation in list A → subscribers of list B receive zero events (assert via two concurrent test subscriptions)
+- `clearAuth()` ordering: assert `client.dispose()` is called before React auth state is cleared
+- `connectionParams` sourced from `AuthContext`: assert the WS link reads `AuthContext.accessToken`, not `localStorage`
+
+### Story 4.3: List Sharing Backend — Pending Invites & Member Management
+
+As a list owner,
+I want to share my list with other registered users and manage membership,
+So that collaborators can join, contribute, or be removed, and members can leave lists they no longer need.
+
+**Acceptance Criteria:**
+
+**Given** the list owner calls `shareList(listId: ID!, username: String!)`
+**When** the mutation resolves
+**Then** a `ListMember` record is created with `{ userId, listId, status: PENDING }` in the `list_members` MongoDB collection
+**And** the target user's userId is NOT added to the `List.members` array yet — membership becomes active only on acceptance
+**And** the GQL response returns the updated list including the new pending member with their `status`
+
+**Given** `shareList` is called with a username that does not exist in the `users` collection
+**When** the mutation is processed
+**Then** a GQL error is returned: `"User '{username}' not found"`
+**And** no `ListMember` record is created
+
+**Given** `shareList` is called with a username who is already an active member or has a pending invite
+**When** the mutation is processed
+**Then** a GQL error is returned with a specific message distinguishing the case: `"User '{username}' is already a member"` or `"User '{username}' already has a pending invite"`
+**And** no duplicate `ListMember` record is created
+
+**Given** `shareList` is called with the owner's own username
+**When** the mutation is processed
+**Then** a GQL error is returned: `"You cannot share a list with yourself"`
+
+**Given** a non-owner list member calls `shareList`
+**When** the mutation is processed
+**Then** a GQL error is returned — only the list owner can share
+**And** no `ListMember` record is created
+
+**Given** a user has a pending invite (status: `PENDING`) to a list
+**When** the invited user calls `acceptInvite(listId: ID!)`
+**Then** the `ListMember` record status is updated to `ACCEPTED`
+**And** the user's userId is added to the `List.members` array in MongoDB
+**And** the user can now call `items(listId)`, `categories(listId)`, and subscribe to `itemUpdates(listId)` successfully
+
+**Given** a user has a pending invite (status: `PENDING`) to a list
+**When** the invited user calls `rejectInvite(listId: ID!)`
+**Then** the `ListMember` record status is updated to `DECLINED`
+**And** the user's userId is NOT added to `List.members`
+**And** the list does not appear in the user's `lists` query result
+
+**Given** a user attempts to call `items(listId)` or `categories(listId)` on a list where their invite is still `PENDING`
+**When** `verifyMembership()` evaluates the caller
+**Then** a GQL error is returned — pending status does not grant data access
+
+**Given** the list owner calls `removeMember(listId: ID!, username: String!)`
+**When** the mutation resolves
+**Then** the target user's userId is removed from `List.members` in MongoDB
+**And** the `ListMember` record status is updated to reflect removal (or the record is deleted)
+**And** the removal takes effect on the removed member's next list data access — their active subscription terminates via the `takeWhile` membership re-evaluation on the next emitted event (Story 4.2 Point 2)
+
+**Given** `removeMember` is called by a non-owner
+**When** the mutation is processed
+**Then** a GQL error is returned — only the list owner can remove members
+
+**Given** `removeMember` is called targeting the list owner themselves
+**When** the mutation is processed
+**Then** a GQL error is returned: `"List owner cannot be removed — delete the list instead"`
+
+**Given** a non-owner list member calls `leaveList(listId: ID!)`
+**When** the mutation resolves
+**Then** the caller's userId is removed from `List.members` immediately
+**And** the `ListMember` record is deleted or status updated
+**And** items the caller added remain on the list — they are not deleted
+**And** the list no longer appears in the caller's `lists` query result
+
+**Given** the list owner calls `leaveList` on their own list
+**When** the mutation is processed
+**Then** a GQL error is returned: `"List owner cannot leave — delete the list instead"`
+
+**Given** the `lists` query is called by a user with pending invites
+**When** the query resolves
+**Then** the response includes a separate `pendingInvites` field so the frontend can render the accept/reject UI
+**And** pending lists are not included in the main owned/member lists section
+
+**Technical Notes:**
+
+- New MongoDB collection: `list_members` with schema: `listId` (UUID), `userId` (UUID), `status` (String: `"PENDING"` | `"ACCEPTED"` | `"DECLINED"`), `createdAt` (Instant)
+- `List.members` array contains only `ACCEPTED` userIds — it is the authoritative fast-path for `verifyMembership()` and `isMember()` checks; `list_members` is the source of truth for invite status
+- `verifyMembership()` checks `List.members` (in-memory via `ListStorage`) — not `list_members` — so accepted membership is reflected immediately without an extra DB lookup
+- `shareList` resolves username → userId via `UserRepository` (a DB call per the existing pattern)
+- All mutations in this story must be rejected for admin callers (same service-layer admin block as Story 4.1)
+- `removeMember` and `leaveList` do NOT cascade-delete the removed user's items — items remain on the list with their `addedBy` field intact
+- List-level subscription events (membership changes) are out of scope for this story — list-level events are driven by the frontend's next `lists` query fetch, not a subscription push in Epic 4
+
+**Test Requirements:**
+
+- `shareList` happy path: invite created with `PENDING` status, not yet in `List.members`
+- `shareList` errors: unknown username, already member, already pending, self-share, non-owner caller — each returns a distinct descriptive GQL error
+- `acceptInvite`: status → `ACCEPTED`, userId added to `List.members`, `items(listId)` now succeeds for that user
+- `rejectInvite`: status → `DECLINED`, userId NOT in `List.members`, list absent from `lists` query
+- Pending does not grant access: `items(listId)` with `PENDING` status → GQL error
+- `removeMember`: userId removed from `List.members`; removed member's items remain; non-owner caller → GQL error; owner self-remove → GQL error
+- `leaveList`: caller removed from `List.members`; their items remain; owner leave → GQL error
+- `lists` query: pending invites appear in `pendingInvites` field, not in main lists section
+
+### Story 4.4: Item Lifecycle Backend — Extended Fields, One-Timer & Recurring Scheduler
+
+As a list member,
+I want items to carry a store, lifecycle designation, and authorship,
+So that one-timers clean themselves up automatically, recurring items reappear at the right cadence, and everyone can see who added what.
+
+**Acceptance Criteria:**
+
+**Given** `Item.kt` is updated with new fields: `store: String?`, `recurring: Recurring?`, `addedBy: String?`, `deleted: Boolean = false`, `deletedAt: Instant?`, `checkedAt: Instant?`
+**When** `saveItem` is called with or without these fields
+**Then** all fields are persisted to MongoDB and returned in GQL responses
+**And** `addedBy` is populated from `principal.username` in the GQL resolver — it is NOT part of `ItemInput`; clients cannot supply or override it
+**And** items created by the migration (Story 4.1) have `addedBy: null`
+
+**Given** `saveItem` is called with `store: "Pharmacy"` in `ItemInput`
+**When** the item is saved
+**Then** the `store` field is persisted and returned on subsequent `items(listId)` queries
+
+**Given** `saveItem` is called with `recurring: WEEKLY` in `ItemInput`
+**When** the item is saved
+**Then** `item.recurring = Recurring.WEEKLY` is persisted to MongoDB as the string `"WEEKLY"`
+**And** `recurring` is exposed in the GQL schema as a String (not a GQL enum) for forward compatibility
+
+**Given** `saveItem` is called for a new item without specifying `recurring`
+**When** the item is saved
+**Then** `item.recurring = null` — a regular item that persists across check-offs with no lifecycle behaviour
+
+**Given** a list member calls `checkItem(id: ID!, listId: ID!)` on a regular item (`recurring: null`)
+**When** the mutation resolves
+**Then** `item.checked = true` is persisted and the item remains in the list
+
+**Given** a list member calls `checkItem` on a recurring item (`recurring: WEEKLY`, `BIWEEKLY`, or `MONTHLY`)
+**When** the mutation resolves
+**Then** `item.checked = true` and `item.checkedAt = now()` are persisted
+**And** the item remains visible — no deletion, no scheduling performed at check-off time
+
+**Given** a list member calls `checkItem` on a one-timer item (`recurring: ONE_TIME`)
+**When** the mutation resolves
+**Then** `item.deleted = true` and `item.deletedAt = now()` are persisted (soft-delete)
+**And** the item is excluded from all subsequent `items(listId)` query results
+**And** the GQL response signals the soft-delete so the frontend can start the 5-second undo window
+
+**Given** a list member calls `uncheckItem(id: ID!, listId: ID!)` on a soft-deleted one-timer (within the undo window)
+**When** the mutation resolves
+**Then** `item.deleted = false` and `item.deletedAt = null` are cleared
+**And** the item reappears in `items(listId)` query results
+
+**Given** `items(listId)` is queried
+**When** the query resolves
+**Then** items with `deleted: true` are always filtered out — soft-deleted items are invisible to all GQL queries
+
+**Given** the hourly background scheduler runs
+**When** it processes recurring items
+**Then** it queries using the `{listId, recurring, checkedAt}` compound index for items where `checked = true` AND `recurring` is not null and not `ONE_TIME` AND the cadence has elapsed since `checkedAt` (WEEKLY = 7 days, BIWEEKLY = 14 days, MONTHLY = 30 days)
+**And** for each matched item it sets `checked = false` and clears `checkedAt`
+**And** each item is restored exactly once per run regardless of how many cadence cycles have been missed
+
+**Given** the hourly background scheduler runs
+**When** it processes soft-deleted one-timers
+**Then** it queries using the `{deleted, deletedAt}` compound index for items where `deleted = true` AND `deletedAt` is older than 1 hour
+**And** for each matched item it permanently hard-deletes the document from MongoDB and evicts it from `ItemStorage`
+
+**Given** the scheduler runs against a clean database (nothing to restore, nothing to hard-delete)
+**When** it completes
+**Then** it performs zero writes and logs a no-op completion — never treated as a failure
+
+**Given** the application starts
+**When** `Application.module()` initialises
+**Then** the hourly scheduler is registered via `configureScheduler()` in `plugins/` as a coroutine that fires immediately on start, then every 60 minutes
+**And** a missed run due to app restart self-heals on the next tick — no external state tracking required
+
+**Given** `itemStoreSuggestions(listId: ID!)` is called by a list member
+**When** the query resolves
+**Then** it returns a distinct list of non-null `store` values from all items in that list
+**And** `verifyMembership()` is called first; non-member caller receives a GQL error
+
+**Technical Notes:**
+
+- `Recurring` enum: `enum class Recurring { ONE_TIME, WEEKLY, BIWEEKLY, MONTHLY }` — `ONE_TIME` is a named value, not a boolean flag; `null` means regular (no lifecycle behaviour); GQL exposes recurring as String for forward compatibility
+- Compound indexes added in `ItemRepository.init {}` block: `{listId, recurring, checkedAt}` and `{deleted, deletedAt}` — mandatory before scheduler runs in production
+- `addedBy` is populated in the GQL resolver from `principal.username`, never from `ItemInput`
+- Scheduler lives in `plugins/Scheduler.kt` as a `configureScheduler()` function using `launch { while(true) { runSchedulerCycle(); delay(1.hours) } }` pattern with an initial immediate run
+- `checkItem` and `uncheckItem` mutations require `listId` parameter; `verifyMembership()` is the first call in each
+
+**Test Requirements:**
+
+- `addedBy` server-side: item created via mutation has `addedBy` = calling user's username; client-supplied value in input is ignored
+- `store` round-trip: `saveItem` with store → `items(listId)` returns correct value
+- `recurring` round-trip: each enum value persisted and returned; `null` item has no lifecycle behaviour on check-off
+- One-timer soft-delete: `checkItem` on `ONE_TIME` item → `deleted: true`, item absent from `items(listId)`
+- Undo restore: `uncheckItem` on soft-deleted item → `deleted: false`, item reappears
+- Scheduler — recurring restore: seed `WEEKLY` item with `checked: true`, `checkedAt: 8 days ago`; run scheduler; assert `checked: false`, `checkedAt: null`
+- Scheduler — no double-restore: run scheduler twice; item restored exactly once
+- Scheduler — hard-delete: seed soft-deleted item with `deletedAt: 2 hours ago`; run scheduler; assert item absent from MongoDB
+- Scheduler — no-op: clean DB; run scheduler; assert zero writes
+- `itemStoreSuggestions`: returns distinct non-null store values; non-member caller → GQL error
+- Compound index existence: assert both compound indexes exist in MongoDB after app start
+
+### Story 4.5: Frontend Foundation — Theme, Navigation & Layout
+
+As a user of bag-please,
+I want the app to use a consistent visual system and bottom tab navigation,
+So that the Epic 4 shopping experience feels coherent from the first screen.
+
+**Acceptance Criteria:**
+
+**Given** `src/lib/theme.ts` is created using `createTheme` (NOT `CssVarsProvider` — explicitly deferred)
+**When** the theme is applied via `ThemeProvider` in the root layout
+**Then** the MUI palette maps all tokens from `design/theme.js`: `background.default: #F2F2F7`, `background.paper: #FFFFFF`, `palette.primary.main: #2AA396`, `palette.error.main: #FF3B30`, `palette.success.main: #34C759`, `palette.text.primary: #000000`, `palette.text.secondary: rgba(60,60,67,0.6)`, `palette.divider: rgba(60,60,67,0.18)`
+**And** custom tokens are accessible via `theme.custom.bp.{bg2, card, ter, navBg, accentSoft}` using TypeScript module augmentation
+
+**Given** the TypeScript module augmentation for `theme.custom.bp` is in place
+**When** a component accesses `theme.custom.bp.bg2`
+**Then** TypeScript resolves the type without error; accessing undefined custom keys is a compile-time error
+
+**Given** `lib/theme.ts` is the single source of truth for all color and shape tokens
+**When** a component uses an `sx` prop
+**Then** an ESLint rule (configured in `.eslintrc` or `eslint.config.mjs`) flags any `sx` object containing `color`, `bgcolor`, `borderRadius`, `fontFamily`, or `fontSize` keys and directs the author to `theme.ts` instead
+**And** this rule is enforced in CI — a violation fails the lint check
+
+**Given** the typography system is configured in `createTheme`
+**When** MUI components render
+**Then** `body1` is `1.0625rem / 1.3` (17px), `body2` is `0.8125rem / 1.4` (13px), `fontFamily` is `'Roboto, sans-serif'`
+**And** the Inter font import is removed from the project
+
+**Given** `lib/theme.ts` defines the light palette
+**When** the file is read
+**Then** a commented `darkPalette` stub is present showing the full palette shape for future dark mode implementation
+**And** contrast exception comments are present: teal `#2AA396` passes for UI components and large text only (3.04:1), error red `#FF3B30` marginal for body text (4.02:1) — never use either for text under 18px
+
+**Given** `BPBottomNav` is created as a composed MUI `BottomNavigation` + `BottomNavigationAction` component
+**When** it renders
+**Then** it displays three tabs: Today, Lists, Household — with appropriate icons
+**And** the active tab is determined by an explicit `pathname → tab` map using `usePathname()` — not auto-derived
+**And** the background uses `theme.custom.bp.navBg` (`rgba(242,242,247,0.82)`) for the frosted appearance
+**And** all scrolling screens have `padding-bottom: 96px` applied to prevent content scrolling behind the nav bar
+
+**Given** `app/layout.tsx` is updated
+**When** the layout renders
+**Then** `AppHeader` and `Navigation` (drawer) are removed
+**And** `BPBottomNav` is rendered as the persistent bottom navigation
+**And** the root container uses `maxWidth: 480, mx: 'auto'` for centered layout on screens wider than 480px
+**And** `height: '100vh'` is replaced with `100dvh` to account for mobile browser chrome
+
+**Given** `app/page.tsx` (the root route `/`) is updated
+**When** an authenticated user with at least one list visits `/`
+**Then** they are redirected to `/list/[oldestListId]` (oldest by `createdAt`)
+
+**Given** an authenticated user with no lists visits `/`
+**When** the redirect logic runs
+**Then** they are redirected to `/lists`
+
+**Given** `app/store/` directory currently exists
+**When** this story is complete
+**Then** `app/store/` is deleted entirely — no parallel coexistence with `app/list/[listId]/` is permitted
+**And** any imports referencing `app/store/` components are removed or replaced
+
+**Technical Notes:**
+
+- `createTheme` (not `extendTheme`) — standard `ThemeProvider` path; `CssVarsProvider` explicitly deferred until a future epic requires per-user theme switching
+- No component may read `--bp-*` CSS variables directly from `:root` — all color references go through the MUI theme; add this as a comment in `lib/theme.ts`
+- `BPBottomNav` active tab uses an explicit map: `{ '/list': 0, '/lists': 1, '/household': 2 }` evaluated against `usePathname()` with a `startsWith` check
+- `app/store/` deletion is a hard requirement of this story — no story may leave both routes live simultaneously (AR-E4-11)
+- The ESLint `no-sx-color` rule is a deliverable of this story, not a future backlog item
+- `app/list/[listId]/page.tsx` scaffold (empty page with correct route structure) may be created here as a placeholder — full Today tab implementation is Story 4.7
+
+**Test Requirements:**
+
+- Theme tokens: assert `theme.palette.primary.main === '#2AA396'` and at least three other palette values match `design/theme.js`
+- Custom tokens: assert `theme.custom.bp.navBg` resolves without TypeScript error
+- ESLint rule: a file with `sx={{ color: 'red' }}` fails lint; a file with `sx={{ padding: 2 }}` passes
+- `BPBottomNav` active state: visiting `/lists` highlights the Lists tab; visiting `/household` highlights Household
+- Root redirect: authenticated user with lists → redirected to `/list/[id]`; user with no lists → redirected to `/lists`
+- `app/store/` absent: assert the directory no longer exists after story completion
+- `100dvh` present: assert `layout.tsx` does not contain `100vh`
+
+### Story 4.6: Frontend — BPSheet Spike & Component
+
+As a developer building Epic 4 sheet interactions,
+I want a validated three-state bottom sheet component,
+So that all create, edit, and share flows have a reliable, accessible interaction layer before any sheet story is estimated or built.
+
+**Acceptance Criteria:**
+
+**Given** `BPSheet` is implemented wrapping MUI `SwipeableDrawer` with three states: `'closed'`, `'peeked'`, `'open'`
+**When** `state` prop changes or the user gestures
+**Then** the sheet transitions through the state machine: `CLOSED → PEEKED → OPEN → PEEKED → CLOSED`
+**And** swipe-down from `OPEN` moves to `PEEKED` (not directly to `CLOSED`)
+**And** a second swipe-down from `PEEKED` moves to `CLOSED`
+**And** back gesture follows the same two-step: `OPEN → PEEKED`, then `PEEKED → CLOSED`, with no route change and no history entry consumed on either step
+
+**Given** the BPSheet spike is run on a real device or browser DevTools mobile emulation
+**When** all four spike acceptance criteria are evaluated
+**Then** (1) scroll inside an OPEN sheet on iOS Safari does not accidentally close the sheet
+**And** (2) the iOS virtual keyboard viewport push does not fight the OPEN state focus trap
+**And** (3) the PEEKED → OPEN height transition completes in under 16ms frame time on a mid-range Android device (Chrome DevTools CPU 4x throttle as proxy)
+**And** (4) the back-gesture contract is correctly implemented: OPEN + back → PEEKED (no route change, no history entry consumed); PEEKED + back → CLOSED
+
+**Given** `BPSheet` is in `OPEN` state
+**When** the `Escape` key is pressed
+**Then** the first `Escape` transitions `OPEN → PEEKED` via `onKeyDown` + `event.stopPropagation()` — MUI Modal's default one-press close is suppressed
+**And** a second `Escape` from `PEEKED` allows MUI Modal close behaviour → `CLOSED`
+
+**Given** `BPSheet` is in `OPEN` state
+**When** the sheet is open
+**Then** a focus trap is active — `Tab` cycles within sheet content only
+**And** `disableEnforceFocus={false}` and `disableRestoreFocus={false}` are set on the underlying Modal (not overridden)
+
+**Given** `BPSheet` accepts a `triggerRef?: React.RefObject<HTMLElement>` prop
+**When** the sheet transitions to `CLOSED`
+**Then** `triggerRef.current?.focus()` is called, restoring focus to the element that opened the sheet
+
+**Given** `BPSheet` is opened
+**When** the sheet enter animation completes (`transitionEnd`)
+**Then** focus moves to the first focusable element inside the sheet — not on mount, on `transitionEnd`
+
+**Given** `prefers-reduced-motion: reduce` is active
+**When** `BPSheet` opens or closes
+**Then** the translate/slide transition is replaced with an opacity crossfade — not an instant snap
+**And** no spatial movement occurs
+
+**Given** `BPSheet` is open and the scrim is tapped
+**When** the tap registers
+**Then** the sheet closes (transitions to `CLOSED`)
+
+**Given** `BPSheet` has `role="dialog"`, `aria-modal="true"`, and `aria-label="{sheet title}"`
+**When** a screen reader navigates to the open sheet
+**Then** it announces the sheet as a dialog with the provided label
+
+**Given** the spike concludes and criteria 1 or 3 fail
+**When** the fallback decision is made
+**Then** the fallback is a full-screen MUI `Dialog`; downstream sheet stories (4.7, 4.8, 4.9, 4.10) must be re-scoped before any are estimated; the decision is documented in a spike completion note appended to this story
+
+**Props interface:**
+
+```ts
+interface BPSheetProps {
+  state: 'closed' | 'peeked' | 'open'
+  onStateChange: (state: 'closed' | 'peeked' | 'open') => void
+  peekHeight?: number   // defaults to 200px
+  title: string         // used for aria-label
+  triggerRef?: React.RefObject<HTMLElement>
+  children: ReactNode
+}
+```
+
+**Technical Notes:**
+
+- PEEKED is synthetic — `SwipeableDrawer open={true}` with `PaperProps.sx.height = peekHeight`; OPEN uses `height: '92%'`
+- Back-gesture interception in Next.js App Router requires `history.pushState` sentinel entries or the Navigation API — exact mechanism resolved and documented in spike completion note
+- `BPSheet` z-index must sit above `BPBottomNav`; use `theme.zIndex.drawer` (1200); bottom nav explicitly z-indexed below or hidden when sheet is open
+- `react-swipeable` presence in `bp_front/package.json` must be confirmed during spike; install if absent
+- Drag handle affordance required: visible pill at top of sheet disambiguates sheet swipe from inner list scroll
+
+**Test Requirements:**
+
+- State machine: programmatic `onStateChange` calls cycle through all transitions correctly
+- Spike criteria 1–4: documented pass/fail in spike completion note (manual)
+- Escape two-step: first Escape from OPEN → PEEKED (route unchanged); second Escape → CLOSED
+- Focus trap: `Tab` from last focusable element wraps to first — does not escape to page content
+- Focus restore: `triggerRef` element receives focus on sheet close
+- Focus on open: first focusable element receives focus on `transitionEnd` (not on mount)
+- Reduced-motion: no translate transition; opacity crossfade present
+- Scrim tap closes sheet
+
+### Story 4.7: Frontend — Today Tab, Shopping Loop & Core Components
+
+As a list member,
+I want a Today tab where I can see my active list's items, check them off, track progress, and switch between lists,
+So that the core shopping loop works end-to-end in the browser.
+
+**Acceptance Criteria:**
+
+**Given** `app/list/[listId]/page.tsx` is implemented as the Today tab view
+**When** a user navigates to `/list/[listId]`
+**Then** the page calls `items(listId)` and `categories(listId)` GQL queries using the `listId` from the URL
+**And** items are rendered grouped by category in `BPCategoryHeader` sections
+**And** the `ProgressStrip` is rendered fixed below the toolbar, outside the scroll container
+
+**Given** `app/list/[listId]/error.tsx` is implemented
+**When** the current user is not a member of `listId` (GQL auth error returned)
+**Then** the error boundary catches the error and redirects to `/lists`
+
+**Given** `ListChipRow` is rendered at the top of the Today tab
+**When** the user has multiple lists
+**Then** all their lists are shown as chips with item counts
+**And** the active list's chip is visually distinguished and scrolled into view
+**And** tapping a chip calls `router.push('/list/[id]', { scroll: false })` — the URL updates without a full page scroll-reset
+
+**Given** `BPCheck` is implemented as a custom `<div>` element (NOT a MUI Checkbox wrapper)
+**When** it renders
+**Then** it has `role="checkbox"`, `aria-checked={checked}`, `tabIndex={0}`, and a required `ariaLabel` prop
+**And** unchecked label is `"Check off {item.name}"`; checked label is `"{item.name}, checked"`
+**And** `Space` key triggers `onChange`
+**And** the circle animates from border to filled accent in 150ms ease-out on check
+**And** when `BPCheck` receives keyboard focus, a 44×44px edit icon appears at the trailing edge of the `ItemCard` row
+
+**Given** `ItemCard` is implemented with the anatomy: `[BPCheck 42px] [Body flex-1 (name 17px + meta line 13px)] [LifecycleBadge? trailing]`
+**When** rendered without a lifecycle value
+**Then** no badge is shown and the row height is 52px (Cozy density)
+
+**Given** a user taps an `ItemCard` row (single tap on `BPCheck`)
+**When** the `checkItem` mutation is dispatched with `optimisticResponse`
+**Then** the UI marks the item checked immediately before server confirmation
+**And** the `ProgressStrip` advances
+**And** a Snackbar appears: `"Removed · Undo"` with a 5-second duration
+**And** on mutation failure the item snaps back to unchecked and an inline `Alert` appears on the row
+
+**Given** a user taps Undo within 5 seconds of a check-off
+**When** the Undo action fires
+**Then** the `uncheckItem` mutation is dispatched
+**And** the item is restored to unchecked state
+**And** the Snackbar is dismissed
+
+**Given** all items in the active list have `checked: true`
+**When** the last check-off resolves
+**Then** `ProgressStrip` transitions its fill colour to `success.main`
+**And** `aria-label` on `ProgressStrip` changes to `"All done"`
+**And** the toolbar subtitle shows `"All done · {N} items"`
+**And** this state reverts automatically if any item is unchecked
+
+**Given** the active list has no items
+**When** the Today tab renders
+**Then** `EmptyState` is shown with title `"Nothing here yet"`, subtitle `"Add your first item"`, and an action that opens the add-item sheet
+
+**Given** the user has no lists at all
+**When** they land on the Today tab
+**Then** `EmptyState` is shown with title `"Choose a list to start"` and subtitle `"Tap a list below"`
+
+**Given** `SRContext` is implemented at `bp_front/src/contexts/SRContext.tsx`
+**When** mounted at the page root
+**Then** a visually-hidden `<div aria-live="polite" aria-atomic="false">` is present in the DOM
+**And** `announceToSR(message: string)` is available via React context with a 1.5-second throttle/batch
+
+**Given** an item is removed
+**When** the removal is dispatched
+**Then** `announceToSR("{item.name} removed")` is called before the exit animation starts
+
+**Given** a category group has all its items checked
+**When** the last item in the group is checked
+**Then** the category header and its items disappear from view (collapse)
+**And** this reverses if any item in the group is unchecked
+
+**Given** `ItemCard` receives a subscription update for an item in the active list
+**When** the update arrives
+**Then** the item row reflects the new state without a manual refresh
+**And** `document.activeElement` is unchanged — focus is not disrupted by the subscription update
+
+**Technical Notes:**
+
+- `ProgressStrip` uses a plain `Box` — NOT MUI `LinearProgress`; outer 6px rounded `bgcolor: bg2 overflow: hidden`; inner `width: {pct}%` with `transition: width 320ms cubic-bezier(0.2,0.7,0.2,1)`
+- `ListChipRow`: `role="listbox"`, `aria-label="Switch list"`, `aria-multiselectable="false"`; each chip `role="option"`, `aria-selected`; arrow keys navigate; Tab focuses selected chip first; Skeleton chips when loading
+- `ItemCard` long-press (500ms `pointerdown` timer, cancel on 10px `pointermove`) opens `SheetItemEditor` — wired here but opens a stub until Story 4.9
+- `BPCategoryHeader` collapses when all items in the group are checked
+- Snackbar replace-queue policy: new Snackbar immediately replaces existing one
+- `ItemCardSkeleton` variant: left 42px circle Skeleton + two text line Skeletons; used during initial load and list switching
+- `LifecycleBadge` is NOT part of this story — added in Story 4.9
+- Subscription wiring requires Story 4.2 complete; if not yet merged, subscription ACs are deferred but all other ACs must pass
+
+**Test Requirements:**
+
+- Route renders: `/list/[listId]` loads items grouped by category for a member; non-member redirected to `/lists` via `error.tsx`
+- Chip switching: tapping a chip calls `router.push` with `scroll: false`; active chip scrolled into view
+- `BPCheck` ARIA: `role`, `aria-checked`, `ariaLabel` correct for checked and unchecked states; Space key triggers onChange
+- `BPCheck` focus: edit icon appears on keyboard focus; 44×44px touch target
+- Optimistic check-off: UI updates before server responds; mutation failure → snap back + inline Alert
+- Undo: within 5 seconds, Undo fires `uncheckItem` and restores item
+- `ProgressStrip`: advances on each check; reaches `success.main` when all checked; reverts on uncheck
+- Completion state: toolbar subtitle `"All done · N items"` when all checked; reverts on uncheck
+- Category group collapse: all items in group checked → header and items hidden; uncheck one → reappears
+- Empty states: no items → correct copy; no lists → correct copy
+- `SRContext`: `announceToSR` called before exit animation; live region present in DOM; throttle batches rapid calls
+- `ItemCardSkeleton`: renders during loading with correct dimensions
+- Subscription update: focus unchanged after remote item state change
+
+### Story 4.8: Frontend — Lists Tab, List Management & BPAvatar
+
+As a list owner,
+I want a Lists tab where I can see all my lists, create new ones, and manage them,
+So that I can organise my shopping across multiple lists from one place.
+
+**Acceptance Criteria:**
+
+**Given** `app/lists/page.tsx` is implemented as the Lists tab view
+**When** an authenticated user navigates to `/lists`
+**Then** the `lists` GQL query is called and the response is rendered as `ListCard` components — one per owned or member list
+**And** a `pendingInvites` section is rendered below the main list, showing lists awaiting accept/reject with Accept and Reject buttons
+**And** a FAB (bottom-right) is present to open `SheetNewList`
+
+**Given** the user has no lists and no pending invites
+**When** the Lists tab renders
+**Then** `EmptyState` is shown with title `"No lists yet"`, subtitle `"Create your first list to start shopping"`, and a `"Create list"` action that opens `SheetNewList`
+
+**Given** `ListCard` is implemented
+**When** it renders for a list
+**Then** it displays the list emoji (if present), name, member `BPAvatar` row, and unchecked item count
+**And** a `⋯` `IconButton` (48×48px) opens a context menu with options: Rename, Share & Members, Delete
+**And** tapping the card body (not the overflow button) navigates to `/list/[listId]`
+
+**Given** the list owner taps Rename in the `ListCard` context menu
+**When** inline rename activates
+**Then** the list name becomes an editable text field directly on the card
+**And** pressing Enter or tapping ✓ fires the `renameList` mutation with `optimisticResponse`
+**And** pressing Escape cancels and restores the original name without a mutation
+
+**Given** the list owner taps Delete in the `ListCard` context menu
+**When** the Delete option is selected
+**Then** a blocking MUI `Dialog` appears with body: `"Delete '{listName}'? This list and all {N} items will be permanently removed."`
+**And** the Dialog has two buttons: `"Delete"` (`color="error"`) and `"Cancel"`
+**And** confirming fires `deleteList` and shows a success Snackbar: `"'{listName}' deleted"`
+**And** the list disappears from the Lists tab
+
+**Given** a non-owner member taps the `⋯` menu on a shared list
+**When** the context menu opens
+**Then** Delete is NOT shown — only `"Leave list"` is shown in its place
+**And** tapping Leave fires `leaveList` after a confirmation action sheet
+
+**Given** `SheetNewList` is implemented using `BPSheet`
+**When** the user opens it and types a list name
+**Then** the sheet opens in PEEKED state with the name field focused
+**And** the user can tap Create without ever opening to OPEN state
+**And** tapping Create fires `createList(name, emoji?)` and on success navigates to `/list/[newListId]`
+**And** if the name field has content and the user attempts to close the sheet, an unsaved-changes Dialog appears: `"Discard changes? / Discard / Keep editing"`
+**And** on mutation failure a Snackbar shows: `"Couldn't create list · Retry"`
+
+**Given** `SheetNewList` includes an optional emoji picker
+**When** the user taps the emoji field
+**Then** an inline emoji picker opens within the sheet (does not open a new sheet or navigate)
+**And** selecting an emoji sets it as the list icon and closes the picker
+**And** the name field remains focused after emoji selection
+
+**Given** `BPAvatar` is rendered with `status='active'`
+**When** it renders
+**Then** it shows the user's initial in a MUI `Avatar` with no overlay
+**And** `aria-label="{displayName}"` is set
+
+**Given** `BPAvatar` is rendered with `status='pending'`
+**When** it renders
+**Then** a semi-transparent grey overlay (`rgba(0,0,0,0.35)`) covers the avatar with a 12px clock icon centred in white
+**And** `pointer-events: none` on the overlay so the touch target is unaffected
+**And** `aria-label="{displayName} (pending invite)"` is set
+
+**Given** a pending invite's `status` changes from `PENDING` to `ACCEPTED`
+**When** the prop update arrives
+**Then** `BPAvatar` crossfades from the pending overlay to the clear avatar in 200ms opacity transition
+
+**Given** the pending invites section shows a list invite
+**When** the user taps Accept
+**Then** `acceptInvite(listId)` fires; the invite moves from the pending section to the main lists section
+**And** the list is now accessible via `/list/[listId]`
+
+**Given** the user taps Reject on a pending invite
+**When** `rejectInvite(listId)` fires
+**Then** the invite disappears from the pending section with no confirmation dialog required
+
+**Technical Notes:**
+
+- `ListCard` inline rename is the only exception to the "sheets for all editing" rule — single text field, a full sheet is disproportionate
+- `renameList` uses `optimisticResponse`; no success Snackbar — the name change is the confirmation
+- `deleteList` and `leaveList` are async mutations (no `optimisticResponse`); success Snackbar confirms
+- Unsaved-changes guard fires only for a dirty list name field in `SheetNewList` — not for emoji selection alone
+- Auto-focus in `SheetNewList`: callback ref fires on sheet `transitionEnd`, not on component mount
+- Submit button shows `CircularProgress` (18px, white) replacing label while `createList` is in flight; button disabled
+
+**Test Requirements:**
+
+- Lists tab: owned and member lists rendered; pending invites in separate section; FAB present
+- Empty state: no lists + no invites → `EmptyState` with correct copy and Create action
+- `ListCard` navigation: tap card body → navigates to `/list/[listId]`
+- `ListCard` overflow menu: owner sees Delete; non-owner sees Leave instead
+- Inline rename: Enter fires `renameList` optimistically; Escape cancels without mutation
+- Delete Dialog: correct copy with list name and item count; confirms → `deleteList` + success Snackbar
+- `SheetNewList`: opens in PEEKED with name field focused; Create fires `createList`; navigates on success; dirty-name close guard fires
+- Emoji picker: selecting emoji sets list icon; name field focus retained
+- `BPAvatar` active: no overlay; correct `aria-label`
+- `BPAvatar` pending: grey overlay + clock icon; `aria-label` includes "(pending invite)"; `pointer-events: none` on overlay
+- `BPAvatar` transition: pending → active triggers 200ms crossfade
+- Accept invite: list moves to main section; accessible via navigation
+- Reject invite: invite disappears; no confirmation required
 - CI: tests run in `headed=false` mode; HTML report artifact retained

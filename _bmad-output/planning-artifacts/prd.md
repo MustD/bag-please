@@ -1,15 +1,22 @@
 ---
-stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete']
+stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: complete
 completedAt: '2026-05-08'
+lastEdited: '2026-05-20'
+editHistory:
+  - date: '2026-05-20'
+    changes: 'Added Epic 4 (Personal Lists & Sharing): exec summary section, success criteria, 4 user journeys, FR34–FR56, NFR-L1–NFR-L5, updated phasing. Second pass: resolved 17 open issues — soft-delete + hourly scheduler (FR54), pending invite model (FR39), cascade delete (FR37), leave list (FR55), admin restrictions (FR56), Household tab = member management (FR48), category group disappear on completion (FR49), Today tab item-add with list selector (FR49), migration to most recent non-admin user (FR47), Epic 4 risk mitigation table'
 releaseMode: phased
 classification:
   projectType: web_app
   domain: consumer_productivity
-  complexity: medium
+  complexity: high
   projectContext: brownfield
 inputDocuments:
   - _bmad-output/project-context.md
+  - _bmad-output/planning-artifacts/architecture.md
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/implementation-artifacts/epic-3-retro-2026-05-18.md
   - docs/index.md
   - docs/project-overview.md
   - docs/architecture-bp_back.md
@@ -25,10 +32,10 @@ inputDocuments:
 workflowType: 'prd'
 ---
 
-# Product Requirements Document — bag-please: User Registration & Authentication
+# Product Requirements Document — bag-please
 
 **Author:** md
-**Date:** 2026-05-08
+**Date:** 2026-05-08 (Epic 4 additions: 2026-05-20)
 
 ## Executive Summary
 
@@ -51,6 +58,16 @@ sharing one password. This feature removes that ceiling. Users transition from b
 account they own — a shift that reframes how they relate to the product. The implementation is deliberately minimal: no
 email, no self-service password recovery, no complex session management. The goal is to establish identity cleanly
 without overengineering the first step.
+
+### Epic 4: Personal Lists & Sharing
+
+Epics 1–3 delivered the identity foundation: users have accounts, the admin manages the user base, and the system knows who is authenticated on every request. Epic 4 builds directly on that foundation to deliver the product's first multi-tenancy feature — **personal lists with sharing**.
+
+Before Epic 4, all items and categories are globally visible to every user. After Epic 4, all data is scoped to a specific list. Each user owns their own lists, can share any list with other users by username, and collaborators receive full peer write access with no owner/member role distinction. Existing items are migrated to a default admin-owned list on first deploy.
+
+The frontend undergoes a structural redesign: the AppBar/drawer pattern is replaced by bottom tab navigation (Today · Lists · Household). The Today tab is the primary shopping view, with a chip-row switcher for moving between lists. All create and edit actions occur in overlay sheets without leaving the shopping context.
+
+Item lifecycle becomes explicit: items can be designated as one-timers (auto-deleted on check-off) or recurring (weekly, biweekly, monthly — automatically restored at the configured cadence). A new `store` field allows users to record where to buy each item, and `addedBy` surfaces who added each item in a shared list.
 
 ### Project Classification
 
@@ -110,6 +127,48 @@ without overengineering the first step.
 | Auth is secure      | Rate limiting active; tokens use httpOnly `SameSite=Strict` cookie; bcrypt-12 hashing; uniform error messages |
 | Session handled     | Transparent token refresh; graceful redirect to login on session expiry                                       |
 | Foundation solid    | A future story for per-user data can begin without touching the auth layer                                    |
+
+### Epic 4 — User Success
+
+- A user can create a named list with an emoji icon and begin adding items immediately; after creation the app
+  navigates directly to the new list's shopping view
+- Switching the active list takes one tap on a chip; the active list is unambiguous at all times — chip row,
+  toolbar title, and URL agree
+- A list owner can share a list with another registered user by username; the invitee gains full peer write access
+  immediately, without an invitation acceptance step
+- One-timer items exit the list on first check-off with a directional animation signalling intent; an undo snackbar
+  is available for 4 seconds
+- Recurring items reappear on the list at the configured cadence (weekly, biweekly, or monthly) without any user
+  action
+- A collaborator's check-off or item add appears on all members' screens in real-time via subscription, with the
+  `addedBy` avatar visible on the item row
+- The progress strip fills when all items are checked, delivering a clear "job done" signal
+
+### Epic 4 — Business Success
+
+- All existing items and categories migrate to a default list on first Epic 4 deploy; no data is lost
+- Each user's lists are fully access-controlled; no user can view or modify items in a list they are not a member of
+- The architecture supports adding further per-list features (roles, list archive, household model) without
+  reworking the list or membership data model
+
+### Epic 4 — Technical Success
+
+- Every service-layer method that reads or writes list-scoped data verifies caller membership before accessing data
+- WebSocket subscriptions are authenticated; subscription events from list A are never delivered to a subscriber of
+  list B
+- The startup migration is idempotent; repeated restarts after a complete migration produce no side effects
+- No regression in Epics 1–3 auth, admin, and item/category functionality
+
+### Epic 4 — Measurable Outcomes
+
+| Outcome               | Definition of Done                                                                                          |
+|-----------------------|-------------------------------------------------------------------------------------------------------------|
+| List creation works   | User creates list → navigates to `/list/[id]` → adds first item → item scoped to that list                 |
+| Sharing works         | Owner shares by username → member can add/edit/check items → owner sees changes in real-time               |
+| Lifecycle works       | One-timer exits on check-off with animation + undo; recurring item reappears next cadence cycle             |
+| Data isolation solid  | User A cannot access any items or categories from lists they are not a member of                             |
+| Migration safe        | First Epic 4 startup: all existing items assigned to default list; second startup: no-op, no duplicates     |
+| WebSocket secured     | WS connections without valid JWT are rejected; connections closed when token expires                        |
 
 ## User Journeys
 
@@ -202,25 +261,126 @@ message on login redirect, no onboarding message on re-login.
 
 ---
 
+---
+
+### Journey 5: The New User — First List Creation
+
+**Persona:** Mia, who just logged in for the first time after Epic 4 deploys. She lands on `/` which redirects to
+`/lists` because she has no lists yet.
+
+**Opening Scene:** `/lists` shows a designed empty state: *"You don't have any lists yet. Create your first one."*
+She taps the button.
+
+**Rising Action:** A bottom sheet opens. Mia types "Groceries", taps an emoji (🛒), confirms. The `createList`
+mutation resolves. The app navigates to `/list/[newListId]`.
+
+**Climax:** The Today tab shows her new list with an empty-state prompt: *"Tap + to add your first item."* She adds
+"Milk". It appears in the list, scoped to this list. The progress strip shows 0 of 1 checked.
+
+**Resolution:** Mia taps + again, adds three more items. She can now tap the Today tab from anywhere to return to
+this list. The chip row at the top shows "Groceries 🛒 (4)".
+
+**Requirements revealed:** `createList` mutation, zero-lists empty state on `/lists`, post-creation navigation to
+`/list/[id]`, zero-items empty state on Today, chip-row item count, list-scoped item creation.
+
+---
+
+### Journey 6: Shopping the Active List — The Core Loop
+
+**Persona:** Tom, mid-aisle at the grocery store with bag-please open on his phone.
+
+**Opening Scene:** Tom opens the app. Today tab is active, chip row shows "Groceries 🛒 (6)". He can see milk,
+eggs, butter — grouped by category. The progress strip is empty.
+
+**Core loop:** Tom taps "Milk". It checks off with a smooth animation. The progress strip advances. An undo snackbar
+appears for 4 seconds — he ignores it. He checks off "Eggs". Progress advances again.
+
+**Detour:** Tom notices an item tagged with a one-timer icon (⚡). He checks it off — it exits with a directional
+animation. The item count on the chip drops from 6 to 4. He's not alarmed; the icon told him this would happen.
+
+**List complete:** Tom checks the last item. The progress strip fills. The UI shows a brief completion state — *"All
+done."* He knows he can leave.
+
+**Requirements revealed:** Single-tap check-off, optimistic update with rollback, progress strip, undo snackbar (4s),
+one-timer visual signal (icon on item row before tap), one-timer exit animation on check-off, all-done completion
+state, chip-row item count updates.
+
+---
+
+### Journey 7: Sharing a List and Collaborating
+
+**Persona:** Mia sharing her Groceries list with Tom so they can shop together.
+
+**Opening Scene:** Mia is on `/list/[groceriesId]`. She taps the list options and opens the share sheet.
+
+**Sharing:** She types Tom's username. The `shareList` mutation adds Tom as a member instantly. Tom's device receives
+a real-time subscription event; his Lists tab now shows Groceries.
+
+**Collaboration:** Tom opens the list. Both Mia and Tom see the same items. Tom checks off "Butter". On Mia's screen,
+"Butter" checks off via subscription within a second — no refresh needed. The item row shows Tom's avatar (addedBy).
+
+**Ambiguity prevention:** Mia adds an item to Groceries while Tom is mid-aisle. It appears on Tom's screen immediately.
+He sees the `addedBy` avatar; he knows Mia added it, not an error.
+
+**Requirements revealed:** `shareList` mutation by username, real-time item updates via subscription for all members,
+`addedBy` avatar on item rows, membership-gated list access, Lists tab shows shared lists.
+
+---
+
+### Journey 8: Item Lifecycle — One-Timer and Recurring
+
+**Persona:** Mia managing her grocery list over several weeks.
+
+**Opening Scene A — One-timer:** Mia adds "WD-40" to the list, opens the item editor, sets lifecycle to *One-time*.
+An icon appears on the item row signalling its behavior. When she checks it off, it exits with an animation. It does
+not reappear. No manual deletion needed.
+
+**Opening Scene B — Recurring:** Mia adds "Oat Milk" and sets recurring to *Weekly*. She checks it off on a Monday.
+The following Monday the item reappears, unchecked, on the same list. She never has to re-add it.
+
+**Edge case:** Mia changes her mind about WD-40 mid-shop and taps undo immediately after checking it off. The item
+is restored in its checked-off → unchecked state. The deletion mutation is cancelled.
+
+**Resolution:** The list curates itself. One-timers clean up on exit; recurring items return without effort. Mia's
+mental load is reduced — the list reflects what she needs without her having to manage it.
+
+**Requirements revealed:** `recurring` field on Item (`null` | `"weekly"` | `"biweekly"` | `"monthly"` |
+`"one-time"`), item editor lifecycle segmented control, one-timer icon on item row, one-timer delete-on-check-off
+mutation, recurring restore logic, undo snackbar cancelling delete on one-timers.
+
+---
+
 ### Journey Requirements Summary
 
-| Capability                                                 | Journeys |
-|------------------------------------------------------------|----------|
-| POST /auth/register → POST /auth/login chain               | J1       |
-| One-time welcome banner (React flag)                       | J1, J2   |
-| Name in app bar                                            | J1, J4   |
-| Registration toggle (off by default, link hidden when off) | J2, J3   |
-| "Contact admin" copy on login screen                       | J2       |
-| User self-service password change                          | J2       |
-| POST /admin/users (create user)                            | J2, J3   |
-| POST /admin/users/{id}/reset-password                      | J3       |
-| DELETE /admin/users/{id}                                   | J3       |
-| Confirmation dialogs on destructive admin actions          | J3       |
-| PUT /admin/config (registration toggle)                    | J3       |
-| ApplicationConfig MongoDB entity (runtime feature flags)   | J3       |
-| POST /auth/refresh (on expired access + valid refresh)     | J4       |
-| Session expiry message on login redirect                   | J4       |
-| Admin account from env vars (not DB)                       | J3       |
+| Capability                                                 | Journeys    |
+|------------------------------------------------------------|-------------|
+| POST /auth/register → POST /auth/login chain               | J1          |
+| One-time welcome banner (React flag)                       | J1, J2      |
+| Name in app bar                                            | J1, J4      |
+| Registration toggle (off by default, link hidden when off) | J2, J3      |
+| "Contact admin" copy on login screen                       | J2          |
+| User self-service password change                          | J2          |
+| POST /admin/users (create user)                            | J2, J3      |
+| POST /admin/users/{id}/reset-password                      | J3          |
+| DELETE /admin/users/{id}                                   | J3          |
+| Confirmation dialogs on destructive admin actions          | J3          |
+| PUT /admin/config (registration toggle)                    | J3          |
+| ApplicationConfig MongoDB entity (runtime feature flags)   | J3          |
+| POST /auth/refresh (on expired access + valid refresh)     | J4          |
+| Session expiry message on login redirect                   | J4          |
+| Admin account from env vars (not DB)                       | J3          |
+| `createList` mutation; post-creation nav to `/list/[id]`   | J5          |
+| Zero-lists empty state on `/lists`                         | J5          |
+| Zero-items empty state on Today; chip-row item count       | J5, J6      |
+| Single-tap check-off; optimistic update + rollback         | J6          |
+| Progress strip; all-done completion state                  | J6          |
+| Undo snackbar (4s) on check-off and delete                 | J6, J8      |
+| One-timer icon on item row; exit animation on check-off    | J6, J8      |
+| `shareList` mutation by username                           | J7          |
+| Real-time item updates via subscription for all members    | J6, J7      |
+| `addedBy` avatar on item rows                              | J7          |
+| `recurring` field; restore logic on cadence                | J8          |
+| Item editor lifecycle segmented control                    | J8          |
 
 ## Platform Requirements
 
@@ -259,64 +419,93 @@ screens.
 
 ### Strategy & Philosophy
 
-**Approach:** Platform foundation MVP — ship the minimum that establishes user identity cleanly and unblocks all future
-per-user features. No overengineering, no premature abstractions. Solo developer; each phase ships a complete, working
-slice before the next begins.
+**Approach:** Incremental platform build — each phase ships a complete, working slice before the next begins. No
+overengineering, no premature abstractions. Solo developer. Phase 1 established user identity; Phase 2 scopes all data
+to lists and introduces sharing.
 
-### Phase 1 — MVP (This Release)
+### Phase 1 — Foundation (Delivered, Epics 1–3)
 
-**Core journeys covered:** All four (registration, admin onboarding, admin user management, session lifecycle).
+**Core journeys covered:** Registration, admin onboarding, admin user management, session lifecycle.
 
-**Must-Have:**
+**Delivered:**
 
 - POST /auth/register + POST /auth/login chain with auto-login
 - POST /auth/refresh (triggered on expired access token + valid refresh cookie)
 - POST /auth/logout (refresh token invalidated in MongoDB)
 - JWT with username + role claims; access token 15 min, refresh token 30 days
 - Refresh token stored in MongoDB with TTL index; httpOnly `SameSite=Strict` cookie delivery
-- bcrypt-12 password hashing
-- Rate limiting per IP on `/login` and `/register`
-- Admin account from env vars (not DB); admin password changeable via env vars only
+- bcrypt-12 password hashing; rate limiting per IP on `/login` and `/register`
+- Admin account from env vars (not DB)
 - GET /admin/users, POST /admin/users, DELETE /admin/users/{id}, POST /admin/users/{id}/reset-password
 - PUT /admin/config (registration toggle, off by default)
 - ApplicationConfig MongoDB entity for runtime feature flags
-- Role claim enforced server-side; Principal threaded through GraphQL context (data layer ignores it)
-- Block reserved usernames; uniform "invalid credentials" error message
+- Role claim enforced server-side; Principal threaded through GraphQL context
 - `/admin/users` page — mobile-first MUI, confirmation dialogs on destructive actions
-- Login / registration forms — mobile-first MUI
-- One-time welcome banner (React flag, not DB-persisted)
-- User's name in app bar
-- Session expiry message on login redirect
-- User self-service password change
-- "Contact admin" copy on login screen
-- Registration link hidden when registration is off
-- Test coverage: registration, login, token refresh, logout, admin CRUD, role boundaries
+- Login / registration forms — mobile-first MUI; one-time welcome banner; user's name in app bar
+- Playwright e2e suite covering all auth and admin flows
+
+### Phase 2 — Personal Lists & Sharing (Current, Epic 4)
+
+**Core journeys covered:** List creation, shopping loop, sharing and collaboration, item lifecycle.
+
+**Must-Have:**
+
+- `createList`, `deleteList`, `shareList`, `lists` query, pending invite model — new GQL operations
+- Items and categories scoped to `listId`; existing data migrated to default list owned by most recent non-admin user
+- One-time startup migration; idempotent via `app_migrations`; hard-fails if no non-admin users exist with unscoped items
+- Admin restricted to user/config management; list GQL operations rejected for admin callers
+- Per-list authorization enforced at service layer via `CallerUsername` value class
+- WebSocket subscriptions authenticated via `connectionParams` JWT; backend closes on token expiry
+- Subscription events filtered per-list; no cross-list event leakage
+- Pending invite model: share creates invite; Lists page shows Accept/Reject; list inactive until accepted
+- Member removal by owner; items remain; effective on next data access
+- Non-owner leave: member removes themselves; items remain
+- `recurring` field on Item: `null` | `"one-time"` | `"weekly"` | `"biweekly"` | `"monthly"`
+- Hourly background scheduler: restores recurring items (7/14/30 days after check-off); hard-deletes soft-deleted
+  one-timers older than 1 hour; queries indexed on `{listId, recurring, checkedAt}` and `{deleted, deletedAt}`
+- One-timer soft-delete on check-off; undo available until navigation away; scheduler handles hard delete
+- Cascade delete on list removal (items + categories); non-owners leave instead of delete
+- `store` (optional) and `addedBy` fields on Item
+- Bottom tab navigation (Today · Lists · Household); Household tab = member management
+- Today tab: category groups disappear when fully checked; + button adds item with list selector if multiple lists
+- Lists tab: owned/member lists + pending invites section; zero-lists onboarding message
+- `BPSheet` overlay for all create/edit; create-list sheet: name (required) + description (optional)
+- Chip-row list switcher on Today; URL-encoded active list (`/list/[listId]`)
+- Progress strip; undo snackbar until navigation; all-done completion state
+- `addedBy` avatar on item rows
+- MUI `ThemeProvider` with `theme.ts` token mapping; MUI CSS variables mode deferred
 
 **Nice-to-Have (may slip):**
 
-- Polished empty states on `/admin/users` when no users exist yet
+- Sepia/dark theme variants
+- Store suggestion chips pre-populated from existing item data
 
-### Phase 2 — Growth (Post-MVP)
+### Phase 3 — Growth (Post-Epic 4)
 
 - User status: active / suspended (soft-disable without deletion)
-- Self-service password reset
-- Per-user data isolation (items/categories owned by creating user)
+- Self-service password reset via admin or email
 - Password complexity requirements
+- Membership revocation UX (notify removed user)
+- Subscription auth hardening (periodic token re-validation mid-session)
 
-### Phase 3 — Vision (Future)
+### Phase 4 — Vision (Future)
 
-- Data sharing rules between users
-- User invitations (by link or username)
 - Household/group model with shared and private lists
+- User invitations by link
 - OAuth / social login
+- Activity feed (opt-in)
 
 ### Risk Mitigation
 
-| Risk                                                           | Mitigation                                                                                                             |
-|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| Token lifecycle complexity (refresh trigger: 401 vs app mount) | Specify frontend refresh trigger explicitly in functional requirements; build and test in isolation before integration |
-| Solo developer scope creep                                     | Phase 2+ features frozen until Phase 1 ships and is stable                                                             |
-| Admin env-var credentials lost                                 | Document in deployment guide; no recovery path exists by design                                                        |
+| Risk                                                           | Mitigation                                                                                                              |
+|----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| Token lifecycle complexity (refresh trigger: 401 vs app mount) | Specify frontend refresh trigger explicitly in functional requirements; build and test in isolation before integration  |
+| Solo developer scope creep                                     | Phase 2+ features frozen until Phase 1 ships and is stable                                                              |
+| Admin env-var credentials lost                                 | Document in deployment guide; no recovery path exists by design                                                         |
+| Migration target user missing at deploy time                   | Startup hard-fails with descriptive error if no non-admin users exist and unscoped items are present; deploy checklist: create target user before deploying Epic 4 |
+| Hourly scheduler missed cycles (app restart, downtime)         | Scheduler is stateless and reads from DB on each run; missed cycles self-heal on next hourly tick; one restoration per item per run regardless of elapsed cycles |
+| Sharing mental model mismatch (users expect read-only)         | Sharing UI explicitly states "full access" before invite is sent; no read-only mode exists in Epic 4 (deferred to Phase 3) |
+| Admin inadvertently accessing list data                        | All list GQL operations return auth error for admin callers (FR56); enforced at service layer, not only at route level  |
 
 ## Functional Requirements
 
@@ -379,6 +568,89 @@ slice before the next begins.
 - **FR32:** System provides guidance on the login screen for users who cannot access their account (contact admin)
 - **FR33:** System displays a specific message when a user is redirected to login due to session expiry
 
+### List Management
+
+- **FR34:** User can create a named shopping list with an emoji icon and an optional description
+- **FR35:** User can view all lists they own or are a member of
+- **FR36:** User can switch between lists using a chip-row switcher in the shopping view; the active list is always
+  visible in the chip row, the toolbar title, and the URL
+- **FR37:** Only the list owner can delete a list; deletion permanently removes the list, all its items, and all
+  its categories from the database; active subscribers to the list are disconnected on deletion; non-owner members
+  cannot delete — they can leave the list instead (see FR55)
+- **FR38:** The active list is identified by URL (`/list/[listId]`); navigating to that URL loads the list's items;
+  `/` redirects to the user's oldest list by creation date, or to `/lists` if the user has no lists
+
+### List Sharing & Membership
+
+- **FR39:** List owner can share a list with another registered user by exact username match; sharing creates a
+  pending invite; the invited user sees the invite with Accept and Reject buttons on the Lists page; the list is
+  not accessible to the invited user until they accept; sharing with an unknown username, an existing member, or
+  oneself produces a specific descriptive error message
+- **FR40:** All list members (owner and shared users) can add, check off, edit, and delete items in a shared list;
+  no owner/member role distinction exists within a list for item operations; the list owner can remove any member
+  at any time — the removed member's items remain on the list and the removal takes effect on the member's next
+  list data access (active subscription terminates via membership re-evaluation on next emitted event)
+- **FR41:** A user can only view and modify items and categories in lists they own or have been accepted as a member
+  of; pending invites do not grant access; unauthorized access to `/list/[listId]` redirects to `/lists`
+- **FR55:** A non-owner list member can leave a shared list at any time; leaving removes the user from the member
+  array immediately; items they added remain on the list
+
+### Item Lifecycle
+
+- **FR42:** User can designate an item as a one-timer at creation or via edit; checking off a one-timer soft-deletes
+  it (`deleted: true`, `deletedAt: now`) and removes it from the list view with a directional exit animation; an
+  undo snackbar is available until the user navigates away from the current screen — tapping undo clears the
+  soft-delete flag and restores the item; navigating away cancels the undo opportunity; the hourly background
+  scheduler (FR54) permanently removes items soft-deleted for more than one hour
+- **FR43:** User can set an item as recurring (weekly, biweekly, or monthly); the cadence and any changes to it are
+  configured in the item editor; the hourly background scheduler (FR54) restores recurring items whose cadence has
+  elapsed since check-off: weekly = 7 days, biweekly = 14 days, monthly = 30 days; each cycle produces exactly one
+  restoration regardless of how many cycles have been missed; restored items have `checked: false`
+- **FR44:** User can optionally specify a store for an item; the item editor surfaces pre-populated store
+  suggestions derived from existing item data
+- **FR45:** Each item displays the username of the user who added it (`addedBy`) as an avatar or label on the item
+  row in the shopping view
+- **FR54:** A background scheduler service runs every hour; it performs two tasks: (a) restores recurring items
+  whose cadence has elapsed since check-off by setting `checked: false`; (b) permanently hard-deletes one-timer
+  items that have been soft-deleted for more than one hour; compound indexes on the items collection back both
+  queries to keep each hourly run efficient (index definitions are in the architecture document)
+
+### Data Scoping & Migration
+
+- **FR46:** All newly created items and categories are associated with a specific list at creation time; no
+  unscoped global items exist after Epic 4
+- **FR47:** On first application startup after Epic 4 deployment, all existing items and categories without a
+  `listId` are migrated to a default list (`name: "Groceries"`, `emoji: "🛒"`) owned by the most recently created
+  non-admin user in the database; if no non-admin users exist, startup fails with a descriptive error; the
+  migration writes a completion record to `app_migrations` and does not re-run on subsequent startups
+- **FR56:** The admin account is restricted to user management and application configuration only; admin callers
+  are rejected by all list-related GQL operations (`createList`, `lists`, `items`, `categories`, `shareList`,
+  `deleteList`, and all subscription operations); the admin cannot create, own, view, or be a member of any list
+
+### Navigation & UX
+
+- **FR48:** Bottom tab navigation (Today, Lists, Household) is the primary navigation chrome, replacing the
+  existing AppBar and navigation drawer; the Household tab displays the current user's list memberships and allows
+  list owners to remove members from lists they own
+- **FR49:** The Today tab displays the active list's items organized by category with a progress strip; category
+  groups disappear from view when all items in the group are checked off; a completion state is shown when all
+  items across all categories are checked; the Today tab includes a + button to add a new item directly — if the
+  user has multiple lists, a list selector is shown so they can choose which list to add to
+- **FR50:** The Lists tab displays all lists the user owns or is a member of, plus a pending invites section
+  showing lists awaiting accept or reject; a zero-lists state with no pending invites shows an onboarding message
+  with guidance to create a first list, category, and item
+- **FR51:** All item creation and editing occurs in bottom sheet overlays without navigating away from the
+  shopping view; the create-list sheet contains a name field (required) and a description field (optional);
+  closing any sheet returns the user to their exact scroll position
+
+### Real-Time Collaboration & Authentication
+
+- **FR52:** Item updates (check-off, add, edit, delete) from any list member appear in real-time on all other
+  members' shopping views via GraphQL subscription without requiring a manual refresh
+- **FR53:** WebSocket subscription connections require a valid JWT supplied in `connectionParams` on connection
+  establishment; unauthenticated connections are rejected; the backend closes the connection when the token expires;
+  the frontend disposes the connection before clearing auth state on logout or password reset
+
 ## Non-Functional Requirements
 
 ### Security
@@ -417,3 +689,21 @@ slice before the next begins.
 - **NFR18:** E2E tests use browser-level isolation (no shared auth state across test files); tests that require
   an authenticated session establish it via a Playwright setup fixture calling `POST /api/auth/login` directly
   rather than driving the UI login form each time
+
+### Lists & Sharing
+
+- **NFR-L1:** Subscription events are scoped per-list; a subscriber to list A receives no events originating from
+  list B under any circumstances; scoping is enforced at both subscribe time (membership gate) and per-event
+  (membership re-evaluation via `takeWhile`)
+- **NFR-L2:** Every service-layer method that reads or writes list-scoped data verifies the caller's list
+  membership before accessing data; the membership check precedes all data access including read-only queries;
+  no exceptions
+- **NFR-L3:** The Epic 4 data migration is idempotent; running it against an already-migrated database produces no
+  changes, no duplicate lists, and no errors; idempotency is guaranteed by a `app_migrations` completion record
+  checked at startup
+- **NFR-L4:** No list's items or categories are accessible to users not listed as members of that list at any layer
+  of the stack (GQL resolver, service, storage); unauthorized access returns a GQL error, not an empty result
+- **NFR-L5:** WebSocket subscription connections require a valid JWT supplied in `connectionParams`; the backend
+  validates the token before establishing any subscription stream; the connection is closed when the validated
+  token expires; the `clearAuth()` frontend function disposes the WebSocket client before clearing auth state to
+  prevent orphaned in-flight events reaching React state after logout
