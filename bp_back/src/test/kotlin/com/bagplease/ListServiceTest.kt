@@ -132,7 +132,7 @@ class ListServiceTest : FunSpec({
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(tokenA)
-                setBody("""{"query":"{ lists { id name } }"}""")
+                setBody("""{"query":"{ lists { lists { id name } pendingInvites { listId } } }"}""")
             }
             val body = res.bodyAsText()
             body shouldNotContain "errors"
@@ -152,7 +152,7 @@ class ListServiceTest : FunSpec({
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
-                setBody("""{"query":"{ lists { id name } }"}""")
+                setBody("""{"query":"{ lists { lists { id name } pendingInvites { listId } } }"}""")
             }
             val body = res.bodyAsText()
             body shouldNotContain "errors"
@@ -241,7 +241,7 @@ class ListServiceTest : FunSpec({
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(adminToken)
-                setBody("""{"query":"{ lists { id } }"}""")
+                setBody("""{"query":"{ lists { lists { id } pendingInvites { listId } } }"}""")
             }
             res.bodyAsText() shouldContain "errors"
         }

@@ -21,6 +21,7 @@ import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.ListStorage
 import com.bagplease.entity.list.gql.ListMutations
 import com.bagplease.entity.list.gql.ListQueries
+import com.bagplease.entity.list.mongo.ListMemberRepository
 import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.gql.UserAdminMutations
@@ -66,6 +67,7 @@ fun Application.configureGql(
     val itemRepository = ItemRepository(connection.db)
     val categoryRepository = CategoryRepository(connection.db)
     val listRepository = ListRepository(connection.db)
+    val listMemberRepository = ListMemberRepository(connection.db)
 
     val itemStorage = ItemStorage(itemRepository)
     val categoryStorage = CategoryStorage(categoryRepository)
@@ -80,6 +82,7 @@ fun Application.configureGql(
         itemStorage = itemStorage,
         categoryStorage = categoryStorage,
         adminLogin = adminLogin,
+        listMemberRepository = listMemberRepository,
     )
 
     val itemService = ItemService(itemStorage, listService)
@@ -97,14 +100,14 @@ fun Application.configureGql(
             queries = listOf(
                 ItemQueries(itemService),
                 CategoryQueries(categoryService),
-                ListQueries(listService),
+                ListQueries(listService, listMemberRepository),
                 ApplicationConfigQueries(appConfigService),
                 UserAdminQueries(userService),
             )
             mutations = listOf(
                 ItemMutations(itemService),
                 CategoryMutations(categoryService),
-                ListMutations(listService),
+                ListMutations(listService, listMemberRepository),
                 ApplicationConfigMutations(appConfigService),
                 UserAdminMutations(userService, authService),
             )

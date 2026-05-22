@@ -24,6 +24,7 @@ import io.ktor.server.testing.testApplication
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.*
 
@@ -192,7 +193,75 @@ class SubscriptionScopingTest : FunSpec({
         }
     }
 
-    // TODO (Story 4.3): Add Point 2 (takeWhile membership revocation) test once member removal
-    // mutation is available. This test requires removing a user from a list mid-subscription
-    // and verifying the subscription terminates on the next event after removal.
+    test("Point 2 takeWhile revocation: subscriber flow terminates after removeMember") {
+        val owner = "revokeOwner_${UUID.randomUUID().toString().take(8)}"
+        val userA = "revokeUserA_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val ownerToken = registerAndLogin(owner)
+            val userAToken = registerAndLogin(userA)
+            val listId = createList(ownerToken)
+
+            // Share list with userA and have them accept
+            client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(ownerToken)
+                setBody("""{"query":"mutation { shareList(listId: \"$listId\", username: \"$userA\") { id } }"}""")
+            }
+            client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(userAToken)
+                setBody("""{"query":"mutation { acceptInvite(listId: \"$listId\") { id } }"}""")
+            }
+
+            val wsClient = createClient { install(WebSockets) }
+
+            // userA subscribes to itemUpdates
+            val receivedAfterRemoval = async {
+                var gotEventAfterRemoval = false
+                wsClient.webSocket("/subscriptions", request = { header(HttpHeaders.SecWebSocketProtocol, GQL_WS_PROTOCOL) }) {
+                    outgoing.send(Frame.Text("""{"type":"connection_init","payload":{"Authorization":"Bearer $userAToken"}}"""))
+                    val ack = incoming.receive() as Frame.Text
+                    ack.readText() shouldContain "connection_ack"
+
+                    val subId = UUID.randomUUID().toString()
+                    outgoing.send(Frame.Text("""{"type":"subscribe","id":"$subId","payload":{"query":"subscription { getItemUpdates(listId: \"$listId\") { type item { id } } }"}}"""))
+
+                    // Wait briefly for subscription to be established
+                    kotlinx.coroutines.delay(200)
+
+                    // Owner removes userA while subscription is active
+                    client.post("/graphql") {
+                        contentType(ContentType.Application.Json)
+                        bearerAuth(ownerToken)
+                        setBody("""{"query":"mutation { removeMember(listId: \"$listId\", username: \"$userA\") { id } }"}""")
+                    }
+
+                    // Owner triggers an item mutation to emit an event
+                    client.post("/graphql") {
+                        contentType(ContentType.Application.Json)
+                        bearerAuth(ownerToken)
+                        setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"TriggerItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                    }
+
+                    // userA should receive no event after removal (flow terminates)
+                    val event = withTimeoutOrNull(2000) { incoming.receive() }
+                    if (event is Frame.Text) {
+                        val text = event.readText()
+                        // If we get a next message, it should not be a data event for this item
+                        if (text.contains(itemId.toString())) {
+                            gotEventAfterRemoval = true
+                        }
+                    }
+                }
+                gotEventAfterRemoval
+            }
+
+            receivedAfterRemoval.await() shouldBe false
+        }
+    }
 })
