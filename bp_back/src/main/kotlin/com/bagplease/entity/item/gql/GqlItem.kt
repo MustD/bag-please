@@ -9,4 +9,5 @@ data class GqlItem(
     val name: String,
     val checked: Boolean,
     val category: String,
+    val listId: ID,
 )

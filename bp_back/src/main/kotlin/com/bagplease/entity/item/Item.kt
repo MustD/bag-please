@@ -7,4 +7,5 @@ data class Item(
     val name: String = "",
     val checked: Boolean = false,
     val category: UUID,
+    val listId: UUID,
 )

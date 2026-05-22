@@ -7,6 +7,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -24,38 +25,61 @@ class ItemApiTest : FunSpec({
 
     val container = mongoContainer()
 
-    suspend fun ApplicationTestBuilder.loginToken(): String {
+    suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"username":"admin","password":"admin"}""")
+            setBody("""{"username":"$username","password":"$password"}""")
         }
         return mapper.readTree(res.bodyAsText())["accessToken"].asText()
+    }
+
+    suspend fun ApplicationTestBuilder.registerAndLogin(username: String, password: String = "pass1234"): String {
+        val adminToken = loginToken()
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(adminToken)
+            setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
+        }
+        return loginToken(username, password)
+    }
+
+    suspend fun ApplicationTestBuilder.createList(token: String, name: String = "TestList"): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { createList(name: \"$name\") { id } }"}""")
+        }
+        return mapper.readTree(res.bodyAsText())["data"]["createList"]["id"].asText()
     }
 
     context("getItems") {
         test("saved item appears in list") {
             val catId = UUID.randomUUID()
             val itemId = UUID.randomUUID()
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
                 application { module() }
-                val token = loginToken()
+                val token = registerAndLogin(username)
+                val listId = createList(token)
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\" }) { id } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
                 }
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"{ getItems { id name checked category } }"}""")
+                    setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked category listId } }"}""")
                 }.apply {
                     shouldHaveStatus(HttpStatusCode.OK)
-                    bodyAsText() shouldContain itemId.toString()
+                    val body = bodyAsText()
+                    body shouldNotContain "errors"
+                    body shouldContain itemId.toString()
                 }
             }
         }
@@ -65,22 +89,28 @@ class ItemApiTest : FunSpec({
         test("creates item and returns it") {
             val catId = UUID.randomUUID()
             val itemId = UUID.randomUUID()
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
                 application { module() }
+                val token = registerAndLogin(username)
+                val listId = createList(token)
+
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
-                    bearerAuth(loginToken())
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Bread\", checked: false, category: \"$catId\" }) { id name checked category } }"}""")
+                    bearerAuth(token)
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Bread\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id name checked category listId } }"}""")
                 }.apply {
                     shouldHaveStatus(HttpStatusCode.OK)
                     val body = bodyAsText()
+                    body shouldNotContain "errors"
                     body shouldContain """"name":"Bread""""
                     body shouldContain """"checked":false"""
                     body shouldContain itemId.toString()
                     body shouldContain catId.toString()
+                    body shouldContain listId
                 }
             }
         }
@@ -88,26 +118,29 @@ class ItemApiTest : FunSpec({
         test("updates existing item") {
             val catId = UUID.randomUUID()
             val itemId = UUID.randomUUID()
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
                 application { module() }
-                val token = loginToken()
+                val token = registerAndLogin(username)
+                val listId = createList(token)
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: false, category: \"$catId\" }) { id } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
                 }
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: true, category: \"$catId\" }) { id name checked category } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: true, category: \"$catId\", listId: \"$listId\" }) { id name checked category listId } }"}""")
                 }.apply {
                     shouldHaveStatus(HttpStatusCode.OK)
                     val body = bodyAsText()
+                    body shouldNotContain "errors"
                     body shouldContain """"name":"Oat milk""""
                     body shouldContain """"checked":true"""
                     body shouldContain itemId.toString()
@@ -120,26 +153,29 @@ class ItemApiTest : FunSpec({
         test("deletes item and returns it") {
             val catId = UUID.randomUUID()
             val itemId = UUID.randomUUID()
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
                 application { module() }
-                val token = loginToken()
+                val token = registerAndLogin(username)
+                val listId = createList(token)
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Eggs\", checked: false, category: \"$catId\" }) { id } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Eggs\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
                 }
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { deleteItem(id: \"$itemId\") { id name checked category } }"}""")
+                    setBody("""{"query":"mutation { deleteItem(id: \"$itemId\", listId: \"$listId\") { id name checked category listId } }"}""")
                 }.apply {
                     shouldHaveStatus(HttpStatusCode.OK)
                     val body = bodyAsText()
+                    body shouldNotContain "errors"
                     body shouldContain """"name":"Eggs""""
                     body shouldContain itemId.toString()
                 }
@@ -148,16 +184,19 @@ class ItemApiTest : FunSpec({
 
         test("returns graphql error when item not found") {
             val missingId = UUID.randomUUID()
+            val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
                 application { module() }
+                val token = registerAndLogin(username)
+                val listId = createList(token)
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
-                    bearerAuth(loginToken())
-                    setBody("""{"query":"mutation { deleteItem(id: \"$missingId\") { id name } }"}""")
+                    bearerAuth(token)
+                    setBody("""{"query":"mutation { deleteItem(id: \"$missingId\", listId: \"$listId\") { id name } }"}""")
                 }.apply {
                     shouldHaveStatus(HttpStatusCode.OK)
                     bodyAsText() shouldContain "errors"

@@ -5,7 +5,7 @@ const config: CodegenConfig = {
   schema: {
     "http://localhost:2080/api/graphql": {
       headers: {
-        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJiYWctcGxlYXNlLmNvbSIsImlzcyI6ImJhZy1wbGVhc2UuY29tIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3ODg0NzI2N30.GN7NfssXGMP1d3MKyArrQJM-Sr1txkNRAUgssaHmZkw",
+        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJiYWctcGxlYXNlLmNvbSIsImlzcyI6ImJhZy1wbGVhc2UuY29tIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3OTQ0MzM2Nn0.gPDVsrVWADmvTHJcsNlGNuSIl1lF4nvN4inKwvfGbHk",
       },
     },
   },
@@ -13,6 +13,8 @@ const config: CodegenConfig = {
   documents: ["src/**/*.{ts,tsx}"],
   // Don't exit with non-zero status when there are no documents
   ignoreNoDocuments: true,
+  // Allow partial output when documents are invalid (frontend docs fixed in Stories 4.5-4.7)
+  allowPartialOutputs: true,
   generates: {
     // Use a path that works the best for the structure of your application
     "./src/__generated__/": {

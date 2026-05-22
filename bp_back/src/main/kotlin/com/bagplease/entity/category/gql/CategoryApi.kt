@@ -1,13 +1,23 @@
 package com.bagplease.entity.category.gql
 
 import com.bagplease.entity.category.CategoryService
+import com.bagplease.entity.list.ListService
+import com.bagplease.entity.list.gql.toException
+import com.bagplease.features.auth.CallerUsername
+import com.bagplease.plugins.GQL_CALL_PRINCIPAL
 import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
 import com.expediagroup.graphql.server.operations.Subscription
+import graphql.schema.DataFetchingEnvironment
+import io.ktor.server.auth.jwt.JWTPrincipal
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.takeWhile
 import java.util.*
 
 @Suppress("unused")
@@ -15,17 +25,13 @@ class CategoryQueries(
     private val service: CategoryService,
 ) : Query {
 
-
-    /**
-     * Retrieves a list of GraphQL categories.
-     *
-     * This method asynchronously fetches a list of categories from storage using the `getAll` method,
-     * maps each category to a [GqlCategory] object using the [GqlCategoryMapper.mapCategoryToGql] method,
-     * and returns the list of mapped categories.
-     *
-     * @return A list of [GqlCategory] objects.
-     */
-    suspend fun getCategories(): List<GqlCategory> = service.getCategories().map(GqlCategoryMapper::mapCategoryToGql)
+    suspend fun getCategories(listId: ID, env: DataFetchingEnvironment): List<GqlCategory> {
+        val caller = env.caller()
+        return service.getCategories(UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { it.map(GqlCategoryMapper::mapCategoryToGql) },
+        )
+    }
 }
 
 @Suppress("unused")
@@ -33,51 +39,50 @@ class CategoryMutations(
     private val service: CategoryService,
 ) : Mutation {
 
-    /**
-     * Saves a category to the storage.
-     *
-     * @param category The category to be saved.
-     * @return The saved category.
-     */
-    suspend fun saveCategory(category: GqlCategory): GqlCategory =
-        category.let(GqlCategoryMapper::mapCategoryFromGql).let {
-            service.saveCategory(it)
-        }.let(GqlCategoryMapper::mapCategoryToGql)
+    suspend fun saveCategory(category: GqlCategory, env: DataFetchingEnvironment): GqlCategory {
+        val caller = env.caller()
+        return service.saveCategory(category.let(GqlCategoryMapper::mapCategoryFromGql), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlCategoryMapper.mapCategoryToGql(it) },
+        )
+    }
 
-    /**
-     * Deletes a category with the specified ID from the storage.
-     *
-     * @param id The ID of the category to be deleted.
-     * @return The deleted category as a [GqlCategory].
-     * @throws IllegalStateException if the category is not found in the storage.
-     */
-    suspend fun deleteCategory(id: ID): GqlCategory = id.let { UUID.fromString(it.value) }.let {
-        service.deleteCategory(it)
-    }.let(GqlCategoryMapper::mapCategoryToGql)
+    suspend fun deleteCategory(id: ID, listId: ID, env: DataFetchingEnvironment): GqlCategory {
+        val caller = env.caller()
+        return service.deleteCategory(UUID.fromString(id.value), UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlCategoryMapper.mapCategoryToGql(it) },
+        )
+    }
 }
 
 @Suppress("unused")
 class CategorySubscriptions(
     private val service: CategoryService,
+    private val listService: ListService,
 ) : Subscription {
 
-    /**
-     * Retrieves updates for categories.
-     *
-     * @return A [Flow] of [GqlCategoryUpdate] that emits category updates.
-     */
-    fun getCategoryUpdates(): Flow<GqlCategoryUpdate> {
-        val updates = service.categoryUpdates.map {
-            GqlCategoryUpdate(
-                type = GqlCategoryUpdateType.SAVED, item = GqlCategoryMapper.mapCategoryToGql(it)
+    fun getCategoryUpdates(listId: ID, env: DataFetchingEnvironment): Flow<GqlCategoryUpdate> {
+        val caller = env.caller()
+        val listUUID = UUID.fromString(listId.value)
+        return flow {
+            listService.verifyMembership(caller, listUUID).fold(
+                ifLeft = { throw it.toException() },
+                ifRight = {},
             )
+            val updates = service.categoryUpdates
+                .filter { it.listId == listUUID }
+                .map { GqlCategoryUpdate(GqlCategoryUpdateType.SAVED, GqlCategoryMapper.mapCategoryToGql(it)) }
+            val deletions = service.categoryDeletions
+                .filter { it.listId == listUUID }
+                .map { GqlCategoryUpdate(GqlCategoryUpdateType.DELETED, GqlCategoryMapper.mapCategoryToGql(it)) }
+            emitAll(merge(updates, deletions).takeWhile { listService.isMember(caller, listUUID) })
         }
-
-        val deletions = service.categoryDeletions.map {
-            GqlCategoryUpdate(
-                type = GqlCategoryUpdateType.DELETED, item = GqlCategoryMapper.mapCategoryToGql(it)
-            )
-        }
-        return merge(updates, deletions)
     }
+}
+
+private fun DataFetchingEnvironment.caller(): CallerUsername {
+    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
+        ?: throw IllegalStateException("Unauthenticated")
+    return CallerUsername(principal.payload.getClaim("username").asString())
 }

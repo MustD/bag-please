@@ -1,14 +1,23 @@
 package com.bagplease.entity.item.gql
 
 import com.bagplease.entity.item.ItemService
+import com.bagplease.entity.list.ListService
+import com.bagplease.entity.list.gql.toException
+import com.bagplease.features.auth.CallerUsername
+import com.bagplease.plugins.GQL_CALL_PRINCIPAL
 import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
 import com.expediagroup.graphql.server.operations.Subscription
-import io.ktor.server.application.Application
+import graphql.schema.DataFetchingEnvironment
+import io.ktor.server.auth.jwt.JWTPrincipal
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.takeWhile
 import java.util.*
 
 @Suppress("unused")
@@ -16,16 +25,13 @@ class ItemQueries(
     private val service: ItemService,
 ) : Query {
 
-    /**
-     * Retrieves a list of GraphQL items.
-     *
-     * This method asynchronously fetches a list of items from storage using the `getAll` method,
-     * maps each item to a [GqlItem] object using the [GqlItemMapper.mapItemToGql] method,
-     * and returns the list of mapped items.
-     *
-     * @return A list of [GqlItem] objects.
-     */
-    suspend fun getItems(): List<GqlItem> = service.getItems().map(GqlItemMapper::mapItemToGql)
+    suspend fun getItems(listId: ID, env: DataFetchingEnvironment): List<GqlItem> {
+        val caller = env.caller()
+        return service.getItems(UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { it.map(GqlItemMapper::mapItemToGql) },
+        )
+    }
 }
 
 @Suppress("unused")
@@ -33,51 +39,50 @@ class ItemMutations(
     private val service: ItemService,
 ) : Mutation {
 
+    suspend fun saveItem(item: GqlItem, env: DataFetchingEnvironment): GqlItem {
+        val caller = env.caller()
+        return service.saveItem(item.let(GqlItemMapper::mapItemFromGql), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlItemMapper.mapItemToGql(it) },
+        )
+    }
 
-    /**
-     * Saves an item to the storage.
-     *
-     * @param item The item to be saved.
-     * @return The saved item.
-     */
-    suspend fun saveItem(item: GqlItem): GqlItem = item.let(GqlItemMapper::mapItemFromGql).let {
-        service.saveItem(it)
-    }.let(GqlItemMapper::mapItemToGql)
-
-    /**
-     * Deletes an item with the specified ID from the storage.
-     *
-     * @param id The ID of the item to be deleted.
-     * @return The deleted item as a [GqlItem].
-     * @throws IllegalStateException if the item is not found in the storage.
-     */
-    suspend fun deleteItem(id: ID): GqlItem = id.let { UUID.fromString(it.value) }.let {
-        service.deleteItem(it)
-    }.let(GqlItemMapper::mapItemToGql)
+    suspend fun deleteItem(id: ID, listId: ID, env: DataFetchingEnvironment): GqlItem {
+        val caller = env.caller()
+        return service.deleteItem(UUID.fromString(id.value), UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlItemMapper.mapItemToGql(it) },
+        )
+    }
 }
 
 @Suppress("unused")
 class ItemSubscriptions(
     private val service: ItemService,
+    private val listService: ListService,
 ) : Subscription {
 
-    /**
-     * Retrieves updates for items.
-     *
-     * @return A [Flow] of [GqlItemUpdate] that emits item updates.
-     */
-    fun getItemUpdates(): Flow<GqlItemUpdate> {
-        val updates = service.itemUpdates.map {
-            GqlItemUpdate(
-                type = GqlItemUpdateType.SAVED, item = GqlItemMapper.mapItemToGql(it)
+    fun getItemUpdates(listId: ID, env: DataFetchingEnvironment): Flow<GqlItemUpdate> {
+        val caller = env.caller()
+        val listUUID = UUID.fromString(listId.value)
+        return flow {
+            listService.verifyMembership(caller, listUUID).fold(
+                ifLeft = { throw it.toException() },
+                ifRight = {},
             )
+            val updates = service.itemUpdates
+                .filter { it.listId == listUUID }
+                .map { GqlItemUpdate(GqlItemUpdateType.SAVED, GqlItemMapper.mapItemToGql(it)) }
+            val deletions = service.itemDeletions
+                .filter { it.listId == listUUID }
+                .map { GqlItemUpdate(GqlItemUpdateType.DELETED, GqlItemMapper.mapItemToGql(it)) }
+            emitAll(merge(updates, deletions).takeWhile { listService.isMember(caller, listUUID) })
         }
-
-        val deletions = service.itemDeletions.map {
-            GqlItemUpdate(
-                type = GqlItemUpdateType.DELETED, item = GqlItemMapper.mapItemToGql(it)
-            )
-        }
-        return merge(updates, deletions)
     }
+}
+
+private fun DataFetchingEnvironment.caller(): CallerUsername {
+    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
+        ?: throw IllegalStateException("Unauthenticated")
+    return CallerUsername(principal.payload.getClaim("username").asString())
 }

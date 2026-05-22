@@ -6,29 +6,19 @@ import java.util.*
 
 object GqlCategoryMapper {
 
-    /**
-     * Maps an [Category] object to a [GqlCategory] object.
-     *
-     * @param category The category to be mapped.
-     * @return The mapped [GqlCategory] object.
-     */
     fun mapCategoryToGql(category: Category): GqlCategory {
         return GqlCategory(
             id = ID(category.id.toString()),
-            name = category.name
+            name = category.name,
+            listId = ID(category.listId.toString()),
         )
     }
 
-    /**
-     * Maps a [GqlCategory] object to a [Category] object.
-     *
-     * @param category The GqlCategory to be mapped.
-     * @return The mapped [Category] object.
-     */
     fun mapCategoryFromGql(category: GqlCategory): Category {
         return Category(
             id = UUID.fromString(category.id.toString()),
-            name = category.name
+            name = category.name,
+            listId = UUID.fromString(category.listId.toString()),
         )
     }
 }

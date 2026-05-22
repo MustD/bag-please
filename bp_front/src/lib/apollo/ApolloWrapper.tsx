@@ -28,16 +28,20 @@ function makeLink(
   setAuthRef: React.MutableRefObject<(state: AuthState) => void>,
   clearAuthRef: React.MutableRefObject<() => void>,
   routerRef: React.MutableRefObject<ReturnType<typeof useRouter>>
-): ApolloClient {
+): { apolloClient: ApolloClient; disposeWs: () => void } {
   const httpLink = new HttpLink({uri: "/api/graphql"})
 
   const host = typeof window === "undefined" ? 'localhost' : window.location.host
   const protocol = typeof window === "undefined" ? 'http:' : window.location.protocol
   const wsProtocol = protocol === 'https:' ? 'wss://' : 'ws://'
 
-  const wsLink = new GraphQLWsLink(createClient({
+  const wsClient = createClient({
     url: `${wsProtocol}${host}/api/subscriptions`,
-  }))
+    connectionParams: () => ({
+      Authorization: `Bearer ${accessTokenRef.current ?? ''}`,
+    }),
+  })
+  const wsLink = new GraphQLWsLink(wsClient)
 
   const splitLink = split(
     ({query}) => {
@@ -102,16 +106,19 @@ function makeLink(
     }
   })
 
-  return new ApolloClient({
-    cache: new InMemoryCache(),
-    link:
-      typeof window === "undefined"
-        ? ApolloLink.from([
-          new SSRMultipartLink({stripDefer: true}),
-          httpLink,
-        ])
-        : ApolloLink.from([authLink, authErrorLink, splitLink]),
-  })
+  return {
+    apolloClient: new ApolloClient({
+      cache: new InMemoryCache(),
+      link:
+        typeof window === "undefined"
+          ? ApolloLink.from([
+            new SSRMultipartLink({stripDefer: true}),
+            httpLink,
+          ])
+          : ApolloLink.from([authLink, authErrorLink, splitLink]),
+    }),
+    disposeWs: () => { wsClient.dispose() },
+  }
 }
 
 export default function ApolloWrapper({children}: React.PropsWithChildren) {
@@ -123,15 +130,18 @@ export default function ApolloWrapper({children}: React.PropsWithChildren) {
   const clearAuthRef = useRef(auth.clearAuth)
   const routerRef = useRef(router)
 
+  const [{apolloClient, disposeWs}] = useState(() => makeLink(accessTokenRef, setAuthRef, clearAuthRef, routerRef))
+
   accessTokenRef.current = auth.accessToken
   setAuthRef.current = auth.setAuth
-  clearAuthRef.current = auth.clearAuth
+  clearAuthRef.current = () => {
+    disposeWs()
+    auth.clearAuth()
+  }
   routerRef.current = router
 
-  const [client] = useState(() => makeLink(accessTokenRef, setAuthRef, clearAuthRef, routerRef))
-
   return (
-    <ApolloNextAppProvider makeClient={() => client}>
+    <ApolloNextAppProvider makeClient={() => apolloClient}>
       {children}
     </ApolloNextAppProvider>
   )

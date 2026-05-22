@@ -1,0 +1,2515 @@
+diff --git a/bp_back/src/main/kotlin/com/bagplease/Application.kt b/bp_back/src/main/kotlin/com/bagplease/Application.kt
+index 602225c..9742ee7 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/Application.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/Application.kt
+@@ -2,6 +2,9 @@ package com.bagplease
+ 
+ import com.bagplease.config.ApplicationConfigService
+ import com.bagplease.config.mongo.ApplicationConfigRepository
++import com.bagplease.entity.category.mongo.CategoryRepository
++import com.bagplease.entity.item.mongo.ItemRepository
++import com.bagplease.entity.list.mongo.ListRepository
+ import com.bagplease.entity.user.UserService
+ import com.bagplease.entity.user.mongo.UserRepository
+ import com.bagplease.features.auth.AuthService
+@@ -11,6 +14,7 @@ import com.bagplease.mongo.MongoConnection
+ import com.bagplease.plugins.configureCors
+ import com.bagplease.plugins.configureForwardedHeaders
+ import com.bagplease.plugins.configureGql
++import com.bagplease.plugins.configureMigration
+ import com.bagplease.plugins.configureMonitoring
+ import com.bagplease.plugins.configureRateLimiting
+ import com.bagplease.plugins.configureRouting
+@@ -53,12 +57,24 @@ fun Application.module() {
+     val appConfigRepository = ApplicationConfigRepository(connection.db)
+     val appConfigService = ApplicationConfigService(appConfigRepository)
+ 
++    val migrationTargetUser = config.propertyOrNull("migration.targetUser")?.getString() ?: ""
++
+     configureCors()
+     configureMonitoring()
+     configureForwardedHeaders()
+     configureRateLimiting()
+     configureSecurity()
++
++    configureMigration(
++        db = connection.db,
++        userRepository = userRepository,
++        itemRepository = ItemRepository(connection.db),
++        categoryRepository = CategoryRepository(connection.db),
++        listRepository = ListRepository(connection.db),
++        migrationTargetUsername = migrationTargetUser,
++    )
++
+     configureAuthRoutes(appConfigService, adminLogin, authService, userService)
+-    configureGql(appConfigService, adminLogin, authService, userService)
++    configureGql(appConfigService, adminLogin, authService, userService, userRepository)
+     configureRouting()
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/Category.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/Category.kt
+index 1cea8df..c6ac137 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/Category.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/Category.kt
+@@ -4,5 +4,6 @@ import java.util.UUID
+ 
+ data class Category(
+     val id: UUID = UUID.randomUUID(),
+-    val name: String = ""
++    val name: String = "",
++    val listId: UUID,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt
+index 8a898f5..d0b72af 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt
+@@ -1,5 +1,7 @@
+ package com.bagplease.entity.category
+ 
++import com.bagplease.entity.list.ListService
++import com.bagplease.features.auth.CallerUsername
+ import kotlinx.coroutines.channels.BufferOverflow
+ import kotlinx.coroutines.flow.MutableSharedFlow
+ import kotlinx.coroutines.flow.SharedFlow
+@@ -7,6 +9,7 @@ import java.util.*
+ 
+ class CategoryService(
+     private val storage: CategoryStorage,
++    private val listService: ListService,
+ ) {
+ 
+     private val categoryUpdateChannel = MutableSharedFlow<Category>(
+@@ -19,36 +22,21 @@ class CategoryService(
+     val categoryUpdates = categoryUpdateChannel as SharedFlow<Category>
+     val categoryDeletions = categoryDeleteChannel as SharedFlow<Category>
+ 
+-    /**
+-     * Retrieves a list of categories.
+-     *
+-     * This method asynchronously fetches a list of categories from storage using the `getAll` method and returns the result.
+-     *
+-     * @return A list of categories.
+-     */
+-    suspend fun getCategories(): List<Category> = storage.getAll()
++    suspend fun getCategories(listId: UUID, caller: CallerUsername): List<Category> {
++        listService.verifyMembership(caller, listId)
++        return storage.getByListId(listId)
++    }
+ 
+-    /**
+-     * Saves a category to the storage.
+-     *
+-     * @param category The category to be saved.
+-     * @return The saved category.
+-     */
+-    suspend fun saveCategory(category: Category): Category {
++    suspend fun saveCategory(category: Category, caller: CallerUsername): Category {
++        listService.verifyMembership(caller, category.listId)
+         val savedCategory = storage.save(category)
+         categoryUpdateChannel.emit(savedCategory)
+         return savedCategory
+     }
+ 
+-    /**
+-     * Deletes a category with the specified ID from the storage.
+-     *
+-     * @param id The ID of the category to be deleted.
+-     * @return The deleted category.
+-     * @throws IllegalStateException if the category is not found in the storage.
+-     */
+-    suspend fun deleteCategory(id: UUID): Category {
+-        val deletedCategory = storage.delete(id)
++    suspend fun deleteCategory(id: UUID, listId: UUID, caller: CallerUsername): Category {
++        listService.verifyMembership(caller, listId)
++        val deletedCategory = storage.delete(id, listId)
+         categoryDeleteChannel.emit(deletedCategory)
+         return deletedCategory
+     }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryStorage.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryStorage.kt
+index 8edaf9c..e709c1b 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryStorage.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryStorage.kt
+@@ -1,20 +1,21 @@
+ package com.bagplease.entity.category
+ 
+ import com.bagplease.entity.category.mongo.CategoryRepository
+-import io.ktor.util.collections.ConcurrentMap
+ import java.util.UUID
++import java.util.concurrent.ConcurrentHashMap
+ 
+ @Suppress("RedundantSuspendModifier")
+ class CategoryStorage(
+     private val repository: CategoryRepository,
+ ) {
+-    private val storage: ConcurrentMap<UUID, Category> = ConcurrentMap()
++    private val storage: ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Category>> = ConcurrentHashMap()
+     private var synced = false
+ 
+     suspend fun sync() {
+         if (synced.not()) {
+-            repository.getAll().forEach {
+-                storage[it.id] = it
++            repository.getAll().forEach { category ->
++                val listId = category.listId
++                storage.computeIfAbsent(listId) { ConcurrentHashMap() }[category.id] = category
+             }
+             synced = true
+         }
+@@ -22,20 +23,25 @@ class CategoryStorage(
+ 
+     suspend fun save(category: Category): Category {
+         sync()
+-        storage[category.id] = category
++        storage.computeIfAbsent(category.listId) { ConcurrentHashMap() }[category.id] = category
+         repository.save(category)
+         return category
+     }
+ 
+-    suspend fun getAll(): List<Category> {
++    suspend fun getByListId(listId: UUID): List<Category> {
+         sync()
+-        return storage.map { it.value }
++        return storage[listId]?.values?.toList() ?: emptyList()
+     }
+ 
+-    suspend fun delete(id: UUID): Category {
++    suspend fun delete(id: UUID, listId: UUID): Category {
+         sync()
+-        val category = storage.remove(id) ?: throw IllegalStateException("Category not found")
++        val category = storage[listId]?.remove(id) ?: throw IllegalStateException("Category not found")
+         repository.delete(id)
+         return category
+     }
++
++    fun evictList(listId: UUID) {
++        storage.remove(listId)
++        // DO NOT reset synced — only the evicted list's inner map is removed
++    }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/CategoryApi.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/CategoryApi.kt
+index 2ba7364..369d953 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/CategoryApi.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/CategoryApi.kt
+@@ -1,10 +1,14 @@
+ package com.bagplease.entity.category.gql
+ 
+ import com.bagplease.entity.category.CategoryService
++import com.bagplease.features.auth.CallerUsername
++import com.bagplease.plugins.GQL_CALL_PRINCIPAL
+ import com.expediagroup.graphql.generator.scalars.ID
+ import com.expediagroup.graphql.server.operations.Mutation
+ import com.expediagroup.graphql.server.operations.Query
+ import com.expediagroup.graphql.server.operations.Subscription
++import graphql.schema.DataFetchingEnvironment
++import io.ktor.server.auth.jwt.JWTPrincipal
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.merge
+@@ -15,17 +19,10 @@ class CategoryQueries(
+     private val service: CategoryService,
+ ) : Query {
+ 
+-
+-    /**
+-     * Retrieves a list of GraphQL categories.
+-     *
+-     * This method asynchronously fetches a list of categories from storage using the `getAll` method,
+-     * maps each category to a [GqlCategory] object using the [GqlCategoryMapper.mapCategoryToGql] method,
+-     * and returns the list of mapped categories.
+-     *
+-     * @return A list of [GqlCategory] objects.
+-     */
+-    suspend fun getCategories(): List<GqlCategory> = service.getCategories().map(GqlCategoryMapper::mapCategoryToGql)
++    suspend fun getCategories(listId: ID, env: DataFetchingEnvironment): List<GqlCategory> {
++        val caller = env.caller()
++        return service.getCategories(UUID.fromString(listId.value), caller).map(GqlCategoryMapper::mapCategoryToGql)
++    }
+ }
+ 
+ @Suppress("unused")
+@@ -33,27 +30,18 @@ class CategoryMutations(
+     private val service: CategoryService,
+ ) : Mutation {
+ 
+-    /**
+-     * Saves a category to the storage.
+-     *
+-     * @param category The category to be saved.
+-     * @return The saved category.
+-     */
+-    suspend fun saveCategory(category: GqlCategory): GqlCategory =
+-        category.let(GqlCategoryMapper::mapCategoryFromGql).let {
+-            service.saveCategory(it)
++    suspend fun saveCategory(category: GqlCategory, env: DataFetchingEnvironment): GqlCategory {
++        val caller = env.caller()
++        return category.let(GqlCategoryMapper::mapCategoryFromGql).let {
++            service.saveCategory(it, caller)
+         }.let(GqlCategoryMapper::mapCategoryToGql)
++    }
+ 
+-    /**
+-     * Deletes a category with the specified ID from the storage.
+-     *
+-     * @param id The ID of the category to be deleted.
+-     * @return The deleted category as a [GqlCategory].
+-     * @throws IllegalStateException if the category is not found in the storage.
+-     */
+-    suspend fun deleteCategory(id: ID): GqlCategory = id.let { UUID.fromString(it.value) }.let {
+-        service.deleteCategory(it)
+-    }.let(GqlCategoryMapper::mapCategoryToGql)
++    suspend fun deleteCategory(id: ID, listId: ID, env: DataFetchingEnvironment): GqlCategory {
++        val caller = env.caller()
++        return service.deleteCategory(UUID.fromString(id.value), UUID.fromString(listId.value), caller)
++            .let(GqlCategoryMapper::mapCategoryToGql)
++    }
+ }
+ 
+ @Suppress("unused")
+@@ -61,12 +49,7 @@ class CategorySubscriptions(
+     private val service: CategoryService,
+ ) : Subscription {
+ 
+-    /**
+-     * Retrieves updates for categories.
+-     *
+-     * @return A [Flow] of [GqlCategoryUpdate] that emits category updates.
+-     */
+-    fun getCategoryUpdates(): Flow<GqlCategoryUpdate> {
++    fun getCategoryUpdates(listId: ID): Flow<GqlCategoryUpdate> {
+         val updates = service.categoryUpdates.map {
+             GqlCategoryUpdate(
+                 type = GqlCategoryUpdateType.SAVED, item = GqlCategoryMapper.mapCategoryToGql(it)
+@@ -81,3 +64,9 @@ class CategorySubscriptions(
+         return merge(updates, deletions)
+     }
+ }
++
++private fun DataFetchingEnvironment.caller(): CallerUsername {
++    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
++        ?: throw IllegalStateException("Unauthenticated")
++    return CallerUsername(principal.payload.getClaim("username").asString())
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategory.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategory.kt
+index 5282dbf..0d9c65d 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategory.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategory.kt
+@@ -6,5 +6,6 @@ import com.expediagroup.graphql.generator.scalars.ID
+ @GraphQLName("Category")
+ data class GqlCategory(
+     val id: ID,
+-    val name: String
++    val name: String,
++    val listId: ID,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategoryMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategoryMapper.kt
+index 5353aaa..342c8bc 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategoryMapper.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/gql/GqlCategoryMapper.kt
+@@ -6,29 +6,19 @@ import java.util.*
+ 
+ object GqlCategoryMapper {
+ 
+-    /**
+-     * Maps an [Category] object to a [GqlCategory] object.
+-     *
+-     * @param category The category to be mapped.
+-     * @return The mapped [GqlCategory] object.
+-     */
+     fun mapCategoryToGql(category: Category): GqlCategory {
+         return GqlCategory(
+             id = ID(category.id.toString()),
+-            name = category.name
++            name = category.name,
++            listId = ID(category.listId.toString()),
+         )
+     }
+ 
+-    /**
+-     * Maps a [GqlCategory] object to a [Category] object.
+-     *
+-     * @param category The GqlCategory to be mapped.
+-     * @return The mapped [Category] object.
+-     */
+     fun mapCategoryFromGql(category: GqlCategory): Category {
+         return Category(
+             id = UUID.fromString(category.id.toString()),
+-            name = category.name
++            name = category.name,
++            listId = UUID.fromString(category.listId.toString()),
+         )
+     }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/CategoryRepository.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/CategoryRepository.kt
+index 07fe653..4bae6fe 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/CategoryRepository.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/CategoryRepository.kt
+@@ -2,11 +2,15 @@ package com.bagplease.entity.category.mongo
+ 
+ import com.bagplease.entity.category.Category
+ import com.mongodb.client.model.Filters
++import com.mongodb.client.model.IndexModel
++import com.mongodb.client.model.IndexOptions
++import com.mongodb.client.model.Indexes
+ import com.mongodb.client.model.UpdateOptions
+ import com.mongodb.client.model.Updates
+ import com.mongodb.kotlin.client.coroutine.MongoDatabase
+-import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.mapNotNull
+ import kotlinx.coroutines.flow.toList
++import kotlinx.coroutines.runBlocking
+ import java.util.UUID
+ 
+ class CategoryRepository(db: MongoDatabase) {
+@@ -15,19 +19,36 @@ class CategoryRepository(db: MongoDatabase) {
+     private val idCol = "_id"
+     private val col = db.getCollection<MongoCategory>(collectionName)
+ 
+-    suspend fun getAll(): List<Category> = col.find().map(MongoCategoryMapper::mapCategoryFromMongo).toList()
++    init {
++        runBlocking {
++            col.createIndexes(
++                listOf(
++                    IndexModel(Indexes.ascending("listId", "_id"), IndexOptions().background(true)),
++                )
++            ).toList()
++        }
++    }
++
++    suspend fun getAll(): List<Category> =
++        col.find().mapNotNull(MongoCategoryMapper::mapCategoryFromMongo).toList()
+ 
+     suspend fun save(category: Category) {
+-        val filter = Filters.eq(idCol, category.id)
++        val filter = Filters.eq(idCol, category.id.toString())
+         val options = UpdateOptions().upsert(true)
+         val update = Updates.combine(
+-            Updates.set(MongoCategory::name.name, category.name)
++            Updates.set(MongoCategory::name.name, category.name),
++            Updates.set("listId", category.listId.toString()),
+         )
+         col.updateOne(filter, update, options)
+     }
+ 
+     suspend fun delete(id: UUID) {
+-        val filter = Filters.eq(idCol, id)
++        val filter = Filters.eq(idCol, id.toString())
+         col.deleteOne(filter)
+     }
++
++    suspend fun deleteAllInList(listId: UUID): Int {
++        val result = col.deleteMany(Filters.eq("listId", listId.toString()))
++        return result.deletedCount.toInt()
++    }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategory.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategory.kt
+index a26c773..e26b385 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategory.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategory.kt
+@@ -11,4 +11,6 @@ data class MongoCategory(
+     @Serializable(with = UUIDSerializer::class)
+     val id: UUID,
+     val name: String,
++    @Serializable(with = UUIDSerializer::class)
++    val listId: UUID? = null,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategoryMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategoryMapper.kt
+index f80b73a..b33fa77 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategoryMapper.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/category/mongo/MongoCategoryMapper.kt
+@@ -4,29 +4,20 @@ import com.bagplease.entity.category.Category
+ 
+ object MongoCategoryMapper {
+ 
+-    /**
+-     * Maps an instance of [Category] to [MongoCategory].
+-     *
+-     * @param category The [Category] to be mapped.
+-     * @return The [MongoCategory] mapped from the given [Category].
+-     */
+     fun mapCategoryToMongo(category: Category): MongoCategory {
+         return MongoCategory(
+             id = category.id,
+-            name = category.name
++            name = category.name,
++            listId = category.listId,
+         )
+     }
+ 
+-    /**
+-     * Maps a [MongoCategory] object to an [Category] object.
+-     *
+-     * @param category The [MongoCategory] object to be mapped.
+-     * @return The mapped [Category] object.
+-     */
+-    fun mapCategoryFromMongo(category: MongoCategory): Category {
++    fun mapCategoryFromMongo(category: MongoCategory): Category? {
++        val listId = category.listId ?: return null  // skip pre-migration docs with no listId
+         return Category(
+             id = category.id,
+-            name = category.name
++            name = category.name,
++            listId = listId,
+         )
+     }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt
+index b22c809..6efb6b2 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt
+@@ -7,4 +7,5 @@ data class Item(
+     val name: String = "",
+     val checked: Boolean = false,
+     val category: UUID,
++    val listId: UUID,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
+index 29de0e9..772b522 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
+@@ -1,5 +1,7 @@
+ package com.bagplease.entity.item
+ 
++import com.bagplease.entity.list.ListService
++import com.bagplease.features.auth.CallerUsername
+ import kotlinx.coroutines.channels.BufferOverflow
+ import kotlinx.coroutines.flow.MutableSharedFlow
+ import kotlinx.coroutines.flow.SharedFlow
+@@ -7,6 +9,7 @@ import java.util.*
+ 
+ class ItemService(
+     private val storage: ItemStorage,
++    private val listService: ListService,
+ ) {
+ 
+     private val itemUpdateChannel = MutableSharedFlow<Item>(
+@@ -19,36 +22,21 @@ class ItemService(
+     val itemUpdates = itemUpdateChannel as SharedFlow<Item>
+     val itemDeletions = itemDeleteChannel as SharedFlow<Item>
+ 
+-    /**
+-     * Retrieves a list of items.
+-     *
+-     * This method asynchronously fetches a list of items from storage using the `getAll` method and returns the result.
+-     *
+-     * @return A list of items.
+-     */
+-    suspend fun getItems(): List<Item> = storage.getAll()
++    suspend fun getItems(listId: UUID, caller: CallerUsername): List<Item> {
++        listService.verifyMembership(caller, listId)
++        return storage.getByListId(listId)
++    }
+ 
+-    /**
+-     * Saves an item to the storage.
+-     *
+-     * @param item The item to be saved.
+-     * @return The saved item.
+-     */
+-    suspend fun saveItem(item: Item): Item {
++    suspend fun saveItem(item: Item, caller: CallerUsername): Item {
++        listService.verifyMembership(caller, item.listId)
+         val savedItem = storage.save(item)
+         itemUpdateChannel.emit(savedItem)
+         return savedItem
+     }
+ 
+-    /**
+-     * Deletes an item with the specified ID from the storage.
+-     *
+-     * @param id The ID of the item to be deleted.
+-     * @return The deleted item.
+-     * @throws IllegalStateException if the item is not found in the storage.
+-     */
+-    suspend fun deleteItem(id: UUID): Item {
+-        val deletedItem = storage.delete(id)
++    suspend fun deleteItem(id: UUID, listId: UUID, caller: CallerUsername): Item {
++        listService.verifyMembership(caller, listId)
++        val deletedItem = storage.delete(id, listId)
+         itemDeleteChannel.emit(deletedItem)
+         return deletedItem
+     }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt
+index cc104f3..ee38b31 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt
+@@ -1,20 +1,21 @@
+ package com.bagplease.entity.item
+ 
+ import com.bagplease.entity.item.mongo.ItemRepository
+-import io.ktor.util.collections.ConcurrentMap
+ import java.util.UUID
++import java.util.concurrent.ConcurrentHashMap
+ 
+ @Suppress("RedundantSuspendModifier")
+ class ItemStorage(
+     private val repository: ItemRepository,
+ ) {
+-    private val storage: ConcurrentMap<UUID, Item> = ConcurrentMap()
++    private val storage: ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Item>> = ConcurrentHashMap()
+     private var synced = false
+ 
+     suspend fun sync() {
+         if (synced.not()) {
+-            repository.getAll().forEach {
+-                storage[it.id] = it
++            repository.getAll().forEach { item ->
++                val listId = item.listId
++                storage.computeIfAbsent(listId) { ConcurrentHashMap() }[item.id] = item
+             }
+             synced = true
+         }
+@@ -22,20 +23,25 @@ class ItemStorage(
+ 
+     suspend fun save(item: Item): Item {
+         sync()
+-        storage[item.id] = item
++        storage.computeIfAbsent(item.listId) { ConcurrentHashMap() }[item.id] = item
+         repository.save(item)
+         return item
+     }
+ 
+-    suspend fun getAll(): List<Item> {
++    suspend fun getByListId(listId: UUID): List<Item> {
+         sync()
+-        return storage.map { it.value }
++        return storage[listId]?.values?.toList() ?: emptyList()
+     }
+ 
+-    suspend fun delete(id: UUID): Item {
++    suspend fun delete(id: UUID, listId: UUID): Item {
+         sync()
+-        val item = storage.remove(id) ?: throw IllegalStateException("Item not found")
++        val item = storage[listId]?.remove(id) ?: throw IllegalStateException("Item not found")
+         repository.delete(id)
+         return item
+     }
++
++    fun evictList(listId: UUID) {
++        storage.remove(listId)
++        // DO NOT reset synced — only the evicted list's inner map is removed
++    }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItem.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItem.kt
+index b610987..de91a0a 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItem.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItem.kt
+@@ -9,4 +9,5 @@ data class GqlItem(
+     val name: String,
+     val checked: Boolean,
+     val category: String,
++    val listId: ID,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
+index 89e3ce1..bf8bac3 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
+@@ -6,33 +6,23 @@ import java.util.*
+ 
+ object GqlItemMapper {
+ 
+-    /**
+-     * Maps an [com.bagplease.entity.item.Item] object to a [GqlItem] object.
+-     *
+-     * @param item The item to be mapped.
+-     * @return The mapped [GqlItem] object.
+-     */
+     fun mapItemToGql(item: Item): GqlItem {
+         return GqlItem(
+             id = ID(item.id.toString()),
+             name = item.name,
+             checked = item.checked,
+-            category = item.category.toString()
++            category = item.category.toString(),
++            listId = ID(item.listId.toString()),
+         )
+     }
+ 
+-    /**
+-     * Maps a [GqlItem] object to an [Item] object.
+-     *
+-     * @param item The GqlItem to be mapped.
+-     * @return The mapped [Item] object.
+-     */
+     fun mapItemFromGql(item: GqlItem): Item {
+         return Item(
+             id = UUID.fromString(item.id.toString()),
+             name = item.name,
+             checked = item.checked,
+             category = UUID.fromString(item.category),
++            listId = UUID.fromString(item.listId.toString()),
+         )
+     }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
+index 0ec2f47..f41371e 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
+@@ -1,11 +1,14 @@
+ package com.bagplease.entity.item.gql
+ 
+ import com.bagplease.entity.item.ItemService
++import com.bagplease.features.auth.CallerUsername
++import com.bagplease.plugins.GQL_CALL_PRINCIPAL
+ import com.expediagroup.graphql.generator.scalars.ID
+ import com.expediagroup.graphql.server.operations.Mutation
+ import com.expediagroup.graphql.server.operations.Query
+ import com.expediagroup.graphql.server.operations.Subscription
+-import io.ktor.server.application.Application
++import graphql.schema.DataFetchingEnvironment
++import io.ktor.server.auth.jwt.JWTPrincipal
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.merge
+@@ -16,16 +19,10 @@ class ItemQueries(
+     private val service: ItemService,
+ ) : Query {
+ 
+-    /**
+-     * Retrieves a list of GraphQL items.
+-     *
+-     * This method asynchronously fetches a list of items from storage using the `getAll` method,
+-     * maps each item to a [GqlItem] object using the [GqlItemMapper.mapItemToGql] method,
+-     * and returns the list of mapped items.
+-     *
+-     * @return A list of [GqlItem] objects.
+-     */
+-    suspend fun getItems(): List<GqlItem> = service.getItems().map(GqlItemMapper::mapItemToGql)
++    suspend fun getItems(listId: ID, env: DataFetchingEnvironment): List<GqlItem> {
++        val caller = env.caller()
++        return service.getItems(UUID.fromString(listId.value), caller).map(GqlItemMapper::mapItemToGql)
++    }
+ }
+ 
+ @Suppress("unused")
+@@ -33,27 +30,18 @@ class ItemMutations(
+     private val service: ItemService,
+ ) : Mutation {
+ 
++    suspend fun saveItem(item: GqlItem, env: DataFetchingEnvironment): GqlItem {
++        val caller = env.caller()
++        return item.let(GqlItemMapper::mapItemFromGql).let {
++            service.saveItem(it, caller)
++        }.let(GqlItemMapper::mapItemToGql)
++    }
+ 
+-    /**
+-     * Saves an item to the storage.
+-     *
+-     * @param item The item to be saved.
+-     * @return The saved item.
+-     */
+-    suspend fun saveItem(item: GqlItem): GqlItem = item.let(GqlItemMapper::mapItemFromGql).let {
+-        service.saveItem(it)
+-    }.let(GqlItemMapper::mapItemToGql)
+-
+-    /**
+-     * Deletes an item with the specified ID from the storage.
+-     *
+-     * @param id The ID of the item to be deleted.
+-     * @return The deleted item as a [GqlItem].
+-     * @throws IllegalStateException if the item is not found in the storage.
+-     */
+-    suspend fun deleteItem(id: ID): GqlItem = id.let { UUID.fromString(it.value) }.let {
+-        service.deleteItem(it)
+-    }.let(GqlItemMapper::mapItemToGql)
++    suspend fun deleteItem(id: ID, listId: ID, env: DataFetchingEnvironment): GqlItem {
++        val caller = env.caller()
++        return service.deleteItem(UUID.fromString(id.value), UUID.fromString(listId.value), caller)
++            .let(GqlItemMapper::mapItemToGql)
++    }
+ }
+ 
+ @Suppress("unused")
+@@ -61,12 +49,7 @@ class ItemSubscriptions(
+     private val service: ItemService,
+ ) : Subscription {
+ 
+-    /**
+-     * Retrieves updates for items.
+-     *
+-     * @return A [Flow] of [GqlItemUpdate] that emits item updates.
+-     */
+-    fun getItemUpdates(): Flow<GqlItemUpdate> {
++    fun getItemUpdates(listId: ID): Flow<GqlItemUpdate> {
+         val updates = service.itemUpdates.map {
+             GqlItemUpdate(
+                 type = GqlItemUpdateType.SAVED, item = GqlItemMapper.mapItemToGql(it)
+@@ -81,3 +64,9 @@ class ItemSubscriptions(
+         return merge(updates, deletions)
+     }
+ }
++
++private fun DataFetchingEnvironment.caller(): CallerUsername {
++    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
++        ?: throw IllegalStateException("Unauthenticated")
++    return CallerUsername(principal.payload.getClaim("username").asString())
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt
+index 8541c8b..8570961 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt
+@@ -2,11 +2,15 @@ package com.bagplease.entity.item.mongo
+ 
+ import com.bagplease.entity.item.Item
+ import com.mongodb.client.model.Filters
++import com.mongodb.client.model.IndexModel
++import com.mongodb.client.model.IndexOptions
++import com.mongodb.client.model.Indexes
+ import com.mongodb.client.model.UpdateOptions
+ import com.mongodb.client.model.Updates
+ import com.mongodb.kotlin.client.coroutine.MongoDatabase
+-import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.mapNotNull
+ import kotlinx.coroutines.flow.toList
++import kotlinx.coroutines.runBlocking
+ import java.util.UUID
+ 
+ class ItemRepository(
+@@ -17,21 +21,38 @@ class ItemRepository(
+     private val idCol = "_id"
+     private val col = db.getCollection<MongoItem>(collectionName)
+ 
+-    suspend fun getAll(): List<Item> = col.find().map(MongoItemMapper::mapItemFromMongo).toList()
++    init {
++        runBlocking {
++            col.createIndexes(
++                listOf(
++                    IndexModel(Indexes.ascending("listId", "_id"), IndexOptions().background(true)),
++                )
++            ).toList()
++        }
++    }
++
++    suspend fun getAll(): List<Item> =
++        col.find().mapNotNull(MongoItemMapper::mapItemFromMongo).toList()
+ 
+     suspend fun save(item: Item) {
+-        val filter = Filters.eq(idCol, item.id)
++        val filter = Filters.eq(idCol, item.id.toString())
+         val options = UpdateOptions().upsert(true)
+         val update = Updates.combine(
+             Updates.set(MongoItem::name.name, item.name),
+             Updates.set(MongoItem::checked.name, item.checked),
+-            Updates.set(MongoItem::category.name, item.category),
++            Updates.set(MongoItem::category.name, item.category.toString()),
++            Updates.set("listId", item.listId.toString()),
+         )
+         col.updateOne(filter, update, options)
+     }
+ 
+     suspend fun delete(id: UUID) {
+-        val filter = Filters.eq(idCol, id)
++        val filter = Filters.eq(idCol, id.toString())
+         col.deleteOne(filter)
+     }
++
++    suspend fun deleteAllInList(listId: UUID): Int {
++        val result = col.deleteMany(Filters.eq("listId", listId.toString()))
++        return result.deletedCount.toInt()
++    }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItem.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItem.kt
+index 4e787bb..3f23f75 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItem.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItem.kt
+@@ -5,9 +5,6 @@ import kotlinx.serialization.SerialName
+ import kotlinx.serialization.Serializable
+ import java.util.*
+ 
+-/**
+- * @see https://www.mongodb.com/docs/drivers/kotlin/coroutine/current/fundamentals/data-formats/serialization/
+- */
+ @Serializable
+ data class MongoItem(
+     @SerialName("_id")
+@@ -17,4 +14,6 @@ data class MongoItem(
+     val checked: Boolean,
+     @Serializable(with = UUIDSerializer::class)
+     val category: UUID = UUID(0, 0),
++    @Serializable(with = UUIDSerializer::class)
++    val listId: UUID? = null,
+ )
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItemMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItemMapper.kt
+index 2003a88..edcf140 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItemMapper.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/MongoItemMapper.kt
+@@ -4,33 +4,24 @@ import com.bagplease.entity.item.Item
+ 
+ object MongoItemMapper {
+ 
+-    /**
+-     * Maps an instance of [Item] to [MongoItem].
+-     *
+-     * @param item The [Item] to be mapped.
+-     * @return The [MongoItem] mapped from the given [Item].
+-     */
+     fun mapItemToMongo(item: Item): MongoItem {
+         return MongoItem(
+             id = item.id,
+             name = item.name,
+             checked = item.checked,
+             category = item.category,
++            listId = item.listId,
+         )
+     }
+ 
+-    /**
+-     * Maps a [MongoItem] object to an [Item] object.
+-     *
+-     * @param item The [MongoItem] object to be mapped.
+-     * @return The mapped [Item] object.
+-     */
+-    fun mapItemFromMongo(item: MongoItem): Item {
++    fun mapItemFromMongo(item: MongoItem): Item? {
++        val listId = item.listId ?: return null  // skip pre-migration docs with no listId
+         return Item(
+             id = item.id,
+             name = item.name,
+             checked = item.checked,
+             category = item.category,
++            listId = listId,
+         )
+     }
+ }
+diff --git a/bp_back/src/main/kotlin/com/bagplease/plugins/GQL.kt b/bp_back/src/main/kotlin/com/bagplease/plugins/GQL.kt
+index 5fd9668..35b887c 100644
+--- a/bp_back/src/main/kotlin/com/bagplease/plugins/GQL.kt
++++ b/bp_back/src/main/kotlin/com/bagplease/plugins/GQL.kt
+@@ -17,9 +17,15 @@ import com.bagplease.entity.item.gql.ItemMutations
+ import com.bagplease.entity.item.gql.ItemQueries
+ import com.bagplease.entity.item.gql.ItemSubscriptions
+ import com.bagplease.entity.item.mongo.ItemRepository
++import com.bagplease.entity.list.ListService
++import com.bagplease.entity.list.ListStorage
++import com.bagplease.entity.list.gql.ListMutations
++import com.bagplease.entity.list.gql.ListQueries
++import com.bagplease.entity.list.mongo.ListRepository
+ import com.bagplease.entity.user.UserService
+ import com.bagplease.entity.user.gql.UserAdminMutations
+ import com.bagplease.entity.user.gql.UserAdminQueries
++import com.bagplease.entity.user.mongo.UserRepository
+ import com.bagplease.features.auth.AuthService
+ import com.bagplease.mongo.MongoConnection
+ import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
+@@ -47,36 +53,53 @@ fun Application.configureGql(
+     adminLogin: String,
+     authService: AuthService,
+     userService: UserService,
++    userRepository: UserRepository,
+ ) {
+ 
+     val connection: MongoConnection by dependencies
+ 
+     val itemRepository = ItemRepository(connection.db)
++    val categoryRepository = CategoryRepository(connection.db)
++    val listRepository = ListRepository(connection.db)
++
+     val itemStorage = ItemStorage(itemRepository)
+-    val itemService = ItemService(itemStorage)
++    val categoryStorage = CategoryStorage(categoryRepository)
++    val listStorage = ListStorage(listRepository)
+ 
++    val listService = ListService(
++        listStorage = listStorage,
++        listRepository = listRepository,
++        userRepository = userRepository,
++        itemRepository = itemRepository,
++        categoryRepository = categoryRepository,
++        itemStorage = itemStorage,
++        categoryStorage = categoryStorage,
++        adminLogin = adminLogin,
++    )
+ 
+-    val categoryRepository = CategoryRepository(connection.db)
+-    val categoryStorage = CategoryStorage(categoryRepository)
+-    val categoryService = CategoryService(categoryStorage)
++    val itemService = ItemService(itemStorage, listService)
++    val categoryService = CategoryService(categoryStorage, listService)
+ 
+     install(GraphQL) {
+         schema {
+             packages = listOf(
+                 "com.bagplease.entity.item.gql",
+                 "com.bagplease.entity.category.gql",
++                "com.bagplease.entity.list.gql",
+                 "com.bagplease.config.gql",
+                 "com.bagplease.entity.user.gql",
+             )
+             queries = listOf(
+                 ItemQueries(itemService),
+                 CategoryQueries(categoryService),
++                ListQueries(listService),
+                 ApplicationConfigQueries(appConfigService),
+                 UserAdminQueries(userService),
+             )
+             mutations = listOf(
+                 ItemMutations(itemService),
+                 CategoryMutations(categoryService),
++                ListMutations(listService),
+                 ApplicationConfigMutations(appConfigService),
+                 UserAdminMutations(userService, authService),
+             )
+@@ -110,14 +133,6 @@ fun Routing.gqlRoutes() {
+ const val GQL_CALL_PRINCIPAL = "callPrincipal"
+ 
+ class CustomGraphQLContextFactory : DefaultKtorGraphQLContextFactory() {
+-    /*
+-        // now we can use context auth  like below
+-        suspend fun getItems(env: DataFetchingEnvironment): List<GqlItem> {
+-            val principal = env.graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
+-            return service.getItems().map(GqlItemMapper::mapItemToGql)
+-        }
+-
+-     */
+     override suspend fun generateContext(request: ApplicationRequest): GraphQLContext {
+         val ctx = super.generateContext(request)
+         val principal = request.call.principal<JWTPrincipal>()
+diff --git a/bp_back/src/main/resources/application.yaml b/bp_back/src/main/resources/application.yaml
+index e099ae6..98d4809 100644
+--- a/bp_back/src/main/resources/application.yaml
++++ b/bp_back/src/main/resources/application.yaml
+@@ -29,3 +29,6 @@ db:
+     db_name: "$KTOR_MONGO_DB_NAME:bag_please"
+     user: "$KTOR_MONGO_USER:user"
+     pass: "$KTOR_MONGO_PASS:pass"
++
++migration:
++  targetUser: "$MIGRATION_TARGET_USER:"
+diff --git a/bp_back/src/test/kotlin/com/bagplease/ItemApiTest.kt b/bp_back/src/test/kotlin/com/bagplease/ItemApiTest.kt
+index 712b1ea..c61f4c4 100644
+--- a/bp_back/src/test/kotlin/com/bagplease/ItemApiTest.kt
++++ b/bp_back/src/test/kotlin/com/bagplease/ItemApiTest.kt
+@@ -7,6 +7,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+ import io.kotest.assertions.ktor.client.shouldHaveStatus
+ import io.kotest.core.spec.style.FunSpec
+ import io.kotest.matchers.string.shouldContain
++import io.kotest.matchers.string.shouldNotContain
+ import io.ktor.client.request.bearerAuth
+ import io.ktor.client.request.post
+ import io.ktor.client.request.setBody
+@@ -24,38 +25,61 @@ class ItemApiTest : FunSpec({
+ 
+     val container = mongoContainer()
+ 
+-    suspend fun ApplicationTestBuilder.loginToken(): String {
++    suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
+         val res = client.post("/auth/login") {
+             contentType(ContentType.Application.Json)
+-            setBody("""{"username":"admin","password":"admin"}""")
++            setBody("""{"username":"$username","password":"$password"}""")
+         }
+         return mapper.readTree(res.bodyAsText())["accessToken"].asText()
+     }
+ 
++    suspend fun ApplicationTestBuilder.registerAndLogin(username: String, password: String = "pass1234"): String {
++        val adminToken = loginToken()
++        client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(adminToken)
++            setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
++        }
++        return loginToken(username, password)
++    }
++
++    suspend fun ApplicationTestBuilder.createList(token: String, name: String = "TestList"): String {
++        val res = client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(token)
++            setBody("""{"query":"mutation { createList(name: \"$name\") { id } }"}""")
++        }
++        return mapper.readTree(res.bodyAsText())["data"]["createList"]["id"].asText()
++    }
++
+     context("getItems") {
+         test("saved item appears in list") {
+             val catId = UUID.randomUUID()
+             val itemId = UUID.randomUUID()
++            val username = "user_${UUID.randomUUID().toString().take(8)}"
+ 
+             testApplication {
+                 setUpMongo(container)
+                 setUpJwt()
+                 application { module() }
+-                val token = loginToken()
++                val token = registerAndLogin(username)
++                val listId = createList(token)
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\" }) { id } }"}""")
++                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                 }
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"{ getItems { id name checked category } }"}""")
++                    setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked category listId } }"}""")
+                 }.apply {
+                     shouldHaveStatus(HttpStatusCode.OK)
+-                    bodyAsText() shouldContain itemId.toString()
++                    val body = bodyAsText()
++                    body shouldNotContain "errors"
++                    body shouldContain itemId.toString()
+                 }
+             }
+         }
+@@ -65,22 +89,28 @@ class ItemApiTest : FunSpec({
+         test("creates item and returns it") {
+             val catId = UUID.randomUUID()
+             val itemId = UUID.randomUUID()
++            val username = "user_${UUID.randomUUID().toString().take(8)}"
+ 
+             testApplication {
+                 setUpMongo(container)
+                 setUpJwt()
+                 application { module() }
++                val token = registerAndLogin(username)
++                val listId = createList(token)
++
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+-                    bearerAuth(loginToken())
+-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Bread\", checked: false, category: \"$catId\" }) { id name checked category } }"}""")
++                    bearerAuth(token)
++                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Bread\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id name checked category listId } }"}""")
+                 }.apply {
+                     shouldHaveStatus(HttpStatusCode.OK)
+                     val body = bodyAsText()
++                    body shouldNotContain "errors"
+                     body shouldContain """"name":"Bread""""
+                     body shouldContain """"checked":false"""
+                     body shouldContain itemId.toString()
+                     body shouldContain catId.toString()
++                    body shouldContain listId
+                 }
+             }
+         }
+@@ -88,26 +118,29 @@ class ItemApiTest : FunSpec({
+         test("updates existing item") {
+             val catId = UUID.randomUUID()
+             val itemId = UUID.randomUUID()
++            val username = "user_${UUID.randomUUID().toString().take(8)}"
+ 
+             testApplication {
+                 setUpMongo(container)
+                 setUpJwt()
+                 application { module() }
+-                val token = loginToken()
++                val token = registerAndLogin(username)
++                val listId = createList(token)
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: false, category: \"$catId\" }) { id } }"}""")
++                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                 }
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: true, category: \"$catId\" }) { id name checked category } }"}""")
++                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: true, category: \"$catId\", listId: \"$listId\" }) { id name checked category listId } }"}""")
+                 }.apply {
+                     shouldHaveStatus(HttpStatusCode.OK)
+                     val body = bodyAsText()
++                    body shouldNotContain "errors"
+                     body shouldContain """"name":"Oat milk""""
+                     body shouldContain """"checked":true"""
+                     body shouldContain itemId.toString()
+@@ -120,26 +153,29 @@ class ItemApiTest : FunSpec({
+         test("deletes item and returns it") {
+             val catId = UUID.randomUUID()
+             val itemId = UUID.randomUUID()
++            val username = "user_${UUID.randomUUID().toString().take(8)}"
+ 
+             testApplication {
+                 setUpMongo(container)
+                 setUpJwt()
+                 application { module() }
+-                val token = loginToken()
++                val token = registerAndLogin(username)
++                val listId = createList(token)
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Eggs\", checked: false, category: \"$catId\" }) { id } }"}""")
++                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Eggs\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                 }
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+                     bearerAuth(token)
+-                    setBody("""{"query":"mutation { deleteItem(id: \"$itemId\") { id name checked category } }"}""")
++                    setBody("""{"query":"mutation { deleteItem(id: \"$itemId\", listId: \"$listId\") { id name checked category listId } }"}""")
+                 }.apply {
+                     shouldHaveStatus(HttpStatusCode.OK)
+                     val body = bodyAsText()
++                    body shouldNotContain "errors"
+                     body shouldContain """"name":"Eggs""""
+                     body shouldContain itemId.toString()
+                 }
+@@ -148,16 +184,19 @@ class ItemApiTest : FunSpec({
+ 
+         test("returns graphql error when item not found") {
+             val missingId = UUID.randomUUID()
++            val username = "user_${UUID.randomUUID().toString().take(8)}"
+ 
+             testApplication {
+                 setUpMongo(container)
+                 setUpJwt()
+                 application { module() }
++                val token = registerAndLogin(username)
++                val listId = createList(token)
+ 
+                 client.post("/graphql") {
+                     contentType(ContentType.Application.Json)
+-                    bearerAuth(loginToken())
+-                    setBody("""{"query":"mutation { deleteItem(id: \"$missingId\") { id name } }"}""")
++                    bearerAuth(token)
++                    setBody("""{"query":"mutation { deleteItem(id: \"$missingId\", listId: \"$listId\") { id name } }"}""")
+                 }.apply {
+                     shouldHaveStatus(HttpStatusCode.OK)
+                     bodyAsText() shouldContain "errors"
+diff --git a/bp_back/src/main/kotlin/com/bagplease/features/auth/CallerUsername.kt b/bp_back/src/main/kotlin/com/bagplease/features/auth/CallerUsername.kt
+new file mode 100644
+index 0000000..f9da3af
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/features/auth/CallerUsername.kt
+@@ -0,0 +1,4 @@
++package com.bagplease.features.auth
++
++@JvmInline
++value class CallerUsername(val value: String)
+diff --git a/bp_back/src/main/kotlin/com/bagplease/mongo/AppMigrationsRepository.kt b/bp_back/src/main/kotlin/com/bagplease/mongo/AppMigrationsRepository.kt
+new file mode 100644
+index 0000000..e3c2668
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/mongo/AppMigrationsRepository.kt
+@@ -0,0 +1,41 @@
++package com.bagplease.mongo
++
++import com.mongodb.client.model.Filters
++import com.mongodb.client.model.ReplaceOptions
++import com.mongodb.kotlin.client.coroutine.MongoDatabase
++import kotlinx.coroutines.flow.firstOrNull
++import kotlinx.serialization.SerialName
++import kotlinx.serialization.Serializable
++import org.bson.Document
++
++@Serializable
++data class AppMigration(
++    @SerialName("_id")
++    val type: String,
++    val complete: Boolean,
++)
++
++class AppMigrationsRepository(db: MongoDatabase) {
++
++    private val col = db.getCollection<Document>("app_migrations")
++
++    suspend fun findMigration(type: String): AppMigration? {
++        val doc = col.find(Filters.and(
++            Filters.eq("_id", type),
++            Filters.eq("complete", true),
++        )).firstOrNull() ?: return null
++        return AppMigration(
++            type = doc.getString("_id") ?: return null,
++            complete = doc.getBoolean("complete") ?: false,
++        )
++    }
++
++    suspend fun saveMigration(type: String, complete: Boolean) {
++        val doc = Document(mapOf("_id" to type, "complete" to complete))
++        col.replaceOne(
++            Filters.eq("_id", type),
++            doc,
++            ReplaceOptions().upsert(true),
++        )
++    }
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/plugins/Migration.kt b/bp_back/src/main/kotlin/com/bagplease/plugins/Migration.kt
+new file mode 100644
+index 0000000..a81452e
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/plugins/Migration.kt
+@@ -0,0 +1,90 @@
++package com.bagplease.plugins
++
++import com.bagplease.entity.category.mongo.CategoryRepository
++import com.bagplease.entity.item.mongo.ItemRepository
++import com.bagplease.entity.list.List
++import com.bagplease.entity.list.mongo.ListRepository
++import com.bagplease.entity.user.mongo.UserRepository
++import com.bagplease.mongo.AppMigrationsRepository
++import com.mongodb.client.model.Filters
++import com.mongodb.client.model.Updates
++import com.mongodb.kotlin.client.coroutine.MongoDatabase
++import io.ktor.util.logging.KtorSimpleLogger
++import kotlinx.coroutines.flow.firstOrNull
++import kotlinx.coroutines.runBlocking
++import org.bson.Document
++import java.time.Instant
++import java.util.UUID
++
++private val logger = KtorSimpleLogger("Migration")
++
++fun configureMigration(
++    db: MongoDatabase,
++    userRepository: UserRepository,
++    itemRepository: ItemRepository,
++    categoryRepository: CategoryRepository,
++    listRepository: ListRepository,
++    migrationTargetUsername: String,
++) {
++    runBlocking {
++        val migrationsRepository = AppMigrationsRepository(db)
++
++        // Step 1: check if migration already completed
++        if (migrationsRepository.findMigration("epic4-list-seed") != null) {
++            logger.info("Epic 4 migration already complete, skipping.")
++            return@runBlocking
++        }
++
++        // Step 2: check if there are items without listId (i.e., pre-migration items exist)
++        val itemsCol = db.getCollection<Document>("items")
++        val unmigratedItem = itemsCol.find(Filters.not(Filters.exists("listId")))
++            .firstOrNull()
++
++        if (unmigratedItem == null) {
++            // Fresh install or all items already have listId — skip migration
++            logger.info("No unscoped items found, migration not needed.")
++            return@runBlocking
++        }
++
++        // Step 3: unscoped items exist — validate MIGRATION_TARGET_USER
++        if (migrationTargetUsername.isBlank()) {
++            error("Epic 4 migration required but MIGRATION_TARGET_USER env var is not set. Set this to the username of the list owner before deploying.")
++        }
++
++        val targetUser = userRepository.findByUsername(migrationTargetUsername)
++            ?: error("Epic 4 migration failed: MIGRATION_TARGET_USER '$migrationTargetUsername' not found in users collection. Create this user before deploying Epic 4.")
++
++        logger.info("Running Epic 4 migration for user: $migrationTargetUsername")
++
++        // Step 4: create default list
++        val defaultList = List(
++            name = "Groceries",
++            emoji = "🛒",
++            ownerId = targetUser.id,
++            ownerUsername = targetUser.username,
++            members = listOf(targetUser.id),
++            memberUsernames = listOf(targetUser.username),
++            origin = "MIGRATED",
++            createdAt = Instant.now(),
++        )
++        listRepository.save(defaultList)
++
++        // Step 5: update all items and categories with the new listId
++        val listIdStr = defaultList.id.toString()
++        itemsCol.updateMany(
++            Filters.not(Filters.exists("listId")),
++            Updates.set("listId", listIdStr),
++        )
++
++        val categoriesCol = db.getCollection<Document>("categories")
++        categoriesCol.updateMany(
++            Filters.not(Filters.exists("listId")),
++            Updates.set("listId", listIdStr),
++        )
++
++        // Step 6: write completion record
++        migrationsRepository.saveMigration("epic4-list-seed", true)
++
++        logger.info("Epic 4 migration completed. Created list ${defaultList.id}, migrated items/categories.")
++    }
++}
+diff --git a/bp_back/src/test/kotlin/com/bagplease/ItemCategoryStorageTest.kt b/bp_back/src/test/kotlin/com/bagplease/ItemCategoryStorageTest.kt
+new file mode 100644
+index 0000000..d18b9f3
+--- /dev/null
++++ b/bp_back/src/test/kotlin/com/bagplease/ItemCategoryStorageTest.kt
+@@ -0,0 +1,141 @@
++package com.bagplease
++
++import com.bagplease.utils.mongoContainer
++import com.bagplease.utils.setUpJwt
++import com.bagplease.utils.setUpMongo
++import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.string.shouldContain
++import io.kotest.matchers.string.shouldNotContain
++import io.ktor.client.request.bearerAuth
++import io.ktor.client.request.post
++import io.ktor.client.request.setBody
++import io.ktor.client.statement.bodyAsText
++import io.ktor.http.ContentType
++import io.ktor.http.contentType
++import io.ktor.server.testing.ApplicationTestBuilder
++import io.ktor.server.testing.testApplication
++import java.util.*
++
++private val mapper = jacksonObjectMapper()
++
++class ItemCategoryStorageTest : FunSpec({
++
++    val container = mongoContainer()
++
++    suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
++        val res = client.post("/auth/login") {
++            contentType(ContentType.Application.Json)
++            setBody("""{"username":"$username","password":"$password"}""")
++        }
++        return mapper.readTree(res.bodyAsText())["accessToken"].asText()
++    }
++
++    suspend fun ApplicationTestBuilder.createUserAndLogin(username: String, password: String = "pass1234"): String {
++        val adminToken = loginToken()
++        client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(adminToken)
++            setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
++        }
++        return loginToken(username, password)
++    }
++
++    suspend fun ApplicationTestBuilder.createList(token: String, name: String = "TestList"): String {
++        val res = client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(token)
++            setBody("""{"query":"mutation { createList(name: \"$name\") { id } }"}""")
++        }
++        val body = res.bodyAsText()
++        body shouldNotContain "errors"
++        return mapper.readTree(body)["data"]["createList"]["id"].asText()
++    }
++
++    test("AC4 evictList on ItemStorage: post-evict getByListId returns empty") {
++        val username = "evict_${UUID.randomUUID().toString().take(8)}"
++        val catId = UUID.randomUUID()
++        val itemId = UUID.randomUUID()
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++            val listId = createList(token)
++
++            // Create an item in the list
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"EvictItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
++            }
++
++            // Verify item is accessible
++            val beforeEvict = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"{ getItems(listId: \"$listId\") { id name } }"}""")
++            }.bodyAsText()
++            beforeEvict shouldContain itemId.toString()
++
++            // deleteList triggers evictList
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { deleteList(id: \"$listId\") { deletedItemCount } }"}""")
++            }.bodyAsText() shouldNotContain "errors"
++
++            // After deleteList, querying items(listId) returns an error (non-member / list not found)
++            val afterEvict = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"{ getItems(listId: \"$listId\") { id name } }"}""")
++            }.bodyAsText()
++            afterEvict shouldContain "errors"
++            afterEvict shouldNotContain "EvictItem"
++        }
++    }
++
++    test("AC4 evictList does not affect items in different lists") {
++        val username = "evict2_${UUID.randomUUID().toString().take(8)}"
++        val catId = UUID.randomUUID()
++        val itemId1 = UUID.randomUUID()
++        val itemId2 = UUID.randomUUID()
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++            val listId1 = createList(token, "List1")
++            val listId2 = createList(token, "List2")
++
++            // Create items in both lists
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId1\", name: \"Item1\", checked: false, category: \"$catId\", listId: \"$listId1\" }) { id } }"}""")
++            }
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId2\", name: \"Item2\", checked: false, category: \"$catId\", listId: \"$listId2\" }) { id } }"}""")
++            }
++
++            // Delete list1 only
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { deleteList(id: \"$listId1\") { deletedItemCount } }"}""")
++            }
++
++            // List2's items should still be accessible
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"{ getItems(listId: \"$listId2\") { id name } }"}""")
++            }.bodyAsText()
++            res shouldNotContain "errors"
++            res shouldContain itemId2.toString()
++        }
++    }
++})
+diff --git a/bp_back/src/test/kotlin/com/bagplease/ListAuthorizationTest.kt b/bp_back/src/test/kotlin/com/bagplease/ListAuthorizationTest.kt
+new file mode 100644
+index 0000000..e992d0b
+--- /dev/null
++++ b/bp_back/src/test/kotlin/com/bagplease/ListAuthorizationTest.kt
+@@ -0,0 +1,151 @@
++package com.bagplease
++
++import com.bagplease.utils.mongoContainer
++import com.bagplease.utils.setUpJwt
++import com.bagplease.utils.setUpMongo
++import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.string.shouldContain
++import io.kotest.matchers.string.shouldNotContain
++import io.ktor.client.request.bearerAuth
++import io.ktor.client.request.post
++import io.ktor.client.request.setBody
++import io.ktor.client.statement.bodyAsText
++import io.ktor.http.ContentType
++import io.ktor.http.contentType
++import io.ktor.server.testing.ApplicationTestBuilder
++import io.ktor.server.testing.testApplication
++import java.util.*
++
++private val mapper = jacksonObjectMapper()
++
++class ListAuthorizationTest : FunSpec({
++
++    val container = mongoContainer()
++
++    suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
++        val res = client.post("/auth/login") {
++            contentType(ContentType.Application.Json)
++            setBody("""{"username":"$username","password":"$password"}""")
++        }
++        return mapper.readTree(res.bodyAsText())["accessToken"].asText()
++    }
++
++    suspend fun ApplicationTestBuilder.createUserAndLogin(username: String, password: String = "pass1234"): String {
++        val adminToken = loginToken()
++        client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(adminToken)
++            setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
++        }
++        return loginToken(username, password)
++    }
++
++    suspend fun ApplicationTestBuilder.createList(token: String, name: String = "TestList"): String {
++        val res = client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(token)
++            setBody("""{"query":"mutation { createList(name: \"$name\") { id } }"}""")
++        }
++        val body = res.bodyAsText()
++        body shouldNotContain "errors"
++        return mapper.readTree(body)["data"]["createList"]["id"].asText()
++    }
++
++    test("AC13 non-member on items(listId) returns GQL error") {
++        val userA = "authA_${UUID.randomUUID().toString().take(8)}"
++        val userB = "authB_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val tokenA = createUserAndLogin(userA)
++            val tokenB = createUserAndLogin(userB)
++            val listIdA = createList(tokenA)
++
++            // User B tries to access User A's list items
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(tokenB)
++                setBody("""{"query":"{ getItems(listId: \"$listIdA\") { id } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("AC13 non-member on categories(listId) returns GQL error") {
++        val userA = "authC_${UUID.randomUUID().toString().take(8)}"
++        val userB = "authD_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val tokenA = createUserAndLogin(userA)
++            val tokenB = createUserAndLogin(userB)
++            val listIdA = createList(tokenA)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(tokenB)
++                setBody("""{"query":"{ getCategories(listId: \"$listIdA\") { id } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("cross-tenant isolation: user A cannot read user B's items via listId") {
++        val userA = "isolA_${UUID.randomUUID().toString().take(8)}"
++        val userB = "isolB_${UUID.randomUUID().toString().take(8)}"
++        val catId = UUID.randomUUID()
++        val itemId = UUID.randomUUID()
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val tokenA = createUserAndLogin(userA)
++            val tokenB = createUserAndLogin(userB)
++
++            val listIdB = createList(tokenB)
++            // User B creates an item
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(tokenB)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"SecretItem\", checked: false, category: \"$catId\", listId: \"$listIdB\" }) { id } }"}""")
++            }
++
++            // User A tries to access User B's list
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(tokenA)
++                setBody("""{"query":"{ getItems(listId: \"$listIdB\") { id name } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldContain "errors"
++            body shouldNotContain "SecretItem"
++        }
++    }
++
++    test("AC12 verifyMembership is enforced before data access on saveItem") {
++        val owner = "owner_v_${UUID.randomUUID().toString().take(8)}"
++        val stranger = "stranger_${UUID.randomUUID().toString().take(8)}"
++        val catId = UUID.randomUUID()
++        val itemId = UUID.randomUUID()
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val ownerToken = createUserAndLogin(owner)
++            val strangerToken = createUserAndLogin(stranger)
++            val listId = createList(ownerToken)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(strangerToken)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"HackedItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldContain "errors"
++            body shouldNotContain "HackedItem"
++        }
++    }
++})
+diff --git a/bp_back/src/test/kotlin/com/bagplease/ListServiceTest.kt b/bp_back/src/test/kotlin/com/bagplease/ListServiceTest.kt
+new file mode 100644
+index 0000000..49e5349
+--- /dev/null
++++ b/bp_back/src/test/kotlin/com/bagplease/ListServiceTest.kt
+@@ -0,0 +1,268 @@
++package com.bagplease
++
++import com.bagplease.utils.mongoContainer
++import com.bagplease.utils.setUpJwt
++import com.bagplease.utils.setUpMongo
++import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
++import io.kotest.assertions.ktor.client.shouldHaveStatus
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.string.shouldContain
++import io.kotest.matchers.string.shouldNotContain
++import io.ktor.client.request.bearerAuth
++import io.ktor.client.request.post
++import io.ktor.client.request.setBody
++import io.ktor.client.statement.bodyAsText
++import io.ktor.http.ContentType
++import io.ktor.http.HttpStatusCode
++import io.ktor.http.contentType
++import io.ktor.server.testing.ApplicationTestBuilder
++import io.ktor.server.testing.testApplication
++import java.util.*
++
++private val mapper = jacksonObjectMapper()
++
++class ListServiceTest : FunSpec({
++
++    val container = mongoContainer()
++
++    suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
++        val res = client.post("/auth/login") {
++            contentType(ContentType.Application.Json)
++            setBody("""{"username":"$username","password":"$password"}""")
++        }
++        return mapper.readTree(res.bodyAsText())["accessToken"].asText()
++    }
++
++    suspend fun ApplicationTestBuilder.createUserAndLogin(username: String, password: String = "pass1234"): String {
++        val adminToken = loginToken()
++        client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(adminToken)
++            setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
++        }
++        return loginToken(username, password)
++    }
++
++    suspend fun ApplicationTestBuilder.createList(token: String, name: String = "TestList", emoji: String? = null): String {
++        val emojiArg = if (emoji != null) """, emoji: \"$emoji\"""" else ""
++        val res = client.post("/graphql") {
++            contentType(ContentType.Application.Json)
++            bearerAuth(token)
++            setBody("""{"query":"mutation { createList(name: \"$name\"$emojiArg) { id name emoji ownerId } }"}""")
++        }
++        val body = res.bodyAsText()
++        body shouldNotContain "errors"
++        return mapper.readTree(body)["data"]["createList"]["id"].asText()
++    }
++
++    test("AC5 createList happy path") {
++        val username = "listuser_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { createList(name: \"Groceries\", emoji: \"🛒\") { id name emoji ownerId } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldNotContain "errors"
++            body shouldContain """"name":"Groceries""""
++            // emoji may be serialized as surrogate pair (🛒), so compare via parsed JSON
++            mapper.readTree(body)["data"]["createList"]["emoji"].asText() shouldBe "🛒"
++            body shouldContain "ownerId"
++        }
++    }
++
++    test("AC6 createList with null emoji") {
++        val username = "listuser_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { createList(name: \"NoEmoji\") { id name emoji } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldNotContain "errors"
++            body shouldContain """"name":"NoEmoji""""
++            body shouldContain """"emoji":null"""
++        }
++    }
++
++    test("AC7 createList name too long returns error") {
++        val username = "listuser_${UUID.randomUUID().toString().take(8)}"
++        val longName = "x".repeat(101)
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { createList(name: \"$longName\") { id } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("AC8 lists query returns only lists where caller is member") {
++        val userA = "userA_${UUID.randomUUID().toString().take(8)}"
++        val userB = "userB_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val tokenA = createUserAndLogin(userA)
++            val tokenB = createUserAndLogin(userB)
++
++            val listIdA = createList(tokenA, "UserA List")
++            createList(tokenB, "UserB List")
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(tokenA)
++                setBody("""{"query":"{ lists { id name } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldNotContain "errors"
++            body shouldContain listIdA
++            body shouldNotContain "UserB List"
++        }
++    }
++
++    test("AC9 lists query empty for new user") {
++        val username = "newuser_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"{ lists { id name } }"}""")
++            }
++            val body = res.bodyAsText()
++            body shouldNotContain "errors"
++            body shouldContain """"lists":[]"""
++        }
++    }
++
++    test("AC10 deleteList cascade removes items and categories") {
++        val username = "deluser_${UUID.randomUUID().toString().take(8)}"
++        val catId = UUID.randomUUID()
++        val itemId = UUID.randomUUID()
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val token = createUserAndLogin(username)
++            val listId = createList(token)
++
++            // create a category and item in the list
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { saveCategory(category: { id: \"$catId\", name: \"Dairy\", listId: \"$listId\" }) { id } }"}""")
++            }
++            client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
++            }
++
++            val deleteRes = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(token)
++                setBody("""{"query":"mutation { deleteList(id: \"$listId\") { deletedItemCount deletedCategoryCount } }"}""")
++            }
++            val deleteBody = deleteRes.bodyAsText()
++            deleteBody shouldNotContain "errors"
++            deleteBody shouldContain "deletedItemCount"
++            deleteBody shouldContain "deletedCategoryCount"
++        }
++    }
++
++    test("AC11 deleteList non-owner returns error") {
++        val owner = "owner_${UUID.randomUUID().toString().take(8)}"
++        val nonOwner = "nonowner_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val ownerToken = createUserAndLogin(owner)
++            val nonOwnerToken = createUserAndLogin(nonOwner)
++            val listId = createList(ownerToken)
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(nonOwnerToken)
++                setBody("""{"query":"mutation { deleteList(id: \"$listId\") { deletedItemCount deletedCategoryCount } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("AC15 admin blocked on createList") {
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val adminToken = loginToken()
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(adminToken)
++                setBody("""{"query":"mutation { createList(name: \"Admin List\") { id } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("AC15 admin blocked on lists query") {
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val adminToken = loginToken()
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(adminToken)
++                setBody("""{"query":"{ lists { id } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++
++    test("AC15 admin blocked on deleteList") {
++        val owner = "owner2_${UUID.randomUUID().toString().take(8)}"
++        testApplication {
++            setUpMongo(container)
++            setUpJwt()
++            application { module() }
++            val ownerToken = createUserAndLogin(owner)
++            val listId = createList(ownerToken)
++            val adminToken = loginToken()
++
++            val res = client.post("/graphql") {
++                contentType(ContentType.Application.Json)
++                bearerAuth(adminToken)
++                setBody("""{"query":"mutation { deleteList(id: \"$listId\") { deletedItemCount deletedCategoryCount } }"}""")
++            }
++            res.bodyAsText() shouldContain "errors"
++        }
++    }
++})
+diff --git a/bp_back/src/test/kotlin/com/bagplease/MigrationTest.kt b/bp_back/src/test/kotlin/com/bagplease/MigrationTest.kt
+new file mode 100644
+index 0000000..d73df8c
+--- /dev/null
++++ b/bp_back/src/test/kotlin/com/bagplease/MigrationTest.kt
+@@ -0,0 +1,175 @@
++package com.bagplease
++
++import com.bagplease.entity.category.mongo.CategoryRepository
++import com.bagplease.entity.item.mongo.ItemRepository
++import com.bagplease.entity.list.mongo.ListRepository
++import com.bagplease.entity.user.User
++import com.bagplease.entity.user.mongo.UserRepository
++import com.bagplease.mongo.AppMigrationsRepository
++import com.bagplease.plugins.configureMigration
++import com.bagplease.utils.mongoContainer
++import com.mongodb.ConnectionString
++import com.mongodb.MongoClientSettings
++import com.mongodb.MongoCredential
++import com.mongodb.client.model.Filters
++import com.mongodb.kotlin.client.coroutine.MongoClient
++import com.mongodb.kotlin.client.coroutine.MongoDatabase
++import io.kotest.assertions.throwables.shouldThrow
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.shouldNotBe
++import io.kotest.matchers.string.shouldContain
++import kotlinx.coroutines.flow.firstOrNull
++import kotlinx.coroutines.flow.toList
++import org.bson.Document
++import org.bson.UuidRepresentation
++import java.util.*
++
++class MigrationTest : FunSpec({
++
++    val container = mongoContainer()
++
++    fun connectToDb(): MongoDatabase {
++        val credential = MongoCredential.createScramSha1Credential(
++            "test_user", "admin", "test_pass".toCharArray()
++        )
++        val settings = MongoClientSettings.builder()
++            .credential(credential)
++            .uuidRepresentation(UuidRepresentation.STANDARD)
++            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
++            .build()
++        return MongoClient.create(settings).getDatabase("test")
++    }
++
++    suspend fun clearCollections(db: MongoDatabase) {
++        db.getCollection<Document>("items").deleteMany(Document())
++        db.getCollection<Document>("categories").deleteMany(Document())
++        db.getCollection<Document>("lists").deleteMany(Document())
++        db.getCollection<Document>("app_migrations").deleteMany(Document())
++    }
++
++    test("AC17 happy path: items and categories are migrated to a default list") {
++        val db = connectToDb()
++        clearCollections(db)
++
++        val username = "miguser_${UUID.randomUUID().toString().take(8)}"
++        val userRepo = UserRepository(db)
++        userRepo.save(User(username = username, passwordHash = "hash"))
++
++        val itemId = UUID.randomUUID()
++        val catId = UUID.randomUUID()
++        db.getCollection<Document>("items").insertOne(
++            Document(mapOf("_id" to itemId.toString(), "name" to "OldItem", "checked" to false, "category" to catId.toString()))
++        )
++        db.getCollection<Document>("categories").insertOne(
++            Document(mapOf("_id" to catId.toString(), "name" to "OldCat"))
++        )
++
++        configureMigration(
++            db = db,
++            userRepository = userRepo,
++            itemRepository = ItemRepository(db),
++            categoryRepository = CategoryRepository(db),
++            listRepository = ListRepository(db),
++            migrationTargetUsername = username,
++        )
++
++        val record = AppMigrationsRepository(db).findMigration("epic4-list-seed")
++        record shouldNotBe null
++        record!!.complete shouldBe true
++
++        val item = db.getCollection<Document>("items").find(Filters.eq("_id", itemId.toString())).firstOrNull()
++        item!!.getString("listId") shouldNotBe null
++
++        val cat = db.getCollection<Document>("categories").find(Filters.eq("_id", catId.toString())).firstOrNull()
++        cat!!.getString("listId") shouldNotBe null
++
++        val lists = db.getCollection<Document>("lists").find().toList()
++        lists.size shouldBe 1
++        lists[0].getString("name") shouldBe "Groceries"
++    }
++
++    test("AC18 idempotency: second run skips and does not create a duplicate list") {
++        val db = connectToDb()
++        clearCollections(db)
++
++        val username = "miguser2_${UUID.randomUUID().toString().take(8)}"
++        val userRepo = UserRepository(db)
++        userRepo.save(User(username = username, passwordHash = "hash"))
++
++        db.getCollection<Document>("items").insertOne(
++            Document(mapOf("_id" to UUID.randomUUID().toString(), "name" to "Item", "checked" to false))
++        )
++
++        val itemRepo = ItemRepository(db)
++        val catRepo = CategoryRepository(db)
++        val listRepo = ListRepository(db)
++
++        configureMigration(db, userRepo, itemRepo, catRepo, listRepo, username)
++        configureMigration(db, userRepo, itemRepo, catRepo, listRepo, username)
++
++        db.getCollection<Document>("lists").find().toList().size shouldBe 1
++        db.getCollection<Document>("app_migrations").find().toList().size shouldBe 1
++    }
++
++    test("AC19 hard-fail: MIGRATION_TARGET_USER not set with existing items") {
++        val db = connectToDb()
++        clearCollections(db)
++
++        db.getCollection<Document>("items").insertOne(
++            Document(mapOf("_id" to UUID.randomUUID().toString(), "name" to "Item"))
++        )
++
++        val ex = shouldThrow<IllegalStateException> {
++            configureMigration(
++                db = db,
++                userRepository = UserRepository(db),
++                itemRepository = ItemRepository(db),
++                categoryRepository = CategoryRepository(db),
++                listRepository = ListRepository(db),
++                migrationTargetUsername = "",
++            )
++        }
++        ex.message shouldContain "MIGRATION_TARGET_USER env var is not set"
++    }
++
++    test("AC20 hard-fail: MIGRATION_TARGET_USER username not found in users collection") {
++        val db = connectToDb()
++        clearCollections(db)
++
++        val ghost = "ghost_${UUID.randomUUID().toString().take(8)}"
++        db.getCollection<Document>("items").insertOne(
++            Document(mapOf("_id" to UUID.randomUUID().toString(), "name" to "Item"))
++        )
++
++        val ex = shouldThrow<IllegalStateException> {
++            configureMigration(
++                db = db,
++                userRepository = UserRepository(db),
++                itemRepository = ItemRepository(db),
++                categoryRepository = CategoryRepository(db),
++                listRepository = ListRepository(db),
++                migrationTargetUsername = ghost,
++            )
++        }
++        ex.message shouldContain "not found in users collection"
++        ex.message shouldContain ghost
++    }
++
++    test("AC21 fresh install: migration is skipped when no items exist") {
++        val db = connectToDb()
++        clearCollections(db)
++
++        configureMigration(
++            db = db,
++            userRepository = UserRepository(db),
++            itemRepository = ItemRepository(db),
++            categoryRepository = CategoryRepository(db),
++            listRepository = ListRepository(db),
++            migrationTargetUsername = "",
++        )
++
++        AppMigrationsRepository(db).findMigration("epic4-list-seed") shouldBe null
++        db.getCollection<Document>("lists").find().toList().size shouldBe 0
++    }
++})
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlDeleteListResult.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlDeleteListResult.kt
+new file mode 100644
+index 0000000..82b75f4
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlDeleteListResult.kt
+@@ -0,0 +1,9 @@
++package com.bagplease.entity.list.gql
++
++import com.expediagroup.graphql.generator.annotations.GraphQLName
++
++@GraphQLName("DeleteListResult")
++data class GqlDeleteListResult(
++    val deletedItemCount: Int,
++    val deletedCategoryCount: Int,
++)
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlList.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlList.kt
+new file mode 100644
+index 0000000..eb8103f
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlList.kt
+@@ -0,0 +1,12 @@
++package com.bagplease.entity.list.gql
++
++import com.expediagroup.graphql.generator.annotations.GraphQLName
++import com.expediagroup.graphql.generator.scalars.ID
++
++@GraphQLName("List")
++data class GqlList(
++    val id: ID,
++    val name: String,
++    val emoji: String?,
++    val ownerId: String,
++)
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlListMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlListMapper.kt
+new file mode 100644
+index 0000000..3477bfb
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/GqlListMapper.kt
+@@ -0,0 +1,16 @@
++package com.bagplease.entity.list.gql
++
++import com.bagplease.entity.list.List
++import com.expediagroup.graphql.generator.scalars.ID
++
++object GqlListMapper {
++
++    fun mapListToGql(list: List): GqlList {
++        return GqlList(
++            id = ID(list.id.toString()),
++            name = list.name,
++            emoji = list.emoji,
++            ownerId = list.ownerId.toString(),
++        )
++    }
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/ListApi.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/ListApi.kt
+new file mode 100644
+index 0000000..ba86e80
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/gql/ListApi.kt
+@@ -0,0 +1,48 @@
++package com.bagplease.entity.list.gql
++
++import com.bagplease.entity.list.ListService
++import com.bagplease.features.auth.CallerUsername
++import com.bagplease.plugins.GQL_CALL_PRINCIPAL
++import com.expediagroup.graphql.generator.scalars.ID
++import com.expediagroup.graphql.server.operations.Mutation
++import com.expediagroup.graphql.server.operations.Query
++import graphql.schema.DataFetchingEnvironment
++import io.ktor.server.auth.jwt.JWTPrincipal
++import java.util.UUID
++
++@Suppress("unused")
++class ListQueries(
++    private val service: ListService,
++) : Query {
++
++    suspend fun lists(env: DataFetchingEnvironment): List<GqlList> {
++        val caller = env.caller()
++        return service.getLists(caller).map(GqlListMapper::mapListToGql)
++    }
++}
++
++@Suppress("unused")
++class ListMutations(
++    private val service: ListService,
++) : Mutation {
++
++    suspend fun createList(name: String, emoji: String? = null, env: DataFetchingEnvironment): GqlList {
++        val caller = env.caller()
++        return service.createList(name, emoji, caller).let(GqlListMapper::mapListToGql)
++    }
++
++    suspend fun deleteList(id: ID, env: DataFetchingEnvironment): GqlDeleteListResult {
++        val caller = env.caller()
++        val result = service.deleteList(UUID.fromString(id.value), caller)
++        return GqlDeleteListResult(
++            deletedItemCount = result.deletedItemCount,
++            deletedCategoryCount = result.deletedCategoryCount,
++        )
++    }
++}
++
++private fun DataFetchingEnvironment.caller(): CallerUsername {
++    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
++        ?: throw IllegalStateException("Unauthenticated")
++    return CallerUsername(principal.payload.getClaim("username").asString())
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/List.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/List.kt
+new file mode 100644
+index 0000000..e9a7bec
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/List.kt
+@@ -0,0 +1,16 @@
++package com.bagplease.entity.list
++
++import java.time.Instant
++import java.util.UUID
++
++data class List(
++    val id: UUID = UUID.randomUUID(),
++    val name: String,
++    val emoji: String?,
++    val ownerId: UUID,
++    val ownerUsername: String,
++    val memberUsernames: kotlin.collections.List<String>,
++    val members: kotlin.collections.List<UUID>,
++    val origin: String,
++    val createdAt: Instant,
++)
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/ListService.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/ListService.kt
+new file mode 100644
+index 0000000..5a99c22
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/ListService.kt
+@@ -0,0 +1,94 @@
++package com.bagplease.entity.list
++
++import com.bagplease.entity.category.CategoryStorage
++import com.bagplease.entity.category.mongo.CategoryRepository
++import com.bagplease.entity.item.ItemStorage
++import com.bagplease.entity.item.mongo.ItemRepository
++import com.bagplease.entity.list.mongo.ListRepository
++import com.bagplease.entity.user.mongo.UserRepository
++import com.bagplease.features.auth.CallerUsername
++import java.time.Instant
++import java.util.UUID
++
++sealed class ListAuthError {
++    data object NotMember : ListAuthError()
++    data object NotOwner : ListAuthError()
++    data object AdminBlocked : ListAuthError()
++}
++
++data class DeleteListResult(
++    val deletedItemCount: Int,
++    val deletedCategoryCount: Int,
++)
++
++class ListService(
++    private val listStorage: ListStorage,
++    private val listRepository: ListRepository,
++    private val userRepository: UserRepository,
++    private val itemRepository: ItemRepository,
++    private val categoryRepository: CategoryRepository,
++    private val itemStorage: ItemStorage,
++    private val categoryStorage: CategoryStorage,
++    private val adminLogin: String,
++) {
++
++    suspend fun createList(name: String, emoji: String?, caller: CallerUsername): List {
++        if (caller.value == adminLogin) throw IllegalStateException("Admin cannot create lists")
++        if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
++
++        val owner = userRepository.findByUsername(caller.value)
++            ?: throw IllegalStateException("User not found: ${caller.value}")
++
++        val list = List(
++            name = name,
++            emoji = emoji,
++            ownerId = owner.id,
++            ownerUsername = caller.value,
++            members = listOf(owner.id),
++            memberUsernames = listOf(caller.value),
++            origin = "USER_CREATED",
++            createdAt = Instant.now(),
++        )
++        listStorage.save(list)
++        return list
++    }
++
++    suspend fun getLists(caller: CallerUsername): kotlin.collections.List<List> {
++        if (caller.value == adminLogin) throw IllegalStateException("Admin cannot access lists")
++        return listStorage.getByMemberUsername(caller.value)
++    }
++
++    suspend fun deleteList(id: UUID, caller: CallerUsername): DeleteListResult {
++        if (caller.value == adminLogin) throw IllegalStateException("Admin cannot delete lists")
++
++        val list = listStorage.getById(id) ?: throw IllegalStateException("List not found: $id")
++        if (list.ownerUsername != caller.value) throw IllegalStateException("Only the list owner can delete this list")
++
++        // cascade: items → categories → list (order enables lazy-sync recovery on partial failure)
++        val deletedItems = itemRepository.deleteAllInList(id)
++        val deletedCategories = categoryRepository.deleteAllInList(id)
++        listRepository.delete(id)
++
++        // evict in-memory caches after MongoDB deletes succeed
++        itemStorage.evictList(id)
++        categoryStorage.evictList(id)
++        listStorage.evictFromCache(id)
++
++        return DeleteListResult(
++            deletedItemCount = deletedItems,
++            deletedCategoryCount = deletedCategories,
++        )
++    }
++
++    suspend fun verifyMembership(caller: CallerUsername, listId: UUID) {
++        val list = listStorage.getById(listId) ?: throw IllegalStateException("List not found: $listId")
++        if (!list.memberUsernames.contains(caller.value)) {
++            throw IllegalStateException("Access denied: ${caller.value} is not a member of list $listId")
++        }
++    }
++
++    fun isMember(caller: CallerUsername, listId: UUID): Boolean {
++        val list = listStorage.getByIdCached(listId) ?: return false
++        return list.memberUsernames.contains(caller.value)
++    }
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/ListStorage.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/ListStorage.kt
+new file mode 100644
+index 0000000..2872425
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/ListStorage.kt
+@@ -0,0 +1,57 @@
++package com.bagplease.entity.list
++
++import com.bagplease.entity.list.mongo.ListRepository
++import java.util.UUID
++import java.util.concurrent.ConcurrentHashMap
++
++@Suppress("RedundantSuspendModifier")
++class ListStorage(
++    private val repository: ListRepository,
++) {
++    private val storage: ConcurrentHashMap<UUID, List> = ConcurrentHashMap()
++    private var synced = false
++
++    suspend fun sync() {
++        if (synced.not()) {
++            repository.getAll().forEach {
++                storage[it.id] = it
++            }
++            synced = true
++        }
++    }
++
++    suspend fun save(list: List): List {
++        sync()
++        storage[list.id] = list
++        repository.save(list)
++        return list
++    }
++
++    suspend fun getAll(): kotlin.collections.List<List> {
++        sync()
++        return storage.values.toList()
++    }
++
++    suspend fun getById(id: UUID): List? {
++        sync()
++        return storage[id]
++    }
++
++    suspend fun delete(id: UUID): List {
++        sync()
++        val list = storage.remove(id) ?: throw IllegalStateException("List not found")
++        repository.delete(id)
++        return list
++    }
++
++    suspend fun getByMemberUsername(username: String): kotlin.collections.List<List> {
++        sync()
++        return storage.values.filter { it.memberUsernames.contains(username) }
++    }
++
++    fun getByIdCached(id: UUID): List? = storage[id]
++
++    fun evictFromCache(id: UUID) {
++        storage.remove(id)
++    }
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/ListRepository.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/ListRepository.kt
+new file mode 100644
+index 0000000..5ac7945
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/ListRepository.kt
+@@ -0,0 +1,57 @@
++package com.bagplease.entity.list.mongo
++
++import com.bagplease.entity.list.List
++import com.mongodb.client.model.Filters
++import com.mongodb.client.model.IndexModel
++import com.mongodb.client.model.IndexOptions
++import com.mongodb.client.model.Indexes
++import com.mongodb.client.model.UpdateOptions
++import com.mongodb.client.model.Updates
++import com.mongodb.kotlin.client.coroutine.MongoDatabase
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.toList
++import kotlinx.coroutines.runBlocking
++import java.util.UUID
++
++class ListRepository(db: MongoDatabase) {
++
++    private val col = db.getCollection<MongoList>("lists")
++
++    init {
++        runBlocking {
++            col.createIndexes(
++                listOf(
++                    IndexModel(Indexes.ascending("memberUsernames"), IndexOptions().background(true)),
++                    IndexModel(Indexes.ascending("ownerId"), IndexOptions().background(true)),
++                )
++            ).toList()
++        }
++    }
++
++    suspend fun getAll(): kotlin.collections.List<List> =
++        col.find().map(MongoListMapper::mapListFromMongo).toList()
++
++    suspend fun save(list: List) {
++        val filter = Filters.eq("_id", list.id.toString())
++        val options = UpdateOptions().upsert(true)
++        val update = Updates.combine(
++            Updates.set(MongoList::name.name, list.name),
++            Updates.set(MongoList::emoji.name, list.emoji),
++            Updates.set(MongoList::ownerId.name, list.ownerId.toString()),
++            Updates.set(MongoList::ownerUsername.name, list.ownerUsername),
++            Updates.set(MongoList::memberUsernames.name, list.memberUsernames),
++            Updates.set(MongoList::members.name, list.members.map { it.toString() }),
++            Updates.set(MongoList::origin.name, list.origin),
++            Updates.set(MongoList::createdAt.name, list.createdAt),
++        )
++        col.updateOne(filter, update, options)
++    }
++
++    suspend fun delete(id: UUID) {
++        col.deleteOne(Filters.eq("_id", id.toString()))
++    }
++
++    suspend fun deleteAllInList(listId: UUID) {
++        // Not applicable for lists themselves; kept for interface consistency
++    }
++}
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoList.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoList.kt
+new file mode 100644
+index 0000000..c247060
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoList.kt
+@@ -0,0 +1,25 @@
++package com.bagplease.entity.list.mongo
++
++import com.bagplease.mongo.model.serialization.InstantBsonSerializer
++import com.bagplease.mongo.model.serialization.UUIDSerializer
++import kotlinx.serialization.SerialName
++import kotlinx.serialization.Serializable
++import java.time.Instant
++import java.util.UUID
++
++@Serializable
++data class MongoList(
++    @SerialName("_id")
++    @Serializable(with = UUIDSerializer::class)
++    val id: UUID,
++    val name: String,
++    val emoji: String?,
++    @Serializable(with = UUIDSerializer::class)
++    val ownerId: UUID,
++    val ownerUsername: String,
++    val memberUsernames: List<String>,
++    val members: List<@Serializable(with = UUIDSerializer::class) UUID>,
++    val origin: String,
++    @Serializable(with = InstantBsonSerializer::class)
++    val createdAt: Instant,
++)
+diff --git a/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoListMapper.kt b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoListMapper.kt
+new file mode 100644
+index 0000000..7879b08
+--- /dev/null
++++ b/bp_back/src/main/kotlin/com/bagplease/entity/list/mongo/MongoListMapper.kt
+@@ -0,0 +1,34 @@
++package com.bagplease.entity.list.mongo
++
++import com.bagplease.entity.list.List
++
++object MongoListMapper {
++
++    fun mapListToMongo(list: List): MongoList {
++        return MongoList(
++            id = list.id,
++            name = list.name,
++            emoji = list.emoji,
++            ownerId = list.ownerId,
++            ownerUsername = list.ownerUsername,
++            memberUsernames = list.memberUsernames,
++            members = list.members,
++            origin = list.origin,
++            createdAt = list.createdAt,
++        )
++    }
++
++    fun mapListFromMongo(list: MongoList): List {
++        return List(
++            id = list.id,
++            name = list.name,
++            emoji = list.emoji,
++            ownerId = list.ownerId,
++            ownerUsername = list.ownerUsername,
++            memberUsernames = list.memberUsernames,
++            members = list.members,
++            origin = list.origin,
++            createdAt = list.createdAt,
++        )
++    }
++}

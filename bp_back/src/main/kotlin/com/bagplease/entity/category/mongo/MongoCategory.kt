@@ -11,4 +11,6 @@ data class MongoCategory(
     @Serializable(with = UUIDSerializer::class)
     val id: UUID,
     val name: String,
+    @Serializable(with = UUIDSerializer::class)
+    val listId: UUID? = null,
 )

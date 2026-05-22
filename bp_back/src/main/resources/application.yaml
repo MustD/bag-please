@@ -29,3 +29,6 @@ db:
     db_name: "$KTOR_MONGO_DB_NAME:bag_please"
     user: "$KTOR_MONGO_USER:user"
     pass: "$KTOR_MONGO_PASS:pass"
+
+migration:
+  targetUser: "$MIGRATION_TARGET_USER:"

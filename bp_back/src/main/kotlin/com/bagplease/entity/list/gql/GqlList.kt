@@ -1,11 +1,12 @@
-package com.bagplease.entity.category.gql
+package com.bagplease.entity.list.gql
 
 import com.expediagroup.graphql.generator.annotations.GraphQLName
 import com.expediagroup.graphql.generator.scalars.ID
 
-@GraphQLName("Category")
-data class GqlCategory(
+@GraphQLName("List")
+data class GqlList(
     val id: ID,
     val name: String,
-    val listId: ID,
+    val emoji: String?,
+    val ownerId: String,
 )

@@ -1,20 +1,21 @@
 package com.bagplease.entity.category
 
 import com.bagplease.entity.category.mongo.CategoryRepository
-import io.ktor.util.collections.ConcurrentMap
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Suppress("RedundantSuspendModifier")
 class CategoryStorage(
     private val repository: CategoryRepository,
 ) {
-    private val storage: ConcurrentMap<UUID, Category> = ConcurrentMap()
+    private val storage: ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Category>> = ConcurrentHashMap()
     private var synced = false
 
     suspend fun sync() {
         if (synced.not()) {
-            repository.getAll().forEach {
-                storage[it.id] = it
+            repository.getAll().forEach { category ->
+                val listId = category.listId
+                storage.computeIfAbsent(listId) { ConcurrentHashMap() }[category.id] = category
             }
             synced = true
         }
@@ -22,20 +23,25 @@ class CategoryStorage(
 
     suspend fun save(category: Category): Category {
         sync()
-        storage[category.id] = category
+        storage.computeIfAbsent(category.listId) { ConcurrentHashMap() }[category.id] = category
         repository.save(category)
         return category
     }
 
-    suspend fun getAll(): List<Category> {
+    suspend fun getByListId(listId: UUID): List<Category> {
         sync()
-        return storage.map { it.value }
+        return storage[listId]?.values?.toList() ?: emptyList()
     }
 
-    suspend fun delete(id: UUID): Category {
+    suspend fun delete(id: UUID, listId: UUID): Category {
         sync()
-        val category = storage.remove(id) ?: throw IllegalStateException("Category not found")
+        val category = storage[listId]?.remove(id) ?: throw IllegalStateException("Category not found")
         repository.delete(id)
         return category
+    }
+
+    fun evictList(listId: UUID) {
+        storage.remove(listId)
+        // DO NOT reset synced — only the evicted list's inner map is removed
     }
 }
