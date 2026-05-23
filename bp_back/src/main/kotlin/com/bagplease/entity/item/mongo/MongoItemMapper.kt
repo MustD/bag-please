@@ -1,6 +1,7 @@
 package com.bagplease.entity.item.mongo
 
 import com.bagplease.entity.item.Item
+import com.bagplease.entity.item.Recurring
 
 object MongoItemMapper {
 
@@ -11,6 +12,12 @@ object MongoItemMapper {
             checked = item.checked,
             category = item.category,
             listId = item.listId,
+            store = item.store,
+            recurring = item.recurring?.name,
+            addedBy = item.addedBy,
+            deleted = item.deleted,
+            deletedAt = item.deletedAt,
+            checkedAt = item.checkedAt,
         )
     }
 
@@ -22,6 +29,12 @@ object MongoItemMapper {
             checked = item.checked,
             category = item.category,
             listId = listId,
+            store = item.store,
+            recurring = item.recurring?.let { Recurring.valueOf(it) },
+            addedBy = item.addedBy,
+            deleted = item.deleted,
+            deletedAt = item.deletedAt,
+            checkedAt = item.checkedAt,
         )
     }
 }

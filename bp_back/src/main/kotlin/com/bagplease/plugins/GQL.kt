@@ -85,7 +85,8 @@ fun Application.configureGql(
         listMemberRepository = listMemberRepository,
     )
 
-    val itemService = ItemService(itemStorage, listService)
+    val itemService = ItemService(itemStorage, listService, itemRepository)
+    configureScheduler(itemService)
     val categoryService = CategoryService(categoryStorage, listService)
 
     install(GraphQL) {

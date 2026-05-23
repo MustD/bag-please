@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-05-22"  # story 4.3 done
+last_updated: "2026-05-23"  # story 4.6 ready-for-dev
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -72,8 +72,8 @@ development_status:
   4-1-list-entity-backend-crud-authorization-migration: done
   4-2-websocket-auth-per-list-subscription-scoping: done
   4-3-list-sharing-backend-pending-invites-member-management: done
-  4-4-item-lifecycle-backend-extended-fields-one-timer-recurring-scheduler: ready-for-dev
-  4-5-frontend-foundation-theme-navigation-layout: backlog
-  4-6-frontend-bpsheet-spike-component: backlog
+  4-4-item-lifecycle-backend-extended-fields-one-timer-recurring-scheduler: done
+  4-5-frontend-foundation-theme-navigation-layout: ready-for-dev
+  4-6-frontend-bpsheet-spike-component: ready-for-dev
   4-7-frontend-today-tab-shopping-loop-core-components: backlog
   4-8-frontend-lists-tab-list-management-bpavatar: backlog

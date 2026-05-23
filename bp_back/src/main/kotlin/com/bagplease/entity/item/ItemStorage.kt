@@ -30,7 +30,12 @@ class ItemStorage(
 
     suspend fun getByListId(listId: UUID): List<Item> {
         sync()
-        return storage[listId]?.values?.toList() ?: emptyList()
+        return storage[listId]?.values?.filter { !it.deleted }?.toList() ?: emptyList()
+    }
+
+    suspend fun getByIdCached(id: UUID, listId: UUID): Item? {
+        sync()
+        return storage[listId]?.get(id)
     }
 
     suspend fun delete(id: UUID, listId: UUID): Item {

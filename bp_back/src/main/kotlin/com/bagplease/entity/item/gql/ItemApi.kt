@@ -32,6 +32,14 @@ class ItemQueries(
             ifRight = { it.map(GqlItemMapper::mapItemToGql) },
         )
     }
+
+    suspend fun itemStoreSuggestions(listId: ID, env: DataFetchingEnvironment): List<String> {
+        val caller = env.caller()
+        return service.getStoreSuggestions(UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { it },
+        )
+    }
 }
 
 @Suppress("unused")
@@ -39,9 +47,9 @@ class ItemMutations(
     private val service: ItemService,
 ) : Mutation {
 
-    suspend fun saveItem(item: GqlItem, env: DataFetchingEnvironment): GqlItem {
+    suspend fun saveItem(item: GqlItemInput, env: DataFetchingEnvironment): GqlItem {
         val caller = env.caller()
-        return service.saveItem(item.let(GqlItemMapper::mapItemFromGql), caller).fold(
+        return service.saveItem(GqlItemMapper.mapItemFromInput(item, caller.value), caller).fold(
             ifLeft = { throw it.toException() },
             ifRight = { GqlItemMapper.mapItemToGql(it) },
         )
@@ -50,6 +58,22 @@ class ItemMutations(
     suspend fun deleteItem(id: ID, listId: ID, env: DataFetchingEnvironment): GqlItem {
         val caller = env.caller()
         return service.deleteItem(UUID.fromString(id.value), UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlItemMapper.mapItemToGql(it) },
+        )
+    }
+
+    suspend fun checkItem(id: ID, listId: ID, env: DataFetchingEnvironment): GqlItem {
+        val caller = env.caller()
+        return service.checkItem(UUID.fromString(id.value), UUID.fromString(listId.value), caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { GqlItemMapper.mapItemToGql(it) },
+        )
+    }
+
+    suspend fun uncheckItem(id: ID, listId: ID, env: DataFetchingEnvironment): GqlItem {
+        val caller = env.caller()
+        return service.uncheckItem(UUID.fromString(id.value), UUID.fromString(listId.value), caller).fold(
             ifLeft = { throw it.toException() },
             ifRight = { GqlItemMapper.mapItemToGql(it) },
         )
