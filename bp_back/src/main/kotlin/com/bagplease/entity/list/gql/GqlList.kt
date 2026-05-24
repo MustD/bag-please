@@ -11,4 +11,5 @@ data class GqlList(
     val ownerId: String,
     val ownerUsername: String,
     val members: kotlin.collections.List<GqlListMember>,
+    val createdAt: String,
 )

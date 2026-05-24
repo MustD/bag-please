@@ -1,13 +1,11 @@
 import CssBaseline from "@mui/material/CssBaseline";
 import type {Metadata, Viewport} from "next";
 import Box from "@mui/material/Box";
-import {ThemeProvider} from "@mui/material";
-import {AppRouterCacheProvider} from '@mui/material-nextjs/v13-appRouter';
-import theme from '@/lib/theme'
-import AppHeader from "./AppHeader";
 import {AuthProvider} from "@/lib/auth/AuthContext";
 import ApolloWrapper from "@/lib/apollo/ApolloWrapper";
 import RouteGuard from "@/app/RouteGuard";
+import BPBottomNav from "@/app/BPBottomNav";
+import ThemeRegistry from "@/app/ThemeRegistry";
 
 export const metadata: Metadata = {
   title: "Bag please",
@@ -23,23 +21,21 @@ export default function RootLayout({children}: Readonly<{ children: React.ReactN
   return (
     <html lang="en">
     <body>
-    <AppRouterCacheProvider>
-      <ThemeProvider theme={theme}>
-        <CssBaseline/>
-        <AuthProvider>
-          <ApolloWrapper>
-            <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh'}}>
-              <AppHeader/>
-              <Box sx={{flex: 1, overflow: 'auto', minHeight: 0, bgcolor: 'background.default'}}>
-                <RouteGuard>
-                  {children}
-                </RouteGuard>
-              </Box>
+    <ThemeRegistry>
+      <CssBaseline/>
+      <AuthProvider>
+        <ApolloWrapper>
+          <Box sx={{display: 'flex', flexDirection: 'column', height: '100dvh', maxWidth: 480, mx: 'auto'}}>
+            <Box sx={{flex: 1, overflow: 'auto', minHeight: 0, pb: '96px'}}>
+              <RouteGuard>
+                {children}
+              </RouteGuard>
             </Box>
-          </ApolloWrapper>
-        </AuthProvider>
-      </ThemeProvider>
-    </AppRouterCacheProvider>
+            <BPBottomNav/>
+          </Box>
+        </ApolloWrapper>
+      </AuthProvider>
+    </ThemeRegistry>
     </body>
     </html>
   );

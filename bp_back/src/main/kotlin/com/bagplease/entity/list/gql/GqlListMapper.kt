@@ -16,6 +16,7 @@ object GqlListMapper {
             members = members
                 .filter { it.status != "DECLINED" }
                 .map { GqlListMember(userId = it.userId.toString(), username = it.username, status = it.status) },
+            createdAt = list.createdAt.toString(),
         )
     }
 }

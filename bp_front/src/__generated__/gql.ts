@@ -1,6 +1,6 @@
 /* eslint-disable */
 import * as types from './graphql';
-import {TypedDocumentNode as DocumentNode} from '@graphql-typed-document-node/core';
+import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
 
 /**
  * Map of all GraphQL operations in the project.
@@ -14,36 +14,22 @@ import {TypedDocumentNode as DocumentNode} from '@graphql-typed-document-node/co
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-  "query getCategories {\n    getCategories {\n        id, name\n    }\n}": typeof types.GetCategoriesDocument,
-  "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}": typeof types.SaveCategoryDocument,
-  "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}": typeof types.DeleteCategoryDocument,
-  "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}": typeof types.CategoryUpdatesDocument,
-  "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": typeof types.GetApplicationConfigDocument,
-  "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": typeof types.SetRegistrationEnabledDocument,
-  "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}": typeof types.GetItemsDocument,
-  "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}": typeof types.SaveItemDocument,
-  "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}": typeof types.DeleteDocument,
-  "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}": typeof types.ItemUpdatesDocument,
-  "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": typeof types.GetUsersDocument,
-  "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": typeof types.CreateUserDocument,
-  "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": typeof types.DeleteUserDocument,
-  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": typeof types.ResetUserPasswordDocument,
+    "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": typeof types.GetApplicationConfigDocument,
+    "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": typeof types.SetRegistrationEnabledDocument,
+    "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": typeof types.ListsDocument,
+    "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": typeof types.GetUsersDocument,
+    "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": typeof types.CreateUserDocument,
+    "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": typeof types.DeleteUserDocument,
+    "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": typeof types.ResetUserPasswordDocument,
 };
 const documents: Documents = {
-  "query getCategories {\n    getCategories {\n        id, name\n    }\n}": types.GetCategoriesDocument,
-  "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}": types.SaveCategoryDocument,
-  "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}": types.DeleteCategoryDocument,
-  "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}": types.CategoryUpdatesDocument,
-  "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": types.GetApplicationConfigDocument,
-  "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": types.SetRegistrationEnabledDocument,
-  "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}": types.GetItemsDocument,
-  "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}": types.SaveItemDocument,
-  "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}": types.DeleteDocument,
-  "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}": types.ItemUpdatesDocument,
-  "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": types.GetUsersDocument,
-  "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": types.CreateUserDocument,
-  "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": types.DeleteUserDocument,
-  "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": types.ResetUserPasswordDocument,
+    "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}": types.GetApplicationConfigDocument,
+    "mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n        registrationEnabled\n    }\n}": types.SetRegistrationEnabledDocument,
+    "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": types.ListsDocument,
+    "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": types.GetUsersDocument,
+    "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": types.CreateUserDocument,
+    "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": types.DeleteUserDocument,
+    "mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n  resetUserPassword(id: $id, newPassword: $newPassword) {\n    id\n    username\n  }\n}": types.ResetUserPasswordDocument,
 };
 
 /**
@@ -63,22 +49,6 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query getCategories {\n    getCategories {\n        id, name\n    }\n}"): (typeof documents)["query getCategories {\n    getCategories {\n        id, name\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}"): (typeof documents)["mutation saveCategory($category: CategoryInput!) {\n    saveCategory(category: $category){\n        id, name\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}"): (typeof documents)["mutation deleteCategory($id: ID!) {\n    deleteCategory(id: $id){\n        id, name\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}"): (typeof documents)["subscription CategoryUpdates {\n    getCategoryUpdates {\n        type\n        item {\n            id\n            name\n        }\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
 export function graphql(source: "query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}"): (typeof documents)["query GetApplicationConfig {\n    applicationConfig {\n        registrationEnabled\n    }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -87,19 +57,7 @@ export function graphql(source: "mutation SetRegistrationEnabled($enabled: Boole
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"): (typeof documents)["query getItems {\n    getItems {\n        id, name, checked, category\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}"): (typeof documents)["mutation saveItem($item: ItemInput!) {\n    saveItem(item: $item){\n        id, name, checked, category\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}"): (typeof documents)["mutation delete($id: ID!) {\n    deleteItem(id: $id){\n        id, name, checked, category\n    }\n}"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}"): (typeof documents)["subscription ItemUpdates {\n    getItemUpdates {\n        type\n        item {\n            id\n            name\n            checked\n            category\n        }\n    }\n}"];
+export function graphql(source: "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"): (typeof documents)["query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -121,4 +79,4 @@ export function graphql(source: string) {
   return (documents as any)[source] ?? {};
 }
 
-export type DocumentType<TDocumentNode extends DocumentNode<any, any>> = TDocumentNode extends DocumentNode<infer TType, any> ? TType : never;
+export type DocumentType<TDocumentNode extends DocumentNode<any, any>> = TDocumentNode extends DocumentNode<  infer TType,  any>  ? TType  : never;

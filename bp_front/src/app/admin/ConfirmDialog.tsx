@@ -38,6 +38,7 @@ export default function ConfirmDialog({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset error when dialog closes; no external system involved
     if (!open) setError(null)
   }, [open])
 

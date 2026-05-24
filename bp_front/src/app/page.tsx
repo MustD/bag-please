@@ -1,38 +1,36 @@
 'use client'
 
-import {Suspense, useEffect, useState} from 'react'
-import {useRouter, useSearchParams} from 'next/navigation'
-import {Box, Link, Paper} from '@mui/material'
-import Typography from '@mui/material/Typography'
+import {Suspense, useEffect} from 'react'
+import {useRouter} from 'next/navigation'
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import {useQuery} from '@apollo/client/react'
+import {listsQuery} from '@/lib/list/Queries'
 import {useAuth} from '@/lib/auth/AuthContext'
-import WelcomeBanner from '@/app/WelcomeBanner'
 
 function HomeContent() {
-  const searchParams = useSearchParams()
   const router = useRouter()
-  const {username} = useAuth()
-  const [showBanner, setShowBanner] = useState(() => searchParams?.get('welcome') === '1')
+  const {username, isLoading: authLoading} = useAuth()
+  const {data, loading: listsLoading} = useQuery(listsQuery, {
+    skip: !username || authLoading,
+  })
 
   useEffect(() => {
-    if (showBanner) {
-      router.replace('/')
+    if (authLoading || listsLoading || !data) return
+    const lists = [...(data?.lists?.lists ?? [])]
+    if (lists.length === 0) {
+      router.replace('/lists')
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional fire-once: clean URL after reading ?welcome=1 at mount
-  }, [])
+    const oldest = lists.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )[0]
+    router.replace(`/list/${oldest.id}`)
+  }, [authLoading, listsLoading, data, router])
 
   return (
-    <Box>
-      {showBanner && username && (
-        <WelcomeBanner username={username} onDismiss={() => setShowBanner(false)}/>
-      )}
-      <Paper sx={{p: 1}}>
-        <Typography>Welcome to the bag-please app.</Typography>
-        <Typography>Work in progress.</Typography>
-        <Typography>
-          Check out our&nbsp;
-          <Link target="_blank" href="https://github.com/MustD/bag-please">github</Link>
-        </Typography>
-      </Paper>
+    <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh'}}>
+      <CircularProgress/>
     </Box>
   )
 }

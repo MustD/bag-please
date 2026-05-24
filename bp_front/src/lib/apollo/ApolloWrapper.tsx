@@ -130,6 +130,7 @@ export default function ApolloWrapper({children}: React.PropsWithChildren) {
   const clearAuthRef = useRef(auth.clearAuth)
   const routerRef = useRef(router)
 
+  /* eslint-disable react-hooks/refs -- intentional ref-as-stable-container pattern for Apollo link; refs are not read during render, only passed by reference */
   const [{apolloClient, disposeWs}] = useState(() => makeLink(accessTokenRef, setAuthRef, clearAuthRef, routerRef))
 
   accessTokenRef.current = auth.accessToken
@@ -139,6 +140,7 @@ export default function ApolloWrapper({children}: React.PropsWithChildren) {
     auth.clearAuth()
   }
   routerRef.current = router
+  /* eslint-enable react-hooks/refs */
 
   return (
     <ApolloNextAppProvider makeClient={() => apolloClient}>

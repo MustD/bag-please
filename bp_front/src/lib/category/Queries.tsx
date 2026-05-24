@@ -1,29 +1,7 @@
-import {graphql} from "@/__generated__";
+// Stale queries — schema now requires listId argument.
+// These will be replaced in Story 4.7 with list-scoped operations.
 
-export const getCategoriesQuery = graphql(`query getCategories {
-    getCategories {
-        id, name
-    }
-}`);
-
-export const createCategoryMutation = graphql(`mutation saveCategory($category: CategoryInput!) {
-    saveCategory(category: $category){
-        id, name
-    }
-}`);
-
-export const deleteCategoryMutation = graphql(`mutation deleteCategory($id: ID!) {
-    deleteCategory(id: $id){
-        id, name
-    }
-}`);
-
-export const categoriesSubscription = graphql(`subscription CategoryUpdates {
-    getCategoryUpdates {
-        type
-        item {
-            id
-            name
-        }
-    }
-}`);
+export const getCategoriesQuery = null
+export const createCategoryMutation = null
+export const deleteCategoryMutation = null
+export const categoriesSubscription = null
