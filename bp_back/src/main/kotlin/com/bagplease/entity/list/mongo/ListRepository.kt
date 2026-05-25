@@ -47,6 +47,10 @@ class ListRepository(db: MongoDatabase) {
         col.updateOne(filter, update, options)
     }
 
+    suspend fun rename(id: UUID, name: String) {
+        col.updateOne(Filters.eq("_id", id.toString()), Updates.set(MongoList::name.name, name))
+    }
+
     suspend fun delete(id: UUID) {
         col.deleteOne(Filters.eq("_id", id.toString()))
     }

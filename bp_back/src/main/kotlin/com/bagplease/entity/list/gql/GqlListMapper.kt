@@ -6,7 +6,7 @@ import com.expediagroup.graphql.generator.scalars.ID
 
 object GqlListMapper {
 
-    fun mapListToGql(list: List, members: kotlin.collections.List<ListMember>): GqlList {
+    fun mapListToGql(list: List, members: kotlin.collections.List<ListMember>, uncheckedItemCount: Int = 0): GqlList {
         return GqlList(
             id = ID(list.id.toString()),
             name = list.name,
@@ -17,6 +17,7 @@ object GqlListMapper {
                 .filter { it.status != "DECLINED" }
                 .map { GqlListMember(userId = it.userId.toString(), username = it.username, status = it.status) },
             createdAt = list.createdAt.toString(),
+            uncheckedItemCount = uncheckedItemCount,
         )
     }
 }

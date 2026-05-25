@@ -37,6 +37,15 @@ class ListStorage(
         return storage[id]
     }
 
+    suspend fun rename(id: UUID, name: String): List {
+        sync()
+        val list = storage[id] ?: throw IllegalStateException("List not found")
+        val updated = list.copy(name = name)
+        storage[id] = updated
+        repository.rename(id, name)
+        return updated
+    }
+
     suspend fun delete(id: UUID): List {
         sync()
         val list = storage.remove(id) ?: throw IllegalStateException("List not found")

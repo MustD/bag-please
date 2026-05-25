@@ -1,5 +1,14 @@
 # Deferred Work
 
+## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
+
+- `ListStorage.rename` not atomic — in-memory updated before MongoDB write; if MongoDB throws, in-memory reflects rename
+  but DB does not until process restart; same pre-existing pattern as `save()` and `delete()` across all Storage classes
+- Concurrent delete+rename race causes `IllegalStateException` bypassing GQL error model — service confirms existence
+  via `listStorage.getById`, then storage re-confirms; a concurrent `deleteList` between the two calls evicts the list
+  from the map, causing `storage[id] ?: throw IllegalStateException(...)` to throw an uncaught 500 instead of a
+  structured GQL error; pre-existing pattern across all Storage classes
+
 ## Deferred from: code review of 4-7-frontend-today-tab-shopping-loop-core-components (2026-05-25)
 
 - `usePrefersReducedMotion` hook duplicated in `ItemCard.tsx` and `ProgressStrip.tsx` — registers separate matchMedia

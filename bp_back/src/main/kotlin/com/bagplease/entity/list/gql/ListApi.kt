@@ -1,5 +1,6 @@
 package com.bagplease.entity.list.gql
 
+import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.list.ListAuthError
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.mongo.ListMemberRepository
@@ -17,6 +18,7 @@ import java.util.UUID
 class ListQueries(
     private val service: ListService,
     private val listMemberRepository: ListMemberRepository,
+    private val itemStorage: ItemStorage,
 ) : Query {
 
     suspend fun lists(env: DataFetchingEnvironment): GqlListsResult {
@@ -26,7 +28,8 @@ class ListQueries(
             ifRight = { result ->
                 val gqlLists = result.lists.map { list ->
                     val members = listMemberRepository.findActiveByListId(list.id)
-                    GqlListMapper.mapListToGql(list, members)
+                    val count = itemStorage.getByListId(list.id).count { !it.checked }
+                    GqlListMapper.mapListToGql(list, members, count)
                 }
                 val gqlPending = result.pendingInvites.map { invite ->
                     GqlPendingInvite(
@@ -46,6 +49,7 @@ class ListQueries(
 class ListMutations(
     private val service: ListService,
     private val listMemberRepository: ListMemberRepository,
+    private val itemStorage: ItemStorage,
 ) : Mutation {
 
     suspend fun createList(name: String, emoji: String? = null, env: DataFetchingEnvironment): GqlList {
@@ -54,7 +58,20 @@ class ListMutations(
             ifLeft = { throw it.toException() },
             ifRight = { list ->
                 val members = listMemberRepository.findActiveByListId(list.id)
-                GqlListMapper.mapListToGql(list, members)
+                val count = itemStorage.getByListId(list.id).count { !it.checked }
+                GqlListMapper.mapListToGql(list, members, count)
+            },
+        )
+    }
+
+    suspend fun renameList(id: ID, name: String, env: DataFetchingEnvironment): GqlList {
+        val caller = env.caller()
+        return service.renameList(UUID.fromString(id.value), name, caller).fold(
+            ifLeft = { throw it.toException() },
+            ifRight = { list ->
+                val members = listMemberRepository.findActiveByListId(list.id)
+                val count = itemStorage.getByListId(list.id).count { !it.checked }
+                GqlListMapper.mapListToGql(list, members, count)
             },
         )
     }
@@ -73,7 +90,8 @@ class ListMutations(
             ifLeft = { throw it.toException() },
             ifRight = { list ->
                 val members = listMemberRepository.findActiveByListId(list.id)
-                GqlListMapper.mapListToGql(list, members)
+                val count = itemStorage.getByListId(list.id).count { !it.checked }
+                GqlListMapper.mapListToGql(list, members, count)
             },
         )
     }
@@ -84,7 +102,8 @@ class ListMutations(
             ifLeft = { throw it.toException() },
             ifRight = { list ->
                 val members = listMemberRepository.findActiveByListId(list.id)
-                GqlListMapper.mapListToGql(list, members)
+                val count = itemStorage.getByListId(list.id).count { !it.checked }
+                GqlListMapper.mapListToGql(list, members, count)
             },
         )
     }
@@ -103,7 +122,8 @@ class ListMutations(
             ifLeft = { throw it.toException() },
             ifRight = { list ->
                 val members = listMemberRepository.findActiveByListId(list.id)
-                GqlListMapper.mapListToGql(list, members)
+                val count = itemStorage.getByListId(list.id).count { !it.checked }
+                GqlListMapper.mapListToGql(list, members, count)
             },
         )
     }

@@ -21,6 +21,7 @@
     "@mui/lab": "9.0.0-beta.2",
     "@mui/material": "9.0.0",
     "@mui/material-nextjs": "9.0.0",
+    "emoji-picker-react": "^4.19.1",
     "graphql": "16.14.0",
     "graphql-ws": "6.0.8",
     "immutable": "5.1.5",

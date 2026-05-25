@@ -22,7 +22,13 @@ type Documents = {
   "\n  mutation CheckItem($id: ID!, $listId: ID!) {\n    checkItem(id: $id, listId: $listId) {\n      id checked checkedAt\n    }\n  }\n": typeof types.CheckItemDocument,
   "\n  mutation UncheckItem($id: ID!, $listId: ID!) {\n    uncheckItem(id: $id, listId: $listId) {\n      id checked checkedAt\n    }\n  }\n": typeof types.UncheckItemDocument,
   "\n  subscription GetItemUpdates($listId: ID!) {\n    getItemUpdates(listId: $listId) {\n      type\n      item { id name checked category listId store recurring addedBy deleted deletedAt checkedAt }\n    }\n  }\n": typeof types.GetItemUpdatesDocument,
-    "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": typeof types.ListsDocument,
+  "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            uncheckedItemCount\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": typeof types.ListsDocument,
+  "mutation CreateList($name: String!, $emoji: String) {\n    createList(name: $name, emoji: $emoji) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}": typeof types.CreateListDocument,
+  "mutation DeleteList($id: ID!) {\n    deleteList(id: $id) { deletedItemCount deletedCategoryCount }\n}": typeof types.DeleteListDocument,
+  "mutation RenameList($id: ID!, $name: String!) {\n    renameList(id: $id, name: $name) { id name }\n}": typeof types.RenameListDocument,
+  "mutation LeaveList($listId: ID!) {\n    leaveList(listId: $listId)\n}": typeof types.LeaveListDocument,
+  "mutation AcceptInvite($listId: ID!) {\n    acceptInvite(listId: $listId) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}": typeof types.AcceptInviteDocument,
+  "mutation RejectInvite($listId: ID!) {\n    rejectInvite(listId: $listId)\n}": typeof types.RejectInviteDocument,
     "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": typeof types.GetUsersDocument,
     "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": typeof types.CreateUserDocument,
     "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": typeof types.DeleteUserDocument,
@@ -37,7 +43,13 @@ const documents: Documents = {
   "\n  mutation CheckItem($id: ID!, $listId: ID!) {\n    checkItem(id: $id, listId: $listId) {\n      id checked checkedAt\n    }\n  }\n": types.CheckItemDocument,
   "\n  mutation UncheckItem($id: ID!, $listId: ID!) {\n    uncheckItem(id: $id, listId: $listId) {\n      id checked checkedAt\n    }\n  }\n": types.UncheckItemDocument,
   "\n  subscription GetItemUpdates($listId: ID!) {\n    getItemUpdates(listId: $listId) {\n      type\n      item { id name checked category listId store recurring addedBy deleted deletedAt checkedAt }\n    }\n  }\n": types.GetItemUpdatesDocument,
-    "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": types.ListsDocument,
+  "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            uncheckedItemCount\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}": types.ListsDocument,
+  "mutation CreateList($name: String!, $emoji: String) {\n    createList(name: $name, emoji: $emoji) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}": types.CreateListDocument,
+  "mutation DeleteList($id: ID!) {\n    deleteList(id: $id) { deletedItemCount deletedCategoryCount }\n}": types.DeleteListDocument,
+  "mutation RenameList($id: ID!, $name: String!) {\n    renameList(id: $id, name: $name) { id name }\n}": types.RenameListDocument,
+  "mutation LeaveList($listId: ID!) {\n    leaveList(listId: $listId)\n}": types.LeaveListDocument,
+  "mutation AcceptInvite($listId: ID!) {\n    acceptInvite(listId: $listId) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}": types.AcceptInviteDocument,
+  "mutation RejectInvite($listId: ID!) {\n    rejectInvite(listId: $listId)\n}": types.RejectInviteDocument,
     "query GetUsers {\n  users {\n    id\n    username\n    role\n  }\n}": types.GetUsersDocument,
     "mutation CreateUser($username: String!, $password: String!) {\n  createUser(username: $username, password: $password) {\n    id\n    username\n    role\n  }\n}": types.CreateUserDocument,
     "mutation DeleteUser($id: ID!) {\n  deleteUser(id: $id) {\n    id\n    username\n    role\n  }\n}": types.DeleteUserDocument,
@@ -93,7 +105,31 @@ export function graphql(source: "\n  subscription GetItemUpdates($listId: ID!) {
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"): (typeof documents)["query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"];
+export function graphql(source: "query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            uncheckedItemCount\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"): (typeof documents)["query Lists {\n    lists {\n        lists {\n            id\n            name\n            emoji\n            createdAt\n            ownerId\n            ownerUsername\n            uncheckedItemCount\n            members {\n                userId\n                username\n                status\n            }\n        }\n        pendingInvites {\n            listId\n            listName\n            listEmoji\n            ownerUsername\n        }\n    }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation CreateList($name: String!, $emoji: String) {\n    createList(name: $name, emoji: $emoji) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}"): (typeof documents)["mutation CreateList($name: String!, $emoji: String) {\n    createList(name: $name, emoji: $emoji) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation DeleteList($id: ID!) {\n    deleteList(id: $id) { deletedItemCount deletedCategoryCount }\n}"): (typeof documents)["mutation DeleteList($id: ID!) {\n    deleteList(id: $id) { deletedItemCount deletedCategoryCount }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation RenameList($id: ID!, $name: String!) {\n    renameList(id: $id, name: $name) { id name }\n}"): (typeof documents)["mutation RenameList($id: ID!, $name: String!) {\n    renameList(id: $id, name: $name) { id name }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation LeaveList($listId: ID!) {\n    leaveList(listId: $listId)\n}"): (typeof documents)["mutation LeaveList($listId: ID!) {\n    leaveList(listId: $listId)\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation AcceptInvite($listId: ID!) {\n    acceptInvite(listId: $listId) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}"): (typeof documents)["mutation AcceptInvite($listId: ID!) {\n    acceptInvite(listId: $listId) {\n        id name emoji ownerId ownerUsername createdAt uncheckedItemCount\n        members { userId username status }\n    }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "mutation RejectInvite($listId: ID!) {\n    rejectInvite(listId: $listId)\n}"): (typeof documents)["mutation RejectInvite($listId: ID!) {\n    rejectInvite(listId: $listId)\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

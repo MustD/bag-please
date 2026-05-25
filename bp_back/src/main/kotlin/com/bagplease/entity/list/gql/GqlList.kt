@@ -12,4 +12,5 @@ data class GqlList(
     val ownerUsername: String,
     val members: kotlin.collections.List<GqlListMember>,
     val createdAt: String,
+    val uncheckedItemCount: Int = 0,
 )

@@ -98,6 +98,15 @@ class ListService(
         GetListsResult(lists = memberLists, pendingInvites = pendingInvites)
     }
 
+    suspend fun renameList(id: UUID, name: String, caller: CallerUsername): Either<ListAuthError, List> = either {
+        ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
+        if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
+        val callerUser = userRepository.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+        val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
+        if (list.ownerId != callerUser.id) raise(ListAuthError.NotOwner)
+        listStorage.rename(id, name)
+    }
+
     suspend fun deleteList(id: UUID, caller: CallerUsername): Either<ListAuthError, DeleteListResult> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
 
