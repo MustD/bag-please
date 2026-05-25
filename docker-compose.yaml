@@ -63,5 +63,6 @@ services:
       KTOR_MONGO_DB_NAME: "bag_please"
       KTOR_MONGO_USER: "user"
       KTOR_MONGO_PASS: "pass"
+      MIGRATION_TARGET_USER: "mia"
 
       KTOR_RATE_LIMIT_ATTEMPTS: 6000

@@ -1,5 +1,14 @@
 # Deferred Work
 
+## Deferred from: code review of 4-6-frontend-bpsheet-spike-component (2026-05-25)
+
+- No keyboard alternative for drag handle expand/collapse — drag handle is `aria-hidden` and `useSwipeable` is
+  touch/mouse only; keyboard users cannot move the sheet between PEEKED and OPEN states; not in spec scope for this
+  story; forward-looking accessibility gap to address when BPSheet API is locked
+- `triggerRef.current` null at focus restore leaves focus on `<body>` — if the trigger element is conditionally
+  unmounted while the sheet is open, focus after close lands on `<body>`; component handles it safely via optional
+  chaining (no crash); caller responsibility to keep trigger mounted until close
+
 ## Deferred from: code review of 4-5-frontend-foundation-theme-navigation-layout (2026-05-24)
 
 - Today tab `onChange` navigates to `/lists` instead of a list route — intentional scaffold; dev notes confirm Story 4.7 wires the Today tab properly with a real `listId`

@@ -1,0 +1,202 @@
+'use client'
+
+import type {KeyboardEvent, ReactNode, RefObject, SyntheticEvent, TransitionEvent} from 'react'
+import {useEffect, useRef, useState} from 'react'
+import Box from '@mui/material/Box'
+import Fade from '@mui/material/Fade'
+import SwipeableDrawer from '@mui/material/SwipeableDrawer'
+import {useTheme} from '@mui/material/styles'
+import {useSwipeable} from 'react-swipeable'
+
+export type BPSheetState = 'closed' | 'peeked' | 'open'
+
+export interface BPSheetProps {
+  state: BPSheetState
+  onStateChange: (state: BPSheetState) => void
+  peekHeight?: number
+  title: string
+  triggerRef?: RefObject<HTMLElement | null>
+  children: ReactNode
+}
+
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  })
+
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+
+  return prefersReducedMotion
+}
+
+export default function BPSheet({
+                                  state,
+                                  onStateChange,
+                                  peekHeight = 200,
+                                  title,
+                                  triggerRef,
+                                  children,
+                                }: BPSheetProps) {
+  const theme = useTheme()
+  const paperRef = useRef<HTMLDivElement | null>(null)
+  const sentinelOwnedRef = useRef(false)
+  const lastStateRef = useRef<BPSheetState>(state)
+  const stateRef = useRef<BPSheetState>(state)
+  stateRef.current = state
+  const prefersReducedMotion = usePrefersReducedMotion()
+  const sheetOpen = state !== 'closed'
+  const clampedPeekHeight = Math.max(peekHeight, 60)
+
+  const handleClose = () => {
+    onStateChange('closed')
+  }
+
+  const handleOpen = (_event: SyntheticEvent) => {
+    if (state === 'closed') onStateChange('peeked')
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Escape') return
+    if (state === 'open') {
+      e.nativeEvent.stopImmediatePropagation()
+      onStateChange('peeked')
+    }
+  }
+
+  const swipeHandlers = useSwipeable({
+    onSwipedUp: () => {
+      if (state === 'peeked') onStateChange('open')
+    },
+    onSwipedDown: () => {
+      if (state === 'open') onStateChange('peeked')
+      else if (state === 'peeked') onStateChange('closed')
+    },
+    delta: 24,
+    trackTouch: true,
+    trackMouse: false,
+  })
+
+  // Consolidated sentinel + back-gesture; stateRef keeps the closure fresh without
+  // re-registering on every state change (which creates a gap where no listener is active).
+  // Listener is removed before history.back() in cleanup so the sentinel popstate
+  // doesn't re-enter this handler.
+  useEffect(() => {
+    if (!sheetOpen) return
+    window.history.pushState({bpSheetSentinel: true}, '')
+    sentinelOwnedRef.current = true
+
+    const handlePopState = () => {
+      sentinelOwnedRef.current = false
+      if (stateRef.current === 'open') {
+        window.history.pushState({bpSheetSentinel: true}, '')
+        sentinelOwnedRef.current = true
+        onStateChange('peeked')
+      } else if (stateRef.current === 'peeked') {
+        onStateChange('closed')
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      if (sentinelOwnedRef.current) {
+        sentinelOwnedRef.current = false
+        window.history.back()
+      }
+    }
+  }, [sheetOpen, onStateChange])
+
+  // Focus restore to trigger on close
+  useEffect(() => {
+    if (state === 'closed' && lastStateRef.current !== 'closed') {
+      triggerRef?.current?.focus()
+    }
+    lastStateRef.current = state
+  }, [state, triggerRef])
+
+  const handleTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
+    if (e.propertyName !== 'height') return
+    if (state === 'closed') return
+    const first = paperRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    first?.focus()
+  }
+
+  const targetHeight = state === 'open' ? '92dvh' : `${clampedPeekHeight}px`
+
+  return (
+    <SwipeableDrawer
+      anchor="bottom"
+      open={sheetOpen}
+      onClose={handleClose}
+      onOpen={handleOpen}
+      disableDiscovery
+      disableSwipeToOpen
+      hysteresis={1}
+      minFlingVelocity={99999}
+      disableEnforceFocus={false}
+      disableRestoreFocus={false}
+      onKeyDown={handleKeyDown}
+      slots={prefersReducedMotion ? {transition: Fade} : undefined}
+      slotProps={{
+        paper: {
+          ref: (node: HTMLDivElement | null) => {
+            paperRef.current = node
+          },
+          onTransitionEnd: handleTransitionEnd,
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': title,
+          sx: {
+            height: targetHeight,
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            backgroundColor: theme.palette.background.paper,
+            zIndex: theme.zIndex.drawer,
+            transition: prefersReducedMotion
+              ? 'none'
+              : 'height 240ms cubic-bezier(0.32, 0.72, 0, 1)',
+            overflow: 'hidden',
+          },
+        },
+      }}
+    >
+      <Box sx={{display: 'flex', flexDirection: 'column', height: '100%'}}>
+        <Box
+          {...swipeHandlers}
+          aria-hidden="true"
+          sx={{
+            cursor: 'grab',
+            touchAction: 'none',
+            display: 'flex',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Box
+            sx={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: theme.custom.bp.ter,
+              mx: 'auto',
+              mt: 1,
+              mb: 0,
+            }}
+          />
+        </Box>
+        <Box sx={{padding: '4px 16px 16px', flex: 1, overflowY: 'auto', minHeight: 0}}>
+          {children}
+        </Box>
+      </Box>
+    </SwipeableDrawer>
+  )
+}
