@@ -1,5 +1,20 @@
 # Deferred Work
 
+## Deferred from: code review of 4-7-frontend-today-tab-shopping-loop-core-components (2026-05-25)
+
+- `usePrefersReducedMotion` hook duplicated in `ItemCard.tsx` and `ProgressStrip.tsx` — registers separate matchMedia
+  listeners per instance; extract to a shared `src/hooks/usePrefersReducedMotion.ts`
+- `announceToSR` fires immediately on check before mutation resolves — on checkItem failure, SR has already announced
+  item as removed; no correction is announced; AC10 satisfied for happy path only; error path SR UX not spec'd
+- `uncheckItem` (Undo) failure is silent — no onError handler; UI shows unchecked while backend may remain checked; not
+  spec'd for this story
+- Concurrent check+undo race — if Undo is tapped while checkItem is still in-flight, both mutations run concurrently;
+  last writer wins; rare edge case not spec'd
+- `ListChipRow` shows skeleton chips when user genuinely has zero lists — `lists.length === 0` shows skeletons
+  regardless of loading state; requires a separate `loading` prop to distinguish; enhancement deferred
+- Subscription `updateQuery` merge safety — `{...items[idx], ...update.item}` overwrites known-good fields with
+  undefined if the subscription document is trimmed in future; low-risk forward-looking concern
+
 ## Deferred from: code review of 4-6-frontend-bpsheet-spike-component (2026-05-25)
 
 - No keyboard alternative for drag handle expand/collapse — drag handle is `aria-hidden` and `useSwipeable` is

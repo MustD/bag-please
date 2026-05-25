@@ -18,7 +18,7 @@ services:
     volumes:
       - ./db/data:/data/db
     ports:
-      - "27017:27017"
+      - "27217:27017" # expose on host port 27217 to avoid conflict with local MongoDB
     networks:
       - bp_network
     environment:
