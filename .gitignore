@@ -43,3 +43,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store!/.kotlin/
+
+### Custom ###
+.tmp/
+.playwright-mcp/

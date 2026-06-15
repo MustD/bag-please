@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Temporary files
+
+- Use `.tmp/` at the project root for any temporary data (scratch files, intermediate artifacts, downloads, generated
+  outputs not meant to be committed).
+- Within `.tmp/`, create a subdirectory named after the current Claude session ID (e.g., `.tmp/<session-id>/`) and write
+  all temporary files there.
+- Clean up by removing `.tmp/<session-id>/` at the end of the session.
+- Do not write temp files anywhere else in the project tree, and do not reuse another session's subdirectory.
+
 ## Project Overview
 
 **Bag Please** is a full-stack shopping list / store management app consisting of:
