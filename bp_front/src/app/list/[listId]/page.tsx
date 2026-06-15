@@ -7,6 +7,8 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Snackbar from '@mui/material/Snackbar'
 import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
+import CircularProgress from '@mui/material/CircularProgress'
 import Fab from '@mui/material/Fab'
 import AddIcon from '@mui/icons-material/Add'
 import InboxIcon from '@mui/icons-material/Inbox'
@@ -20,8 +22,14 @@ import ItemCard, {ItemCardSkeleton} from '@/app/ItemCard'
 import EmptyState from '@/app/EmptyState'
 import BPSheet, {type BPSheetState} from '@/app/BPSheet'
 
-import {checkItemMutation, getItemsQuery, getItemUpdatesSubscription, uncheckItemMutation} from '@/lib/item/Queries'
-import {getCategoriesQuery, getCategoryUpdatesSubscription} from '@/lib/category/Queries'
+import {
+  checkItemMutation,
+  getItemsQuery,
+  getItemUpdatesSubscription,
+  saveItemMutation,
+  uncheckItemMutation,
+} from '@/lib/item/Queries'
+import {getCategoriesQuery, getCategoryUpdatesSubscription, saveCategoryMutation} from '@/lib/category/Queries'
 import {listsQuery} from '@/lib/list/Queries'
 import type {
   GetCategoriesQuery,
@@ -34,6 +42,8 @@ import type {
 
 type Item = GetItemsQuery['getItems'][0]
 type Category = GetCategoriesQuery['getCategories'][0]
+
+const progressSx = {color: 'white'} as const
 
 function toLifecycle(recurring: string | null): 'once' | 'weekly' | 'biweekly' | 'monthly' | null {
   switch (recurring) {
@@ -66,7 +76,14 @@ function TodayPageInner() {
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set())
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
   const [sheetState, setSheetState] = useState<BPSheetState>('closed')
+  const [itemName, setItemName] = useState('')
+  const [itemNameError, setItemNameError] = useState('')
+  const [addInFlight, setAddInFlight] = useState(false)
+  const [addError, setAddError] = useState('')
   const fabRef = useRef<HTMLButtonElement | null>(null)
+  // Cached "Uncategorized" category id for this list so rapid adds don't create duplicates
+  // before the category subscription updates the query cache.
+  const uncategorizedIdRef = useRef<string | null>(null)
 
   const {data: itemsData, loading: itemsLoading, subscribeToMore: itemsSubscribeToMore} =
     useQuery(getItemsQuery, {variables: {listId}, skip: !listId})
@@ -78,6 +95,25 @@ function TodayPageInner() {
 
   const [checkItem] = useMutation(checkItemMutation)
   const [uncheckItem] = useMutation(uncheckItemMutation)
+  const [saveItem] = useMutation(saveItemMutation)
+  const [saveCategory] = useMutation(saveCategoryMutation)
+
+  // Drop the cached category id when switching lists — TodayPageInner is reused
+  // across /list/[listId] navigations, so a stale id would attach new items to
+  // the previous list's category.
+  useEffect(() => {
+    uncategorizedIdRef.current = null
+  }, [listId])
+
+  // Reset the add-item form when its sheet closes so a stale name or error
+  // doesn't reappear on reopen.
+  const handleAddSheetStateChange = (s: BPSheetState) => {
+    setSheetState(s)
+    if (s === 'closed') {
+      setItemName('')
+      setItemNameError('')
+    }
+  }
 
   useEffect(() => {
     if (!listId) return
@@ -167,6 +203,59 @@ function TodayPageInner() {
       categoryOrder.push(item.category)
     }
     groups.get(item.category)!.push(item)
+  }
+
+  const resolveUncategorizedId = async (): Promise<string> => {
+    if (uncategorizedIdRef.current) return uncategorizedIdRef.current
+    const existing = (categoriesData?.getCategories ?? [])
+      .find((c: Category) => c.name.toLowerCase() === 'uncategorized')
+    if (existing) {
+      uncategorizedIdRef.current = existing.id
+      return existing.id
+    }
+    const id = crypto.randomUUID()
+    await saveCategory({variables: {id, name: 'Uncategorized', listId}})
+    uncategorizedIdRef.current = id
+    return id
+  }
+
+  const handleAddItem = async () => {
+    if (addInFlight) return
+    const trimmed = itemName.trim()
+    if (!trimmed) {
+      setItemNameError('Name is required')
+      return
+    }
+    setItemNameError('')
+    setAddInFlight(true)
+    try {
+      const category = await resolveUncategorizedId()
+      const newItem = {id: crypto.randomUUID(), name: trimmed, checked: false, category, listId, store: null, recurring: null}
+      await saveItem({
+        variables: {item: newItem},
+        // The new item is rendered by the item subscription; also write it into
+        // the cache here so it appears immediately and survives a dropped/slow
+        // subscription. Idempotent — the subscription's updateQuery dedups by id.
+        update: (cache, {data}) => {
+          const saved = data?.saveItem
+          if (!saved) return
+          const existing = cache.readQuery<GetItemsQuery>({query: getItemsQuery, variables: {listId}})
+          const items = existing?.getItems ?? []
+          if (items.some((i: Item) => i.id === saved.id)) return
+          cache.writeQuery<GetItemsQuery>({
+            query: getItemsQuery,
+            variables: {listId},
+            data: {getItems: [...items, saved]},
+          })
+        },
+      })
+      setItemName('')
+      setSheetState('closed')
+    } catch {
+      setAddError("Couldn't add item · try again")
+    } finally {
+      setAddInFlight(false)
+    }
   }
 
   const handleCheck = (item: Item) => {
@@ -336,16 +425,32 @@ function TodayPageInner() {
         <AddIcon/>
       </Fab>
 
-      {/* Add item stub sheet */}
+      {/* Add item sheet */}
       <BPSheet
         state={sheetState}
-        onStateChange={setSheetState}
+        onStateChange={handleAddSheetStateChange}
         title="Add item"
         triggerRef={fabRef}
       >
-        <Typography color="text.secondary" sx={{pt: 2}}>
-          Add item — coming in Story 4.9
-        </Typography>
+        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, pt: 1}}>
+          <Typography variant="subtitle1" sx={{fontWeight: 600}}>Add item</Typography>
+          <TextField
+            label="Item name"
+            value={itemName}
+            onChange={e => {
+              setItemName(e.target.value)
+              if (itemNameError) setItemNameError('')
+            }}
+            error={Boolean(itemNameError)}
+            helperText={itemNameError}
+            fullWidth
+            size="small"
+            onKeyDown={e => e.key === 'Enter' && handleAddItem()}
+          />
+          <Button variant="contained" onClick={handleAddItem} disabled={addInFlight} fullWidth>
+            {addInFlight ? <CircularProgress size={18} sx={progressSx}/> : 'Add'}
+          </Button>
+        </Box>
       </BPSheet>
 
       {/* Check-off snackbar */}
@@ -361,6 +466,16 @@ function TodayPageInner() {
             Undo
           </Button>
         }
+        sx={{bottom: 80}}
+      />
+
+      {/* Add-item error snackbar */}
+      <Snackbar
+        open={Boolean(addError)}
+        message={addError}
+        autoHideDuration={4000}
+        onClose={() => setAddError('')}
+        anchorOrigin={{vertical: 'bottom', horizontal: 'center'}}
         sx={{bottom: 80}}
       />
     </Box>

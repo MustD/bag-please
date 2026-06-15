@@ -122,8 +122,16 @@ export default function SheetNewList({state, onStateChange, triggerRef}: SheetNe
       })
       const newId = result.data?.createList?.id
       reset()
-      onStateChange('closed')
-      if (newId) router.push(`/list/${newId}`)
+      if (newId) {
+        // Navigate straight into the new list. Don't close the sheet first:
+        // closing pops BPSheet's history sentinel, and that history.back() races
+        // and clobbers this push. Navigating unmounts the sheet instead, and by
+        // then router.push has updated history, so BPSheet's cleanup skips the
+        // sentinel pop (it is no longer the top entry).
+        router.push(`/list/${newId}`)
+      } else {
+        onStateChange('closed')
+      }
     } catch {
       setSnackbarMsg("Couldn't create list · Retry")
     } finally {

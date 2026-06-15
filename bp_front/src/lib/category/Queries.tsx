@@ -8,6 +8,14 @@ export const getCategoriesQuery = graphql(`
   }
 `)
 
+export const saveCategoryMutation = graphql(`
+  mutation SaveCategory($id: ID!, $name: String!, $listId: ID!) {
+    saveCategory(category: {id: $id, name: $name, listId: $listId}) {
+      id name listId
+    }
+  }
+`)
+
 export const getCategoryUpdatesSubscription = graphql(`
   subscription GetCategoryUpdates($listId: ID!) {
     getCategoryUpdates(listId: $listId) {

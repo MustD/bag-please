@@ -51,6 +51,14 @@ export default function BPSheet({
   const lastStateRef = useRef<BPSheetState>(state)
   const stateRef = useRef<BPSheetState>(state)
   stateRef.current = state
+  // Keep the latest onStateChange without re-running the history effect below;
+  // callers pass an inline callback whose identity changes every render, and
+  // including it in the effect deps tore the sentinel down on every keystroke
+  // (its cleanup history.back() fired a popstate read as a back-gesture → close).
+  const onStateChangeRef = useRef(onStateChange)
+  useEffect(() => {
+    onStateChangeRef.current = onStateChange
+  })
   const prefersReducedMotion = usePrefersReducedMotion()
   const sheetOpen = state !== 'closed'
   const clampedPeekHeight = Math.max(peekHeight, 60)
@@ -98,9 +106,9 @@ export default function BPSheet({
       if (stateRef.current === 'open') {
         window.history.pushState({bpSheetSentinel: true}, '')
         sentinelOwnedRef.current = true
-        onStateChange('peeked')
+        onStateChangeRef.current('peeked')
       } else if (stateRef.current === 'peeked') {
-        onStateChange('closed')
+        onStateChangeRef.current('closed')
       }
     }
     window.addEventListener('popstate', handlePopState)
@@ -109,10 +117,18 @@ export default function BPSheet({
       window.removeEventListener('popstate', handlePopState)
       if (sentinelOwnedRef.current) {
         sentinelOwnedRef.current = false
-        window.history.back()
+        // Only pop our sentinel when it is still the current entry. If the
+        // consumer navigated (e.g. router.push to the new list) while the sheet
+        // closed, the sentinel is buried and history.back() would undo that
+        // navigation, bouncing the user back.
+        if ((window.history.state as { bpSheetSentinel?: boolean } | null)?.bpSheetSentinel) {
+          window.history.back()
+        }
       }
     }
-  }, [sheetOpen, onStateChange])
+    // Depend only on sheetOpen: run once when the sheet opens, clean up when it
+    // closes. onStateChange is read via a ref so re-renders don't re-run this.
+  }, [sheetOpen])
 
   // Focus restore to trigger on close
   useEffect(() => {

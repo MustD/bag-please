@@ -246,3 +246,21 @@
   re-runs `first?.focus()`, which can yank focus to the first focusable mid-interaction. Pre-existing; the
   `target === currentTarget` guard only filters child-vs-self transitions, not open-vs-peeked re-entry. Consider firing
   focus only on the initial open transition.
+
+## Deferred from: code review of spec-fix-list-golden-path (2026-06-15)
+
+- BPSheet history sentinels carry no per-instance identity — `bp_front/src/app/BPSheet.tsx`: every instance (and the
+  consumer-pushed sentinel in `SheetNewList`) uses the identical `{bpSheetSentinel: true}` marker. If two BPSheet
+  consumers were ever open/closing concurrently, one instance's cleanup `history.back()` could pop another's sentinel.
+  No current trigger (only one sheet is open at a time on `/lists` and `/list/[listId]`). Fix: tag each sentinel with a
+  unique per-instance id and only pop your own.
+- Orphan sentinel history entry after create-navigate — `SheetNewList` create path intentionally skips the sentinel
+  pop and `router.push`es over it, leaving one extra `/lists` history entry beneath the new list. Cosmetic: pressing
+  Back from the new list still lands on the lists view; there is just a redundant duplicate entry. Consider
+  `router.replace`-style cleanup if history hygiene matters.
+- `crypto.randomUUID()` requires a secure context — `bp_front/src/app/list/[listId]/page.tsx` generates item/category
+  UUIDs client-side; `crypto.randomUUID` is undefined over plain `http://<LAN-IP>` (non-localhost), so add-item throws
+  on a phone hitting the LAN IP. Ties into Epic 5 mobile-login work. Fix: a UUID fallback, or have the backend generate
+  the id like `createList` does. (`SheetNewList` is unaffected — the server generates the list id there.)
+- Orphan empty "Uncategorized" category on partial add failure — `handleAddItem`: if `saveCategory` succeeds but the
+  subsequent `saveItem` throws, the list keeps a created-but-empty category. Minor data hygiene; low priority.

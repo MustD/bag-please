@@ -8,6 +8,14 @@ export const getItemsQuery = graphql(`
   }
 `)
 
+export const saveItemMutation = graphql(`
+  mutation SaveItem($item: ItemInput!) {
+    saveItem(item: $item) {
+      id name checked category listId store recurring addedBy deleted deletedAt checkedAt
+    }
+  }
+`)
+
 export const checkItemMutation = graphql(`
   mutation CheckItem($id: ID!, $listId: ID!) {
     checkItem(id: $id, listId: $listId) {
