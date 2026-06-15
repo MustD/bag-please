@@ -233,3 +233,16 @@
   `/auth/login` in `rateLimit(RateLimitName("auth"))`; no structural refactor needed
 - Monitoring plugin may log request bodies including passwords — pre-existing concern not introduced by Story 1.1; audit
   `configureMonitoring()` before production deployment
+
+## Deferred from: code review of spec-fix-new-list-sheet-crash (2026-06-15)
+
+- BPSheet focus-on-open does not fire under reduced motion — `bp_front/src/app/BPSheet.tsx`: with
+  `prefers-reduced-motion: reduce`, the Paper has `transition: 'none'` and uses a `Fade` slot, so no `height`
+  `transitionend` ever fires and `handleTransitionEnd` never runs; the open sheet's first focusable (e.g. the New list
+  name field) is never auto-focused. A11y gap, pre-existing — needs a fallback (e.g. focus on `Fade` `onEntered` or an
+  effect keyed on `state === 'open'`). Out of scope for the crash/blink fix.
+- BPSheet re-fires focus-on-open on every height transition — `bp_front/src/app/BPSheet.tsx:handleTransitionEnd`: any
+  completed `height` transition while `state !== 'closed'` (incl. peeked↔open collapse and the picker-toggle expand)
+  re-runs `first?.focus()`, which can yank focus to the first focusable mid-interaction. Pre-existing; the
+  `target === currentTarget` guard only filters child-vs-self transitions, not open-vs-peeked re-entry. Consider firing
+  focus only on the initial open transition.

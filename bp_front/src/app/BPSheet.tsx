@@ -47,7 +47,6 @@ export default function BPSheet({
                                   children,
                                 }: BPSheetProps) {
   const theme = useTheme()
-  const paperRef = useRef<HTMLDivElement | null>(null)
   const sentinelOwnedRef = useRef(false)
   const lastStateRef = useRef<BPSheetState>(state)
   const stateRef = useRef<BPSheetState>(state)
@@ -124,9 +123,12 @@ export default function BPSheet({
   }, [state, triggerRef])
 
   const handleTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
+    // Ignore transitions bubbling up from children (e.g. emoji-picker-react's own
+    // height transition) — only the Paper's own transition should drive focus.
+    if (e.target !== e.currentTarget) return
     if (e.propertyName !== 'height') return
     if (state === 'closed') return
-    const first = paperRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    const first = e.currentTarget.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     first?.focus()
   }
 
@@ -148,9 +150,6 @@ export default function BPSheet({
       slots={prefersReducedMotion ? {transition: Fade} : undefined}
       slotProps={{
         paper: {
-          ref: (node: HTMLDivElement | null) => {
-            paperRef.current = node
-          },
           onTransitionEnd: handleTransitionEnd,
           role: 'dialog',
           'aria-modal': 'true',
