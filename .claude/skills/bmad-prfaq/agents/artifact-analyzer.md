@@ -6,7 +6,6 @@ being stress-tested through the PRFAQ process.
 ## Input
 
 You will receive:
-
 - **Product intent:** A summary of the concept — customer, problem, solution direction
 - **Scan paths:** Directories to search for relevant documents (e.g., planning artifacts, project knowledge folders)
 - **User-provided paths:** Any specific files the user pointed to
