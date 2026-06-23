@@ -9,8 +9,7 @@ outputFile: '{test_artifacts}/nfr-assessment.md'
 
 ## STEP GOAL
 
-Read outputs from 4 parallel NFR evidence audit subagents, calculate overall risk level, aggregate compliance status,
-and identify cross-domain risks.
+Read outputs from 4 parallel NFR evidence audit subagents, calculate overall risk level, aggregate compliance status, and identify cross-domain risks.
 
 ---
 

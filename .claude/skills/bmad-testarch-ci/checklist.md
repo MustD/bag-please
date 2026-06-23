@@ -37,20 +37,20 @@ Note: CI setup is typically a one-time task per repo and can be run any time aft
 ### Step 2: CI Pipeline Configuration
 
 - [ ] CI configuration file created at platform-correct path
-    - GitHub Actions: `.github/workflows/test.yml`
-    - GitLab CI: `.gitlab-ci.yml`
-    - Jenkins: `Jenkinsfile`
-    - Azure DevOps: `azure-pipelines.yml`
-    - Harness: `.harness/pipeline.yaml`
-    - Circle CI: `.circleci/config.yml`
+  - GitHub Actions: `.github/workflows/test.yml`
+  - GitLab CI: `.gitlab-ci.yml`
+  - Jenkins: `Jenkinsfile`
+  - Azure DevOps: `azure-pipelines.yml`
+  - Harness: `.harness/pipeline.yaml`
+  - Circle CI: `.circleci/config.yml`
 - [ ] File is syntactically valid (no YAML/Groovy errors)
 - [ ] Correct framework commands configured for detected stack type
 - [ ] Node version matches project
 - [ ] Test directory paths correct
 - [ ] Stack-conditional steps applied:
-    - [ ] Browser install included for frontend/fullstack stacks
-    - [ ] Browser install omitted for backend-only stacks
-    - [ ] Test commands match detected framework
+  - [ ] Browser install included for frontend/fullstack stacks
+  - [ ] Browser install omitted for backend-only stacks
+  - [ ] Test commands match detected framework
 
 ### Step 3: Parallel Sharding
 
@@ -161,9 +161,7 @@ Note: CI setup is typically a one-time task per repo and can be run any time aft
 - [ ] Environment variables for sensitive data
 - [ ] Artifact retention appropriate (not too long)
 - [ ] No debug output exposing secrets
-- [ ] **MUST**: No `${{ inputs.* }}` or user-controlled GitHub context (`github.event.pull_request.title`,
-  `github.event.issue.body`, `github.event.comment.body`, `github.head_ref`) directly in `run:` blocks — all passed
-  through `env:` intermediaries and referenced as `"$ENV_VAR"`
+- [ ] **MUST**: No `${{ inputs.* }}` or user-controlled GitHub context (`github.event.pull_request.title`, `github.event.issue.body`, `github.event.comment.body`, `github.head_ref`) directly in `run:` blocks — all passed through `env:` intermediaries and referenced as `"$ENV_VAR"`
 
 ## Integration Points
 

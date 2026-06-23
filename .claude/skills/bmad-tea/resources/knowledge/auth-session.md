@@ -2,9 +2,7 @@
 
 ## Principle
 
-Persist authentication tokens to disk and reuse across test runs. Support multiple user identifiers, ephemeral
-authentication, and worker-specific accounts for parallel execution. Fetch tokens once, use everywhere. **Works for both
-API-only tests and browser tests.**
+Persist authentication tokens to disk and reuse across test runs. Support multiple user identifiers, ephemeral authentication, and worker-specific accounts for parallel execution. Fetch tokens once, use everywhere. **Works for both API-only tests and browser tests.**
 
 ## Rationale
 
@@ -435,8 +433,7 @@ test.describe('Service-to-Service Auth', () => {
 - Validate auth rejection scenarios
 - Correlation ID for request tracing
 
-> **Note**: API keys are typically static secrets that don't expire, so disk persistence (auth-session) isn't needed.
-> For rotating service tokens, use the auth-session provider pattern from Example 6.
+> **Note**: API keys are typically static secrets that don't expire, so disk persistence (auth-session) isn't needed. For rotating service tokens, use the auth-session provider pattern from Example 6.
 
 ## Custom Auth Provider Pattern
 

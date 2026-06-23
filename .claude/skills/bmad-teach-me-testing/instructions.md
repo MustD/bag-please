@@ -2,8 +2,7 @@
 
 ## Overview
 
-The Teach Me Testing workflow is a multi-session learning companion that teaches testing progressively through 7
-structured sessions with state persistence. Designed for self-paced learning over 1-2 weeks.
+The Teach Me Testing workflow is a multi-session learning companion that teaches testing progressively through 7 structured sessions with state persistence. Designed for self-paced learning over 1-2 weeks.
 
 ## Who Should Use This
 
@@ -134,6 +133,5 @@ The workflow adapts examples based on your role:
 ## Support
 
 - **Documentation:** <https://bmad-code-org.github.io/bmad-method-test-architecture-enterprise/>
-- **Knowledge Fragments:
-  ** <https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise/tree/main/src/agents/bmad-tea/resources/knowledge>
+- **Knowledge Fragments:** <https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise/tree/main/src/agents/bmad-tea/resources/knowledge>
 - **Issues:** Report via TEA module repository

@@ -2,9 +2,7 @@
 
 ## Principle
 
-Use smart test selection with git diff analysis to run only affected tests. Filter out irrelevant changes (configs,
-types, docs) and control test volume with percentage-based execution. Reduce unnecessary CI runs while maintaining
-reliability.
+Use smart test selection with git diff analysis to run only affected tests. Filter out irrelevant changes (configs, types, docs) and control test volume with percentage-based execution. Reduce unnecessary CI runs while maintaining reliability.
 
 ## Rationale
 

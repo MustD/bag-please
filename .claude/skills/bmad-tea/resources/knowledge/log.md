@@ -2,8 +2,7 @@
 
 ## Principle
 
-Use structured logging that integrates with Playwright's test reports. Support object logging, test step decoration, and
-multiple log levels (info, step, success, warning, error, debug).
+Use structured logging that integrates with Playwright's test reports. Support object logging, test step decoration, and multiple log levels (info, step, success, warning, error, debug).
 
 ## Rationale
 
@@ -357,7 +356,7 @@ log.errorSync('Setup failed');
 ## Log Levels Guide
 
 | Level     | When to Use                         | Shows in Report   | Shows in Console |
-|-----------|-------------------------------------|-------------------|------------------|
+| --------- | ----------------------------------- | ----------------- | ---------------- |
 | `step`    | Test organization, major actions    | Collapsible steps | Yes              |
 | `info`    | General information, state changes  | Yes               | Yes              |
 | `success` | Successful operations               | Yes               | Yes              |
@@ -368,7 +367,7 @@ log.errorSync('Setup failed');
 ## Comparison with console.log
 
 | console.log             | log Utility               |
-|-------------------------|---------------------------|
+| ----------------------- | ------------------------- |
 | Not in reports          | Appears in reports        |
 | No test steps           | Creates collapsible steps |
 | Manual JSON.stringify() | Auto-formats objects      |

@@ -69,10 +69,10 @@ def read_frontmatter_description(skill_md: Path) -> str:
     for line in m.group(1).splitlines():
         stripped = line.strip()
         if stripped.startswith("description:"):
-            value = stripped[len("description:"):].strip()
+            value = stripped[len("description:") :].strip()
             # Strip surrounding quotes if present.
             if (value.startswith("'") and value.endswith("'")) or (
-                    value.startswith('"') and value.endswith('"')
+                value.startswith('"') and value.endswith('"')
             ):
                 value = value[1:-1]
             return value
@@ -89,8 +89,8 @@ def load_customize(toml_path: Path) -> dict | None:
 
 
 def scan_skills(
-        skills_roots: list[Path],
-        project_root: Path,
+    skills_roots: list[Path],
+    project_root: Path,
 ) -> dict:
     """Scan each skills root for directories that contain a customize.toml."""
     agents: list[dict] = []

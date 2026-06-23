@@ -1,8 +1,6 @@
 # Product Brief Template
 
-A flexible starting structure for the executive product brief. Adapt aggressively to the product, the purpose, and the
-domain. Drop sections that do not earn their place, add sections the product needs, reorder freely. The brief serves the
-product's story, not the template's shape.
+A flexible starting structure for the executive product brief. Adapt aggressively to the product, the purpose, and the domain. Drop sections that do not earn their place, add sections the product needs, reorder freely. The brief serves the product's story, not the template's shape.
 
 ## Default Structure
 

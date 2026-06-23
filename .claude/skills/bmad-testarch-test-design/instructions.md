@@ -8,8 +8,7 @@
 
 ## Overview
 
-Plans comprehensive test coverage strategy with risk assessment, priority classification, and execution ordering. This
-workflow operates in **two modes**:
+Plans comprehensive test coverage strategy with risk assessment, priority classification, and execution ordering. This workflow operates in **two modes**:
 
 - **System-Level Mode (Phase 3)**: Testability review of architecture before solutioning gate check
 - **Epic-Level Mode (Phase 4)**: Per-epic test planning with risk assessment
@@ -68,15 +67,13 @@ When populating templates in step 5, apply the following guidance for these sect
 
 - Identify components, third-party services, or subsystems NOT covered by this test plan
 - For each excluded item, provide reasoning (why excluded) and mitigation (how risk is addressed elsewhere)
-- Common exclusions: external vendor APIs tested by upstream teams, legacy modules outside the current phase scope,
-  infrastructure already covered by platform team monitoring
+- Common exclusions: external vendor APIs tested by upstream teams, legacy modules outside the current phase scope, infrastructure already covered by platform team monitoring
 
 ### Entry and Exit Criteria
 
 - **Entry criteria**: Derive from Dependencies and Test Blockers -- what must be resolved before QA can start testing
 - **Exit criteria**: Derive from Quality Gate Criteria -- what constitutes "done" for the testing phase
-- Include project-specific criteria based on context (e.g., "feature flag enabled in staging", "seed data loaded", "
-  pre-implementation blockers resolved")
+- Include project-specific criteria based on context (e.g., "feature flag enabled in staging", "seed data loaded", "pre-implementation blockers resolved")
 
 ### Project Team (Optional)
 
@@ -104,5 +101,4 @@ When populating templates in step 5, apply the following guidance for these sect
 
 - Identify services and components that interact with or are affected by the feature under test
 - For each, define what existing regression tests must pass before release
-- Note any cross-team coordination needed for regression validation (e.g., shared staging environments, upstream API
-  contracts)
+- Note any cross-team coordination needed for regression validation (e.g., shared staging environments, upstream API contracts)

@@ -8,8 +8,7 @@ nextStepFile: '{skill-root}/steps-c/step-04e-aggregate-nfr.md'
 
 ## STEP GOAL
 
-Select execution mode deterministically, then audit NFR evidence domains using agent-team, subagent, or sequential
-execution while preserving output contracts.
+Select execution mode deterministically, then audit NFR evidence domains using agent-team, subagent, or sequential execution while preserving output contracts.
 
 ## MANDATORY EXECUTION RULES
 

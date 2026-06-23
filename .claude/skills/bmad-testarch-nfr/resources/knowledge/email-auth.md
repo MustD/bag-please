@@ -2,19 +2,11 @@
 
 ## Principle
 
-Email-based authentication (magic links, one-time codes, passwordless login) requires specialized testing with email
-capture services like Mailosaur or Ethereal. Extract magic links via HTML parsing or use built-in link extraction,
-preserve browser storage (local/session/cookies) when processing links, cache email payloads to avoid exhausting inbox
-quotas, and cover negative cases (expired links, reused links, multiple rapid requests). Log email IDs and links for
-troubleshooting, but scrub PII before committing artifacts.
+Email-based authentication (magic links, one-time codes, passwordless login) requires specialized testing with email capture services like Mailosaur or Ethereal. Extract magic links via HTML parsing or use built-in link extraction, preserve browser storage (local/session/cookies) when processing links, cache email payloads to avoid exhausting inbox quotas, and cover negative cases (expired links, reused links, multiple rapid requests). Log email IDs and links for troubleshooting, but scrub PII before committing artifacts.
 
 ## Rationale
 
-Email authentication introduces unique challenges: asynchronous email delivery, quota limits (AWS Cognito: 50/day), cost
-per email, and complex state management (session preservation across link clicks). Without proper patterns, tests become
-slow (wait for email each time), expensive (quota exhaustion), and brittle (timing issues, missing state). Using email
-capture services + session caching + state preservation patterns makes email auth tests fast, reliable, and
-cost-effective.
+Email authentication introduces unique challenges: asynchronous email delivery, quota limits (AWS Cognito: 50/day), cost per email, and complex state management (session preservation across link clicks). Without proper patterns, tests become slow (wait for email each time), expensive (quota exhaustion), and brittle (timing issues, missing state). Using email capture services + session caching + state preservation patterns makes email auth tests fast, reliable, and cost-effective.
 
 ## Pattern Examples
 

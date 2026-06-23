@@ -180,8 +180,7 @@ Use `{knowledgeIndex}` to select and load only relevant fragments.
 
 **Epic-Level NFR Loading:**
 
-- Load `nfr-criteria.md` when the epic/story includes security, performance, reliability, scalability, compliance,
-  maintainability, or operational requirements.
+- Load `nfr-criteria.md` when the epic/story includes security, performance, reliability, scalability, compliance, maintainability, or operational requirements.
 - Use prior system-level NFR planning from `test-design-architecture.md` or `test-design-qa.md` if present.
 
 **Playwright CLI (if `tea_browser_automation` is "cli" or "auto"):**

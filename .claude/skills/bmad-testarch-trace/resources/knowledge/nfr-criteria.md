@@ -2,18 +2,13 @@
 
 ## Principle
 
-Non-functional requirements (security, performance, reliability, maintainability) are **validated through automated
-tests**, not checklists. NFR assessment uses objective pass/fail criteria tied to measurable thresholds. Ambiguous
-requirements default to CONCERNS until clarified.
+Non-functional requirements (security, performance, reliability, maintainability) are **validated through automated tests**, not checklists. NFR assessment uses objective pass/fail criteria tied to measurable thresholds. Ambiguous requirements default to CONCERNS until clarified.
 
 ## Rationale
 
-**The Problem**: Teams ship features that "work" functionally but fail under load, expose security vulnerabilities, or
-lack error recovery. NFRs are treated as optional "nice-to-haves" instead of release blockers.
+**The Problem**: Teams ship features that "work" functionally but fail under load, expose security vulnerabilities, or lack error recovery. NFRs are treated as optional "nice-to-haves" instead of release blockers.
 
-**The Solution**: Define explicit NFR criteria with automated validation. Security tests verify auth/authz and secret
-handling. Performance tests enforce SLO/SLA thresholds with profiling evidence. Reliability tests validate error
-handling, retries, and health checks. Maintainability is measured by test coverage, code duplication, and observability.
+**The Solution**: Define explicit NFR criteria with automated validation. Security tests verify auth/authz and secret handling. Performance tests enforce SLO/SLA thresholds with profiling evidence. Reliability tests validate error handling, retries, and health checks. Maintainability is measured by test coverage, code duplication, and observability.
 
 **Why This Matters**:
 
@@ -290,8 +285,7 @@ k6 run --out json=performance-results.json tests/nfr/performance.k6.js
 - **Endurance/Soak testing**: System behavior under sustained load (memory leaks, resource exhaustion)
 - **Benchmarking**: Baseline measurements for comparison
 
-**Note**: Playwright can validate **perceived performance** (Core Web Vitals via Lighthouse), but k6 validates **system
-performance** (throughput, latency, resource limits under load)
+**Note**: Playwright can validate **perceived performance** (Core Web Vitals via Lighthouse), but k6 validates **system performance** (throughput, latency, resource limits under load)
 
 ---
 
@@ -610,8 +604,7 @@ test.describe('Maintainability NFR: Observability Validation', () => {
 
 **Maintainability NFR Criteria**:
 
-- ✅ PASS: Clean code (80%+ coverage from CI, <5% duplication from CI), observability validated in E2E, no critical
-  vulnerabilities from npm audit
+- ✅ PASS: Clean code (80%+ coverage from CI, <5% duplication from CI), observability validated in E2E, no critical vulnerabilities from npm audit
 - ⚠️ CONCERNS: Duplication >5%, coverage 60-79%, or unclear ownership
 - ❌ FAIL: Absent tests (<60%), tangled implementations (>10% duplication), or no observability
 
@@ -622,42 +615,41 @@ test.describe('Maintainability NFR: Observability Validation', () => {
 Before release gate:
 
 - [ ] **Security** (Playwright E2E + Security Tools):
-    - [ ] Auth/authz tests green (unauthenticated redirect, RBAC enforced)
-    - [ ] Secrets never logged or exposed in errors
-    - [ ] OWASP Top 10 validated (SQL injection blocked, XSS sanitized)
-    - [ ] Security audit completed (vulnerability scan, penetration test if applicable)
+  - [ ] Auth/authz tests green (unauthenticated redirect, RBAC enforced)
+  - [ ] Secrets never logged or exposed in errors
+  - [ ] OWASP Top 10 validated (SQL injection blocked, XSS sanitized)
+  - [ ] Security audit completed (vulnerability scan, penetration test if applicable)
 
 - [ ] **Performance** (k6 Load Testing):
-    - [ ] SLO/SLA targets met with k6 evidence (p95 <500ms, error rate <1%)
-    - [ ] Load testing completed (expected load)
-    - [ ] Stress testing completed (breaking point identified)
-    - [ ] Spike testing completed (handles traffic spikes)
-    - [ ] Endurance testing completed (no memory leaks under sustained load)
+  - [ ] SLO/SLA targets met with k6 evidence (p95 <500ms, error rate <1%)
+  - [ ] Load testing completed (expected load)
+  - [ ] Stress testing completed (breaking point identified)
+  - [ ] Spike testing completed (handles traffic spikes)
+  - [ ] Endurance testing completed (no memory leaks under sustained load)
 
 - [ ] **Reliability** (Playwright E2E + API Tests):
-    - [ ] Error handling graceful (500 → user-friendly message + retry)
-    - [ ] Retries implemented (3 attempts on transient failures)
-    - [ ] Health checks monitored (/api/health endpoint)
-    - [ ] Circuit breaker tested (opens after failure threshold)
-    - [ ] Offline handling validated (network disconnection graceful)
+  - [ ] Error handling graceful (500 → user-friendly message + retry)
+  - [ ] Retries implemented (3 attempts on transient failures)
+  - [ ] Health checks monitored (/api/health endpoint)
+  - [ ] Circuit breaker tested (opens after failure threshold)
+  - [ ] Offline handling validated (network disconnection graceful)
 
 - [ ] **Maintainability** (CI Tools):
-    - [ ] Test coverage ≥80% (from CI coverage report)
-    - [ ] Code duplication <5% (from jscpd CI job)
-    - [ ] No critical/high vulnerabilities (from npm audit CI job)
-    - [ ] Structured logging validated (Playwright validates telemetry headers)
-    - [ ] Error tracking configured (Sentry/monitoring integration validated)
+  - [ ] Test coverage ≥80% (from CI coverage report)
+  - [ ] Code duplication <5% (from jscpd CI job)
+  - [ ] No critical/high vulnerabilities (from npm audit CI job)
+  - [ ] Structured logging validated (Playwright validates telemetry headers)
+  - [ ] Error tracking configured (Sentry/monitoring integration validated)
 
 - [ ] **Ambiguous requirements**: Default to CONCERNS (force team to clarify thresholds and evidence)
 - [ ] **NFR criteria documented**: Measurable thresholds defined (not subjective "fast enough")
 - [ ] **Automated validation**: NFR tests run in CI pipeline (not manual checklists)
-- [ ] **Tool selection**: Right tool for each NFR (k6 for performance, Playwright for security/reliability E2E, CI tools
-  for maintainability)
+- [ ] **Tool selection**: Right tool for each NFR (k6 for performance, Playwright for security/reliability E2E, CI tools for maintainability)
 
 ## NFR Gate Decision Matrix
 
 | Category            | PASS Criteria                                | CONCERNS Criteria                            | FAIL Criteria                                  |
-|---------------------|----------------------------------------------|----------------------------------------------|------------------------------------------------|
+| ------------------- | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
 | **Security**        | Auth/authz, secret handling, OWASP verified  | Minor gaps with clear owners                 | Critical exposure or missing controls          |
 | **Performance**     | Metrics meet SLO/SLA with profiling evidence | Trending toward limits or missing baselines  | SLO/SLA breached or resource leaks detected    |
 | **Reliability**     | Error handling, retries, health checks OK    | Partial coverage or missing telemetry        | No recovery path or unresolved crash scenarios |
@@ -667,15 +659,12 @@ Before release gate:
 
 ## Integration Points
 
-- **Used in workflows**: `*nfr-assess` (automated NFR validation), `*trace` (gate decision Phase 2), `*test-design` (NFR
-  risk assessment via Utility Tree)
-- **Related fragments**: `risk-governance.md` (NFR risk scoring), `probability-impact.md` (NFR impact assessment),
-  `test-quality.md` (maintainability standards), `test-levels-framework.md` (system-level testing for NFRs)
+- **Used in workflows**: `*nfr-assess` (automated NFR validation), `*trace` (gate decision Phase 2), `*test-design` (NFR risk assessment via Utility Tree)
+- **Related fragments**: `risk-governance.md` (NFR risk scoring), `probability-impact.md` (NFR impact assessment), `test-quality.md` (maintainability standards), `test-levels-framework.md` (system-level testing for NFRs)
 - **Tools by NFR Category**:
-    - **Security**: Playwright (E2E auth/authz), OWASP ZAP, Burp Suite, npm audit, Snyk
-    - **Performance**: k6 (load/stress/spike/endurance), Lighthouse (Core Web Vitals), Artillery
-    - **Reliability**: Playwright (E2E error handling), API tests (retries, health checks), Chaos Engineering tools
-    - **Maintainability**: GitHub Actions (coverage, duplication, audit), jscpd, Playwright (observability validation)
+  - **Security**: Playwright (E2E auth/authz), OWASP ZAP, Burp Suite, npm audit, Snyk
+  - **Performance**: k6 (load/stress/spike/endurance), Lighthouse (Core Web Vitals), Artillery
+  - **Reliability**: Playwright (E2E error handling), API tests (retries, health checks), Chaos Engineering tools
+  - **Maintainability**: GitHub Actions (coverage, duplication, audit), jscpd, Playwright (observability validation)
 
-_Source: Test Architect course (NFR testing approaches, Utility Tree, Quality Scenarios), ISO/IEC 25010 Software Quality
-Characteristics, OWASP Top 10, k6 documentation, SRE practices_
+_Source: Test Architect course (NFR testing approaches, Utility Tree, Quality Scenarios), ISO/IEC 25010 Software Quality Characteristics, OWASP Top 10, k6 documentation, SRE practices_

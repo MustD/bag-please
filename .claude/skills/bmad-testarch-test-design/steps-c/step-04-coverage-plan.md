@@ -60,13 +60,11 @@ For each requirement or risk-driven scenario:
 For each in-scope NFR category:
 
 - Map the NFR to one or more planned validation scenarios
-- Select the right validation level/tool (for example: API/UI tests for auth and resilience, k6 for load/performance,
-  CI/static analysis for maintainability, monitoring/logs for reliability)
+- Select the right validation level/tool (for example: API/UI tests for auth and resilience, k6 for load/performance, CI/static analysis for maintainability, monitoring/logs for reliability)
 - Identify the expected evidence artifact that `nfr-assess` should consume later
 - Mark missing thresholds or missing evidence sources as blockers, risks, or assumptions
 
-Keep this concise. Do not include full NFR evidence assessment tables or final PASS/CONCERNS/FAIL decisions in test
-design.
+Keep this concise. Do not include full NFR evidence assessment tables or final PASS/CONCERNS/FAIL decisions in test design.
 
 ---
 

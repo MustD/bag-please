@@ -78,11 +78,10 @@ lastSaved: ''
 
 ## NFR Planning
 
-**Purpose:** Capture epic-specific NFR thresholds, planned validation, and evidence expected for later `nfr-assess`.
-This is not a final evidence audit.
+**Purpose:** Capture epic-specific NFR thresholds, planned validation, and evidence expected for later `nfr-assess`. This is not a final evidence audit.
 
 | NFR Category    | Requirement / Threshold | Risk Link | Planned Validation                         | Evidence Needed                  |
-|-----------------|-------------------------|-----------|--------------------------------------------|----------------------------------|
+| --------------- | ----------------------- | --------- | ------------------------------------------ | -------------------------------- |
 | Security        | {Requirement}           | {R-ID}    | {API/E2E/SAST/DAST validation}             | {Test report, scan, audit log}   |
 | Performance     | {Requirement}           | {R-ID}    | {Load/stress/baseline validation}          | {k6/APM/Lighthouse report}       |
 | Reliability     | {Requirement}           | {R-ID}    | {Error/retry/failover validation}          | {Burn-in, logs, monitoring data} |

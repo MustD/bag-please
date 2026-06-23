@@ -26,9 +26,9 @@ After every outcome, present what was learned and pause for the user before cont
 ## Principles
 
 - **Evidence grading.**
-    - **Confirmed.** Directly observed; cite `path:line`, log timestamp, or commit hash.
-    - **Deduced.** Logically follows from Confirmed evidence; show the chain.
-    - **Hypothesized.** Plausible but unconfirmed; state what would confirm or refute it.
+  - **Confirmed.** Directly observed; cite `path:line`, log timestamp, or commit hash.
+  - **Deduced.** Logically follows from Confirmed evidence; show the chain.
+  - **Hypothesized.** Plausible but unconfirmed; state what would confirm or refute it.
 - **Stronghold first.** Anchor in one Confirmed piece of evidence and expand outward. Never start from a theory and
   hunt for support. When evidence is sparse, switch to evidence-light mode (Outcome 1 branch).
 - **Challenge the premise.** The user's description is a hypothesis, not a fact. Verify independently; if evidence
@@ -79,8 +79,7 @@ Greet `{user_name}` in `{communication_language}`.
 
 Run each entry in `{workflow.activation_steps_append}` in order.
 
-Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry
-was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
+Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ### Step 7: Acknowledge and route
 
@@ -93,8 +92,7 @@ Outcome 0. Otherwise → Outcome 1.
 
 Read the case file. Surface, in order: open hypotheses (Status = Open) with their confirm/refute criteria; open
 backlog (Status ≠ Done); missing-evidence rows; last Conclusion with confidence. Ask which thread to pull. New
-evidence opens a new `## Follow-up: {YYYY-MM-DD}` block (append `#2`, `#3` on same-day reentry). Pause for user with the
-recap above; wait for direction.
+evidence opens a new `## Follow-up: {YYYY-MM-DD}` block (append `#2`, `#3` on same-day reentry). Pause for user with the recap above; wait for direction.
 
 ### Outcome 1: Scope and stronghold are established
 
@@ -123,8 +121,7 @@ and collision rules in Overview). Create the file from `{workflow.case_file_temp
 Brief; populate the Investigation Backlog with prioritized data-collection items; record "to make progress, I need one
 of: …"; pause for the user to provide evidence or authorize Outcome 2 to scan more broadly.
 
-Otherwise present scope, stronghold, file path, proposed approach. Pause for user with the recap above; wait for
-direction.
+Otherwise present scope, stronghold, file path, proposed approach. Pause for user with the recap above; wait for direction.
 
 ### Outcome 2: Evidence perimeter is mapped
 

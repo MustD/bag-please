@@ -72,15 +72,13 @@ Using `risk-governance.md` and `probability-impact.md` (if loaded):
 
 Using `nfr-criteria.md` when loaded:
 
-- Identify NFR categories in scope: security, performance, reliability, scalability, maintainability, compliance, and
-  any project-specific categories
+- Identify NFR categories in scope: security, performance, reliability, scalability, maintainability, compliance, and any project-specific categories
 - Extract measurable thresholds from PRD, architecture, ADRs, epics, or stories
 - Mark missing thresholds as **UNKNOWN** and convert them into clarification items or risks; do not guess values
 - Define planned evidence sources for later validation (tests, scans, metrics, logs, monitoring, CI reports)
 - Convert NFR gaps into the existing risk register using SEC / PERF / OPS / TECH / DATA categories
 
-**Boundary:** This workflow plans NFR validation. It does not assess final PASS/CONCERNS/FAIL from implementation
-evidence. Use `nfr-assess` after implementation evidence exists.
+**Boundary:** This workflow plans NFR validation. It does not assess final PASS/CONCERNS/FAIL from implementation evidence. Use `nfr-assess` after implementation evidence exists.
 
 ---
 

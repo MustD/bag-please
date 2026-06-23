@@ -40,12 +40,9 @@ Establish the NFR categories to assess and the thresholds used for validation.
 
 Before deriving thresholds from raw documents, check if a `test-design` output exists with NFR planning:
 
-- Look for `test-design-architecture.md`, `test-design-qa.md`, or any test-design output in `{test_artifacts}/` that
-  contains an NFR section.
-- If found, **load it as the primary source of NFR categories and thresholds**. Use those values directly; do not
-  re-derive them from scratch.
-- Only fall back to raw documents (tech-spec, PRD, story) for categories or thresholds that are still missing or marked
-  **UNKNOWN** in the test-design output.
+- Look for `test-design-architecture.md`, `test-design-qa.md`, or any test-design output in `{test_artifacts}/` that contains an NFR section.
+- If found, **load it as the primary source of NFR categories and thresholds**. Use those values directly; do not re-derive them from scratch.
+- Only fall back to raw documents (tech-spec, PRD, story) for categories or thresholds that are still missing or marked **UNKNOWN** in the test-design output.
 - If no test-design NFR plan exists, proceed with step 1 using raw documents.
 
 ---
@@ -69,8 +66,7 @@ Add any `custom_nfr_categories` if provided.
 
 ## 2. Define Thresholds
 
-For each category, use thresholds from the test-design NFR plan (step 0) where available. For any remaining UNKNOWN or
-missing thresholds, extract from:
+For each category, use thresholds from the test-design NFR plan (step 0) where available. For any remaining UNKNOWN or missing thresholds, extract from:
 
 - tech-spec (primary)
 - PRD (secondary)

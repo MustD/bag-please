@@ -27,21 +27,24 @@ proxies to `host.docker.internal`.
 
 ### Backend (`bp_back/`)
 
-Gradle wrapper was removed; use the system Gradle or the version-catalog-managed build:
+Use the Gradle wrapper (`./gradlew`) from the repo root. It's a multi-project build, so qualify
+backend tasks with `:bp_back:`:
 
 ```bash
 # Build
-cd bp_back && gradle build
+./gradlew :bp_back:build
 
 # Run (dev mode)
-cd bp_back && gradle run -t
+./gradlew :bp_back:run -t
 
 # Run all tests
-cd bp_back && gradle test
+./gradlew :bp_back:test
 
 # Run a single test class
-cd bp_back && gradle test --tests "com.bagplease.ApplicationTest"
+./gradlew :bp_back:test --tests "com.bagplease.ApplicationTest"
 ```
+
+These map to mise tasks: `mise run back:build`, `back:run`, `back:test`.
 
 Tests use Kotest with JUnit 5 platform (`useJUnitPlatform()` is set in build.gradle.kts).
 

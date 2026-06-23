@@ -7,11 +7,9 @@
 
 ## Overview
 
-Audit non-functional requirement evidence (performance, security, reliability, maintainability) with deterministic
-PASS/CONCERNS/FAIL outcomes.
+Audit non-functional requirement evidence (performance, security, reliability, maintainability) with deterministic PASS/CONCERNS/FAIL outcomes.
 
-Use this workflow after implementation evidence exists: tests, scans, metrics, logs, monitoring data, CI results, or
-other release evidence. Use `test-design` earlier to define NFR thresholds, planned evidence, and NFR-derived risks.
+Use this workflow after implementation evidence exists: tests, scans, metrics, logs, monitoring data, CI results, or other release evidence. Use `test-design` earlier to define NFR thresholds, planned evidence, and NFR-derived risks.
 
 ---
 

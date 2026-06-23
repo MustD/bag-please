@@ -40,9 +40,7 @@ module,skill,display-name,menu-code,description,action,args,phase,preceded-by,fo
 - `anytime` — available regardless of workflow state
 - Numbered phases (`1-analysis`, `2-planning`, etc.) flow in order; naming varies by module
 
-**Sequencing** determines recommended ordering within and across phases (these are soft suggestions, not hard gates —
-see `required` for gating):
-
+**Sequencing** determines recommended ordering within and across phases (these are soft suggestions, not hard gates — see `required` for gating):
 - `preceded-by` — skills that should ideally complete before this one
 - `followed-by` — skills that should ideally run after this one
 - Format: `skill-name` for single-action skills, `skill-name:action` for multi-action skills
@@ -61,7 +59,6 @@ see `required` for gating):
 ## Response Format
 
 For each recommended item, present:
-
 - `[menu-code]` **Display name** — e.g., "[PR] PRD"
 - Skill name in backticks — e.g., `bmad-prd`
 - For multi-action skills: action invocation context — e.g., "tech-writer lets create a mermaid diagram!"

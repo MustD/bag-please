@@ -30,7 +30,7 @@ activation_steps_append = []
 #     (glob patterns are supported; matching files load in lexical path order as facts).
 
 persistent_facts = [
-    "file:{project-root}/**/project-context.md",
+  "file:{project-root}/**/project-context.md",
 ]
 
 # Scalar: executed when the workflow reaches its terminal step in any

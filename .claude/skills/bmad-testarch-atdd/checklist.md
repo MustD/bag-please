@@ -1,7 +1,6 @@
 # ATDD Workflow Validation Checklist
 
-Use this checklist to validate that the ATDD workflow has been executed correctly and all deliverables meet quality
-standards.
+Use this checklist to validate that the ATDD workflow has been executed correctly and all deliverables meet quality standards.
 
 ## Prerequisites
 
@@ -28,11 +27,11 @@ Before starting this workflow, verify:
 - [ ] Existing fixture patterns reviewed for consistency
 - [ ] Similar test patterns searched and found in `{test_dir}`
 - [ ] Knowledge base fragments loaded:
-    - [ ] `fixture-architecture.md`
-    - [ ] `data-factories.md`
-    - [ ] `component-tdd.md`
-    - [ ] `network-first.md`
-    - [ ] `test-quality.md`
+  - [ ] `fixture-architecture.md`
+  - [ ] `data-factories.md`
+  - [ ] `component-tdd.md`
+  - [ ] `network-first.md`
+  - [ ] `test-quality.md`
 
 ---
 
@@ -56,10 +55,10 @@ Before starting this workflow, verify:
 ### Test File Structure Created
 
 - [ ] Test files organized in appropriate directories:
-    - [ ] `tests/e2e/` for end-to-end tests
-    - [ ] `tests/api/` for API tests
-    - [ ] `tests/component/` for component tests
-    - [ ] `tests/support/` for infrastructure (fixtures, factories, helpers)
+  - [ ] `tests/e2e/` for end-to-end tests
+  - [ ] `tests/api/` for API tests
+  - [ ] `tests/component/` for component tests
+  - [ ] `tests/support/` for infrastructure (fixtures, factories, helpers)
 
 ### E2E Tests (If Applicable)
 
@@ -147,22 +146,22 @@ Before starting this workflow, verify:
 - [ ] Implementation checklist created with clear structure
 - [ ] Each scaffolded test mapped to concrete implementation tasks
 - [ ] Tasks include:
-    - [ ] Route/component creation
-    - [ ] Business logic implementation
-    - [ ] API integration
-    - [ ] data-testid attribute additions
-    - [ ] Error handling
-    - [ ] Test execution command
-    - [ ] Completion checkbox
+  - [ ] Route/component creation
+  - [ ] Business logic implementation
+  - [ ] API integration
+  - [ ] data-testid attribute additions
+  - [ ] Error handling
+  - [ ] Test execution command
+  - [ ] Completion checkbox
 - [ ] Red-Green-Refactor workflow documented in checklist
 - [ ] RED phase marked as complete (TEA responsibility)
 - [ ] GREEN phase tasks listed for DEV team
 - [ ] REFACTOR phase guidance provided
 - [ ] Execution commands provided:
-    - [ ] Run all tests: `npm run test:e2e`
-    - [ ] Run specific test file
-    - [ ] Run in headed mode
-    - [ ] Debug specific test
+  - [ ] Run all tests: `npm run test:e2e`
+  - [ ] Run specific test file
+  - [ ] Run in headed mode
+  - [ ] Debug specific test
 - [ ] Estimated effort included (hours or story points)
 
 ---
@@ -174,19 +173,18 @@ Before starting this workflow, verify:
 - [ ] Output file created at `{test_artifacts}/atdd-checklist-{story_key}.md`
 - [ ] Document follows template structure from `atdd-checklist-template.md`
 - [ ] Document includes all required sections:
-    - [ ] Story summary
-    - [ ] Acceptance criteria breakdown
-    - [ ] Red-phase test scaffolds created (paths and line counts)
-    - [ ] Data factories created
-    - [ ] Fixtures created
-    - [ ] Mock requirements
-    - [ ] Required data-testid attributes
-    - [ ] Implementation checklist
-    - [ ] Red-green-refactor workflow
-    - [ ] Execution commands
-    - [ ] Next steps for DEV team
-- [ ] Checklist frontmatter includes `storyId`, `storyKey`, `storyFile`, `atddChecklistPath`, and generated test file
-  paths
+  - [ ] Story summary
+  - [ ] Acceptance criteria breakdown
+  - [ ] Red-phase test scaffolds created (paths and line counts)
+  - [ ] Data factories created
+  - [ ] Fixtures created
+  - [ ] Mock requirements
+  - [ ] Required data-testid attributes
+  - [ ] Implementation checklist
+  - [ ] Red-green-refactor workflow
+  - [ ] Execution commands
+  - [ ] Next steps for DEV team
+- [ ] Checklist frontmatter includes `storyId`, `storyKey`, `storyFile`, `atddChecklistPath`, and generated test file paths
 - [ ] If a writable story file was provided, ATDD artifacts were linked back into story context
 - [ ] If a story file could not be updated, manual handoff instructions are present
 
@@ -201,19 +199,19 @@ Before starting this workflow, verify:
 ### Summary Provided
 
 - [ ] Summary includes:
-    - [ ] Story ID
-    - [ ] Primary test level
-    - [ ] Test counts (E2E, API, Component)
-    - [ ] Test file paths
-    - [ ] Factory count
-    - [ ] Fixture count
-    - [ ] Mock requirements count
-    - [ ] data-testid count
-    - [ ] Implementation task count
-    - [ ] Estimated effort
-    - [ ] Next steps for DEV team
-    - [ ] Output file path
-    - [ ] Knowledge base references applied
+  - [ ] Story ID
+  - [ ] Primary test level
+  - [ ] Test counts (E2E, API, Component)
+  - [ ] Test file paths
+  - [ ] Factory count
+  - [ ] Fixture count
+  - [ ] Mock requirements count
+  - [ ] data-testid count
+  - [ ] Implementation task count
+  - [ ] Estimated effort
+  - [ ] Next steps for DEV team
+  - [ ] Output file path
+  - [ ] Knowledge base references applied
 
 ---
 
@@ -373,6 +371,5 @@ All of the following must be true before marking this workflow as complete:
 - **Network-first pattern:** Route interception BEFORE navigation prevents race conditions
 - **One assertion per test:** Atomic tests provide clear failure diagnosis
 - **Auto-cleanup is non-negotiable:** Every fixture must clean up data in teardown
-- **Use knowledge base:** Load relevant fragments (fixture-architecture, data-factories, network-first, component-tdd,
-  test-quality) for guidance
+- **Use knowledge base:** Load relevant fragments (fixture-architecture, data-factories, network-first, component-tdd, test-quality) for guidance
 - **Share with DEV agent:** ATDD checklist provides implementation roadmap from red to green

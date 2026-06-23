@@ -5,8 +5,7 @@
 
 ---
 
-Note: `nfr-assess` is the NFR Evidence Audit. It evaluates existing implementation evidence; it does not run tests or CI
-workflows. Use `test-design` to plan NFR thresholds and evidence before implementation.
+Note: `nfr-assess` is the NFR Evidence Audit. It evaluates existing implementation evidence; it does not run tests or CI workflows. Use `test-design` to plan NFR thresholds and evidence before implementation.
 
 ## Prerequisites Validation
 
@@ -24,10 +23,10 @@ workflows. Use `test-design` to plan NFR thresholds and evidence before implemen
 - [ ] PRD.md loaded (if available)
 - [ ] Story file loaded (if applicable)
 - [ ] Relevant knowledge fragments loaded from `tea-index.csv`:
-    - [ ] `nfr-criteria.md`
-    - [ ] `ci-burn-in.md`
-    - [ ] `test-quality.md`
-    - [ ] `playwright-config.md` (if using Playwright)
+  - [ ] `nfr-criteria.md`
+  - [ ] `ci-burn-in.md`
+  - [ ] `test-quality.md`
+  - [ ] `playwright-config.md` (if using Playwright)
 
 ---
 

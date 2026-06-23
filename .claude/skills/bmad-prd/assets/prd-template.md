@@ -126,23 +126,17 @@ updated: {YYYY-MM-DD}
 ## Adapt-In Menu *(add the clusters the product calls for)*
 
 ### Cross-cutting quality and shape *(most non-trivial PRDs)*
-
-- **Cross-Cutting NFRs** — system-wide non-functional requirements not tied to a single feature (performance, security,
-  reliability, observability). Add when system-wide quality attributes are meaningful.
-- **Constraints and Guardrails** — Safety, Privacy, Cost. Subsection per cluster. Add when any of these are real
-  concerns.
-- **Why Now** — add when timing is load-bearing (a market shift, a technology enabler, a regulatory deadline). Drop when
-  timing is incidental.
+- **Cross-Cutting NFRs** — system-wide non-functional requirements not tied to a single feature (performance, security, reliability, observability). Add when system-wide quality attributes are meaningful.
+- **Constraints and Guardrails** — Safety, Privacy, Cost. Subsection per cluster. Add when any of these are real concerns.
+- **Why Now** — add when timing is load-bearing (a market shift, a technology enabler, a regulatory deadline). Drop when timing is incidental.
 
 ### Consumer / branded products
-
 - **Aesthetic and Tone** — visual references, anti-references, voice/tone for any product-generated text.
 - **Information Architecture** — top-level surfaces, navigation, screens.
 - **Monetization** — free vs. paid, pricing assumptions, ads policy.
 - **Platform** — web, mobile, PWA, native, v1 vs. v2+.
 
 ### Enterprise initiatives
-
 - **Stakeholders and Approvals** — who must sign off, at what stage.
 - **Risk and Mitigations** — operational, security, business, reputational risk register.
 - **ROI / Business Case** — quantified benefit, cost, payback period.
@@ -153,29 +147,19 @@ updated: {YYYY-MM-DD}
 - **Audit Trail / Decision Provenance** — formal documentation requirements for regulated environments.
 
 ### Regulated domains
-
-- **Compliance and Regulatory** — HIPAA, PCI-DSS, GDPR, SOX, SOC 2, Section 508 / WCAG 2.1 AA, FedRAMP, etc. — whichever
-  apply. If any item needs depth, add a `[NOTE FOR PM]` callout to revisit or move to an addendum.
+- **Compliance and Regulatory** — HIPAA, PCI-DSS, GDPR, SOX, SOC 2, Section 508 / WCAG 2.1 AA, FedRAMP, etc. — whichever apply. If any item needs depth, add a `[NOTE FOR PM]` callout to revisit or move to an addendum.
 
 ### Developer products (libraries, APIs, CLIs, SDKs)
-
 - **API Contracts / Public Surface** — endpoint shapes, breaking change policy.
 - **Versioning and Deprecation Policy**.
 - **Performance Budgets** — latency, throughput, resource use.
 - **Language / Runtime Targets and Dependency Policy**.
 
 ### Embedded / hardware
-
 - **Hardware Constraints** — memory, power, form factor.
 - **Deployment and Update Mechanism** — OTA, manual, image-based.
 - **Environmental and Reliability Requirements**.
 
-### Small-scope all-inclusive *(use when scope is 1-2 stories' worth and the user wants a single captured artifact —
-chosen during the Right-skill check in Discovery)*
+### Small-scope all-inclusive *(use when scope is 1-2 stories' worth and the user wants a single captured artifact — chosen during the Right-skill check in Discovery)*
+- **Stories** — story-level specs listed inline at the end of the doc. Each story: *"As a [persona], I can [action] [under conditions]. Acceptance: [testable criteria]."* Numbered Story-1, Story-2, ... for reference. Pair with very lean §1 Vision, §2 Target User (often just JTBD + one UJ), §3 Glossary (handful of terms), §4 Features (often a single feature), §6 MVP Scope (in/out very tight). The whole doc fits on a page or two and captures intent + implementable stories in one place. If the user doesn't want the captured artifact at all, `bmad-quick-dev` is the better path — this cluster is only for "I want a doc *and* the stories."
 
-- **Stories** — story-level specs listed inline at the end of the doc. Each story: *"As a [persona], I
-  can [action] [under conditions]. Acceptance: [testable criteria]."* Numbered Story-1, Story-2, ... for reference. Pair
-  with very lean §1 Vision, §2 Target User (often just JTBD + one UJ), §3 Glossary (handful of terms), §4 Features (
-  often a single feature), §6 MVP Scope (in/out very tight). The whole doc fits on a page or two and captures intent +
-  implementable stories in one place. If the user doesn't want the captured artifact at all, `bmad-quick-dev` is the
-  better path — this cluster is only for "I want a doc *and* the stories."

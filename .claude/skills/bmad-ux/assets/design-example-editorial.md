@@ -109,79 +109,50 @@ spacing:
 
 ## Brand & Style
 
-The design system is rooted in the philosophy of "Slow Design"—an intentional departure from the frantic pace of fast
-fashion. It evokes a tactile, "linen-weight" sensation through high-end editorial layouts and a restrained aesthetic.
-The target audience values provenance over presence, seeking a reflective and sophisticated discovery experience that
-feels as much like a boutique magazine as a digital marketplace.
+The design system is rooted in the philosophy of "Slow Design"—an intentional departure from the frantic pace of fast fashion. It evokes a tactile, "linen-weight" sensation through high-end editorial layouts and a restrained aesthetic. The target audience values provenance over presence, seeking a reflective and sophisticated discovery experience that feels as much like a boutique magazine as a digital marketplace.
 
-The style is **Editorial Minimalism** with **Tactile** accents. It prioritizes breathable white space, asymmetrical
-layouts that mimic printed lookbooks, and a soft, sun-faded palette. Every interaction is designed to be deliberate
-and "anti-hype," eschewing aggressive animations for subtle transitions and quiet confidence.
+The style is **Editorial Minimalism** with **Tactile** accents. It prioritizes breathable white space, asymmetrical layouts that mimic printed lookbooks, and a soft, sun-faded palette. Every interaction is designed to be deliberate and "anti-hype," eschewing aggressive animations for subtle transitions and quiet confidence.
 
 ## Colors
 
-The palette is inspired by natural fibers and weathered landscapes.
-
-- **Warm White (#F9F7F2)** serves as the primary canvas, providing a soft, non-clinical background that reduces eye
-  strain.
+The palette is inspired by natural fibers and weathered landscapes. 
+- **Warm White (#F9F7F2)** serves as the primary canvas, providing a soft, non-clinical background that reduces eye strain.
 - **Bone (#E3DED1)** and **Dust (#C2B9A7)** are used for structural depth, subtle dividers, and secondary surfaces.
 - **Tobacco (#735C41)** is the primary ink color, used for high-contrast typography and essential UI elements.
-- **Sun-faded Red (#B84A39)** and **Wool Blanket Blue (#4A5D73)** are used sparingly as "organic accents"—highlighting
-  editorial picks or signifying subtle state changes without disrupting the tranquil atmosphere.
+- **Sun-faded Red (#B84A39)** and **Wool Blanket Blue (#4A5D73)** are used sparingly as "organic accents"—highlighting editorial picks or signifying subtle state changes without disrupting the tranquil atmosphere.
 
 ## Typography
 
-Typography is the primary vehicle for the brand’s sophisticated voice.
+Typography is the primary vehicle for the brand’s sophisticated voice. 
+- **Libre Caslon Text** is the voice of the curator. Its classic proportions and elegant serifs provide the editorial weight required for discovery and storytelling.
+- **DM Sans** provides a quiet, functional counterpoint. It is used for body copy and navigational elements, ensuring clarity without competing with the headlines. 
 
-- **Libre Caslon Text** is the voice of the curator. Its classic proportions and elegant serifs provide the editorial
-  weight required for discovery and storytelling.
-- **DM Sans** provides a quiet, functional counterpoint. It is used for body copy and navigational elements, ensuring
-  clarity without competing with the headlines.
-
-Large display titles should often use "optical sizing" logic—tighter leading and slightly negative letter spacing to
-create a cohesive visual block. Labels are always tracked out (0.1em) to maintain a sense of airy premiumness.
+Large display titles should often use "optical sizing" logic—tighter leading and slightly negative letter spacing to create a cohesive visual block. Labels are always tracked out (0.1em) to maintain a sense of airy premiumness.
 
 ## Layout & Spacing
 
-This design system employs a **Fluid Editorial Grid**. While it follows a 12-column structure on desktop, it
-encourages "asymmetrical breathing room"—intentionally leaving columns empty to direct focus toward high-quality
-imagery.
+This design system employs a **Fluid Editorial Grid**. While it follows a 12-column structure on desktop, it encourages "asymmetrical breathing room"—intentionally leaving columns empty to direct focus toward high-quality imagery.
 
-Spacing is generous. The `editorial-gap` (80px+) should be used between major content sections to allow the user to
-pause and reflect. Mobile layouts should maintain a minimum of 20px side margins to ensure the content feels framed like
-a page, rather than bleeding to the edges of the device. Elements should lean toward vertical stacks to mimic the scroll
-of a digital journal.
+Spacing is generous. The `editorial-gap` (80px+) should be used between major content sections to allow the user to pause and reflect. Mobile layouts should maintain a minimum of 20px side margins to ensure the content feels framed like a page, rather than bleeding to the edges of the device. Elements should lean toward vertical stacks to mimic the scroll of a digital journal.
 
 ## Elevation & Depth
 
 Depth is communicated through **Tonal Layering** and **Ambient Shadows** rather than sharp borders.
-
-- **Surfaces:** Use the "Bone" color to define containers against the "Warm White" base.
-- **Shadows:** Shadows are highly diffused and tinted with the "Tobacco" hue (`rgba(115, 92, 65, 0.08)`). They should
-  feel like a soft glow of light hitting fabric, with large blur radii (20px+) and very low opacity.
-- **Borders:** When borders are necessary, they are 1px thick and rendered in "Dust," creating a "ghost" outline that
-  barely separates elements from the background.
+- **Surfaces:** Use the "Bone" color to define containers against the "Warm White" base. 
+- **Shadows:** Shadows are highly diffused and tinted with the "Tobacco" hue (`rgba(115, 92, 65, 0.08)`). They should feel like a soft glow of light hitting fabric, with large blur radii (20px+) and very low opacity.
+- **Borders:** When borders are necessary, they are 1px thick and rendered in "Dust," creating a "ghost" outline that barely separates elements from the background.
 
 ## Shapes
 
-The shape language is **Soft (0.25rem)**. While a sharp edge feels too aggressive and a pill-shape feels too
-digital/tech-heavy, a subtle rounding of corners mimics the natural softening of woven textiles over time.
+The shape language is **Soft (0.25rem)**. While a sharp edge feels too aggressive and a pill-shape feels too digital/tech-heavy, a subtle rounding of corners mimics the natural softening of woven textiles over time. 
 
-Larger containers (Cards, Modals) may use `rounded-lg` (0.5rem) to emphasize their tactile, object-like quality. Imagery
-should always follow these corner radii to maintain a cohesive, "framed" appearance.
+Larger containers (Cards, Modals) may use `rounded-lg` (0.5rem) to emphasize their tactile, object-like quality. Imagery should always follow these corner radii to maintain a cohesive, "framed" appearance.
 
 ## Components
 
-- **Buttons:** Primary buttons use a solid "Tobacco" fill with "Warm White" text. Secondary buttons are "Bone" with "
-  Tobacco" text or simply "Tobacco" text with a 1px "Dust" border. Padding is generous horizontally to create an
-  elegant, elongated silhouette.
-- **Cards:** Editorial cards feature large imagery, a "headline-sm" title, and a "caption" subline. Shadows are only
-  applied on hover to simulate a gentle lift.
-- **Inputs:** Minimalist underlines in "Dust" that transition to "Tobacco" on focus. Label text remains in "label-caps"
-  above the field.
-- **Chips/Tags:** Used for material types (e.g., "100% Linen"). These are rendered in "Bone" backgrounds with "Tobacco"
-  text, using the "Soft" corner radius.
-- **Icons:** Must be "Hand-drawn" or "Fine-line" style. Lines should have slight imperfections and vary in weight to
-  reinforce the tactile, artisanal nature of the fashion being discovered.
-- **Navigation:** A simple, centered bottom bar or a top-weighted "Ghost" header that disappears on scroll to maximize
-  the editorial viewport.
+- **Buttons:** Primary buttons use a solid "Tobacco" fill with "Warm White" text. Secondary buttons are "Bone" with "Tobacco" text or simply "Tobacco" text with a 1px "Dust" border. Padding is generous horizontally to create an elegant, elongated silhouette.
+- **Cards:** Editorial cards feature large imagery, a "headline-sm" title, and a "caption" subline. Shadows are only applied on hover to simulate a gentle lift.
+- **Inputs:** Minimalist underlines in "Dust" that transition to "Tobacco" on focus. Label text remains in "label-caps" above the field.
+- **Chips/Tags:** Used for material types (e.g., "100% Linen"). These are rendered in "Bone" backgrounds with "Tobacco" text, using the "Soft" corner radius.
+- **Icons:** Must be "Hand-drawn" or "Fine-line" style. Lines should have slight imperfections and vary in weight to reinforce the tactile, artisanal nature of the fashion being discovered.
+- **Navigation:** A simple, centered bottom bar or a top-weighted "Ghost" header that disappears on scroll to maximize the editorial viewport.

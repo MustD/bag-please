@@ -2,9 +2,7 @@
 
 ## Principle
 
-Prefer factory functions that accept overrides and return complete objects (`createUser(overrides)`). Seed test state
-through APIs, tasks, or direct DB helpers before visiting the UI—never via slow UI interactions. UI is for validation
-only, not setup.
+Prefer factory functions that accept overrides and return complete objects (`createUser(overrides)`). Seed test state through APIs, tasks, or direct DB helpers before visiting the UI—never via slow UI interactions. UI is for validation only, not setup.
 
 ## Rationale
 
@@ -25,8 +23,7 @@ Dynamic factories with overrides provide:
 
 ### Example 1: Factory Function with Overrides
 
-**Context**: When creating test data, build factory functions with sensible defaults and explicit overrides. Use `faker`
-for dynamic values that prevent collisions.
+**Context**: When creating test data, build factory functions with sensible defaults and explicit overrides. Use `faker` for dynamic values that prevent collisions.
 
 **Implementation**:
 
@@ -99,8 +96,7 @@ test('admin can delete users', async ({ page, apiRequest }) => {
 
 ### Example 2: Nested Factory Pattern
 
-**Context**: When testing relationships (orders with users and products), nest factories to create complete object
-graphs. Control relationship data explicitly.
+**Context**: When testing relationships (orders with users and products), nest factories to create complete object graphs. Control relationship data explicitly.
 
 **Implementation**:
 
@@ -189,8 +185,7 @@ test('user can view order details', async ({ page, apiRequest }) => {
 
 ### Example 3: Factory with API Seeding
 
-**Context**: When tests need data setup, always use API calls or database tasks—never UI navigation. Wrap factory usage
-with seeding utilities for clean test setup.
+**Context**: When tests need data setup, always use API calls or database tasks—never UI navigation. Wrap factory usage with seeding utilities for clean test setup.
 
 **Implementation**:
 
@@ -354,8 +349,7 @@ export const createUser = (overrides: Partial<User> = {}): User => ({
 
 ### Example 5: Factory Composition
 
-**Context**: When building specialized factories, compose simpler factories instead of duplicating logic. Layer
-overrides for specific test scenarios.
+**Context**: When building specialized factories, compose simpler factories instead of duplicating logic. Layer overrides for specific test scenarios.
 
 **Implementation**:
 
@@ -447,9 +441,9 @@ test('free accounts cannot access analytics', async ({ page, apiRequest }) => {
 
 - **Used in workflows**: `*atdd` (test generation), `*automate` (test expansion), `*framework` (factory setup)
 - **Related fragments**:
-    - `fixture-architecture.md` - Pure functions and fixtures for factory integration
-    - `network-first.md` - API-first setup patterns
-    - `test-quality.md` - Parallel-safe, deterministic test design
+  - `fixture-architecture.md` - Pure functions and fixtures for factory integration
+  - `network-first.md` - API-first setup patterns
+  - `test-quality.md` - Parallel-safe, deterministic test design
 
 ## Cleanup Strategy
 

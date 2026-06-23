@@ -8,13 +8,13 @@
 
 ## Case Info
 
-| Field            | Value                                                               |
-|------------------|---------------------------------------------------------------------|
-| Ticket           | {ticket-id or "N/A"}                                                |
-| Date opened      | {date}                                                              |
-| Status           | Active                                                              |
-| System           | {OS, version, relevant environment details}                         |
-| Evidence sources | {diagnostic archive, logs, crash dump, code, version control, etc.} |
+| Field            | Value                                                                      |
+| ---------------- | -------------------------------------------------------------------------- |
+| Ticket           | {ticket-id or "N/A"}                                                       |
+| Date opened      | {date}                                                                     |
+| Status           | Active                                                                     |
+| System           | {OS, version, relevant environment details}                                |
+| Evidence sources | {diagnostic archive, logs, crash dump, code, version control, etc.}        |
 
 ## Problem Statement
 
@@ -23,19 +23,19 @@
 ## Evidence Inventory
 
 | Source   | Status                          | Notes     |
-|----------|---------------------------------|-----------|
+| -------- | ------------------------------- | --------- |
 | {source} | {Available / Partial / Missing} | {details} |
 
 ## Investigation Backlog
 
 | # | Path to Explore | Priority              | Status                                | Notes     |
-|---|-----------------|-----------------------|---------------------------------------|-----------|
+| - | --------------- | --------------------- | ------------------------------------- | --------- |
 | 1 | {description}   | {High / Medium / Low} | {Open / In Progress / Done / Blocked} | {context} |
 
 ## Timeline of Events
 
 | Time        | Event               | Source                | Confidence            |
-|-------------|---------------------|-----------------------|-----------------------|
+| ----------- | ------------------- | --------------------- | --------------------- |
 | {timestamp} | {event description} | {log file, commit, …} | {Confirmed / Deduced} |
 
 ## Confirmed Findings
@@ -75,13 +75,13 @@
 ## Missing Evidence
 
 | Gap              | Impact                               | How to Obtain   |
-|------------------|--------------------------------------|-----------------|
+| ---------------- | ------------------------------------ | --------------- |
 | {what's missing} | {what it would confirm or eliminate} | {how to get it} |
 
 ## Source Code Trace
 
 | Element       | Detail                                      |
-|---------------|---------------------------------------------|
+| ------------- | ------------------------------------------- |
 | Error origin  | {file:line, function name}                  |
 | Trigger       | {what causes this code to execute}          |
 | Condition     | {what state produces the observed behavior} |

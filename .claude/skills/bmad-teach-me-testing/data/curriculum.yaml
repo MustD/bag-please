@@ -12,7 +12,7 @@ sessions:
       - beginner
       - intermediate
       - experienced
-    prerequisites: [ ]
+    prerequisites: []
 
   - id: session-02-concepts
     name: "Core Concepts"
@@ -23,7 +23,7 @@ sessions:
     recommended_for:
       - beginner
       - intermediate
-    prerequisites: [ ]
+    prerequisites: []
 
   - id: session-03-architecture
     name: "Architecture & Patterns"
@@ -81,7 +81,7 @@ sessions:
     description: "Menu-driven exploration of 42 knowledge fragments organized by category"
     recommended_for:
       - experienced
-    prerequisites: [ ]
+    prerequisites: []
 
 # Learning Paths by Experience Level
 learning_paths:
@@ -94,7 +94,7 @@ learning_paths:
       - session-05-atdd-automate
       - session-06-quality-trace
       - session-07-advanced
-    skip_optional: [ ]
+    skip_optional: []
 
   intermediate:
     recommended_sequence:
