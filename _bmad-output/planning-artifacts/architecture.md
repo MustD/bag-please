@@ -836,3 +836,40 @@ address the identified agent conflict points, project structure delta is precise
 Begin with the backend `List` entity vertical slice and `CallerUsername` value class — these unblock all downstream
 stories. `plugins/Migration.kt` should be implemented in the same story or immediately after, since it must run on
 startup before any list-scoped data can be correctly served.
+
+---
+
+## Frontend Reframe (Epic 5, 2026-06-23)
+
+The frontend is re-implemented from scratch. This section supersedes the frontend portions of this document and the
+frontend architecture requirements in `epics.md` (AR11–AR15, AR-E4-9/10/11) for all Epic 5 work. **Backend
+architecture is unchanged.**
+
+**Stack & topology** (see `lists-feature-reframe/diagram.drawio.html`):
+
+- **Frontend:** Vite + React + TypeScript single-page app, Material UI. Replaces the Next.js app (`bp_front`).
+- **Web server / proxy:** **Caddy** replaces nginx (`routing/`). Routes: `/*` → frontend (SPA fallback to
+  `index.html`), `/api/subscriptions` → backend WebSocket, `/api/*` → backend HTTP. The WebSocket path
+  `/api/subscriptions` matches the backend's existing mount, so **no backend routing change is required**
+  (Caddy must match `/api/subscriptions` before the broader `/api/*` rule).
+- **Backend:** unchanged Ktor + GraphQL + subscriptions → MongoDB. Consumed as-is; **no backend changes without
+  explicit confirmation** (reframe rule 2).
+
+**Frontend architecture decisions:**
+
+- **Apollo Client** with a split link: HTTP terminating link → `/api/graphql`; WebSocket link → `/api/subscriptions` for
+  subscriptions. GraphQL codegen retargeted to the new Vite source tree.
+- **Auth:** access token held in memory (React context); refresh token via httpOnly cookie. No access token in
+  `localStorage`. WebSocket subscriptions pass the JWT in `connectionParams`; the WS client is disposed before auth
+  state is cleared on logout (FR53).
+- **Routing:** client-side (React Router). Auth guard redirects unauthenticated users to `/auth` (FR29); admin guard
+  protects `/admin/*` (FR31). `/list/[listId]` is the shopping view; `/` redirects to the oldest list or the lists
+  index (FR38).
+- **Testing:** Playwright real-browser E2E per feature, manually validated first, UI-driven and FR-mapped.
+- **Design reference:** `design/Bag Please.html` (+ `design/` assets) supplies the common visual style — palette,
+  typography, look-and-feel — for the MUI theme. It is a **style reference, not a functional prototype**; behavior
+  and structure follow the FRs and story ACs.
+
+**Superseded / deferred:** Next.js App Router pages, nginx config, localStorage token storage, and the Epic 4 UX
+component spec (BPSheet 3-state, BPBottomNav, ProgressStrip, one-timer/recurring affordances) are not carried forward.
+One-timer (FR42) and recurring (FR43) item UI are deferred; backend support (incl. the FR54 hourly scheduler) remains.

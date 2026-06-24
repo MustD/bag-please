@@ -3,7 +3,7 @@
 
 [tools]
 java = "temurin-25"
-node = "24"
+node = "26"
 
 # --- Backend (Kotlin/Ktor, Gradle multi-project, port 4000) ---
 

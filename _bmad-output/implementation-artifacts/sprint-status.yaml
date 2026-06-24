@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-05-26"  # sprint-planning: epics 1–4 → done
+last_updated: "2026-06-23"  # correct-course: removed Epic 5 stabilization, added Epic 5 frontend reframe (7 stories)
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -79,5 +79,12 @@ development_status:
   4-8-frontend-lists-tab-list-management-bpavatar: done
   epic-4-retrospective: done
 
-  # Epic 5: Stabilization & Delivery
+  # Epic 5: Frontend Reframe — Vite + MUI + Caddy rebuild (backend untouched)
   epic-5: backlog
+  5-1-foundation-vite-mui-caddy-apollo-shell: backlog
+  5-2-authentication: backlog
+  5-3-user-account: backlog
+  5-4-admin-user-management: backlog
+  5-5-lists-management: backlog
+  5-6-list-view-shopping-realtime: backlog
+  5-7-sharing-and-membership: backlog

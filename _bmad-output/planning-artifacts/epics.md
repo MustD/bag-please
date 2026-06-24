@@ -392,6 +392,20 @@ All data is scoped to lists. Each user owns their own lists, can share any list 
 **FRs covered:** FR34, FR35, FR36, FR37, FR38, FR39, FR40, FR41, FR42, FR43, FR44, FR45, FR46, FR47, FR48, FR49, FR50, FR51, FR52, FR53, FR54, FR55, FR56
 **NFRs covered:** NFR-L1, NFR-L2, NFR-L3, NFR-L4, NFR-L5
 
+### Epic 5: Frontend Reframe — Vite + MUI + Caddy
+
+The frontend is rebuilt from scratch as a **Vite + Material UI** single-page app served by **Caddy** (replacing the
+Next.js app and nginx). The existing Ktor/GraphQL backend is consumed as-is and **must not be modified** without
+explicit confirmation. The new app re-delivers every in-scope frontend FR across auth, account, admin user management,
+lists management, the list/shopping view (with category/checked/search filters), and list sharing — keeping real-time
+collaboration. Every story ships a real-browser Playwright E2E test, manually validated before it is written.
+One-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend support remains).
+
+**FRs covered:** FR1–FR21, FR27, FR29, FR30–FR41, FR44, FR45, FR48, FR49, FR50, FR51, FR52, FR53, FR55, FR56 (frontend
+delivery on the new stack)
+**Deferred:** FR42, FR43 (one-timer / recurring item UI)
+**Supersedes:** the frontend deliverables of Epics 1, 2, and 4 (backend deliverables remain authoritative)
+
 ---
 
 ## Epic 1: User Authentication, Session Management & Identity
@@ -1681,3 +1695,175 @@ So that I can organise my shopping across multiple lists from one place.
 - Accept invite: list moves to main section; accessible via navigation
 - Reject invite: invite disappears; no confirmation required
 - CI: tests run in `headed=false` mode; HTML report artifact retained
+
+---
+
+## Epic 5: Frontend Reframe — Vite + MUI + Caddy
+
+The frontend is re-implemented from scratch as a **Vite + Material UI** single-page app served by **Caddy**, replacing
+the Next.js app (`bp_front`) and the nginx reverse proxy (`routing/`). The existing Ktor / GraphQL backend is the system
+of record and is consumed unchanged.
+
+**Standing constraints for every Epic 5 story:**
+
+- **Do not modify backend code.** The GraphQL schema and REST auth endpoints (`/api/*`, `/api/subscriptions`) are
+  consumed as-is. Any required backend change must be confirmed with `md` before proceeding (reframe rule 2).
+- **Every feature ships a real-browser Playwright E2E test.** Before writing the test, manually exercise the flow in a
+  real browser to discover the steps and confirm it works (reframe rule 1). Tests are UI-driven (no API-only shortcuts)
+  and FR-mapped.
+- **Routing:** Caddy serves `/*` → frontend (SPA fallback), proxies `/api/*` → backend HTTP, `/api/subscriptions` →
+  backend WebSocket.
+- **Stack:** Vite + React + TypeScript, Material UI, Apollo Client (split link: HTTP for queries/mutations, WS for
+  subscriptions), client-side routing (React Router) with auth/admin route guards.
+- **Design reference:** `design/Bag Please.html` (and the accompanying `design/` assets — `components.jsx`, `app.jsx`,
+  `data.js`, `Bag Please — Design.pdf`) is the **common visual style reference only** — palette, typography,
+  look-and-feel. It is **not a functional prototype**; behavior, flows, and component structure are defined by the FRs
+  and story ACs, not by the mockup.
+- **Auth tokens:** access token held in memory (React context), refresh token via httpOnly cookie; no access token in
+  `localStorage`.
+- **Test account:** use `mia/mia` for list-feature browser/E2E flows; `admin` is blocked from list operations.
+
+**Deferred from this epic:** one-timer items (FR42) and recurring items (FR43) — backend support remains; the UI
+affordances are postponed.
+
+### Story 5.1: Foundation — Vite + MUI + Caddy + Apollo Shell
+
+As the team, we want a new Vite + MUI app scaffolded, wired to the backend through Caddy, with the auth/routing shell in
+place, so that every subsequent feature story has a working foundation and a green E2E harness.
+
+**Scope & Acceptance Criteria:**
+
+- New Vite + React + TypeScript project created (replacing `bp_front`); MUI installed with the theme (
+  palette/typography) derived from the `design/Bag Please.html` style reference (visual style only — not a functional
+  prototype); app boots and renders a shell.
+- **Caddy** added to `routing/` and `docker-compose.yml`, replacing nginx: `/*` → frontend with SPA fallback, `/api/*` →
+  backend HTTP, `/api/subscriptions` → backend WebSocket. The old `bp_front` (Next.js) and nginx config are **removed**.
+- Apollo Client configured with a split link: HTTP terminating link to `/api/graphql`, WebSocket link to
+  `/api/subscriptions` for subscriptions; GraphQL codegen (`codegen.yml` / generate script) retargeted to the new source
+  tree.
+- Auth context provides `username`, `role`, `accessToken`, and `setAuth` / `clearAuth`; access token held in memory
+  only.
+- Client-side router with a protected-route layout: **auth guard** redirects unauthenticated users to `/auth` (FR29); *
+  *admin guard** scaffolded for `/admin/*`.
+- Playwright configured and running against the Caddy-served app; a smoke E2E proves the app loads and an
+  unauthenticated visit to a protected route redirects to `/auth`.
+
+**FRs:** infrastructure, FR29
+**E2E:** app loads; unauthenticated → `/auth` redirect.
+
+### Story 5.2: Authentication
+
+As an unregistered or returning user, I want to register, log in, stay signed in, and log out, so that I can access my
+own account securely.
+
+**Scope & Acceptance Criteria:**
+
+- **Auth page** (`/auth`): login form (username + password) with inline field errors; uniform "Invalid credentials"
+  message on any auth failure (FR27); rate-limit feedback when the backend throttles attempts.
+- **Register**: registration form; on success the user is auto-authenticated without a separate login step (FR4) and
+  redirected into the app (FR1, FR2).
+- **Register link is conditional**: hidden when public registration is disabled, with "contact your admin" guidance
+  shown instead (FR21, FR32).
+- **Logout** clears auth state and invalidates the session; user returns to `/auth` (FR3, FR10).
+- **Silent token refresh**: an expired access token is renewed via the refresh endpoint without user interaction (FR6,
+  FR7, FR8); when the refresh token is invalid, the user is redirected to `/auth` with a session-expiry message (FR9,
+  FR33).
+
+**FRs:** FR1–FR10, FR21, FR27, FR32, FR33
+**E2E:** register → auto-login → logout → log back in; session-expiry redirect shows the expiry message;
+registration-disabled hides the Register link.
+
+### Story 5.3: User Account
+
+As a signed-in user, I want to see who I am and manage my password, so that I control my own credentials.
+
+**Scope & Acceptance Criteria:**
+
+- Authenticated username is shown in the app navigation on every screen (FR12).
+- **Change password** screen: current + new password fields, loading state, inline success confirmation (FR11).
+- One-time **welcome message** shown the first time a user logs in right after registration; not persisted, disappears
+  on dismiss/navigation (FR5).
+
+**FRs:** FR5, FR11, FR12
+**E2E:** change password then re-login with the new password; welcome message appears once after registration and not on
+subsequent logins.
+
+### Story 5.4: Admin User Management
+
+As an admin, I want to manage user accounts and the registration toggle, so that I can control the user base.
+
+**Scope & Acceptance Criteria:**
+
+- `/admin/*` is reachable only by the admin role; non-admins are redirected (FR30, FR31).
+- **Users table** lists all accounts with username and role; empty and loading states handled (FR13).
+- **Create user** (username + initial password) (FR14).
+- **Delete user** and **reset password**, each behind an explicit confirmation dialog; reset-password dialog includes
+  the new-password field (FR15, FR16, FR17).
+- **Registration toggle** (Switch) enables/disables public self-registration at runtime, reflected immediately on the
+  auth page (FR20, ties to FR21).
+
+**FRs:** FR13–FR17, FR20, FR30, FR31
+**E2E:** admin creates a user, that user logs in; admin resets the user's password (confirm dialog), user logs in with
+the new password; admin deletes the user; toggling registration off hides the Register link on `/auth`; a non-admin is
+blocked from `/admin`.
+
+### Story 5.5: Lists Management
+
+As a user, I want to manage my lists and their categories and items, so that I can organize what I shop for.
+
+**Scope & Acceptance Criteria:**
+
+- **Lists index** shows all lists the user owns or is a member of; a zero-lists state gives onboarding guidance to
+  create a first list (FR35, FR50).
+- **Create list** (name required, emoji/icon, optional description) and **delete list** (owner-only; deletion removes
+  the list and its items/categories) (FR34, FR37).
+- **Category management** within a list: add and remove categories (scoped to the list).
+- **Item management** within a list: add and remove items; new items/categories are always associated with a list at
+  creation (FR46). Create/edit happen in overlays without losing place (FR51).
+
+**FRs:** FR34, FR35, FR37, FR46, FR50, FR51
+**E2E (account `mia/mia`):** create a list → add a category → add an item → remove the item → remove the category →
+delete the list; owner-only delete enforced; zero-state shown when no lists exist.
+
+### Story 5.6: List View, Shopping & Real-Time
+
+As a user, I want to open a list and check items off with filtering and live updates, so that shopping is fast and
+collaborative.
+
+**Scope & Acceptance Criteria:**
+
+- Route `/list/[listId]` loads that list's items; `/` redirects to the user's oldest list, or to the lists index if they
+  have none (FR38).
+- A **list switcher** (chip row) lets the user switch active lists; active list is reflected in the title and URL (
+  FR36).
+- Items are displayed **grouped by category**; each item can be **checked / unchecked** (FR40, FR49).
+- **Filters**: by category, by checked status, and by free-text **search** (reframe step 7.1).
+- Item rows show the optional **store** and the **addedBy** user (avatar/label) (FR44, FR45).
+- **Real-time**: item add/check/edit/delete from any member appears live via per-list GraphQL subscription; the
+  subscription connects over `/api/subscriptions` with the JWT in `connectionParams`; the WS client is disposed on
+  logout (FR52, FR53).
+
+**FRs:** FR36, FR38, FR40, FR44, FR45, FR49, FR52, FR53
+**E2E:** open a list, check/uncheck items, apply each filter (category, checked, search); two-actor test — a second
+member's change appears live without refresh; `/` redirects correctly.
+
+### Story 5.7: Sharing & Membership
+
+As a list owner or member, I want to share lists and manage membership, so that I can shop collaboratively and control
+access.
+
+**Scope & Acceptance Criteria:**
+
+- Owner **shares a list** with another user by exact username; this creates a **pending invite**; sharing with an
+  unknown user, an existing member, or oneself shows a specific error (FR39).
+- Invited user sees the pending invite and can **accept or decline**; the list is inaccessible until accepted (FR39,
+  ties to FR50).
+- All members have full peer write access; unauthorized access to a list URL redirects away (FR40, FR41).
+- **Member management**: owner can view members and **remove** any member; a non-owner member can **leave** a list (
+  FR48, FR55).
+- The **admin account is blocked** from all list operations — surfaced gracefully in the UI (FR56).
+
+**FRs:** FR39, FR41, FR48, FR55, FR56
+**E2E (two accounts):** owner shares with a second user → invite appears → accept → second user sees the list and edits
+an item; owner removes the member; a member leaves a list; decline path removes the invite; admin cannot access list
+features.

@@ -2,8 +2,10 @@
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: complete
 completedAt: '2026-05-08'
-lastEdited: '2026-05-20'
+lastEdited: '2026-06-23'
 editHistory:
+  - date: '2026-06-23'
+    changes: 'Frontend Reframe (Epic 5): frontend re-implemented from scratch on Vite + Material UI, served by Caddy (replacing Next.js + nginx); backend unchanged. No FR changes — same requirements, new delivery vehicle. Deferred FR42 (one-timer) and FR43 (recurring) item UI; real-time (FR52/FR53) kept. Removed the old Epic 5 (Stabilization & Delivery). See sprint-change-proposal-2026-06-23.md.'
   - date: '2026-05-20'
     changes: 'Added Epic 4 (Personal Lists & Sharing): exec summary section, success criteria, 4 user journeys, FR34–FR56, NFR-L1–NFR-L5, updated phasing. Second pass: resolved 17 open issues — soft-delete + hourly scheduler (FR54), pending invite model (FR39), cascade delete (FR37), leave list (FR55), admin restrictions (FR56), Household tab = member management (FR48), category group disappear on completion (FR49), Today tab item-add with list selector (FR49), migration to most recent non-admin user (FR47), Epic 4 risk mitigation table'
 releaseMode: phased
@@ -50,6 +52,14 @@ making every future per-user feature — private lists, data sharing rules, invi
 
 All existing shared data (items, categories) remains shared across all users in this release. Data isolation and sharing
 rules are deferred to subsequent features.
+
+> **Frontend Reframe (Epic 5, 2026-06-23).** The frontend is being re-implemented from scratch as a **Vite + Material UI
+**
+> single-page app served by **Caddy** (replacing the Next.js app and nginx). The Ktor/GraphQL backend is unchanged and
+> consumed as-is. No functional requirements change — the same FRs are re-delivered on the new stack — except that
+> one-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend support remains) while real-time
+> collaboration (FR52/FR53) is kept. The old "Epic 5: Stabilization & Delivery" is removed. Details:
+> `sprint-change-proposal-2026-06-23.md`.
 
 ### What Makes This Special
 
