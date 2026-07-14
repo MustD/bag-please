@@ -1,9 +1,9 @@
 # mise tasks for Bag Please — run `mise tasks` to list, `mise run <task>` to execute.
-# Tool versions match the project (backend jvmToolchain(25), Next 16 frontend).
+# Tool versions match the project (backend jvmToolchain(25), Vite + React 19 frontend).
 
 [tools]
 java = "temurin-25"
-node = "26"
+node = "26.4"
 
 # --- Backend (Kotlin/Ktor, Gradle multi-project, port 4000) ---
 
@@ -19,7 +19,7 @@ run = "./gradlew :bp_back:run -t"
 description = "Run all backend tests"
 run = "./gradlew :bp_back:test"
 
-# --- Frontend (Next.js 16 / React 19, port 3000) ---
+# --- Frontend (Vite + React 19 SPA, dev server on :5173) ---
 
 [tasks."front:install"]
 description = "Install frontend dependencies"
@@ -27,7 +27,7 @@ dir = "bp_front"
 run = "npm install"
 
 [tasks."front:dev"]
-description = "Start the Next.js dev server on :3000"
+description = "Start the Vite dev server on :5173 (proxies /api to :4000)"
 dir = "bp_front"
 run = "npm run dev"
 
@@ -51,15 +51,15 @@ description = "Run Playwright E2E tests"
 dir = "bp_front"
 run = "npm run test:e2e"
 
-# --- Docker Compose (router + mongo + front + back on :2080) ---
+# --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
 
 [tasks."up"]
-description = "Start everything (router + mongo + front + back)"
+description = "Build & start everything (frontend[Caddy] + mongo + back) on :2080"
 run = "docker compose up --build"
 
 [tasks."infra"]
-description = "Start only infrastructure (mongo + router) for local dev"
-run = "docker compose up mongo router"
+description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
+run = "docker compose up mongo bp_back"
 
 # -- Ai infra ---
 

@@ -1,0 +1,16 @@
+# Build-context exclusions shared by all images built from the repo root.
+.git
+.tmp
+db/data
+
+# Frontend artifacts — rebuilt inside the image; never copy host copies.
+bp_front/node_modules
+bp_front/dist
+bp_front/test-results
+bp_front/playwright-report
+bp_front/blob-report
+bp_front/.vite
+
+# Backend local build output
+bp_back/build
+.gradle
