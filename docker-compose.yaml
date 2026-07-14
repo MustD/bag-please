@@ -3,16 +3,6 @@ networks:
     driver: bridge
 
 services:
-  router:
-    build:
-      context: ./routing
-    ports:
-      - "127.0.0.1:2080:80"
-    networks:
-      - bp_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
   mongo:
     image: mongo:8
     volumes:
@@ -33,11 +23,14 @@ services:
       retries: 5
       start_period: 20s
 
+  # Frontend: multi-stage image — Vite build served by Caddy, which also proxies
+  # /api to bp_back. This is the production artifact the E2E suite runs against.
   bp_front:
     build:
-      context: ./bp_front
+      context: .
+      dockerfile: bp_front/Dockerfile
     ports:
-      - "3000:3000"
+      - "127.0.0.1:2080:80"
     depends_on:
       mongo:
         condition: service_healthy

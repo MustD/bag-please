@@ -1,0 +1,18 @@
+# Production routing for Bag Please.
+# Caddy serves the built Vite SPA from /srv and proxies the API to the backend.
+# `handle` blocks are mutually exclusive and evaluated in source order, so
+# /api/subscriptions (WebSocket) is matched before the generic /api/* rule.
+# Caddy's reverse_proxy upgrades WebSockets automatically — no extra directives.
+:80 {
+	handle /api/subscriptions {
+		reverse_proxy bp_back:4000
+	}
+	handle /api/* {
+		reverse_proxy bp_back:4000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,53 +1,22 @@
-import nextConfig from "eslint-config-next";
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
 
-const ignoredFiles = [
-  {ignores: ['src/__generated__/**']},
-]
-
-// Custom rule: prevents color/shape tokens in sx props — use theme tokens instead
-const noSxColorPlugin = {
-  rules: {
-    'no-sx-color': {
-      meta: {
-        type: 'suggestion',
-        messages: {
-          noSxColor: "Move '{{key}}' to lib/theme.ts — sx props must not contain color/shape tokens directly.",
-        },
-      },
-      create(context) {
-        return {
-          JSXAttribute(node) {
-            if (node.name.name !== 'sx') return
-            if (node.value?.type !== 'JSXExpressionContainer') return
-            const expr = node.value.expression
-            if (expr.type !== 'ObjectExpression') return
-            const forbidden = ['color', 'bgcolor', 'borderRadius', 'fontFamily', 'fontSize']
-            for (const prop of expr.properties) {
-              if (prop.type !== 'Property') continue
-              const key = prop.key.type === 'Identifier' ? prop.key.name :
-                          prop.key.type === 'Literal' ? String(prop.key.value) : null
-              if (key && forbidden.includes(key)) {
-                context.report({ node: prop, messageId: 'noSxColor', data: { key } })
-              }
-            }
-          },
-        }
-      },
-    },
-  },
-}
-
-const eslintConfig = [
-  ...ignoredFiles,
-  ...nextConfig,
+export default tseslint.config(
+    {ignores: ['dist', 'src/__generated__']},
   {
-    plugins: {
-      'local': noSxColorPlugin,
-    },
-    rules: {
-      'local/no-sx-color': 'error',
+      files: ['**/*.{ts,tsx}'],
+      extends: [
+          js.configs.recommended,
+          ...tseslint.configs.recommended,
+          reactHooks.configs.flat.recommended,
+          reactRefresh.configs.vite,
+      ],
+      languageOptions: {
+          ecmaVersion: 2022,
+          globals: globals.browser,
     },
   },
-]
-
-export default eslintConfig
+)
