@@ -6,6 +6,9 @@ import {defineConfig, devices} from '@playwright/test'
 // full docker stack; locally it reuses an already-running :2080.
 export default defineConfig({
   testDir: './e2e',
+  // Enable public registration once before the suite (see e2e/global-setup.ts)
+  // so the real register → auto-login flow can succeed.
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

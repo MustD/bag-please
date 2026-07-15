@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-14"  # code-review: story 5-1 → done
+last_updated: "2026-07-15"  # code-review: story 5-2 → done
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -82,7 +82,7 @@ development_status:
   # Epic 5: Frontend Reframe — Vite + MUI + Caddy rebuild (backend untouched)
   epic-5: in-progress
   5-1-foundation-vite-mui-caddy-apollo-shell: done
-  5-2-authentication: backlog
+  5-2-authentication: done
   5-3-user-account: backlog
   5-4-admin-user-management: backlog
   5-5-lists-management: backlog

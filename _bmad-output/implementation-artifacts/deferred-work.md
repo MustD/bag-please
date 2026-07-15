@@ -270,3 +270,17 @@
 - `getConfig()` failure leaves `registrationEnabled` stuck at `null` with no retry [bp_front/src/lib/auth/AuthContext.tsx:55-58] — the bootstrap `.catch(() => {})` swallows the error and never retries; `registrationEnabled` is consumed by the auth screen (Story 5.2), which must handle the null/retry case.
 - WS `connectionParams` sends `Bearer ` (empty) when unauthenticated, and a live WebSocket won't pick up a refreshed token until it reconnects [bp_front/src/lib/apollo/ApolloProvider.tsx:37-39] — unreachable in 5.1 (no subscription operations open the socket; backend WS is unauthenticated). Revisit when subscriptions are introduced.
 - Bare `/api` (no subpath) falls through to the SPA `index.html` instead of the backend [routing/Caddyfile:10] — `handle /api/*` does not match the exact path `/api`; latent because the app only calls `/api/<subpath>`. Tighten the matcher if a bare `/api` request is ever added.
+
+## Deferred from: code review of 5-2-authentication (2026-07-15)
+
+- `authApi.logout` has no timeout/AbortController (unlike `refresh`, which caps at
+  8s) [bp_front/src/lib/auth/authApi.ts:24] — its `.catch()` only handles a rejected fetch, not a socket that stays open
+  with no response. If `/api/auth/logout` accepts the connection but never replies, `HomePage.handleLogout`'s `await`
+  never settles, `clearAuth()` never runs, and the user is trapped signed in (no button-disabled/pending state either).
+  Fix belongs in `authApi.ts` (add an abort like `refresh`), which was out of scope for Story 5.2. Revisit when a story
+  is allowed to touch `authApi.ts`.
+- Authenticated user is not redirected away from `/auth` [bp_front/src/App.tsx:12] — `/auth` is a public route outside
+  the `RouteGuard` subtree and `AuthPage` does not check `username`, so a logged-in user who navigates to `/auth` (
+  bookmark, back button, manual URL) sees the sign-in form despite a live session. Pre-existing Story 5.1 routing
+  design; not a Story 5.2 acceptance criterion. Add a "if authenticated, redirect to /" guard if/when this becomes a
+  product requirement.
