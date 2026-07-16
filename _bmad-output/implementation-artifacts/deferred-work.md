@@ -284,3 +284,12 @@
   bookmark, back button, manual URL) sees the sign-in form despite a live session. Pre-existing Story 5.1 routing
   design; not a Story 5.2 acceptance criterion. Add a "if authenticated, redirect to /" guard if/when this becomes a
   product requirement.
+
+## Deferred from: code review of ssl-termination-single-entrypoint (2026-07-16)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-ssl-termination-single-entrypoint.md`
+  summary: Auth rate limiter is effectively disabled in the deployed stack (`KTOR_RATE_LIMIT_ATTEMPTS: 6000`).
+  evidence: docker-compose.yaml sets 6000 attempts/60s per IP (default is 5), so the per-client auth limiter this SSL/entrypoint work carefully preserves is off in practice. Pre-existing (dev/E2E convenience), but directly relevant now that the stack is being prepared for a public domain — lower it to a sane per-IP value for the production profile before going live.
+- source_spec: `_bmad-output/implementation-artifacts/spec-ssl-termination-single-entrypoint.md`
+  summary: Defense-in-depth — Ktor `XForwardedHeaders` trusts the leftmost X-Forwarded-For unconditionally.
+  evidence: ForwardedHeaders.kt installs XForwardedHeaders with defaults, so app-layer client-IP resolution relies entirely on the edge proxy overwriting X-Forwarded-For (now documented in routing/edge-proxy.md). A misconfigured edge (appends instead of overwrites) re-enables IP spoofing / rate-limit bypass. Hardening (e.g. app-level trusted-proxy validation / skipLastProxies) was out of scope — the frozen intent forbade auth-code behavior changes. Revisit when a story may touch the auth path.

@@ -14,8 +14,9 @@ fun Application.configureRateLimiting() {
     install(RateLimit) {
         register(RateLimitName("auth")) {
             rateLimiter(limit = attempts, refillPeriod = windowSeconds.seconds)
-            // origin.remoteHost reflects the real client IP after XForwardedHeaders reads X-Forwarded-For;
-            // nginx must set: proxy_set_header X-Forwarded-For $remote_addr (see routing/nginx.conf)
+            // origin.remoteHost reflects the real client IP after XForwardedHeaders reads X-Forwarded-For.
+            // The edge proxy sets X-Forwarded-For and Caddy forwards it (trusted_proxies in routing/Caddyfile);
+            // without that trust the key collapses to a single proxy IP and rate limiting becomes global.
             requestKey { call -> call.request.origin.remoteHost }
         }
     }

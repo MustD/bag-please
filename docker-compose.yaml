@@ -8,7 +8,7 @@ services:
     volumes:
       - ./db/data:/data/db
     ports:
-      - "27217:27017" # expose on host port 27217 to avoid conflict with local MongoDB
+      - "127.0.0.1:27217:27017" # loopback only — host-side dev access; host port 27217 avoids conflict with local MongoDB
     networks:
       - bp_network
     environment:
@@ -44,7 +44,9 @@ services:
       context: .
       dockerfile: bp_back/Dockerfile
     ports:
-      - "4000:4000"
+      # Loopback only — the served entrypoint is bp_front (Caddy) on 127.0.0.1:2080;
+      # 4000 is published solely so the local Vite dev server can proxy /api to it.
+      - "127.0.0.1:4000:4000"
     depends_on:
       mongo:
         condition: service_healthy
