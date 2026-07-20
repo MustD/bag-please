@@ -293,3 +293,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-ssl-termination-single-entrypoint.md`
   summary: Defense-in-depth — Ktor `XForwardedHeaders` trusts the leftmost X-Forwarded-For unconditionally.
   evidence: ForwardedHeaders.kt installs XForwardedHeaders with defaults, so app-layer client-IP resolution relies entirely on the edge proxy overwriting X-Forwarded-For (now documented in routing/edge-proxy.md). A misconfigured edge (appends instead of overwrites) re-enables IP spoofing / rate-limit bypass. Hardening (e.g. app-level trusted-proxy validation / skipLastProxies) was out of scope — the frozen intent forbade auth-code behavior changes. Revisit when a story may touch the auth path.
+
+## Deferred from: code review of story-5.3 (2026-07-17)
+
+- source_spec: `_bmad-output/implementation-artifacts/5-3-user-account.md`
+  summary: Consumed one-shot auth flags (`passwordChanged`/`expired`) are never reset after the guard redirect.
+  evidence: bp_front/src/lib/auth/AuthContext.tsx:87-92 + RouteGuard.tsx:21-25 — `clearAuth` sets the flag and only a
+  later `setAuth`/`clearAuth` clears it, so it stays sticky until the next sign-in. Re-entering a guarded route while
+  still unauthenticated (e.g. manually navigating to `/` after a password change) re-fires the redirect and re-shows the
+  banner. `expired` has had this latent behaviour since Story 5.2; `passwordChanged` inherits the accepted pattern. Low
+  consequence, narrow trigger — consider a shared "reset flag on consumption" when this area is next touched.
+- source_spec: `_bmad-output/implementation-artifacts/5-3-user-account.md`
+  summary: Change-password error alert can shift the vertically-centered form on a failed submit (mobile, AC9 no-shift).
+  evidence: bp_front/src/routes/ChangePasswordPage.tsx:93-105,187-197 — field `helperText ?? ' '` reserves space (no
+  shift on inline errors), but the conditional `change-password-error` Typography grows a `justifyContent: 'center'`
+  column, re-centering the stack on failure. Mirrors the accepted Story 5.2 `auth-error` convention, so consistent
+  rather than a regression; revisit holistically if the no-shift bar tightens.

@@ -22,12 +22,16 @@ test('FR1/FR4/FR2/FR3/FR10 — register → auto-login → logout → log back i
   await page.getByTestId('register-submit').click()
 
   // Auto-login: no separate sign-in step, lands authenticated at / (FR4, FR2).
+  // The username now lives in the app-bar chip (Story 5.3 migrated it out of the
+  // home placeholder), and logout moved into the user menu off that chip.
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByTestId('home-page')).toBeVisible()
-  await expect(page.getByText(`Signed in as ${username}`)).toBeVisible()
+  await expect(page.getByTestId('user-chip')).toContainText(username)
 
-  // Logout returns to /auth and invalidates the session (FR3, FR10).
-  await page.getByTestId('logout-button').click()
+  // Logout (via the app-bar user menu) returns to /auth and invalidates the
+  // session (FR3, FR10).
+  await page.getByTestId('user-menu-button').click()
+  await page.getByTestId('menu-logout').click()
   await expect(page).toHaveURL(/\/auth$/)
   await expect(page.getByTestId('auth-page')).toBeVisible()
 
@@ -37,7 +41,7 @@ test('FR1/FR4/FR2/FR3/FR10 — register → auto-login → logout → log back i
   await page.getByTestId('login-submit').click()
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByTestId('home-page')).toBeVisible()
-  await expect(page.getByText(`Signed in as ${username}`)).toBeVisible()
+  await expect(page.getByTestId('user-chip')).toContainText(username)
 })
 
 test('FR8/FR9/FR33 — session-expiry banner shows on ?expired=1 and clears on typing', async ({page}) => {

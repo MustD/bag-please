@@ -1,0 +1,139 @@
+import {type MouseEvent, useState} from 'react'
+import {Outlet, useNavigate} from 'react-router-dom'
+import AppBar from '@mui/material/AppBar'
+import Avatar from '@mui/material/Avatar'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import ListItemText from '@mui/material/ListItemText'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
+import Toolbar from '@mui/material/Toolbar'
+import Typography from '@mui/material/Typography'
+import LockResetIcon from '@mui/icons-material/LockReset'
+import LogoutIcon from '@mui/icons-material/Logout'
+import {authApi} from '@/lib/auth/authApi'
+import {useAuth} from '@/lib/auth/AuthContext'
+
+// Authenticated app shell (Story 5.3). Renders the top AppBar with the username
+// identity chip on every guarded screen (FR12) and an <Outlet/> for the page
+// content. Mounted inside RouteGuard, so `username`/`role` are already resolved
+// when this renders — no loading flash (AC #1). The "Change password" menu item
+// is hidden for the admin account, which the backend 403-forbids from that
+// endpoint (AC #7); Logout is always present.
+export default function AppShell() {
+  const {username, role, clearAuth} = useAuth()
+  const navigate = useNavigate()
+
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const menuOpen = Boolean(anchorEl)
+
+  const openMenu = (event: MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
+  const closeMenu = () => setAnchorEl(null)
+
+  const goToChangePassword = () => {
+    closeMenu()
+    navigate('/account/password')
+  }
+
+  // Invalidate the server session (refresh token) then clear in-memory auth;
+  // clearAuth() flips username to null, which makes RouteGuard redirect to
+  // /auth — no manual navigation here. Guard against a double-fire logout
+  // (Story 5.2 review fix): the in-flight flag disables the item next render,
+  // so re-check it synchronously too.
+  const handleLogout = async () => {
+    closeMenu()
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await authApi.logout()
+      clearAuth()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  const initial = username ? username.charAt(0).toUpperCase() : '?'
+
+  return (
+    <Box sx={{minHeight: '100dvh', display: 'flex', flexDirection: 'column'}}>
+      <AppBar
+        position="sticky"
+        data-testid="app-bar"
+        sx={{
+          bgcolor: theme => theme.custom.bp.navBg,
+          backdropFilter: 'blur(20px)',
+          borderBottom: theme => `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Toolbar>
+          <Typography variant="h6" color="text.primary" sx={{flexGrow: 1, fontWeight: 600}}>
+            Bag Please
+          </Typography>
+
+          <Button
+            onClick={openMenu}
+            color="inherit"
+            data-testid="user-menu-button"
+            aria-label="Account menu"
+            aria-haspopup="true"
+            aria-controls={menuOpen ? 'user-menu' : undefined}
+            aria-expanded={menuOpen}
+            sx={{textTransform: 'none', gap: 1, px: 1}}
+          >
+            <Box data-testid="user-chip" sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  fontSize: '0.9rem',
+                  bgcolor: 'primary.main',
+                  color: 'background.default',
+                }}
+              >
+                {initial}
+              </Avatar>
+              <Typography
+                variant="body1"
+                color="text.primary"
+                noWrap
+                sx={{maxWidth: {xs: 140, sm: 220}}}
+              >
+                {username}
+              </Typography>
+            </Box>
+          </Button>
+
+          <Menu
+            id="user-menu"
+            anchorEl={anchorEl}
+            open={menuOpen}
+            onClose={closeMenu}
+            anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
+            transformOrigin={{vertical: 'top', horizontal: 'right'}}
+          >
+            {role !== 'admin' && (
+              <MenuItem data-testid="menu-change-password" onClick={goToChangePassword}>
+                <ListItemIcon>
+                  <LockResetIcon fontSize="small"/>
+                </ListItemIcon>
+                <ListItemText>Change password</ListItemText>
+              </MenuItem>
+            )}
+            <MenuItem data-testid="menu-logout" onClick={handleLogout} disabled={loggingOut}>
+              <ListItemIcon>
+                <LogoutIcon fontSize="small"/>
+              </ListItemIcon>
+              <ListItemText>Logout</ListItemText>
+            </MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      <Box component="main" sx={{flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
+        <Outlet/>
+      </Box>
+    </Box>
+  )
+}

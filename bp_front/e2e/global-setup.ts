@@ -4,7 +4,11 @@
 // backend flag once, up front. The ./db/data volume persists across runs, so
 // this is written idempotently (set to true; never assume a starting value).
 //
-// Note: this talks to the same :2080 stack the tests use. We poll for backend
+// Note: this is backend environment prep, so it always talks to the local Caddy
+// entrypoint on :2080 directly — the same backend the edge proxies to. It does
+// NOT follow E2E_BASE_URL (which only controls the browser-facing origin under
+// test): docker compose guarantees :2080 is up, and hitting it directly avoids
+// depending on the edge/TLS for one-time setup calls. We poll for backend
 // readiness first so setup is robust regardless of the webServer/globalSetup
 // ordering.
 

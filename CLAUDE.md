@@ -24,6 +24,11 @@ All services are orchestrated via Docker Compose. For day-to-day frontend work, 
 (`npm run dev` on :5173, proxying `/api` to the backend on :4000); the full production stack (built SPA served by
 Caddy + backend + mongo) runs on :2080 via `docker compose up --build`.
 
+An external edge proxy on the host terminates TLS and serves the app over HTTPS at **`https://bag-please.localhost`**,
+forwarding to the single Caddy entrypoint on `127.0.0.1:2080`. HTTPS is required for auth to persist (the refresh cookie
+is `Secure` + `SameSite=Strict`). This repo does not manage the cert or domain — see `routing/edge-proxy.md`
+for the edge contract and the `bag-please.localhost` local setup.
+
 ## Commands
 
 ### Backend (`bp_back/`)
@@ -70,6 +75,9 @@ CODEGEN_TOKEN="$(curl -s -X POST http://localhost:2080/api/auth/login \
 
 # E2E (Playwright) — runs against the production image on :2080, desktop + mobile viewports
 npm run test:e2e
+
+# E2E through the TLS edge domain (real HTTPS + Secure-cookie path; edge must be running)
+E2E_BASE_URL=https://bag-please.localhost npm run test:e2e
 ```
 
 ### Docker Compose

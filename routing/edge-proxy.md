@@ -60,3 +60,33 @@ browser  --HTTPS-->  edge proxy (TLS, domain)  --HTTP-->  Caddy :2080  -->  bp_b
                                                               |
                                                               +-->  SPA (/srv)
 ```
+
+## Local example: `https://bag-please.localhost`
+
+For local end-to-end use, run an edge proxy on the host that terminates TLS for the domain **`bag-please.localhost`**
+and forwards to `http://127.0.0.1:2080`:
+
+```
+https://bag-please.localhost  ->  edge proxy (TLS)  ->  http://127.0.0.1:2080 (Caddy)
+```
+
+- **DNS** — the `.localhost` TLD (RFC 6761) resolves to loopback automatically; no `/etc/hosts` entry is required.
+- **TLS** — HTTPS is mandatory for auth to persist (the refresh cookie is
+  `Secure` + `SameSite=Strict`). Use a locally-trusted cert (e.g. `mkcert`) so browsers accept it without warnings.
+- **Forwarded headers** — the edge must still overwrite `X-Forwarded-For` with the real client IP (see above); the rate
+  limiter depends on it.
+
+The stack itself is unchanged — `docker compose up --build` still serves the single entrypoint on `127.0.0.1:2080`; the
+edge only adds TLS + the domain in front of it.
+
+### E2E against the domain
+
+The Playwright suite defaults to the plain-HTTP entrypoint but its origin is configurable. To run the browser tests
+through the edge (real HTTPS + Secure cookie path):
+
+```bash
+E2E_BASE_URL=https://bag-please.localhost npm run test:e2e
+```
+
+`ignoreHTTPSErrors` is enabled, so an untrusted local cert won't fail the run. One-time backend setup
+(`e2e/global-setup.ts`) still talks to `:2080` directly.

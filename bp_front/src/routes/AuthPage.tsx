@@ -1,5 +1,5 @@
-import {type FormEvent, useEffect, useState} from 'react'
-import {useNavigate, useSearchParams} from 'react-router-dom'
+import {useEffect, useState} from 'react'
+import {useLocation, useNavigate, useSearchParams} from 'react-router-dom'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -21,7 +21,26 @@ type Mode = 'login' | 'register'
 export default function AuthPage() {
   const {setAuth} = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // A clean sign-out after a password change (Story 5.3, FR11) redirects here
+  // with `state: { passwordChanged: true }`; show the confirmation in the same
+  // alert slot as the session-expiry banner (they never co-occur — one comes
+  // via ?expired=1, the other via navigation state). Read the signal once into
+  // local state (the source of truth thereafter) and scrub the history state so
+  // a re-render or reload can't resurrect it; it also clears the moment the user
+  // engages the form or toggles mode, mirroring the ?expired=1 banner's UX.
+  const [passwordChanged, setPasswordChanged] = useState(
+    () => Boolean((location.state as { passwordChanged?: boolean } | null)?.passwordChanged),
+  )
+  useEffect(() => {
+    if ((location.state as { passwordChanged?: boolean } | null)?.passwordChanged) {
+      navigate(location.pathname, {replace: true, state: {}})
+    }
+    // Run once on mount; deliberately not reacting to later location changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [mode, setMode] = useState<Mode>('login')
   const [username, setUsername] = useState('')
@@ -68,37 +87,48 @@ export default function AuthPage() {
     }
   }
 
+  // A consumed one-shot banner (password-changed / expired) has no business
+  // lingering once the user starts re-signing-in or switches to Create-account.
+  const dismissTransientBanners = () => {
+    clearExpired()
+    if (passwordChanged) setPasswordChanged(false)
+  }
+
   const switchMode = (next: Mode) => {
     setMode(next)
     setFieldErrors({})
     setAuthError(null)
-    // Toggling modes is a deliberate engagement with the form — drop the
-    // expiry banner (and its ?expired param) so it can't linger over the
-    // Create-account view, which isn't a re-sign-in context.
-    clearExpired()
+    // Toggling modes is a deliberate engagement with the form — drop the expiry
+    // and password-changed banners so they can't linger over the Create-account
+    // view, which isn't a re-sign-in context.
+    dismissTransientBanners()
   }
 
   const onUsernameChange = (value: string) => {
     setUsername(value)
     if (fieldErrors.username) setFieldErrors(prev => ({...prev, username: undefined}))
-    clearExpired()
+    dismissTransientBanners()
   }
 
   const onPasswordChange = (value: string) => {
     setPassword(value)
     if (fieldErrors.password) setFieldErrors(prev => ({...prev, password: undefined}))
-    clearExpired()
+    dismissTransientBanners()
   }
 
   // Establish the session from a fresh access token: decode the validated
   // claims, publish auth state, and leave /auth for the app. RouteGuard doesn't
   // evict an already-authenticated visitor from the public /auth route, so the
   // navigate here is what completes the sign-in.
-  const establishSession = (accessToken: string) => {
+  const establishSession = (accessToken: string, welcome = false) => {
     const claims = parseJwt(accessToken)
     if (!claims) throw new Error('Invalid username or password')
     setAuth({username: claims.username, role: claims.role, accessToken})
-    navigate('/', {replace: true})
+    // Only the register→login path passes welcome:true, which the home page
+    // reads once to show the one-time welcome banner (FR5). Ordinary login,
+    // silent refresh and expiry re-login leave it unset, so the banner can't
+    // appear on those paths.
+    navigate('/', welcome ? {replace: true, state: {welcome: true}} : {replace: true})
   }
 
   const validate = (): boolean => {
@@ -109,7 +139,7 @@ export default function AuthPage() {
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault()
     // Guard against a same-tick double submit: `disabled={loading}` only takes
     // effect on the next render, so two rapid Enter presses can both enter here
@@ -150,7 +180,7 @@ export default function AuthPage() {
 
       try {
         const {accessToken} = await authApi.login(trimmedUsername, password)
-        establishSession(accessToken)
+        establishSession(accessToken, true)
       } catch {
         // Rare: the account exists but the immediate login was rejected (e.g.
         // throttled). Recover by handing the user to Sign in to finish manually.
@@ -186,6 +216,17 @@ export default function AuthPage() {
             sx={{mb: 3}}
           >
             Your session has expired. Please sign in again.
+          </Alert>
+        )}
+
+        {passwordChanged && !expired && (
+          <Alert
+            severity="success"
+            role="alert"
+            data-testid="password-changed-message"
+            sx={{mb: 3}}
+          >
+            Your password was changed. Please sign in with your new password.
           </Alert>
         )}
 

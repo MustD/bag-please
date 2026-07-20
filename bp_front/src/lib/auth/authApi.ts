@@ -1,5 +1,19 @@
 let refreshPromise: Promise<{ accessToken: string }> | null = null
 
+// Thrown by changePassword so the UI can tell a wrong-current-password fault
+// (HTTP 400 — the only credential failure the backend distinguishes) from a
+// server/session fault (401/5xx/gateway). Only the former belongs under the
+// current-password field; the latter shows in the alert region only.
+export class ChangePasswordError extends Error {
+  readonly isCredentialError: boolean
+
+  constructor(message: string, isCredentialError: boolean) {
+    super(message)
+    this.name = 'ChangePasswordError'
+    this.isCredentialError = isCredentialError
+  }
+}
+
 // Cap the silent refresh so a hung (not merely refused) backend can't leave the
 // app stuck rendering nothing while the bootstrap `isLoading` never resolves.
 const REFRESH_TIMEOUT_MS = 8000
@@ -50,7 +64,15 @@ export const authApi = {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({})) as { error?: string }
-      throw new Error(data.error ?? res.statusText ?? 'Password change failed')
+      // A 400 is the backend's wrong-current-password failure; anything else is
+      // a server/session fault. `res.statusText` is empty under HTTP/2 (the
+      // stack runs behind an edge proxy), so never fall through to it — that
+      // would surface an empty, invisible error message.
+      const isCredentialError = res.status === 400
+      const message = data.error || (isCredentialError
+        ? 'Password change failed'
+        : 'Something went wrong. Please try again.')
+      throw new ChangePasswordError(message, isCredentialError)
     }
   },
 
