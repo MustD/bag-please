@@ -10,6 +10,7 @@ import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import LockResetIcon from '@mui/icons-material/LockReset'
 import LogoutIcon from '@mui/icons-material/Logout'
 import {authApi} from '@/lib/auth/authApi'
@@ -20,7 +21,8 @@ import {useAuth} from '@/lib/auth/AuthContext'
 // content. Mounted inside RouteGuard, so `username`/`role` are already resolved
 // when this renders — no loading flash (AC #1). The "Change password" menu item
 // is hidden for the admin account, which the backend 403-forbids from that
-// endpoint (AC #7); Logout is always present.
+// endpoint (AC #7); the "Admin" item is shown only for the admin role (the sole
+// entry point to /admin — Story 5.4, FR30/FR31); Logout is always present.
 export default function AppShell() {
   const {username, role, clearAuth} = useAuth()
   const navigate = useNavigate()
@@ -35,6 +37,11 @@ export default function AppShell() {
   const goToChangePassword = () => {
     closeMenu()
     navigate('/account/password')
+  }
+
+  const goToAdmin = () => {
+    closeMenu()
+    navigate('/admin')
   }
 
   // Invalidate the server session (refresh token) then clear in-memory auth;
@@ -119,6 +126,14 @@ export default function AppShell() {
                   <LockResetIcon fontSize="small"/>
                 </ListItemIcon>
                 <ListItemText>Change password</ListItemText>
+              </MenuItem>
+            )}
+            {role === 'admin' && (
+              <MenuItem data-testid="menu-admin" onClick={goToAdmin}>
+                <ListItemIcon>
+                  <AdminPanelSettingsIcon fontSize="small"/>
+                </ListItemIcon>
+                <ListItemText>Admin</ListItemText>
               </MenuItem>
             )}
             <MenuItem data-testid="menu-logout" onClick={handleLogout} disabled={loggingOut}>

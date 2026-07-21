@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-20"  # create-story: story 5-4 → ready-for-dev
+last_updated: "2026-07-21"  # code-review: story 5-4 → done (8 patches applied)
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -84,7 +84,7 @@ development_status:
   5-1-foundation-vite-mui-caddy-apollo-shell: done
   5-2-authentication: done
   5-3-user-account: done
-  5-4-admin-user-management: ready-for-dev
+  5-4-admin-user-management: done
   5-5-lists-management: backlog
   5-6-list-view-shopping-realtime: backlog
   5-7-sharing-and-membership: backlog

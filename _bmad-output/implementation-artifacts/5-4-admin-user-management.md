@@ -4,7 +4,7 @@ baseline_commit: 13946496e2d3bc5784f553737aacf124002ed5b8
 
 # Story 5.4: Admin User Management
 
-Status: ready-for-dev
+Status: done
 
 **Delivers:** FR13 (view all users), FR14 (create user), FR15 (delete user), FR16 (reset password), FR17 (explicit
 confirmation before destructive actions), FR20 (registration toggle at runtime), FR30 (admin can reach the admin UI),
@@ -116,8 +116,8 @@ As an admin, I want to manage user accounts and the registration toggle, so that
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Define GraphQL operations & run first codegen (AC: 3, 4, 5, 6, 7, 10)**
-    - [ ] Create a frontend operations module for admin ops (suggested: `bp_front/src/lib/admin/adminQueries.ts` — a new
+- [x] **Task 1 — Define GraphQL operations & run first codegen (AC: 3, 4, 5, 6, 7, 10)**
+    - [x] Create a frontend operations module for admin ops (suggested: `bp_front/src/lib/admin/adminQueries.ts` — a new
       `lib/admin/` slice). Define with the `graphql()` tagged template imported from `@/__generated__`:
         - `query AdminUsers { users { id username role } }`
         - `query AdminConfig { applicationConfig { registrationEnabled } }`
@@ -128,78 +128,78 @@ As an admin, I want to manage user accounts and the registration toggle, so that
         `mutation ResetUserPassword($id: ID!, $newPassword: String!) { resetUserPassword(id: $id, newPassword: $newPassword) { id } }`
         -
         `mutation SetRegistrationEnabled($enabled: Boolean!) { setRegistrationEnabled(enabled: $enabled) { registrationEnabled } }`
-    - [ ] Start the full stack (`docker compose up -d --build`), mint a fresh admin token, and run codegen:
+    - [x] Start the full stack (`docker compose up -d --build`), mint a fresh admin token, and run codegen:
       `CODEGEN_TOKEN="$(curl -s -X POST http://localhost:2080/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')" npm run generate`
       Verify `src/__generated__/graphql.ts` now contains `User`, `ApplicationConfig`, and the operation types. Commit
       the generated files. **Never hand-edit** them.
-    - [ ] Use the generated typed documents in the page via `useQuery`/`useMutation` from `@apollo/client/react`. All
+    - [x] Use the generated typed documents in the page via `useQuery`/`useMutation` from `@apollo/client/react`. All
       GraphQL types come from `@/__generated__` — no inline response/variable types (project rule).
 
-- [ ] **Task 2 — Admin navigation affordance (AC: 1, 2)**
-    - [ ] In `bp_front/src/components/AppShell.tsx`, add an "Admin" `MenuItem` to the existing user `Menu`, rendered
+- [x] **Task 2 — Admin navigation affordance (AC: 1, 2)**
+    - [x] In `bp_front/src/components/AppShell.tsx`, add an "Admin" `MenuItem` to the existing user `Menu`, rendered
       only when `role === 'admin'` (e.g.
       `{role === 'admin' && <MenuItem data-testid="menu-admin" onClick={() => { closeMenu(); navigate('/admin') }}>…</MenuItem>}`).
       Give it an icon consistent with the existing items (e.g. `AdminPanelSettingsIcon` from `@mui/icons-material`).
       Keep
       "Logout" always present; keep "Change password" hidden-for-admin behavior unchanged.
-    - [ ] Do **not** change `AdminGuard` — it already redirects non-admins to `/` and renders `null` otherwise. It sits
+    - [x] Do **not** change `AdminGuard` — it already redirects non-admins to `/` and renders `null` otherwise. It sits
       inside `RouteGuard`, so auth is resolved before it runs (FR31).
 
-- [ ] **Task 3 — Admin panel: users table + registration toggle (AC: 3, 7, 8, 9)**
-    - [ ] Replace the `AdminPage` placeholder (`bp_front/src/routes/AdminPage.tsx`) with the real panel: keep
+- [x] **Task 3 — Admin panel: users table + registration toggle (AC: 3, 7, 8, 9)**
+    - [x] Replace the `AdminPage` placeholder (`bp_front/src/routes/AdminPage.tsx`) with the real panel: keep
       `data-testid="admin-page"` on the root. Layout inside `AppShell` (top AppBar already present) — a `Paper`-wrapped
       section per the UX reference (calm, confirmation-first admin).
-    - [ ] **Registration toggle section:** `useQuery(AdminConfig)`; render an MUI `Switch` (with label) bound to
+    - [x] **Registration toggle section:** `useQuery(AdminConfig)`; render an MUI `Switch` (with label) bound to
       `applicationConfig.registrationEnabled`. Guard the loading/`null` state (no "off" flash). `onChange` →
       `useMutation(SetRegistrationEnabled)` with `{ enabled }`; reflect the confirmed returned value; disable while
       in-flight. `data-testid="registration-toggle"` on the switch input.
-    - [ ] **Users table:** `useQuery(AdminUsers)`; render an MUI `Table` of username + role with a per-row actions cell
+    - [x] **Users table:** `useQuery(AdminUsers)`; render an MUI `Table` of username + role with a per-row actions cell
       (reset, delete `IconButton`s). Handle **loading** (`data-testid="admin-users-loading"`), **empty**
       (`data-testid="admin-users-empty"`), and **error** (inline alert region, not a toast) states. Give each row
       `data-testid={`admin-user-row-${user.username}`}` so E2E can scope by the unique username it created.
-    - [ ] Provide a "Create user" button (`data-testid="admin-create-user-button"`) that opens the create dialog (Task
+    - [x] Provide a "Create user" button (`data-testid="admin-create-user-button"`) that opens the create dialog (Task
       4).
 
-- [ ] **Task 4 — Create / Delete / Reset dialogs (AC: 4, 5, 6, 8, 9)**
-    - [ ] **Create dialog** (MUI `Dialog` + `<form onSubmit>`): username + password `TextField`s (controlled state,
+- [x] **Task 4 — Create / Delete / Reset dialogs (AC: 4, 5, 6, 8, 9)**
+    - [x] **Create dialog** (MUI `Dialog` + `<form onSubmit>`): username + password `TextField`s (controlled state,
       validate-on-submit; empty → inline field errors, no request). Submit → `CreateUser` mutation; on success close +
       refresh the `users` query (refetch or `update` the cache) and show the new row. On error surface the GraphQL
       `message` in an in-dialog alert region; keep the dialog open, fields intact. Same-tick re-entry guard + loading
       spinner on the submit button. testids: `create-user-dialog`, `create-user-username`, `create-user-password`,
       `create-user-submit`, `create-user-cancel`, `create-user-error`.
-    - [ ] **Delete dialog:** confirmation `Dialog` naming the user + plain-language consequence; Confirm → `DeleteUser`
+    - [x] **Delete dialog:** confirmation `Dialog` naming the user + plain-language consequence; Confirm → `DeleteUser`
       with the row's `id`; on success close + remove from table (refetch or cache evict). Cancel closes, no effect.
       Error inline. testids: `delete-user-dialog`, `delete-user-confirm`, `delete-user-cancel`; the row's control:
       `delete-user-button` (scoped within the row testid).
-    - [ ] **Reset dialog:** `Dialog` with a `type="password"` new-password field + a warning line ("This signs
+    - [x] **Reset dialog:** `Dialog` with a `type="password"` new-password field + a warning line ("This signs
       {username} out of all sessions."); validate non-empty; Confirm → `ResetUserPassword(id, newPassword)`; on success
       close + inline confirmation. Cancel closes, no effect. Error inline. testids: `reset-password-dialog`,
       `reset-password-input`, `reset-password-confirm`, `reset-password-cancel`; row control: `reset-password-button`.
-    - [ ] All dialog buttons/fields: MUI `sx`/theme only; correct `autoComplete` (`new-password` for the create/reset
+    - [x] All dialog buttons/fields: MUI `sx`/theme only; correct `autoComplete` (`new-password` for the create/reset
       password fields); `slotProps={{ htmlInput: { 'data-testid': … } }}` for inputs (v9 slot API, matches 5.2/5.3).
 
-- [ ] **Task 5 — E2E tests (AC: 11)**
-    - [ ] Manually exercise every flow in a real browser against the `:2080` Caddy stack first (reframe rule 1); note
+- [x] **Task 5 — E2E tests (AC: 11)**
+    - [x] Manually exercise every flow in a real browser against the `:2080` Caddy stack first (reframe rule 1); note
       discovered steps.
-    - [ ] Add `bp_front/e2e/admin.spec.ts` with the five scenarios in AC #11, all UI-driven via `getByTestId`, FR-tagged
+    - [x] Add `bp_front/e2e/admin.spec.ts` with the five scenarios in AC #11, all UI-driven via `getByTestId`, FR-tagged
       in test names. Admin logs in with `admin/admin` (guaranteed first-boot account). Create each managed user with a
       **unique** username per run/project (`admin_e2e_${label}_${test.info().project.name}_${Date.now()}`); assert on
       that row only.
-    - [ ] For "user logs in" / "logs in with new password" assertions, use a **fresh browser context**
+    - [x] For "user logs in" / "logs in with new password" assertions, use a **fresh browser context**
       (`browser.newContext()`) so the admin session isn't disturbed. Log in via the auth UI (no API shortcut).
-    - [ ] For the registration-toggle scenario: after toggling off and asserting `/auth` hides the Register link,
+    - [x] For the registration-toggle scenario: after toggling off and asserting `/auth` hides the Register link,
       **toggle it back on** and assert it returns — and put the restore in a path that runs even on failure (see Testing
       Standards shared-flag hazard). Reuse `e2e/global-setup.ts` (registration enabled idempotently); no new global
       setup.
-    - [ ] Run `npm run test:e2e`; confirm green on both `chromium` and `mobile`. Re-run the existing suite to confirm no
+    - [x] Run `npm run test:e2e`; confirm green on both `chromium` and `mobile`. Re-run the existing suite to confirm no
       regression from the AppShell menu change (5.3 `account.spec.ts` admin scenario still passes: `menu-admin` present
       is additive, `menu-change-password` still absent for admin).
 
-- [ ] **Task 6 — Verification & housekeeping**
-    - [ ] `npm run lint` clean; `npm run build` (tsc strict + vite) passes.
-    - [ ] Confirm **no `bp_back/` files changed**; `src/__generated__/` changed **only** via `npm run generate` (and
+- [x] **Task 6 — Verification & housekeeping**
+    - [x] `npm run lint` clean; `npm run build` (tsc strict + vite) passes.
+    - [x] Confirm **no `bp_back/` files changed**; `src/__generated__/` changed **only** via `npm run generate` (and
       committed).
-    - [ ] Manual real-browser pass of all admin features on the `:2080` stack before marking review.
+    - [x] Manual real-browser pass of all admin features on the `:2080` stack before marking review.
 
 ## Dev Notes
 
@@ -450,8 +450,118 @@ discharge that debt here or keep it filed for a later story.
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Amelia — Dev)
+
 ### Debug Log References
+
+- **First codegen run of the reframe** — authored the 6 admin operations in `lib/admin/adminQueries.ts`, then
+  `CODEGEN_TOKEN=… npm run generate` against the live `:2080` schema. Verified `src/__generated__/graphql.ts` now holds
+  the operation result types (`AdminUsersQuery`, `CreateUserMutation`, …) with embedded `User`/`ApplicationConfig`
+  shapes; `gql.ts` `documents` populated. Generated files committed-ready, never hand-edited.
+- **Strict-build/lint fixes during Task 3/4:** (a) generated result type `AdminUsersQuery` collided with the exported
+  document constant of the same name → aliased the type import (`AdminUsersQueryResult`); (b) icon module is
+  `@mui/icons-material/DeleteOutlined`, not `DeleteOutline`; (c) MUI v9 `Switch` `slotProps.input` is strictly typed and
+  rejects `data-testid` → put the testid on the `Switch` root (Playwright reaches the checkbox via
+  `[data-testid="registration-toggle"] input`); (d) the header `Stack` tripped an overload error → used `Box` + flex
+  `sx`; (e) `refetch()` returns a `QueryResult`, so dialog `onCreated/onDeleted` are typed
+  `() => void | Promise<unknown>`.
+- **`react-hooks/set-state-in-effect` lint** — replaced the "retain last user" / "seed enabled from query" syncing
+  effects with the render-phase adjustment pattern (delete/reset dialogs) and query-derived state + `refetchQueries`
+  (registration toggle). No `useEffect` state-sync remains.
+- **Manual real-browser pass on `:2080` (reframe rule 1)** — exercised admin-menu gating, panel render, create (+ inline
+  duplicate error), reset (+ inline confirmation), delete, and toggle off→on (confirmed the public
+  `GET /api/auth/config`
+  flipped `registrationEnabled` false→true). This surfaced a UX blemish: graphql-kotlin wraps resolver messages as
+  `Exception while fetching data (/field) : <msg>`; added a targeted strip in `adminErrors.ts` so the dialog shows the
+  intended `"Username already taken"` (backend untouched) — re-verified clean in the shipped bundle.
+- **E2E result** — `npm run test:e2e` green on both `chromium` + `mobile` (30/30 on a clean run). All five 5.4 admin
+  scenarios pass reliably on both projects. See the shared-flag note below for the one residual, pre-existing flake.
 
 ### Completion Notes List
 
+- **Decision — registration-toggle E2E shared-flag race (asked `md`, chose "keep real flip + CI retries").** The toggle
+  scenario flips the ONE global backend registration flag; because the two Playwright projects run concurrently against
+  the same backend, the brief OFF window can transiently break the pre-existing register-based specs (`auth.spec`/
+  `account.spec`). Per `md`'s decision the real end-to-end flip is kept (not weakened to a mock like
+  `auth.spec.ts:65`). Mitigations applied: pre-create the observer context OUTSIDE the OFF window, do a single fast
+  `/auth` assertion, restore ON in an inner `finally`. Residual behaviour: a clean run is 30/30 green; under maximum
+  local parallelism the pre-existing `auth.spec` FR1 register test can still lose the race (`retries: 0` locally). CI
+  runs with `retries: 2`, which heals it. **No admin (5.4) scenario is flaky** — only the pre-existing register test is
+  the occasional victim. This is the documented "tests run against shared backend state" limitation.
+- **Open question carried forward (unchanged):** FR9 (401 → silent-refresh → `/auth?expired=1`) is now *organically*
+  exercisable via the `users` query with an expired token, but is NOT in 5.4's AC set (FR13–17, FR20, FR30, FR31) — left
+  deferred per Decision #8. Not built. Flag remains for `md`.
+- **AC coverage:** AC1/AC2 (admin nav + non-admin denial) — AppShell role-gated `menu-admin` + reused `AdminGuard`; AC3
+  (users table w/ loading/empty/error) ; AC4 (create + inline validation + inline CONFLICT error) ; AC5 (delete
+  confirm-first) ; AC6 (reset confirm-first + new-password + sign-out warning + inline confirmation) ; AC7 (toggle,
+  null-guarded, confirmed value) ; AC8 (all errors inline, never toast; re-entry guards) ; AC9 (labels, Enter-submits,
+  `helperText ?? ' '`, MUI `sx`/theme only) ; AC10 (no `bp_back` changes; `__generated__` regenerated only) ; AC11 (5
+  UI-driven FR-mapped E2E scenarios, chromium + mobile).
+- **No backend changes** (`git status bp_back/` clean). `src/__generated__/` changed only via `npm run generate`.
+- Build (`tsc -b && vite build`) and lint (`eslint src/`) clean.
+
 ### File List
+
+**Added**
+
+- `bp_front/src/lib/admin/adminQueries.ts` — the 6 admin GraphQL operations (`graphql()` template) + derived `AdminUser`
+  type
+- `bp_front/src/lib/admin/adminErrors.ts` — Apollo `CombinedGraphQLErrors` → inline message helper (strips
+  graphql-kotlin wrapper)
+- `bp_front/src/components/CreateUserDialog.tsx` — create-user dialog (validate-on-submit, inline CONFLICT error)
+- `bp_front/src/components/DeleteUserDialog.tsx` — delete confirmation dialog
+- `bp_front/src/components/ResetPasswordDialog.tsx` — reset-password confirmation dialog (new-password + sign-out
+  warning)
+- `bp_front/e2e/admin.spec.ts` — 5 UI-driven, FR-mapped E2E scenarios (chromium + mobile)
+
+**Modified**
+
+- `bp_front/src/routes/AdminPage.tsx` — real admin panel (users table + registration toggle + dialog wiring), replacing
+  the placeholder
+- `bp_front/src/components/AppShell.tsx` — role-gated "Admin" menu item (FR30/FR31)
+- `bp_front/src/__generated__/gql.ts` — regenerated (documents populated)
+- `bp_front/src/__generated__/graphql.ts` — regenerated (admin operation + schema types)
+
+## Change Log
+
+| Date       | Change                                                                                                                                                                                                                                                                                           |
+|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2026-07-21 | Implemented Story 5.4 Admin User Management: first reframe codegen run + admin GraphQL ops; role-gated admin nav; admin panel (users table + registration toggle); create/delete/reset confirmation dialogs; 5 UI-driven E2E scenarios (chromium + mobile). No backend changes. Status → review. |
+
+## Review Findings
+
+_Code review 2026-07-21 (adversarial + edge-case + acceptance layers). All 11 ACs satisfied and all 8 Decisions
+honored (Acceptance Auditor: no violations). No `decision-needed` items. 8 `patch` findings (2 medium, 6 low); 6
+dismissed as noise/by-design._
+
+- [x] [Review][Patch] (medium) Dialog state not cleared when reopening for the *same* user — reset-password field keeps
+  the previously typed password and stale errors persist; delete dialog keeps a stale error. Reset/delete don't refetch
+  users, so the row object reference is stable → the `if (user && user !== shown)` clear-block is
+  skipped. [ResetPasswordDialog.tsx:40, DeleteUserDialog.tsx:37]
+- [x] [Review][Patch] (medium) `AdminConfig` query error is not captured → registration toggle stuck on a permanent
+  `CircularProgress` with no error surfaced and no recovery (violates AC8 "all query errors surfaced inline"; users
+  query handles its error, this one doesn't). [AdminPage.tsx:49]
+- [x] [Review][Patch] (medium) Successful mutation + failed refetch is reported as a failure — `createUser`/`deleteUser`
+  succeed, then `await onCreated()`/`onDeleted()` refetch rejects in the same `try` → misleading inline error, dialog
+  stays open, retry hits CONFLICT/NOT_FOUND. Same post-success window re-enables the confirm button (loading already
+  false) allowing a duplicate submit. [CreateUserDialog.tsx:71, DeleteUserDialog.tsx:53]
+- [x] [Review][Patch] (low) Whitespace-only password passes client-side required-field validation — username uses
+  `.trim()`, password uses bare `if (!password)`; `"   "` submits (backend has no password
+  validation). [CreateUserDialog.tsx:59, ResetPasswordDialog.tsx:58]
+- [x] [Review][Patch] (low) Registration toggle issues a redundant refetch (`SetRegistrationEnabled` already returns
+  `registrationEnabled`) and can desync from server state if the awaited refetch fails after a successful
+  mutation. [AdminPage.tsx:51]
+- [x] [Review][Patch] (low) Raw network/technical error strings (e.g. "Failed to fetch") are surfaced verbatim to the
+  admin for non-`CombinedGraphQLErrors` failures. [adminErrors.ts:23]
+- [x] [Review][Patch] (low) Success feedback banner ("Password reset for …") persists across subsequent unrelated
+  actions; only cleared by manual close. [AdminPage.tsx:139]
+- [x] [Review][Patch] (low, test) E2E registration restore `setRegistration(page, true).catch(() => {})` swallows a
+  genuine restore failure, which could leave the shared backend flag OFF and silently break concurrent register-based
+  specs. [admin.spec.ts:171]
+
+**Dismissed (6):** users-table has no retry affordance (AC3 only requires inline surfacing — satisfied); generated files
+lack trailing-newline (codegen output, must not be hand-edited); `registration-toggle` testid on `Switch` root not input
+(documented MUI v9 `slotProps.input` limitation, E2E compensates via `.locator('input')`); `adminErrors` regex rewrites
+the backend message (intentional & beneficial — strips graphql-kotlin wrapper, frontend-only); delete dialog has no
+`<form onSubmit>` (no input field, nothing to submit); CONFLICT/reset-confirmation paths not E2E-covered (AC11 does not
+require them; manual pass done).
