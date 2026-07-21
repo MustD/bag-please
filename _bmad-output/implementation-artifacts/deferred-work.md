@@ -309,3 +309,15 @@
   shift on inline errors), but the conditional `change-password-error` Typography grows a `justifyContent: 'center'`
   column, re-centering the stack on failure. Mirrors the accepted Story 5.2 `auth-error` convention, so consistent
   rather than a regression; revisit holistically if the no-shift bar tightens.
+
+## Deferred from: planning of 5-5-lists-management (2026-07-21)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-5-lists-management.md`
+  summary: List optional description (FR34) is not implemented — the frozen backend has no `List.description` field.
+  evidence: `type List` (GqlList.kt) exposes only id/name/emoji/ownerId/ownerUsername/members/createdAt/uncheckedItemCount, and `createList(name, emoji)` (ListApi.kt) takes no description arg. Epic-5 freezes the backend, so shipping description would require a backend schema + mutation change (needs `md` sign-off). Create-list UI ships name + emoji only. Revisit if/when the backend gains a description field.
+
+## Deferred from: code review of 5-5-lists-management (2026-07-21)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-5-lists-management.md`
+  summary: `ItemsQuery` (getItems) neither selects nor filters the backend `Item.deleted` flag, and ListDetailPage groups items without a deleted guard.
+  evidence: bp_front/src/lib/lists/listsQueries.ts (ItemsQuery selects id/name/checked/category/listId only) + ListDetailPage.tsx (`items.filter(i => i.category === category.id)`). Harmless in Story 5.5 (no soft-delete path is exercised — `deleteItem` is a hard delete and there is no check/uncheck), but Story 5.6 introduces `checkItem` (ONE_TIME → deleted=true) and the shopping view; if `getItems` returns soft-deleted rows, 5.6 must select `deleted` and filter/handle it or removed one-timers will reappear. Flag for Story 5.6.

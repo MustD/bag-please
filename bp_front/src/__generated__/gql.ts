@@ -1,6 +1,6 @@
 /* eslint-disable */
 import * as types from './graphql';
-import {TypedDocumentNode as DocumentNode} from '@graphql-typed-document-node/core';
+import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
 
 /**
  * Map of all GraphQL operations in the project.
@@ -14,20 +14,38 @@ import {TypedDocumentNode as DocumentNode} from '@graphql-typed-document-node/co
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n  query AdminUsers {\n    users {\n      id\n      username\n      role\n    }\n  }\n": typeof types.AdminUsersDocument,
-    "\n  query AdminConfig {\n    applicationConfig {\n      registrationEnabled\n    }\n  }\n": typeof types.AdminConfigDocument,
-    "\n  mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n      id\n      username\n      role\n    }\n  }\n": typeof types.CreateUserDocument,
-    "\n  mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n      id\n    }\n  }\n": typeof types.DeleteUserDocument,
-    "\n  mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n      id\n    }\n  }\n": typeof types.ResetUserPasswordDocument,
-    "\n  mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n      registrationEnabled\n    }\n  }\n": typeof types.SetRegistrationEnabledDocument,
+    "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n": typeof types.AdminUsersDocument,
+    "\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n": typeof types.AdminConfigDocument,
+    "\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n": typeof types.CreateUserDocument,
+    "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": typeof types.DeleteUserDocument,
+    "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": typeof types.ResetUserPasswordDocument,
+    "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": typeof types.SetRegistrationEnabledDocument,
+    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n": typeof types.ListsDocument,
+    "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": typeof types.CreateListDocument,
+    "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": typeof types.DeleteListDocument,
+    "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.CategoriesDocument,
+    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n": typeof types.ItemsDocument,
+    "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.SaveCategoryDocument,
+    "\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n": typeof types.DeleteCategoryDocument,
+    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n": typeof types.SaveItemDocument,
+    "\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n": typeof types.DeleteItemDocument,
 };
 const documents: Documents = {
-    "\n  query AdminUsers {\n    users {\n      id\n      username\n      role\n    }\n  }\n": types.AdminUsersDocument,
-    "\n  query AdminConfig {\n    applicationConfig {\n      registrationEnabled\n    }\n  }\n": types.AdminConfigDocument,
-    "\n  mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n      id\n      username\n      role\n    }\n  }\n": types.CreateUserDocument,
-    "\n  mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n      id\n    }\n  }\n": types.DeleteUserDocument,
-    "\n  mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n      id\n    }\n  }\n": types.ResetUserPasswordDocument,
-    "\n  mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n      registrationEnabled\n    }\n  }\n": types.SetRegistrationEnabledDocument,
+    "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n": types.AdminUsersDocument,
+    "\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n": types.AdminConfigDocument,
+    "\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n": types.CreateUserDocument,
+    "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": types.DeleteUserDocument,
+    "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": types.ResetUserPasswordDocument,
+    "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": types.SetRegistrationEnabledDocument,
+    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n": types.ListsDocument,
+    "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": types.CreateListDocument,
+    "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": types.DeleteListDocument,
+    "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": types.CategoriesDocument,
+    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n": types.ItemsDocument,
+    "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": types.SaveCategoryDocument,
+    "\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n": types.DeleteCategoryDocument,
+    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n": types.SaveItemDocument,
+    "\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n": types.DeleteItemDocument,
 };
 
 /**
@@ -47,27 +65,63 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query AdminUsers {\n    users {\n      id\n      username\n      role\n    }\n  }\n"): (typeof documents)["\n  query AdminUsers {\n    users {\n      id\n      username\n      role\n    }\n  }\n"];
+export function graphql(source: "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n"): (typeof documents)["\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query AdminConfig {\n    applicationConfig {\n      registrationEnabled\n    }\n  }\n"): (typeof documents)["\n  query AdminConfig {\n    applicationConfig {\n      registrationEnabled\n    }\n  }\n"];
+export function graphql(source: "\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n"): (typeof documents)["\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n      id\n      username\n      role\n    }\n  }\n"): (typeof documents)["\n  mutation CreateUser($username: String!, $password: String!) {\n    createUser(username: $username, password: $password) {\n      id\n      username\n      role\n    }\n  }\n"];
+export function graphql(source: "\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n"): (typeof documents)["\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteUser($id: ID!) {\n    deleteUser(id: $id) {\n      id\n    }\n  }\n"];
+export function graphql(source: "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n"): (typeof documents)["\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n    resetUserPassword(id: $id, newPassword: $newPassword) {\n      id\n    }\n  }\n"];
+export function graphql(source: "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n"): (typeof documents)["\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n      registrationEnabled\n    }\n  }\n"): (typeof documents)["\n  mutation SetRegistrationEnabled($enabled: Boolean!) {\n    setRegistrationEnabled(enabled: $enabled) {\n      registrationEnabled\n    }\n  }\n"];
+export function graphql(source: "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n"): (typeof documents)["\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n"): (typeof documents)["\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n"): (typeof documents)["\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n"): (typeof documents)["\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n"): (typeof documents)["\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n"): (typeof documents)["\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n"): (typeof documents)["\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n"): (typeof documents)["\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n"): (typeof documents)["\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n"): (typeof documents)["\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

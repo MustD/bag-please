@@ -11,6 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
 import LockResetIcon from '@mui/icons-material/LockReset'
 import LogoutIcon from '@mui/icons-material/Logout'
 import {authApi} from '@/lib/auth/authApi'
@@ -33,6 +34,11 @@ export default function AppShell() {
 
   const openMenu = (event: MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
   const closeMenu = () => setAnchorEl(null)
+
+  const goToLists = () => {
+    closeMenu()
+    navigate('/lists')
+  }
 
   const goToChangePassword = () => {
     closeMenu()
@@ -120,6 +126,12 @@ export default function AppShell() {
             anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
             transformOrigin={{vertical: 'top', horizontal: 'right'}}
           >
+            <MenuItem data-testid="menu-lists" onClick={goToLists}>
+              <ListItemIcon>
+                <FormatListBulletedIcon fontSize="small"/>
+              </ListItemIcon>
+              <ListItemText>Lists</ListItemText>
+            </MenuItem>
             {role !== 'admin' && (
               <MenuItem data-testid="menu-change-password" onClick={goToChangePassword}>
                 <ListItemIcon>
