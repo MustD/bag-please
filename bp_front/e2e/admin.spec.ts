@@ -30,7 +30,10 @@ async function loginViaUi(page: Page, username: string, password: string): Promi
 // role-gated menu affordance (FR30) — never by navigating to /admin directly.
 async function loginAsAdmin(page: Page): Promise<void> {
   await loginViaUi(page, ADMIN.username, ADMIN.password)
-  await expect(page).toHaveURL(/\/$/)
+  // Admin lands on /admin via the `/` redirect (Story 5.6); assert authenticated
+  // route-agnostically, then reach the panel through the role-gated menu.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
   await page.getByTestId('user-menu-button').click()
   await page.getByTestId('menu-admin').click()
   await expect(page).toHaveURL(/\/admin$/)
@@ -96,8 +99,9 @@ test('FR13/FR14 — admin creates a user via the panel; the new user can log in'
   try {
     const userPage = await ctx.newPage()
     await loginViaUi(userPage, username, DEFAULT_PW)
-    await expect(userPage).toHaveURL(/\/$/)
-    await expect(userPage.getByTestId('home-page')).toBeVisible()
+    // The managed regular user lands on /lists via the `/` redirect (Story 5.6).
+    await expect(userPage).not.toHaveURL(/\/auth$/)
+    await expect(userPage.getByTestId('app-bar')).toBeVisible()
     await expect(userPage.getByTestId('user-chip')).toContainText(username)
   } finally {
     await ctx.close()
@@ -132,8 +136,8 @@ test('FR16/FR17 — admin resets a user password via the confirm dialog; new pas
 
     await userPage.getByTestId('login-password').fill(newPassword)
     await userPage.getByTestId('login-submit').click()
-    await expect(userPage).toHaveURL(/\/$/)
-    await expect(userPage.getByTestId('home-page')).toBeVisible()
+    await expect(userPage).not.toHaveURL(/\/auth$/)
+    await expect(userPage.getByTestId('app-bar')).toBeVisible()
   } finally {
     await ctx.close()
   }
@@ -219,8 +223,9 @@ test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /a
   try {
     const userPage = await ctx.newPage()
     await loginViaUi(userPage, username, DEFAULT_PW)
-    await expect(userPage).toHaveURL(/\/$/)
-    await expect(userPage.getByTestId('home-page')).toBeVisible()
+    // The managed regular user lands on /lists via the `/` redirect (Story 5.6).
+    await expect(userPage).not.toHaveURL(/\/auth$/)
+    await expect(userPage.getByTestId('app-bar')).toBeVisible()
 
     // The user menu offers Logout but NOT Admin (affordance-hiding, FR31).
     await userPage.getByTestId('user-menu-button').click()
@@ -228,10 +233,12 @@ test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /a
     await expect(userPage.getByTestId('menu-admin')).toHaveCount(0)
     await userPage.keyboard.press('Escape')
 
-    // A direct visit to /admin bounces home (AdminGuard, FR30/FR31).
+    // A direct visit to /admin bounces the non-admin away (AdminGuard → `/` →
+    // HomeRedirect → /lists — deterministic: this freshly-created user owns no
+    // lists, FR30/FR31).
     await userPage.goto('/admin')
-    await expect(userPage).toHaveURL(/\/$/)
-    await expect(userPage.getByTestId('home-page')).toBeVisible()
+    await expect(userPage).toHaveURL(/\/lists$/)
+    await expect(userPage.getByTestId('app-bar')).toBeVisible()
   } finally {
     await ctx.close()
   }

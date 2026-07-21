@@ -24,3 +24,14 @@ export function graphqlErrorMessage(
   }
   return fallback
 }
+
+// True when an Apollo error carries the backend's `FORBIDDEN` code — the only
+// stable extensions.code on list resources (admin-blocked or non-member). The
+// shopping view uses this to redirect a would-be viewer to /lists gracefully
+// instead of rendering a broken/empty screen (Story 5.6).
+export function isForbiddenError(error: unknown): boolean {
+  if (CombinedGraphQLErrors.is(error)) {
+    return error.errors.some(e => e.extensions?.code === 'FORBIDDEN')
+  }
+  return false
+}

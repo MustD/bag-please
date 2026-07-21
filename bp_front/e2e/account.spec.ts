@@ -18,17 +18,19 @@ function uniqueUsername(label: string, projectName: string): string {
   return `acct_e2e_${label}_${projectName}_${Date.now()}`
 }
 
-// Register a brand-new account through the UI and land authenticated on the
-// home screen (FR1/FR4). The Create-account affordance is present because
-// registration is enabled in global-setup.
+// Register a brand-new account through the UI and land authenticated (FR1/FR4).
+// The Create-account affordance is present because registration is enabled in
+// global-setup. `/` is now a redirect (Story 5.6) — a new user lands on /lists —
+// so assert route-agnostic auth (off /auth + the shared app-bar) rather than a
+// specific landing route/testid.
 async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/auth')
   await page.getByTestId('to-register-link').click()
   await page.getByTestId('register-username').fill(username)
   await page.getByTestId('register-password').fill(password)
   await page.getByTestId('register-submit').click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
 }
 
 test('FR11/FR12 — change password signs out cleanly; new password works, old fails', async ({page}, testInfo) => {
@@ -63,8 +65,8 @@ test('FR11/FR12 — change password signs out cleanly; new password works, old f
   // The NEW password succeeds and lands authenticated.
   await page.getByTestId('login-password').fill(newPassword)
   await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
   await expect(page.getByTestId('user-chip')).toContainText(username)
 })
 
@@ -100,7 +102,9 @@ test('FR11 — admin has no change-password affordance and is redirected from /a
   await page.getByTestId('login-username').fill('admin')
   await page.getByTestId('login-password').fill('admin')
   await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/\/$/)
+  // Admin lands on /admin via the `/` redirect (Story 5.6).
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
 
   // The user menu offers Logout but NOT Change password (AC #7).
   await page.getByTestId('user-menu-button').click()
@@ -108,17 +112,21 @@ test('FR11 — admin has no change-password affordance and is redirected from /a
   await expect(page.getByTestId('menu-change-password')).toHaveCount(0)
   await page.keyboard.press('Escape')
 
-  // A direct visit to the screen redirects admin home.
+  // A direct visit to the screen redirects admin away from it (ChangePasswordPage
+  // → `/` → HomeRedirect → /admin, a deterministic destination for admin).
   await page.goto('/account/password')
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
 })
 
 test('FR5 — welcome banner appears once after registration, not on later logins', async ({page}, testInfo) => {
   const username = uniqueUsername('welcome', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
 
-  // Shown exactly once, immediately after register → auto-login.
+  // The welcome banner relocated from the removed HomePage to ListsPage (Story
+  // 5.6): a brand-new user has no lists, so `/` forwards the one-time `welcome`
+  // signal to /lists, which renders the banner exactly once.
+  await expect(page.getByTestId('lists-page')).toBeVisible()
   await expect(page.getByTestId('welcome-banner')).toHaveCount(1)
   await expect(page.getByTestId('welcome-banner')).toContainText(`Welcome, ${username}!`)
 
@@ -130,7 +138,7 @@ test('FR5 — welcome banner appears once after registration, not on later login
   await page.getByTestId('login-username').fill(username)
   await page.getByTestId('login-password').fill(PASSWORD)
   await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  // Re-login lands the (still list-less) user on /lists — but with no welcome.
+  await expect(page.getByTestId('lists-page')).toBeVisible()
   await expect(page.getByTestId('welcome-banner')).toHaveCount(0)
 })

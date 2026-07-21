@@ -34,8 +34,11 @@ async function registerViaUi(page: Page, username: string, password: string): Pr
   await page.getByTestId('register-username').fill(username)
   await page.getByTestId('register-password').fill(password)
   await page.getByTestId('register-submit').click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  // `/` is now a redirect (Story 5.6): a brand-new user lands on /lists, not a
+  // home placeholder. Assert route-agnostic authentication (off /auth + the
+  // shared app-bar visible) rather than a specific landing URL/testid.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
 }
 
 // Open the lists index via the AppShell user-menu affordance (not by navigating
@@ -213,7 +216,10 @@ test('FR35 — admin is blocked from list resources and sees a graceful inline n
   await page.getByTestId('login-username').fill('admin')
   await page.getByTestId('login-password').fill('admin')
   await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/\/$/)
+  // Admin lands on /admin via the `/` redirect (Story 5.6) — assert authenticated
+  // route-agnostically rather than the old home URL.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
 
   await openListsViaMenu(page)
 

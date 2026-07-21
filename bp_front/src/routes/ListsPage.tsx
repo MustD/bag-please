@@ -1,5 +1,5 @@
-import {useState} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useEffect, useState} from 'react'
+import {useLocation, useNavigate} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -21,6 +21,7 @@ import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import {useAuth} from '@/lib/auth/AuthContext'
 import CreateListDialog from '@/components/CreateListDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import WelcomeBanner from '@/components/WelcomeBanner'
 
 // Lists index (Story 5.5, FR34/FR35/FR37/FR50). Shows every list the caller owns
 // or is an accepted member of, a zero-state onboarding prompt when there are
@@ -32,6 +33,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 export default function ListsPage() {
   const {username} = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const {data, loading, error, refetch} = useQuery(ListsQuery)
   const lists = data?.lists?.lists ?? []
 
@@ -39,9 +41,31 @@ export default function ListsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ListSummary | null>(null)
   const [deleteList] = useMutation(DeleteListMutation)
 
+  // One-time post-registration welcome (FR5), relocated here from the removed
+  // HomePage: `/` (HomeRedirect) forwards `state.welcome` to /lists for a
+  // brand-new user (who has no lists yet). Read the signal exactly once into
+  // local state — the single source of truth thereafter — set only on the
+  // register→login path, never on ordinary login / refresh / expiry re-login.
+  const [showWelcome, setShowWelcome] = useState(
+    () => Boolean((location.state as {welcome?: boolean} | null)?.welcome),
+  )
+  // Immediately scrub the history state so a re-render — or a reload that
+  // restores history.state — can't resurrect the banner from location.state.
+  useEffect(() => {
+    if ((location.state as {welcome?: boolean} | null)?.welcome) {
+      navigate(location.pathname, {replace: true, state: {}})
+    }
+    // Run once on mount; deliberately not reacting to later location changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <Box data-testid="lists-page" sx={{flexGrow: 1, py: {xs: 3, sm: 4}}}>
       <Container maxWidth="md">
+        {showWelcome && username && (
+          <WelcomeBanner username={username} onDismiss={() => setShowWelcome(false)}/>
+        )}
+
         <Box
           sx={{
             display: 'flex',

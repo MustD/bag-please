@@ -21,11 +21,11 @@ test('FR1/FR4/FR2/FR3/FR10 — register → auto-login → logout → log back i
   await page.getByTestId('register-password').fill(password)
   await page.getByTestId('register-submit').click()
 
-  // Auto-login: no separate sign-in step, lands authenticated at / (FR4, FR2).
-  // The username now lives in the app-bar chip (Story 5.3 migrated it out of the
-  // home placeholder), and logout moved into the user menu off that chip.
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  // Auto-login: no separate sign-in step, lands authenticated (FR4, FR2). `/` is
+  // now a redirect (Story 5.6), so a new user lands on /lists rather than a home
+  // placeholder — assert route-agnostic auth (off /auth + app-bar) + the chip.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
   await expect(page.getByTestId('user-chip')).toContainText(username)
 
   // Logout (via the app-bar user menu) returns to /auth and invalidates the
@@ -39,8 +39,8 @@ test('FR1/FR4/FR2/FR3/FR10 — register → auto-login → logout → log back i
   await page.getByTestId('login-username').fill(username)
   await page.getByTestId('login-password').fill(password)
   await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByTestId('home-page')).toBeVisible()
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
   await expect(page.getByTestId('user-chip')).toContainText(username)
 })
 

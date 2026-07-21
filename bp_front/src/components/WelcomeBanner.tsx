@@ -8,9 +8,10 @@ interface WelcomeBannerProps {
 }
 
 // One-time post-registration welcome (Story 5.3, FR5). Teal-tinted banner shown
-// at the top of the home content, below the app bar. Purely presentational —
+// at the top of the lists content, below the app bar. Purely presentational —
 // its lifetime (shown once, never persisted, gone on dismiss or navigation) is
-// owned by HomePage via transient router + local state.
+// owned by ListsPage via transient router + local state (relocated from the
+// removed HomePage when `/` became a redirect in Story 5.6).
 export default function WelcomeBanner({username, onDismiss}: WelcomeBannerProps) {
   return (
     <Alert

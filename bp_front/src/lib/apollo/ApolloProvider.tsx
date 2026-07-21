@@ -7,7 +7,7 @@ import {SetContextLink} from '@apollo/client/link/context'
 import {ErrorLink} from '@apollo/client/link/error'
 import {CombinedGraphQLErrors, ServerError} from '@apollo/client/errors'
 import {Observable} from 'rxjs'
-import {type ReactNode, type RefObject, useRef, useState} from 'react'
+import {type ReactNode, type RefObject, useEffect, useRef, useState} from 'react'
 import {type AuthState, useAuth} from '@/lib/auth/AuthContext'
 import {parseJwt} from '@/lib/auth/jwt'
 import {authApi} from '@/lib/auth/authApi'
@@ -136,6 +136,19 @@ export default function ApolloAppProvider({children}: { children: ReactNode }) {
     auth.clearAuth(expired)
   }
   /* eslint-enable react-hooks/refs */
+
+  // On logout/expiry (username → null), clear the Apollo cache so one user's
+  // list data can't bleed into the next session in the same tab — HomeRedirect
+  // and the list switcher navigate/render off the cached `lists` query, so a
+  // stale cache would mis-redirect and briefly show the previous user's lists.
+  // clearStore (not resetStore) empties without refetching as logged-out.
+  const prevUsernameRef = useRef(auth.username)
+  useEffect(() => {
+    if (prevUsernameRef.current && !auth.username) {
+      void apolloClient.clearStore().catch(() => {})
+    }
+    prevUsernameRef.current = auth.username
+  }, [auth.username, apolloClient])
 
   return (
     <ApolloProvider client={apolloClient}>

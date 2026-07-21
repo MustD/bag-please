@@ -84,6 +84,8 @@ export const ItemsQuery = graphql(`
             checked
             category
             listId
+            store
+            addedBy
         }
     }
 `)
@@ -122,6 +124,81 @@ export const DeleteItemMutation = graphql(`
     mutation DeleteItem($id: ID!, $listId: ID!) {
         deleteItem(id: $id, listId: $listId) {
             id
+        }
+    }
+`)
+
+// Shopping-view operations (Story 5.6). check/uncheck return the updated Item;
+// with nonOptionalTypename codegen Apollo normalizes by id, so the checkbox
+// reflects the new `checked` without manual cache writes. Items authored in
+// Story 5.5 are `recurring: null`, so checkItem just sets checked=true and the
+// row stays visible (a one-timer would set deleted=true — the realtime merge
+// still handles that generically). `deleted` is selected so the SAVED-with-
+// deleted case can be merged out of the list.
+export const CheckItemMutation = graphql(`
+    mutation CheckItem($id: ID!, $listId: ID!) {
+        checkItem(id: $id, listId: $listId) {
+            id
+            name
+            checked
+            category
+            listId
+            store
+            addedBy
+            deleted
+        }
+    }
+`)
+
+export const UncheckItemMutation = graphql(`
+    mutation UncheckItem($id: ID!, $listId: ID!) {
+        uncheckItem(id: $id, listId: $listId) {
+            id
+            name
+            checked
+            category
+            listId
+            store
+            addedBy
+            deleted
+        }
+    }
+`)
+
+// Per-list realtime (Story 5.6). Consumed via `subscribeToMore` on the Items /
+// Categories queries — never a standalone useSubscription and never a second
+// client. The stream ECHOES the caller's own actions, and a SAVED ItemUpdate can
+// carry item.deleted === true (one-timer check), so the merge keys by id and is
+// idempotent: DELETED / SAVED+deleted → drop, SAVED+!deleted → upsert. The
+// CategoryUpdate payload field is literally named `item` even though it carries a
+// Category.
+export const ItemUpdatesSubscription = graphql(`
+    subscription ItemUpdates($listId: ID!) {
+        getItemUpdates(listId: $listId) {
+            type
+            item {
+                id
+                name
+                checked
+                category
+                listId
+                store
+                addedBy
+                deleted
+            }
+        }
+    }
+`)
+
+export const CategoryUpdatesSubscription = graphql(`
+    subscription CategoryUpdates($listId: ID!) {
+        getCategoryUpdates(listId: $listId) {
+            type
+            item {
+                id
+                name
+                listId
+            }
         }
     }
 `)
