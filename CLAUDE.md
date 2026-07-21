@@ -29,6 +29,10 @@ forwarding to the single Caddy entrypoint on `127.0.0.1:2080`. HTTPS is required
 is `Secure` + `SameSite=Strict`). This repo does not manage the cert or domain — see `routing/edge-proxy.md`
 for the edge contract and the `bag-please.localhost` local setup.
 
+Deep-dive guidance lives in per-directory `CLAUDE.md` files that load when you work in that tree: `bp_back/CLAUDE.md`
+(backend layers + security), `bp_front/CLAUDE.md` (frontend architecture + GraphQL codegen), `routing/CLAUDE.md`
+(Caddy routing).
+
 ## Commands
 
 ### Backend (`bp_back/`)
@@ -89,89 +93,3 @@ docker compose up --build
 # Start only mongo + backend so the local Vite dev server can proxy to :4000
 docker compose up mongo bp_back
 ```
-
-## Architecture
-
-### Backend layers
-
-```
-GQL layer (gql/)          – graphql-kotlin Query/Mutation/Subscription objects
-Service layer (service/)  – business logic + Kotlin SharedFlow subscriptions
-Storage layer (storage/)  – in-memory ConcurrentMap with lazy sync on first access
-Mongo layer (mongo/)      – MongoDB coroutine driver repositories
-```
-
-Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
-startup the storage is populated from MongoDB on first access (`synced` flag). Mutations emit on a `MutableSharedFlow`
-which the GraphQL subscriptions expose as a `Flow`.
-
-Each domain entity (Item, Category) has a parallel set of files in each layer:
-
-- `storage/` — plain domain model (`Item`, `Category`)
-- `mongo/model/` — MongoDB BSON model + mapper
-- `gql/model/` — GraphQL model + mapper
-- `service/` — orchestrates storage + emits subscription events
-- `gql/` — Query/Mutation/Subscription objects registered in `GqlDefinition`
-
-### Backend configuration
-
-`application.yaml` reads env vars with fallback defaults:
-
-| Env var              | Default      | Purpose            |
-|----------------------|--------------|--------------------|
-| `KTOR_MONGO_HOST`    | `localhost`  | MongoDB host       |
-| `KTOR_MONGO_PORT`    | `27017`      | MongoDB port       |
-| `KTOR_MONGO_DB_NAME` | `bag_please` | Database name      |
-| `KTOR_MONGO_USER`    | `user`       | MongoDB user       |
-| `KTOR_MONGO_PASS`    | `pass`       | MongoDB password   |
-| `KTOR_JWT_SECRET`    | `secret`     | JWT signing secret |
-| `KTOR_ADMIN_LOGIN`   | `admin`      | Admin login        |
-| `KTOR_ADMIN_PASS`    | `admin`      | Admin password     |
-
-### Security
-
-The backend has a single admin user. `POST /api/login` returns a JWT (7-day expiry). All GraphQL mutations/queries
-require this token as `Authorization: Bearer <token>`. GraphQL subscriptions do **not** require auth (via WebSocket).
-The `CustomGraphQLContextFactory` in `GQL.kt` has commented-out code for exposing the principal through the GraphQL
-context if needed.
-
-### Frontend
-
-Vite + React 19 single-page app (App entry `src/main.tsx` → `src/App.tsx`). Apollo Client handles all GraphQL
-communication via a single split link (`src/lib/apollo/ApolloProvider.tsx`): HTTP for queries/mutations
-(`/api/graphql`), WebSocket (`graphql-ws`) for subscriptions (`/api/subscriptions`), with the access token supplied in
-`connectionParams`. Never instantiate a second Apollo or `graphql-ws` client.
-
-Auth is **in-memory only** (`src/lib/auth/AuthContext.tsx`) — the access token lives in React state/context, never in
-`localStorage`. On load the provider attempts a silent `POST /api/auth/refresh` (httpOnly cookie) to bootstrap a
-session. Apollo's error link retries one silent refresh on HTTP 401, then clears auth and redirects to `/auth?expired=1`.
-
-Routing is client-side via React Router (declarative `<BrowserRouter>`/`<Routes>`). `src/routes/RouteGuard.tsx` is the
-auth guard (redirects unauthenticated users to `/auth` with `replace`); `src/routes/AdminGuard.tsx` guards `/admin/*`.
-
-A single **dark** MUI theme (`src/theme.ts`, `createTheme({ palette: { mode: 'dark' }})`) is applied app-wide via
-`ThemeProvider` + `CssBaseline`. Style with the theme + `sx` only. The `src/__generated__/` directory is auto-generated
-by `graphql-codegen` — do not edit manually.
-
-UI components are built with **Material UI (MUI)**. When working on frontend UI, use the `mcp__mui-mcp__fetchDocs` /
-`mcp__mui-mcp__useMuiDocs` MCP tools to look up MUI component APIs and usage before writing or editing components.
-
-### Caddy routing
-
-The frontend is a multi-stage image (`bp_front/Dockerfile`): stage 1 builds the Vite bundle, stage 2 (`caddy:2-alpine`)
-serves it with the `routing/Caddyfile`. All traffic enters on port 2080:
-
-- `/api/subscriptions` → backend WebSocket (matched **before** `/api/*`)
-- `/api/*` → backend HTTP
-- everything else → the built SPA from `/srv`, with `try_files {path} /index.html` (SPA deep-link fallback)
-
-Caddy reaches the backend over the compose network as `bp_back:4000`. For local dev there is no Caddy — the Vite dev
-server's `server.proxy` forwards `/api` to `localhost:4000` instead.
-
-### GraphQL schema management
-
-`codegen.ts` points at `http://localhost:2080/api/graphql` and reads the admin Bearer token from `CODEGEN_TOKEN`
-(access tokens are short-lived, so mint a fresh one at run time — see the `npm run generate` command above). The
-generated output goes to `bp_front/src/__generated__/`.
-
-`ApiPlayground/` contains `.http` files for manually exercising the API via IntelliJ HTTP Client.
