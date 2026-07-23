@@ -16,11 +16,20 @@ import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
-import {DeleteListMutation, type ListSummary, ListsQuery} from '@/lib/lists/listsQueries'
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined'
+import {
+  DeleteListMutation,
+  LeaveListMutation,
+  type ListSummary,
+  ListsQuery,
+} from '@/lib/lists/listsQueries'
 import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import {useAuth} from '@/lib/auth/AuthContext'
 import CreateListDialog from '@/components/CreateListDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import PendingInvites from '@/components/PendingInvites'
+import ShareMembersDialog from '@/components/ShareMembersDialog'
 import WelcomeBanner from '@/components/WelcomeBanner'
 
 // Lists index (Story 5.5, FR34/FR35/FR37/FR50). Shows every list the caller owns
@@ -36,10 +45,22 @@ export default function ListsPage() {
   const location = useLocation()
   const {data, loading, error, refetch} = useQuery(ListsQuery)
   const lists = data?.lists?.lists ?? []
+  const pendingInvites = data?.lists?.pendingInvites ?? []
 
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ListSummary | null>(null)
   const [deleteList] = useMutation(DeleteListMutation)
+  // Share & Members and Leave targets are held by list id so that, after a
+  // refetch, the open dialog re-derives from fresh data rather than a stale
+  // snapshot.
+  const [manageTargetId, setManageTargetId] = useState<string | null>(null)
+  const [leaveTarget, setLeaveTarget] = useState<ListSummary | null>(null)
+  const [leaveList] = useMutation(LeaveListMutation)
+  const manageTarget = lists.find(list => list.id === manageTargetId) ?? null
+
+  const refresh = () => {
+    void refetch().catch(() => {})
+  }
 
   // One-time post-registration welcome (FR5), relocated here from the removed
   // HomePage: `/` (HomeRedirect) forwards `state.welcome` to /lists for a
@@ -88,6 +109,8 @@ export default function ListsPage() {
           </Button>
         </Box>
 
+        <PendingInvites invites={pendingInvites} onChanged={refresh}/>
+
         {error ? (
           <Alert severity="info" role="alert" data-testid="lists-notice">
             {graphqlErrorMessage(error)}
@@ -125,18 +148,42 @@ export default function ListsPage() {
                     disablePadding
                     secondaryAction={
                       isowner ? (
-                        <Tooltip title="Delete list">
+                        <>
+                          <Tooltip title="Share & members">
+                            <IconButton
+                              edge="end"
+                              aria-label={`Share and manage members of ${list.name}`}
+                              onClick={() => setManageTargetId(list.id)}
+                              data-testid={`manage-members-${list.name}`}
+                            >
+                              <GroupOutlinedIcon fontSize="small"/>
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete list">
+                            <IconButton
+                              edge="end"
+                              color="error"
+                              aria-label={`Delete ${list.name}`}
+                              onClick={() => setDeleteTarget(list)}
+                              data-testid="delete-list-button"
+                            >
+                              <DeleteOutlinedIcon fontSize="small"/>
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <Tooltip title="Leave list">
                           <IconButton
                             edge="end"
                             color="error"
-                            aria-label={`Delete ${list.name}`}
-                            onClick={() => setDeleteTarget(list)}
-                            data-testid="delete-list-button"
+                            aria-label={`Leave ${list.name}`}
+                            onClick={() => setLeaveTarget(list)}
+                            data-testid={`leave-list-${list.name}`}
                           >
-                            <DeleteOutlinedIcon fontSize="small"/>
+                            <LogoutOutlinedIcon fontSize="small"/>
                           </IconButton>
                         </Tooltip>
-                      ) : undefined
+                      )
                     }
                   >
                     <ListItemButton
@@ -164,10 +211,17 @@ export default function ListsPage() {
       <CreateListDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={() => {
-          void refetch().catch(() => {})
-        }}
+        onCreated={refresh}
       />
+
+      {manageTarget && (
+        <ShareMembersDialog
+          list={manageTarget}
+          open={Boolean(manageTarget)}
+          onClose={() => setManageTargetId(null)}
+          onChanged={refresh}
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -183,9 +237,28 @@ export default function ListsPage() {
         onConfirm={async () => {
           if (!deleteTarget) return
           await deleteList({variables: {id: deleteTarget.id}})
-          void refetch().catch(() => {})
+          refresh()
         }}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(leaveTarget)}
+        title="Leave list"
+        description={
+          <>
+            Leave <strong>{leaveTarget?.name}</strong>? You will lose access to this shared list.
+            The owner and other members keep it.
+          </>
+        }
+        confirmLabel="Leave"
+        testId="leave-list-dialog"
+        onConfirm={async () => {
+          if (!leaveTarget) return
+          await leaveList({variables: {listId: leaveTarget.id}})
+          refresh()
+        }}
+        onClose={() => setLeaveTarget(null)}
       />
     </Box>
   )

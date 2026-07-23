@@ -321,3 +321,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-5-lists-management.md`
   summary: `ItemsQuery` (getItems) neither selects nor filters the backend `Item.deleted` flag, and ListDetailPage groups items without a deleted guard.
   evidence: bp_front/src/lib/lists/listsQueries.ts (ItemsQuery selects id/name/checked/category/listId only) + ListDetailPage.tsx (`items.filter(i => i.category === category.id)`). Harmless in Story 5.5 (no soft-delete path is exercised — `deleteItem` is a hard delete and there is no check/uncheck), but Story 5.6 introduces `checkItem` (ONE_TIME → deleted=true) and the shopping view; if `getItems` returns soft-deleted rows, 5.6 must select `deleted` and filter/handle it or removed one-timers will reappear. Flag for Story 5.6.
+
+## Deferred from: code review of 5-7-sharing-and-membership (2026-07-23)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-7-sharing-and-membership.md`
+  summary: Membership mutation failures (leave/accept/decline/remove) do not trigger a `Lists` refetch, so a stale list row or pending-invite row can persist until a manual reload.
+  evidence: bp_front/src/routes/ListsPage.tsx (leave/delete ConfirmDialog `onConfirm` calls `refresh()` only after the awaited mutation resolves) + PendingInvites.tsx (`run` returns without `onChanged()` on error). Concrete race: owner removes member A at the same moment A clicks Leave; A's `leaveList` returns FORBIDDEN ("not a member"), A sees the inline error, but A's now-stale list row stays in the index until a manual `/lists` reload. Low consequence (recoverable by reload) and an unlikely concurrent-action window; a clean fix would refetch on the error path too.

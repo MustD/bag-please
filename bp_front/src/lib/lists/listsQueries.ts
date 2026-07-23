@@ -14,6 +14,15 @@ import type {
 // categories/items; those are fetched per-list on the detail screen.
 export type ListSummary = ListsQueryResult['lists']['lists'][number]
 
+// A co-member row on a list (Story 5.7), derived from the widened `lists` query.
+// The backend `List.members` array EXCLUDES the owner and only carries invitees
+// with status "PENDING" or "ACCEPTED" ("DECLINED" is filtered out).
+export type ListMember = ListSummary['members'][number]
+
+// A pending invite the caller has received (Story 5.7), derived from the sibling
+// `pendingInvites` field on the `lists` query result.
+export type PendingInviteSummary = ListsQueryResult['lists']['pendingInvites'][number]
+
 // A category / item row on the list detail screen, derived from their queries.
 export type ListCategory = CategoriesQueryResult['getCategories'][number]
 export type ListItem = ItemsQueryResult['getItems'][number]
@@ -26,9 +35,12 @@ export type ListItem = ItemsQueryResult['getItems'][number]
 // gates list mutations by ownership/membership — surfaced inline via
 // graphqlErrorMessage. Never hand-edit the generated output.
 
-// All lists the caller owns or is an accepted member of. The `lists` query also
-// returns `pendingInvites`, which are out of scope for 5.5 (Story 5.7) — only
-// the `lists` array is selected here.
+// All lists the caller owns or is an accepted member of, plus the invites the
+// caller has yet to accept/decline. `members` excludes the owner and carries
+// each invitee's status ("PENDING" / "ACCEPTED"); it drives the owner's Share &
+// Members dialog. `pendingInvites` drives the Pending Invites section (Story
+// 5.7). There is no membership subscription — consumers refetch this query after
+// every membership mutation.
 export const ListsQuery = graphql(`
     query Lists {
         lists {
@@ -39,6 +51,17 @@ export const ListsQuery = graphql(`
                 ownerId
                 ownerUsername
                 createdAt
+                members {
+                    userId
+                    username
+                    status
+                }
+            }
+            pendingInvites {
+                listId
+                listName
+                listEmoji
+                ownerUsername
             }
         }
     }
@@ -63,6 +86,57 @@ export const DeleteListMutation = graphql(`
             deletedItemCount
             deletedCategoryCount
         }
+    }
+`)
+
+// Membership mutations (Story 5.7). All sharing errors arrive as
+// extensions.code = FORBIDDEN with a differentiating message string, surfaced
+// inline via graphqlErrorMessage. `shareList`/`removeMember` return the updated
+// List (its `members` drives immediate dialog state); `rejectInvite`/`leaveList`
+// return Boolean, so callers refresh purely by refetching `Lists`.
+export const ShareListMutation = graphql(`
+    mutation ShareList($listId: ID!, $username: String!) {
+        shareList(listId: $listId, username: $username) {
+            id
+            members {
+                userId
+                username
+                status
+            }
+        }
+    }
+`)
+
+export const AcceptInviteMutation = graphql(`
+    mutation AcceptInvite($listId: ID!) {
+        acceptInvite(listId: $listId) {
+            id
+        }
+    }
+`)
+
+export const RejectInviteMutation = graphql(`
+    mutation RejectInvite($listId: ID!) {
+        rejectInvite(listId: $listId)
+    }
+`)
+
+export const RemoveMemberMutation = graphql(`
+    mutation RemoveMember($listId: ID!, $username: String!) {
+        removeMember(listId: $listId, username: $username) {
+            id
+            members {
+                userId
+                username
+                status
+            }
+        }
+    }
+`)
+
+export const LeaveListMutation = graphql(`
+    mutation LeaveList($listId: ID!) {
+        leaveList(listId: $listId)
     }
 `)
 

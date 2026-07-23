@@ -20,9 +20,14 @@ type Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": typeof types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": typeof types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": typeof types.SetRegistrationEnabledDocument,
-    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n": typeof types.ListsDocument,
+    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": typeof types.ListsDocument,
     "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": typeof types.CreateListDocument,
     "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": typeof types.DeleteListDocument,
+    "\n    mutation ShareList($listId: ID!, $username: String!) {\n        shareList(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": typeof types.ShareListDocument,
+    "\n    mutation AcceptInvite($listId: ID!) {\n        acceptInvite(listId: $listId) {\n            id\n        }\n    }\n": typeof types.AcceptInviteDocument,
+    "\n    mutation RejectInvite($listId: ID!) {\n        rejectInvite(listId: $listId)\n    }\n": typeof types.RejectInviteDocument,
+    "\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": typeof types.RemoveMemberDocument,
+    "\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n": typeof types.LeaveListDocument,
     "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.CategoriesDocument,
     "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n        }\n    }\n": typeof types.ItemsDocument,
     "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.SaveCategoryDocument,
@@ -41,9 +46,14 @@ const documents: Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": types.SetRegistrationEnabledDocument,
-    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n": types.ListsDocument,
+    "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": types.ListsDocument,
     "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": types.CreateListDocument,
     "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": types.DeleteListDocument,
+    "\n    mutation ShareList($listId: ID!, $username: String!) {\n        shareList(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": types.ShareListDocument,
+    "\n    mutation AcceptInvite($listId: ID!) {\n        acceptInvite(listId: $listId) {\n            id\n        }\n    }\n": types.AcceptInviteDocument,
+    "\n    mutation RejectInvite($listId: ID!) {\n        rejectInvite(listId: $listId)\n    }\n": types.RejectInviteDocument,
+    "\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": types.RemoveMemberDocument,
+    "\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n": types.LeaveListDocument,
     "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": types.CategoriesDocument,
     "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n        }\n    }\n": types.ItemsDocument,
     "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": types.SaveCategoryDocument,
@@ -97,7 +107,7 @@ export function graphql(source: "\n    mutation SetRegistrationEnabled($enabled:
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n"): (typeof documents)["\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n            }\n        }\n    }\n"];
+export function graphql(source: "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n"): (typeof documents)["\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -106,6 +116,26 @@ export function graphql(source: "\n    mutation CreateList($name: String!, $emoj
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n"): (typeof documents)["\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation ShareList($listId: ID!, $username: String!) {\n        shareList(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n"): (typeof documents)["\n    mutation ShareList($listId: ID!, $username: String!) {\n        shareList(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation AcceptInvite($listId: ID!) {\n        acceptInvite(listId: $listId) {\n            id\n        }\n    }\n"): (typeof documents)["\n    mutation AcceptInvite($listId: ID!) {\n        acceptInvite(listId: $listId) {\n            id\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation RejectInvite($listId: ID!) {\n        rejectInvite(listId: $listId)\n    }\n"): (typeof documents)["\n    mutation RejectInvite($listId: ID!) {\n        rejectInvite(listId: $listId)\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n"): (typeof documents)["\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n"): (typeof documents)["\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

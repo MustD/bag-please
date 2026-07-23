@@ -184,18 +184,19 @@ test('FR37 — the owner sees a delete affordance; a non-owner never sees the li
   await openListsViaMenu(page)
   await createListViaUi(page, listName)
 
-  // Owner-only delete is UI-gated on ownerUsername === current user: the owner
-  // sees the delete control on their own row.
+  // Owner-only affordances are UI-gated on ownerUsername === current user: the
+  // owner sees Delete AND Share & Members on their own row, and never a Leave
+  // control (owners delete, they don't leave). The non-owner-member half is
+  // covered by the role-affordance test below (Story 5.7 sharing flows).
   await expect(
     page.getByTestId(`list-row-${listName}`).getByTestId('delete-list-button'),
   ).toBeVisible()
+  await expect(page.getByTestId(`manage-members-${listName}`)).toBeVisible()
+  await expect(page.getByTestId(`leave-list-${listName}`)).toHaveCount(0)
 
   // A different, unrelated user only ever sees lists they own or are an accepted
   // member of — the owner's list is absent from their index entirely (there is
-  // no delete affordance to leak because the row itself never renders). NOTE:
-  // Story 5.5 ships no sharing UI, so a true "member-but-not-owner" view (a
-  // shared list whose delete control is hidden) cannot be constructed UI-only;
-  // that non-owner-member case is deferred to Story 5.7's sharing flows. This
+  // no delete affordance to leak because the row itself never renders). This
   // asserts the reachable half of FR37 UI-only.
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
@@ -204,6 +205,45 @@ test('FR37 — the owner sees a delete affordance; a non-owner never sees the li
     await openListsViaMenu(otherPage)
     await expect(otherPage.getByTestId('lists-empty')).toBeVisible()
     await expect(otherPage.getByTestId(`list-row-${listName}`)).toHaveCount(0)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('FR37/FR55 — role affordances: a shared member sees Leave but no Delete/Share controls', async ({browser, page, baseURL}, testInfo) => {
+  const owner = uniqueUsername('roleowner', testInfo.project.name)
+  const member = uniqueUsername('rolemember', testInfo.project.name)
+  const listName = `Roles ${Date.now()}`
+  await registerViaUi(page, owner, PASSWORD)
+  await openListsViaMenu(page)
+  await createListViaUi(page, listName)
+
+  const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    const memberPage = await ctx.newPage()
+    await registerViaUi(memberPage, member, PASSWORD)
+
+    // Owner shares with the member through the Share & Members dialog (UI).
+    await page.getByTestId(`manage-members-${listName}`).click()
+    await expect(page.getByTestId('share-members-dialog')).toBeVisible()
+    await page.getByTestId('share-username-input').fill(member)
+    await page.getByTestId('share-submit').click()
+    await expect(page.getByTestId(`member-row-${member}`)).toBeVisible()
+    await page.getByTestId('share-members-close').click()
+
+    // Member reloads /lists (no realtime), accepts, and the list appears.
+    await memberPage.goto('/lists')
+    await expect(memberPage.getByTestId('lists-page')).toBeVisible()
+    await memberPage.getByTestId(`accept-invite-${listName}`).click()
+    await expect(memberPage.getByTestId(`list-row-${listName}`)).toBeVisible()
+
+    // Member role affordance gating: Leave is present; Delete and Share & Members
+    // (owner-only) are absent from their row.
+    await expect(memberPage.getByTestId(`leave-list-${listName}`)).toBeVisible()
+    await expect(
+      memberPage.getByTestId(`list-row-${listName}`).getByTestId('delete-list-button'),
+    ).toHaveCount(0)
+    await expect(memberPage.getByTestId(`manage-members-${listName}`)).toHaveCount(0)
   } finally {
     await ctx.close()
   }
