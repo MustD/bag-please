@@ -1,3 +1,5 @@
+import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+
 group = "com.bagplease"
 
 tasks.register("syncFrontendVersion") {
@@ -12,4 +14,10 @@ tasks.register("syncFrontendVersion") {
         )
         println("bp_front/package.json version set to $version")
     }
+}
+
+
+tasks.named<DependencyUpdatesTask>("dependencyUpdates") {
+    revision = "release"
+    outputFormatter = "plain,json"
 }

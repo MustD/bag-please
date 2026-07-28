@@ -9,15 +9,15 @@ node = "26.4"
 
 [tasks."back:build"]
 description = "Build the backend"
-run = "./gradlew :bp_back:build"
+run = "./gradlew :bp_back:build --console=plain"
 
 [tasks."back:run"]
 description = "Run the backend in dev mode (continuous build)"
-run = "./gradlew :bp_back:run -t"
+run = "./gradlew :bp_back:run -t --console=plain"
 
 [tasks."back:test"]
 description = "Run all backend tests"
-run = "./gradlew :bp_back:test"
+run = "./gradlew :bp_back:test --console=plain"
 
 # --- Frontend (Vite + React 19 SPA, dev server on :5173) ---
 
@@ -74,11 +74,10 @@ description = "Update BMad Method (core + modules) by re-running the installer"
 run = "npx bmad-method install"
 
 [tasks."update:front"]
-description = "Update frontend npm dependencies"
+description = "List available frontend npm dependency updates (does not modify files)"
 dir = "bp_front"
-depends = ["update:bmad"]
-run = "npm update"
+run = "npx npm-check-updates --format group"
 
-[tasks."update"]
-description = "Update everything — BMad first, then frontend deps"
-depends = ["update:bmad", "update:front"]
+[tasks."gradle:dependencyUpdates"]
+description = "List available Gradle dependency updates (does not modify files)"
+run = "./gradlew dependencyUpdates --console=plain"
