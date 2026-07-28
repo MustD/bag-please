@@ -1,6 +1,6 @@
 ---
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8']
-status: in_progress
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8', 'epic6-step-01-validate-prerequisites', 'epic6-step-02-design-epics', 'epic6-story-6.1', 'epic6-story-6.2', 'epic6-step-03-create-stories', 'epic6-step-04-final-validation']
+status: complete
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
@@ -9,6 +9,23 @@ inputDocuments:
   - docs/integration-architecture.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  # Added for Epic 6 (2026-07-28). The Epic 4 UX spec above is stale on presentation
+  # from Epic 5 onward — see the UX source note in the Epic 6 UX-DR section.
+  - _bmad-output/project-context.md
+  - _bmad-output/implementation-artifacts/deferred-work.md
+  - _bmad-output/implementation-artifacts/epic-5-retro-2026-07-28.md
+  # Epic 6 requirements were verified against the shipped code, which is authoritative
+  # over the planning docs where they disagree:
+  - bp_front/src/components/AddItemDialog.tsx
+  - bp_front/src/components/AppShell.tsx
+  - bp_front/src/routes/ListDetailPage.tsx
+  - bp_front/src/routes/ListShoppingPage.tsx
+  - bp_front/src/routes/HomeRedirect.tsx
+  - bp_front/src/lib/lists/listsQueries.ts
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemInput.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
 ---
 
 # bag-please - Epic Breakdown
@@ -102,6 +119,30 @@ FR51: All item creation and editing occurs in bottom sheet overlays without navi
 FR52: Item updates (check-off, add, edit, delete) from any list member appear in real-time on all other members' shopping views via GraphQL subscription without requiring a manual refresh
 FR53: WebSocket subscription connections require a valid JWT supplied in connectionParams on connection establishment; unauthenticated connections are rejected; the backend closes the connection when the token expires; the frontend disposes the connection before clearing auth state on logout or password reset
 
+#### Epic 6 — Item Editing & Home Navigation
+
+FR57: From any authenticated screen the user can return to the application home destination in one action; the "Bag
+Please" title in the app bar is a link to `/`, which resolves (per FR38) to the user's oldest list or, with no lists, to
+the lists index; the shopping view additionally offers an explicit back affordance to the lists index, matching the one
+the list management view already provides
+
+**Also delivered in Epic 6 (previously undelivered portions of existing FRs, not new requirements):**
+
+- **FR40 — the `edit` verb.** FR40 grants every list member the right to "add, check off, **edit**, and delete items".
+  Add, check-off, and delete shipped in Epic 5; **edit has no UI on any surface**. Epic 6 delivers item editing (name
+  and category) on the list management view, available to every member with no owner/member distinction.
+- **FR44 — the store write path.** FR44 requires that a user "can optionally specify a store for an item" and that "the
+  item editor surfaces pre-populated store suggestions derived from existing item data". Epic 5 shipped only the *read*
+  side (the store chip on the shopping row); no UI can set or clear a store, and the backend's
+  `itemStoreSuggestions(listId)` query is unused. Epic 6 delivers the store field with suggestions in **both the create
+  and the edit dialog** (`md`, 2026-07-28). Scoping it to the edit dialog alone was rejected in review: it would have
+  turned "specify a store for an item" into "edit an item you already created to give it a store", satisfying the FR's
+  letter and not its substance.
+
+**Explicitly still deferred:** FR42 (one-timer) and FR43 (recurring cadence) remain deferred as Epic 5 left them. Their
+lifecycle control lives in the item editor per FR43, so Epic 6 builds the editor **without** it; undeferring them is a
+later epic and depends on the `checkedAt` preservation gap recorded in AR-E6-3.
+
 ### NonFunctional Requirements
 
 NFR1: User passwords are hashed using bcrypt with cost factor 12; plaintext passwords are never stored or logged
@@ -131,6 +172,18 @@ NFR-L2: Every service-layer method that reads or writes list-scoped data verifie
 NFR-L3: The Epic 4 data migration is idempotent; running it against an already-migrated database produces no changes, no duplicate lists, and no errors; idempotency is guaranteed by an app_migrations completion record checked at startup
 NFR-L4: No list's items or categories are accessible to users not listed as members of that list at any layer of the stack (GQL resolver, service, storage); unauthorized access returns a GQL error, not an empty result
 NFR-L5: WebSocket subscription connections require a valid JWT supplied in connectionParams; the backend validates the token before establishing any subscription stream; the connection is closed when the validated token expires; the clearAuth() frontend function disposes the WebSocket client before clearing auth state to prevent orphaned in-flight events reaching React state after logout
+
+#### Epic 6 — Item Editing & Home Navigation
+
+NFR-E6-1: An item edit never silently discards a field the editor does not expose; every value the edit form does not
+render is round-tripped from the current item into the `saveItem` input so a save is a modification, not a
+reconstruction. The two fields that are structurally impossible to round-trip (`addedBy`, `checkedAt` — absent from
+`ItemInput`) are the documented exception recorded in AR-E6-3 NFR-E6-2: The home affordance and the item edit affordance
+are reachable and operable on both the `chromium` and
+`mobile` (Pixel 7) Playwright projects; the app-bar title link must not displace or truncate the username chip at a
+~360px viewport NFR-E6-3: Both new affordances are keyboard-operable and screen-reader-labelled: the app-bar home link
+is a real link element (focusable, Enter-activated, discoverable as a link), and each per-row edit control carries an
+item-specific accessible name rather than a bare "Edit"
 
 ### Additional Requirements
 
@@ -190,6 +243,88 @@ From Architecture (Epic 4):
 - AR-E4-13: `recurring` is `enum class Recurring { WEEKLY, BIWEEKLY, MONTHLY }` with `recurring: Recurring?` in `Item.kt`; `null` = regular item (persists across check-offs); `"one-time"` is a separate lifecycle designation (soft-delete on check-off) represented as a distinct named value, not a flag; GQL exposes recurring as String; Mongo stores enum name as string
 - AR-E4-14: Compound indexes on items collection — `{listId, _id}` for per-list retrieval; `{listId, recurring, checkedAt}` and `{deleted, deletedAt}` for hourly scheduler queries; added in `ItemRepository.init {}` block
 - AR-E4-15: Testing requirements — every list-scoped service test must include: (a) negative-path membership test (caller not a member); (b) cross-tenant isolation assertion (second user cannot access); evictList test must assert both ItemStorage and CategoryStorage empty for deleted list AND that a different list is unaffected; subscription test must exercise mid-stream membership removal via takeWhile; migration test must assert idempotency guard; Playwright must include two-actor real-time collaboration E2E test
+
+From Architecture (Epic 6) — verified against the current code, not inferred from the architecture document:
+
+- **AR-E6-0 (standing constraint): the backend is frozen for Epic 6.** Both stories are frontend-only. No Kotlin file,
+  no GraphQL schema change, no `npm run generate` run. This carries Epic 5's reframe rule 2 forward, and it is what
+  makes AR-E6-2 and AR-E6-3 constraints rather than bugs to fix. Any backend need discovered mid-story stops the story
+  and goes to `md`.
+- **AR-E6-1: `saveItem` is the edit mutation — it is a full-document upsert keyed by `id`, not a partial patch.**
+  `ItemService.saveItem` calls `storage.save(item)` with no merge against the existing document, so **every field absent
+  from `ItemInput` reverts to its `Item` default**. The existing `SaveItemMutation` document is reused as-is (same
+  operation, same variables); editing means sending the *same* `id` with changed fields. `ItemInput` = `{id, name,
+  checked, category, listId, store, recurring}` — nothing else can be sent.
+- **AR-E6-2: the edit form must round-trip `checked` and `recurring` from the current item, not send defaults**
+  (NFR-E6-1). `AddItemDialog` hardcodes `checked: false, recurring: null`, which is correct for creation and **wrong for
+  an edit**: reusing that shape would silently uncheck a checked item and strip a cadence from a recurring one. The edit
+  dialog must seed both from the item it opened on and pass them through unchanged. **Assessed in review as the single
+  most likely defect in this epic** — a one-line mistake with a mid-shop symptom (you fix a typo and an item you already
+  put in the cart jumps back onto the to-buy list). Story 6.1 therefore requires a named regression test — *edit a
+  checked item, assert it is still checked* — on **both** the `chromium` and `mobile`
+  projects. It must be an explicit AC, not left to the implementer's judgement.
+- **AR-E6-3: two fields cannot be preserved through an edit. `md`'s ruling (2026-07-28): preserve them if possible, and
+  where it is not possible, file it as a BUG — not as an accepted trade-off. The backend stays frozen either way.**
+
+  Verified impossible frontend-only. `GqlItemInput` carries exactly seven fields (`id`, `name`, `checked`, `category`,
+  `listId`, `store`, `recurring`); `ItemApi.saveItem` calls `GqlItemMapper.mapItemFromInput(item, caller.value)`,
+  setting
+  `addedBy` from the caller unconditionally; `ItemStorage.save` overwrites the whole document. **No value the frontend
+  can send preserves these fields.** Confirmed against source, not inferred.
+
+    - **BUG-E6-1 (FR45 regression): editing an item re-attributes `addedBy` to the editor.** A member who edits another
+      member's item becomes its recorded author, and the shopping row then shows the wrong avatar. Cause diagnosed
+      above; the fix is server-side (in `ItemService.saveItem`, load the existing item by id and carry `addedBy` forward
+      on update). **Out of scope for Epic 6 — the backend is frozen (AR-E6-0) — but recorded as a known defect, not as
+      intended behaviour.** Concretely: the household where one person plans and the other shops ends up crediting the
+      shopper for the planner's work.
+    - **BUG-E6-2 (blocks FR42/FR43): `checkedAt` / `deleted` / `deletedAt` reset on every save.** Same cause, same
+      server-side fix. Zero impact today because Epic 5 authors every item with `recurring: null`, so `checkedAt` is
+      never set — but editing a checked recurring item would clear `checkedAt` and the FR54 scheduler would never
+      restore it. **This must be fixed before FR42/FR43 can be undeferred.**
+    - **Mitigation that IS in scope — no-op guard.** If the user opens the edit dialog and saves without changing
+      anything, skip the mutation entirely (compare the four editable fields against the item, close the dialog). This
+      does not fix BUG-E6-1; it stops Epic 6 from triggering it gratuitously, e.g. on an opened-and-dismissed-with-Save
+      dialog.
+    - **Both bugs must be logged in `deferred-work.md`, and that logging is an acceptance criterion of the story — not a
+      line in this section.** FR9's automated E2E was also "written down", in story prose, and was still orphaned across
+      the 5.4 → 5.5 workflow handoff. A requirements-doc mention is not a mechanism; an AC is.
+- **AR-E6-4: the store-suggestion source already exists and is unused.** `ItemQueries.itemStoreSuggestions(listId: ID!):
+  [String!]!` returns the list's distinct non-null store values (`ItemService.getStoreSuggestions`, membership-gated).
+  It has **no operation document in `listsQueries.ts`** and therefore no generated type. Authoring a query document is
+  not a schema change — but it *does* require `npm run generate` (stack on `:2080` + fresh `CODEGEN_TOKEN`), which is
+  the one codegen run Epic 6 needs. Run it before writing the component that consumes it.
+- **AR-E6-5: item edit lands on `ListDetailPage` (`/lists/:id`) only — re-confirmed by `md` after review challenge (
+  2026-07-28).** The governing principle is **separation of intent: `/lists/:id` is for *managing* a list, `/list/:id`
+  is for *using* one.** `ListShoppingPage` stays check-off-only and gains **no** edit affordance — the same reason it
+  carries no delete button. The challenge this survived is on the record: editing from the aisle now costs a round trip
+  through
+  `/lists`, which makes Story 6.2's navigation work load-bearing for Story 6.1's usability. If the return path is
+  clumsy, the aisle-edit case comes back as a defect report. The edit dialog is a new
+  `src/components/EditItemDialog.tsx` following the `AddItemDialog` conventions (validate-on-submit,
+  `if (loading) return` re-entry guard, real `catch` → inline `Alert`, `helperText={… ?? ' '}`).
+- **AR-E6-5a: the store field is shared code, not duplicated.** Story 6.1 adds `store` to **both** dialogs, so
+  `AddItemDialog` *is* modified. The store input **and** its suggestion chips must be one component both dialogs
+  import — not copy-pasted — so a later validation rule cannot land in one and miss the other. `AddItemDialog`'s
+  existing hardcoded `checked: false, recurring: null` stays correct for creation; only `EditItemDialog` round-trips
+  them (AR-E6-2).
+- **AR-E6-6: the edit is visible live to other members with no extra work** — `ItemService.saveItem` emits on
+  `itemUpdateChannel`, and `ListShoppingPage`'s `subscribeToMore` merge already upserts a `SAVED` event by `id`. No
+  subscription, cache, or merge change is needed; `ListDetailPage` has no subscription and refreshes via its existing
+  `refetch()`.
+- **AR-E6-7: the home affordance belongs in `AppShell.tsx`**, the single component wrapping every guarded screen — so
+  one change covers all of them. Target `/`, whose `HomeRedirect` already resolves oldest-list-or-`/lists` (FR38) and
+  already routes `admin` to `/admin`; do not re-implement that resolution in the app bar. Use `component={RouterLink}`
+  (declarative react-router 7 API — no `createBrowserRouter`) and **never** an imperative `navigate()`, per the standing
+  rule that `RouteGuard` is the sole owner of auth-driven redirects.
+- **AR-E6-8: `ListDetailPage` already contains the exact back-link pattern** to copy for the shopping view — MUI `Link
+  component={RouterLink} to="/lists"` + `ArrowBackIcon`, `data-testid="list-detail-back"`. Reuse it verbatim in
+  `ListShoppingPage` with its own testid rather than inventing a second idiom.
+- **AR-E6-9: styling and testing conventions are unchanged** — theme + `sx` only (no `style`/`className`); MUI v9 API
+  looked up via the `mcp__mui-mcp__fetchDocs` MCP tool before writing components, never from v5/v6 memory; testids on
+  inputs via `slotProps={{htmlInput: {'data-testid': …}}}`; every story ships FR-tagged Playwright specs passing on
+  **both** `chromium` and `mobile`, each flow manually exercised in a real browser first; each spec registers its own
+  fresh user and asserts only on data it created.
 
 ### UX Design Requirements
 
@@ -299,6 +434,69 @@ UX-DR-E4-18: Responsive — `maxWidth: 480, mx: 'auto'` global container; `100dv
 
 UX-DR-E4-19: Accessibility testing — `@axe-core/playwright` (Option B, no Storybook) on 3 routes in CI; CI-gated tests: contrast/ARIA/labels (axe), reduced-motion (Playwright `emulateMedia`), focus management after sheet open/close, focus unchanged after subscription update; manual per-story AC: VoiceOver+iOS, TalkBack+Android, keyboard-only, 200% text zoom; 5 specific required test cases: (1) one-timer deletion under SR with focus destination, (2) subscription batching 1.5s debounce, (3) two-actor real-time E2E, (4) WS disconnect with active 5s timer, (5) authorization boundary deleteItem on foreign listId
 
+#### Epic 6 UX Design Requirements
+
+> **UX source note.** `ux-design-specification-epic-4.md` is **stale from Epic 5 onward** on presentation: its
+> `BPSheet` bottom sheets, `BPBottomNav` bottom tab bar, and light-theme-only palette were all superseded by the Epic 5
+> reframe (dark-only MUI theme, `Dialog`-based overlays, top `AppBar` + user menu, no bottom nav). Epic 6 follows the
+> **shipped Epic 5 conventions**. Two durable signals are carried over from the Epic 4 spec because they are about
+> behaviour rather than chrome: store **suggestion chips below the store input** (line 373) and **delete lives inside
+the
+> item editor, never swipe-to-delete on a row** (line 411).
+
+UX-DR-E6-1: `EditItemDialog` (`src/components/EditItemDialog.tsx`) — MUI `Dialog fullWidth maxWidth="xs"`, structurally
+a sibling of `AddItemDialog`: title "Edit item", `TextField` "Item name" (required, `maxLength` 100, `autoFocus`),
+category
+`Select` (required, the list's categories), store `TextField` (optional), Cancel + Save `DialogActions` with the Save
+button showing `CircularProgress size={20}` while in flight. Fields are seeded from the item on the closed→open
+transition via **render-phase adjustment** (`prevOpen` pattern), never a syncing `useEffect` —
+`react-hooks/set-state-in-effect` forbids it
+
+UX-DR-E6-2: Store field with suggestion chips — **one shared component used by both the create and the edit dialog**
+(AR-E6-5a): a store `TextField` with the list's distinct existing store values (from `itemStoreSuggestions`, AR-E6-4)
+rendered below it as small clickable `Chip`s that fill the field on click. The field stays freely typable (suggestions
+reduce typing, they do not constrain input); an empty or whitespace-only value clears the store (sends `null`, not
+`""`); render no chip row at all when the list has no stores yet — never an empty container or a "no suggestions"
+placeholder. The two dialogs must not drift: identical field, identical validation, identical chip behaviour
+
+UX-DR-E6-2a: The shopping view keeps **no** edit or delete affordance on the item row — `/list/:id` is the *use*
+surface,
+`/lists/:id` is the *manage* surface (AR-E6-5). This is a deliberate boundary, not an omission: no edit icon, no
+long-press editor, no swipe-to-delete (the last is an explicit Epic 4 anti-pattern — accidental deletion while scrolling
+in-aisle)
+
+UX-DR-E6-3: Per-item edit affordance on `ListDetailPage` — an edit `IconButton` (`EditOutlinedIcon`) alongside the
+existing remove `IconButton` in each item row's `secondaryAction`, wrapped in a `Tooltip` ("Edit item") and carrying an
+item-specific `aria-label` (`Edit item ${item.name}`) to match the existing `Remove item ${item.name}` idiom (NFR-E6-3).
+Both controls must remain tappable at ~360px without the item name overlapping them — tighten the existing
+`ListItemText` `noWrap`/`maxWidth` clamp as needed
+
+UX-DR-E6-4: Feedback is inline and change-confirmed, per the Epic 5 conventions — validation on submit only, field
+errors clear on modification, `helperText={fieldErrors.x ?? ' '}` to reserve vertical space, GraphQL failures surfaced
+through `graphqlErrorMessage` in an `<Alert severity="error" role="alert">` inside the dialog. **No success toast**: a
+successful save closes the dialog and the row updates. On success the order is `onClose()` → `void onDone().catch(() =>
+{})` — never `await` the refetch inside the mutation's `try`, which would report a successful write as an error
+
+UX-DR-E6-4a: Saving an unchanged item is a no-op — if none of the four editable fields differs from the item the dialog
+opened on, close without firing `saveItem` (AR-E6-3 mitigation). The user-visible behaviour is indistinguishable from a
+successful save: no error, no warning, no "nothing changed" message. This exists so a dialog that is opened and
+dismissed via Save does not needlessly re-attribute someone else's item
+
+UX-DR-E6-5: App-bar home affordance in `AppShell` — the existing "Bag Please" `Typography variant="h6"` becomes a link
+to `/` (MUI `Link`/`Typography` with `component={RouterLink}`), keeping its current type scale, weight, and colour with
+`textDecoration: 'none'` at rest and a visible hover and focus-visible state. It must not become a `Button` (no ripple,
+no uppercase, no padding shift) and must not push or truncate the username chip at ~360px (NFR-E6-2)
+
+UX-DR-E6-6: Shopping-view back affordance — "Back to lists" link above the shopping header on `/list/:id`, visually and
+structurally identical to `ListDetailPage`'s existing one (`Link component={RouterLink} to="/lists"` + `ArrowBackIcon
+fontSize="small"`, `display: inline-flex`, `gap: 0.5`, `mb: 2`), with its own `data-testid`. It sits above the
+list-title
+`Typography` and must not disturb the existing switcher-chip-row or filter-bar spacing
+
+UX-DR-E6-7: Admin behaviour is unchanged and must stay graceful — the admin account is forbidden from all list resources
+(FR56), so the app-bar home link resolves via `HomeRedirect` to `/admin` for admins. No new admin-facing surface, and no
+list affordance is added to any admin screen
+
 ### FR Coverage Map
 
 FR1: Epic 1 — Registration endpoint + RegisterPage
@@ -362,7 +560,17 @@ NFR-L1: Epic 4 — Filtered broadcast + takeWhile two-point enforcement in subsc
 NFR-L2: Epic 4 — verifyMembership as first step in every list-scoped service method
 NFR-L3: Epic 4 — app_migrations idempotency guard in Migration.kt
 NFR-L4: Epic 4 — Service/storage/GQL layers all return auth error for unauthorized list access
-NFR-L5: Epic 4 — WebSocket JWT validation + clearAuth() dispose ordering
+NFR-L5: Epic 4 — WebSocket JWT validation + clearAuth() dispose ordering FR57: Epic 6 — App-bar title as a link to `/`
+in AppShell + "Back to lists" affordance on `/list/:id`
+FR40 (edit verb): Epic 6 — EditItemDialog reached from a per-row edit IconButton on `/lists/:id` (add/check/delete
+shipped in Epic 5)
+FR44 (store write path): Epic 6 — Shared store field + suggestion chips in BOTH AddItemDialog and EditItemDialog, backed
+by the previously unused `itemStoreSuggestions` query (read-side chip shipped in Epic 5)
+NFR-E6-1: Epic 6 — `checked` and `recurring` round-tripped through `saveItem`; `addedBy`/`checkedAt` documented as
+unpreservable (AR-E6-3)
+NFR-E6-2: Epic 6 — Both affordances pass on `chromium` + `mobile`; app-bar link does not displace the user chip at ~
+360px NFR-E6-3: Epic 6 — Home affordance is a real focusable link; per-row edit control carries an item-specific
+accessible name
 
 ## Epic List
 
@@ -405,6 +613,31 @@ One-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend
 delivery on the new stack)
 **Deferred:** FR42, FR43 (one-timer / recurring item UI)
 **Supersedes:** the frontend deliverables of Epics 1, 2, and 4 (backend deliverables remain authoritative)
+
+### Epic 6: Item Editing & Home Navigation
+
+Two gaps the Epic 5 reframe left behind, both purely frontend. Users can **change an item they already created** —
+correct a typo, move it to the right category, set or clear the store it belongs to — instead of the delete-and-retype
+workaround that is the only option today, and they can set a store **while adding** an item rather than having to go
+back and edit it. And from anywhere in the app they can get **back to home in one action**: the app-bar title becomes a
+link to `/`, and the shopping view gains the back-to-lists affordance its sibling management screen already has. After
+this epic the item lifecycle is complete in the UI (create → edit → check → delete) and no screen is a navigational dead
+end.
+
+The epic holds a deliberate boundary: **`/lists/:id` manages a list, `/list/:id` uses one.** Editing lives on the manage
+surface; the shopping loop stays check-off-only. That makes Story 6.2's navigation work load-bearing for Story 6.1's
+usability — the two stories are independent in code and coupled in experience.
+
+**FRs covered:** FR57 (new); FR40 (the `edit` verb — its add/check/delete siblings shipped in Epic 5); FR44 (the store
+write path + suggestions, in **both** the create and edit dialog — Epic 5 shipped only the read-side chip)
+**NFRs covered:** NFR-E6-1, NFR-E6-2, NFR-E6-3 **Still deferred:** FR42, FR43 (one-timer / recurring) — the editor is
+built without the lifecycle control, and BUG-E6-2 must be fixed before they can be undeferred **Known bugs shipped with
+this epic, by decision:** BUG-E6-1 (edit re-attributes `addedBy` — FR45 regression) and BUG-E6-2 (edit resets
+`checkedAt`). Both are frontend-unfixable, both have a diagnosed server-side fix, both are filed as defects rather than
+accepted behaviour (AR-E6-3), and logging them in `deferred-work.md` is an AC of Story 6.1. **Standing constraint:**
+backend frozen (AR-E6-0), re-affirmed by `md` after the freeze was challenged in review. One
+`npm run generate` run is needed for the previously unused `itemStoreSuggestions` query (AR-E6-4) — authoring a query
+document against the existing schema, not a schema change.
 
 ---
 
@@ -1867,3 +2100,265 @@ access.
 **E2E (two accounts):** owner shares with a second user → invite appears → accept → second user sees the list and edits
 an item; owner removes the member; a member leaves a list; decline path removes the invite; admin cannot access list
 features.
+
+---
+
+## Epic 6: Item Editing & Home Navigation
+
+Two gaps the Epic 5 reframe left behind, both purely frontend. Users can change an item they already created — correct a
+typo, move it to the right category, set or clear its store — instead of the delete-and-retype workaround that is the
+only option today; and they can set a store while *adding* an item rather than having to go back and edit it. From
+anywhere in the app they can reach home in one action, and the shopping view gains the back-to-lists affordance its
+sibling management screen already has.
+
+**Standing constraints for every Epic 6 story:**
+
+- **The backend is frozen (AR-E6-0).** Both stories are frontend-only: no Kotlin file and no GraphQL schema change. Any
+  backend need discovered mid-story stops the story and goes to `md`. This was challenged in review and re-affirmed.
+- **Separation of intent (AR-E6-5).** `/lists/:id` is for *managing* a list; `/list/:id` is for *using* one. Item
+  editing belongs to the manage surface; the shopping loop stays check-off-only and gains no edit or delete affordance.
+- **Every story ships FR-tagged Playwright E2E passing on BOTH `chromium` and `mobile` (Pixel 7)**, against the
+  production image on `:2080`. Each flow is manually exercised in a real browser before its test is written. Each spec
+  registers its own fresh user through the UI and asserts only on data it created. `admin` is blocked from all list
+  operations — use a registered regular user.
+- **Epic 5 form, feedback, styling and testing conventions apply verbatim (AR-E6-9)** — each was paid for by a real bug:
+  validate on submit only;
+  `if (loading) return` re-entry guard; a real `catch` on every async branch; errors inline via `<Alert role="alert">`
+  or
+  `helperText`, never toasts; no success toast — the UI change is the confirmation; `helperText={… ?? ' '}` to reserve
+  vertical space; on success `onClose()` → `void onDone().catch(() => {})`, never `await` a refetch inside the
+  mutation's
+  `try`.
+- **MUI v9 APIs are looked up via the `mcp__mui-mcp__fetchDocs` MCP tool before writing components**, never recalled
+  from v5/v6 memory. Styling is theme + `sx` only. Input testids go through
+  `slotProps={{htmlInput: {'data-testid': …}}}`.
+- **`src/__generated__/` is never hand-edited** — regenerate with `npm run generate` (stack on `:2080` + fresh
+  `CODEGEN_TOKEN`).
+
+**Story independence:** 6.1 and 6.2 share no file (6.1: `EditItemDialog.tsx`, `AddItemDialog.tsx`, `ListDetailPage.tsx`,
+`listsQueries.ts`; 6.2: `AppShell.tsx`, `ListShoppingPage.tsx`). Neither depends on the other and either can be
+implemented first. They are coupled only in experience: 6.2's navigation is the return path for 6.1's edit flow.
+
+**Do not create a hidden forward dependency in the tests.** Story 6.1 asserts the store chip on the shopping view (AC5)
+and a co-member's live update there (AC14). Those specs must reach `/list/:id` **by URL**, using navigation that shipped
+in Epic 5 — never through Story 6.2's new title link or back link. If 6.1 is implemented first, routing its E2E through
+6.2's affordances would make 6.1 un-completable on its own.
+
+### Story 6.1: Edit an Item — Name, Category & Store with Suggestions
+
+As a list member, I want to edit an item that I or a co-member already added — its name, its category, and the store it
+belongs to — and to set a store while adding a new item, So that I can correct and refine a list in place instead of
+deleting an item and retyping it.
+
+**Delivers:** FR40 (the `edit` verb), FR44 (store write path + suggestions, both dialogs), NFR-E6-1, NFR-E6-3 **Files:**
+new `src/components/EditItemDialog.tsx`, new shared store-field component, `src/components/AddItemDialog.tsx`,
+`src/routes/ListDetailPage.tsx`, `src/lib/lists/listsQueries.ts`, regenerated `src/__generated__/`
+**Reuses:** the existing `SaveItemMutation` document unchanged (same operation, same variables — an edit is a save with
+the same `id`); `AddItemDialog`'s form conventions; `graphqlErrorMessage`; `ListDetailPage`'s existing `refetch()`
+
+**Acceptance Criteria:**
+
+**AC1 — the edit affordance exists and is reachable (UX-DR-E6-3, NFR-E6-3)**
+
+**Given** I am a member of a list that has a category containing at least one item **When** I open the list management
+view at `/lists/:id`
+**Then** every item row shows an edit control alongside its existing remove control **And** the edit control carries an
+item-specific accessible name (`Edit item {name}`), matching the existing
+`Remove item {name}` idiom — not a bare "Edit"
+**And** at a ~360px viewport both controls remain fully visible and tappable and the item name does not overlap them
+
+**AC2 — the dialog opens seeded from the item it was opened on (UX-DR-E6-1)**
+
+**Given** an item named "Bread" in category "Bakery" with store "Rewe"
+**When** I activate that row's edit control **Then** an "Edit item" dialog opens with the name field pre-filled "Bread",
+the category select set to "Bakery", and the store field pre-filled "Rewe"
+**And** the name field holds focus **And** the seeding happens as a render-phase adjustment on the closed→open
+transition (the `prevOpen` pattern), never a syncing `useEffect` — `react-hooks/set-state-in-effect` forbids it and
+`npm run lint` must pass
+
+**AC3 — a name change persists and is confirmed by the UI, not a toast (UX-DR-E6-4)**
+
+**Given** the edit dialog is open on "Bread"
+**When** I change the name to "Sourdough" and save **Then** the dialog closes and the row reads "Sourdough"
+**And** no success toast or Snackbar is shown — the changed row is the confirmation **And** the item keeps its identity
+(same `id`); no second item is created
+
+**AC4 — a category change moves the item between groups**
+
+**Given** the edit dialog is open on an item in "Bakery", and the list also has a "Produce" category **When** I change
+the category to "Produce" and save **Then** the item appears under "Produce" and no longer under "Bakery"
+
+**AC5 — a store can be set, changed and cleared (FR44)**
+
+**Given** the edit dialog is open on an item with no store **When** I enter "Rewe" and save **Then** the item's row on
+the shopping view shows the store chip "Rewe"
+**And When** I edit the same item again, clear the store field, and save **Then** the store chip is gone from the row
+**And** an empty or whitespace-only store is sent as `null`, never as an empty string
+
+**AC6 — store suggestions come from the list's existing data (FR44, UX-DR-E6-2, AR-E6-4)**
+
+**Given** the list already contains items with the stores "Rewe" and "Aldi"
+**When** I open either the add-item or the edit-item dialog **Then** the list's distinct existing store values are
+offered below the store field as clickable suggestions **And** activating a suggestion fills the store field with that
+value **And** the field stays freely typable — a store not among the suggestions can be entered and saved **And When**
+the list has no stores at all **Then** no suggestion row is rendered — not an empty container and not a "no suggestions"
+placeholder **And** the suggestions are read via a newly authored `itemStoreSuggestions` operation in `listsQueries.ts`;
+no backend file is modified
+
+**AC7 — a store can be set while ADDING an item, from the same shared code (FR44, AR-E6-5a)**
+
+**Given** I am adding a new item **When** I open the add-item dialog **Then** it presents the same store field and the
+same suggestions as the edit dialog **And** the store input together with its suggestion chips is **one component that
+both dialogs import** — not duplicated, so a later validation change cannot land in one dialog and miss the other
+**And** saving with a store set creates the item with that store, visible as its chip on the shopping row **And** the
+store remains optional — creating an item without one still succeeds
+
+**AC8 — an edit preserves every field the form does not expose (AR-E6-2, NFR-E6-1) — REGRESSION TEST, NOT OPTIONAL**
+
+**Given** an item that is currently **checked**
+**When** I edit its name and save **Then** the item is **still checked** afterwards **And** the `saveItem` request
+carries the item's existing `checked` and `recurring` values, not `checked: false` and
+`recurring: null`
+**And** this is covered by an explicitly named E2E test — *edit a checked item, assert it stays checked* — running on
+**both** the `chromium` and `mobile` projects **Rationale (AR-E6-1):** `saveItem` is a full-document upsert keyed by
+`id`, not a partial patch — every field absent from
+`ItemInput` reverts to its default. So copying `AddItemDialog`'s hardcoded `checked: false, recurring: null` would
+silently uncheck an item mid-shop. Assessed in review as the single most likely defect in this epic.
+
+**AC9 — saving an unchanged item sends nothing (UX-DR-E6-4a, AR-E6-3 mitigation)**
+
+**Given** the edit dialog is open and I have changed none of the editable fields **When** I press Save **Then** the
+dialog closes and **no** `saveItem` mutation is sent **And** no error, warning, or "nothing changed" message is shown —
+it is indistinguishable from a successful save **Rationale:** the mutation would re-attribute a co-member's item
+(BUG-E6-1) for no benefit whatsoever.
+
+**AC10 — validation is on submit, inline, and blocks the request**
+
+**Given** the edit dialog is open **When** I clear the name and save **Then** an inline "Name is required" error appears
+on the name field and **no** mutation is sent **And** a name longer than 100 characters is rejected inline **And** the
+error clears as soon as I modify the field **And** validation never fires on keystroke or blur — only on submit **And**
+every field reserves its helper-text line so an inline error does not shift the layout
+
+**AC11 — a failed save is reported inline and loses nothing (UX-DR-E6-4)**
+
+**Given** the save fails (e.g. my membership was revoked while the dialog was open)
+**When** I save **Then** an inline `<Alert severity="error" role="alert">` shows the message produced by
+`graphqlErrorMessage`
+**And** the dialog stays open with my input intact **And** the item row is unchanged **And** the failure arrives through
+a real `catch` — never an uncaught throw out of the handler
+
+**AC12 — double-submit is impossible and in-flight state is visible**
+
+**Given** the dialog is open with valid input **When** I activate Save twice in rapid succession **Then** exactly one
+`saveItem` mutation is sent (`if (loading) return` at the top of the handler — `setLoading(true)`
+only disables the control on the next render)
+**And** the Save control shows a loading indicator and is disabled while the request is in flight **And** Cancel and the
+backdrop are inert while in flight **And** on success the order is `onClose()` → `void onDone().catch(() => {})`; a
+failing refresh is never reported as a failed save
+
+**AC13 — any member can edit any item on the list (FR40)**
+
+**Given** a list shared with a second user who has accepted the invite, holding an item that the **other** member added
+**When** I edit that item **Then** the edit succeeds — there is no owner/member distinction for item operations
+
+**AC14 — the edit reaches other members live, with no new subscription code (AR-E6-6)**
+
+**Given** a co-member has the shopping view for the same list open in another session **When** I save an edit on the
+management view **Then** their row updates without a manual refresh, through the existing per-list subscription and its
+existing
+`subscribeToMore` merge **And** no subscription, cache-merge, or Apollo-client change is introduced by this story
+
+**AC15 — the two known bugs are filed in the ledger before the story is done (AR-E6-3)**
+
+**Given** `addedBy` and `checkedAt` cannot be preserved through `saveItem` from the frontend **When** the story is
+completed **Then** `deferred-work.md` contains BUG-E6-1 (edit re-attributes `addedBy` — FR45 regression) and BUG-E6-2
+(edit resets
+`checkedAt`, blocking FR42/FR43), each with its cause, its user-visible impact, and its proposed server-side fix **And**
+BUG-E6-2 is marked as a prerequisite for undeferring FR42/FR43 **Rationale:** this is an AC and not a note in a
+requirements document because FR9's automated E2E was also "written down" — in story prose — and was still orphaned
+across the 5.4 → 5.5 workflow handoff.
+
+**AC16 — codegen is current and the backend is untouched (AR-E6-0, AR-E6-4)**
+
+**Given** a new `itemStoreSuggestions` operation document was authored **When** the story is completed **Then**
+`npm run generate` has been run and its `src/__generated__/` output is committed, with no file there hand-edited **And**
+all GraphQL types consumed by the new components are imported from `@/__generated__`
+**And** `git diff` shows **no** change under `bp_back/`
+**And** `npm run lint` and `npm run build` both pass
+
+### Story 6.2: Back to Home & Back to Lists Navigation
+
+As a signed-in user, I want to reach home from any screen in one action, and to get back to my lists from the shopping
+view, So that no screen is a dead end and I am not dependent on the browser's back button to move around the app.
+
+**Delivers:** FR57, NFR-E6-2, NFR-E6-3 **Files:** `src/components/AppShell.tsx`, `src/routes/ListShoppingPage.tsx`
+**Reuses:** `HomeRedirect`'s existing `/` resolution (FR38) — not re-implemented; `ListDetailPage`'s existing back-link
+pattern, copied idiom-for-idiom
+
+**Acceptance Criteria:**
+
+**AC1 — the app-bar title is a real link on every guarded screen (FR57, UX-DR-E6-5, NFR-E6-3)**
+
+**Given** I am signed in **When** I am on any guarded screen — lists index, list management, shopping view, change
+password, admin **Then** the "Bag Please" title in the app bar is a link to `/`
+**And** it is a genuine link element: reachable by Tab, activated by Enter, and exposed to assistive technology as a
+link **And** it keeps its current type scale, weight and colour, with no underline at rest and a visible hover **and**
+focus-visible state **And** it is not a Button — no ripple, no uppercase transform, no padding shift
+
+**AC2 — home resolves to the user's oldest list (FR38, AR-E6-7)**
+
+**Given** I am a regular user with more than one list, viewing my newest list at `/list/:id`
+**When** I activate the title link **Then** I land on my **oldest** list by creation date **And** the destination is
+resolved by the existing `HomeRedirect` at `/`; the app bar does not re-implement or duplicate that logic
+
+**AC3 — home resolves to the lists index when the user has no lists (FR38)**
+
+**Given** I am a regular user with no lists **When** I activate the title link **Then** I land on the lists index at
+`/lists`
+
+**AC4 — admin behaviour is unchanged (FR56, UX-DR-E6-7)**
+
+**Given** I am signed in as `admin`
+**When** I activate the title link **Then** I land on `/admin`
+**And** no list-related affordance is added to any admin screen
+
+**AC5 — navigation stays declarative and the guard keeps its monopoly**
+
+**Given** the affordance is implemented **Then** it navigates via `component={RouterLink}` (the declarative react-router
+7 API)
+**And** no imperative `navigate()` call is added **And** `RouteGuard` remains the sole owner of every auth-driven
+redirect — no competing redirect is introduced
+
+**AC6 — the mobile app bar still fits (NFR-E6-2, UX-DR-E6-5)**
+
+**Given** a ~360px viewport **Then** the title link and the username chip are both fully visible and tappable **And**
+the username chip is not displaced, truncated, or pushed off-screen relative to how it renders today **And** the app bar
+does not wrap to a second line or scroll horizontally
+
+**AC7 — the shopping view gets a back-to-lists affordance (FR57, UX-DR-E6-6)**
+
+**Given** I am on the shopping view at `/list/:id`
+**Then** a "Back to lists" link with a back arrow appears above the list title **When** I activate it **Then** I land on
+the lists index at `/lists`
+**And** it matches `ListDetailPage`'s existing back link in structure and styling (AR-E6-8) — the same
+`Link component={RouterLink}` + `ArrowBackIcon fontSize="small"` idiom, with its own `data-testid`, not a second
+invented pattern **And** the switcher chip row and the filter bar keep their current spacing and layout
+
+**AC8 — the shopping row gains no management affordance (AR-E6-5, UX-DR-E6-2a)**
+
+**Given** I am on the shopping view **Then** item rows still offer check-off only — no edit control, no delete control,
+no swipe-to-delete gesture **Rationale:** `/list/:id` is the *use* surface. Swipe-to-delete is additionally an explicit
+Epic 4 anti-pattern (accidental deletion while scrolling in-aisle).
+
+**AC9 — nothing leaks to unauthenticated visitors**
+
+**Given** I am signed out on `/auth`
+**Then** no app bar, no title link and no back link is rendered — the affordances live inside `AppShell`, which mounts
+only within `RouteGuard`
+
+**AC10 — verified on both viewports, real browser first**
+
+**Given** the story is complete **Then** every flow above is covered by FR57-tagged Playwright specs passing on **both**
+the `chromium` and `mobile`
+projects against the production image **And** each flow was manually exercised in a real browser before its test was
+written **And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
