@@ -1,5 +1,60 @@
 # Deferred Work
 
+> **Ledger rule (from the Epic 5 retro, 2026-07-28):** anything deferred "to a later story" must be recorded HERE, not
+> only in a story file or dev-auto spec. The FR9 item below was tracked only in story prose and was silently orphaned
+> when the epic switched from the story-file dev workflow to the dev-auto spec flow. This file is the ledger both
+> workflows read.
+
+## Epic 5 close-out — carried forward (2026-07-28)
+
+Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These are tracked as retro action items in
+`sprint-status.yaml → action_items` as well.
+
+- **FR9 automated E2E is orphaned debt — 401 → silent refresh → refresh-fail → `/auth?expired=1`.**
+  Deferred in Story 5.2 (AC#7, explicitly "tracked debt, not FR9 fully E2E-covered" — 5.2 issued no GraphQL query to
+  trigger a 401), re-deferred in 5.3 (Decision #4 — the clean sign-out redirects too fast to fire it organically), and
+  raised in 5.4 (Decision #8) as an **open question to `md` that was never answered** now that a query-bearing route
+  made it organically reachable. Specs 5.5/5.6/5.7 do not mention it. The wiring exists and was hand-verified
+  (`ApolloProvider.tsx` error link → `clearAuth(true)` → `RouteGuard` owns the `/auth?expired=1` redirect); only the
+  automated coverage is missing. **Action:** either write the FR9-tagged E2E (any query-bearing route can host it now)
+  or close this entry with a stated reason.
+
+- **Shared `registrationEnabled` flag races the E2E suite; masked by `retries: 2` rather than fixed.**
+  `registrationEnabled` is one Mongo document and the `chromium` + `mobile` projects run concurrently against a single
+  backend, so the admin-toggle test's brief OFF window can break register-based specs in the other project. Accepted in
+  5.4 ("keep the real flip + CI retries") and re-reported as "1 flaky, retry-healed" in 5.5, 5.6, and 5.7 — five
+  acceptances, no fix. Full suite is NOT green at `retries: 0` locally. **Action:** serialize the toggle spec or give it
+  a dedicated project/worker so the race is deleted rather than retried.
+
+- **Auth rate limiter is effectively disabled in the deployed stack.**
+  `docker-compose.yaml` sets `KTOR_RATE_LIMIT_ATTEMPTS: 6000` (default 5/60s per IP) for E2E convenience. Previously
+  flagged in the SSL/entrypoint review; restated here because the stack now sits behind a public-capable TLS edge.
+  **Action:** a production compose profile with a sane per-IP value; keep 6000 dev/E2E-only.
+
+- **Real-device (physical phone) auth validation never performed.**
+  Assigned to `md` as a manual sign-off in Stories 5.1/5.2 and never recorded. The blocker at the time was the `Secure`
+  `refresh_token` cookie, which Chrome rejects over a plain-HTTP LAN IP; that is now solved —
+  `spec-ssl-termination-single-entrypoint`
+  (commit `6b141e3`) provides the TLS edge and `playwright.config.ts` accepts
+  `E2E_BASE_URL=https://bag-please.localhost`. Epic 4's "mobile login broken on a real device" finding is therefore
+  **unrefuted, not fixed** — the emulated Pixel-7 gate is green but no physical device has been tested.
+
+- **FR47 migration path never validated against real data** (open since Epic 4). Unscoped items → default list
+  migration; needs a production DB snapshot and an idempotency check (run twice, no duplicates, no errors) plus a
+  deployment runbook.
+
+- **FR42 (one-timer) / FR43 (recurring) item UI deferred by epic design.** Backend support is complete and live,
+  including the hourly scheduler; the UI affordances were intentionally postponed. `AddItemDialog` sends
+  `recurring: null`. UI-only work against a frozen, tested contract whenever it is picked up.
+
+- **Playwright `webServer` gaps, carried since Epic 3** (still unaddressed after the Epic 5 harness rebuild): no
+  teardown command (containers accumulate across CI runs), the `url` health check only proves the entrypoint responds —
+  not that Ktor is warm inside the container (first tests can see 502), and no `stdout`/`stderr` filtering, so a compose
+  startup failure silently burns the full timeout before surfacing.
+
+- **`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)** was never investigated. Understand the
+  threshold and whether it degraded anything before the next dev-auto run.
+
 ## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
 
 - `ListStorage.rename` not atomic — in-memory updated before MongoDB write; if MongoDB throws, in-memory reflects rename

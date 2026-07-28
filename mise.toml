@@ -3,21 +3,21 @@
 
 [tools]
 java = "temurin-25"
-node = "26.4"
+node = "26.4.0"
 
 # --- Backend (Kotlin/Ktor, Gradle multi-project, port 4000) ---
 
 [tasks."back:build"]
-description = "Build the backend"
-run = "./gradlew :bp_back:build --console=plain"
+description = "Build the backend without tests"
+run = "./gradlew :bp_back:build -xtest"
 
 [tasks."back:run"]
 description = "Run the backend in dev mode (continuous build)"
-run = "./gradlew :bp_back:run -t --console=plain"
+run = "./gradlew :bp_back:run -t"
 
 [tasks."back:test"]
 description = "Run all backend tests"
-run = "./gradlew :bp_back:test --console=plain"
+run = "./gradlew :bp_back:test"
 
 # --- Frontend (Vite + React 19 SPA, dev server on :5173) ---
 
@@ -57,6 +57,10 @@ run = "npm run test:e2e"
 description = "Build & start everything (frontend[Caddy] + mongo + back) on :2080"
 run = "docker compose up --build"
 
+[tasks."down"]
+description = "Stop everything (frontend[Caddy] + mongo + back) on :2080"
+run = "docker compose down"
+
 [tasks."infra"]
 description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up mongo bp_back"
@@ -64,8 +68,8 @@ run = "docker compose up mongo bp_back"
 # -- Ai infra ---
 
 [tasks."skill-validate"]
-description = "Tessl skill validation"
-run = "npx tessl skill review $@"
+description = "Tessl skill validation, takes path to skill as argument"
+run = "npx tessl review run $@"
 
 # --- Update / maintenance ---
 
@@ -80,4 +84,4 @@ run = "npx npm-check-updates --format group"
 
 [tasks."gradle:dependencyUpdates"]
 description = "List available Gradle dependency updates (does not modify files)"
-run = "./gradlew dependencyUpdates --console=plain"
+run = "./gradlew dependencyUpdates"

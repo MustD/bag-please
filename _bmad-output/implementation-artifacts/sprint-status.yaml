@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-21"  # code-review: story 5-4 → done (8 patches applied)
+last_updated: "2026-07-28"  # epic-5 closed: all 7 stories done, retrospective complete (epic-5-retro-2026-07-28.md)
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -80,11 +80,48 @@ development_status:
   epic-4-retrospective: done
 
   # Epic 5: Frontend Reframe — Vite + MUI + Caddy rebuild (backend untouched)
-  epic-5: in-progress
+  epic-5: done
   5-1-foundation-vite-mui-caddy-apollo-shell: done
   5-2-authentication: done
   5-3-user-account: done
   5-4-admin-user-management: done
-  5-5-lists-management: backlog
-  5-6-list-view-shopping-realtime: backlog
-  5-7-sharing-and-membership: backlog
+  5-5-lists-management: done
+  5-6-list-view-shopping-realtime: done
+  5-7-sharing-and-membership: done
+  epic-5-retrospective: done
+
+# Action items from retrospectives. Reviewed at the start of the next retro
+# before new items are added (standing team agreement since Epic 3).
+action_items:
+  - epic: 4
+    action: "Gradle MCP evaluation — adopt or formally close"
+    owner: "Winston"
+    status: open  # slipped 4x (Epics 2,3,4,5); Epic 5 re-scoped it to 'close it out' (see Epic 5 action #6)
+  - epic: 4
+    action: "Enforce E2E requirement at story creation time"
+    owner: "Amelia"
+    status: done  # delivered in Story 5.1 by wiring the gate into playwright.config.ts
+  - epic: 5
+    action: "Real-device HTTPS auth validation on a physical phone via the TLS edge domain (E2E_BASE_URL=https://bag-please.localhost) — the one Epic-4 finding still unrefuted"
+    owner: "md"
+    status: open
+  - epic: 5
+    action: "Discharge or formally close the FR9 automated E2E debt (401 -> silent refresh -> refresh-fail -> /auth?expired=1), orphaned across the 5.4 -> 5.5 workflow handoff"
+    owner: "md"
+    status: open
+  - epic: 5
+    action: "Fix the shared registrationEnabled E2E race at the source instead of relying on CI retries: 2"
+    owner: "Murat"
+    status: open
+  - epic: 5
+    action: "Lower KTOR_RATE_LIMIT_ATTEMPTS for a production profile — 6000 in docker-compose.yaml disables the auth limiter in the deployed stack"
+    owner: "Winston"
+    status: open
+  - epic: 5
+    action: "Validate the FR47 migration path against a production DB snapshot, idempotent on re-run (open since Epic 4)"
+    owner: "md"
+    status: open
+  - epic: 5
+    action: "Inspect the dev-auto 'warnings: [oversized]' signal carried by all three spec files before the next dev-auto run"
+    owner: "Amelia"
+    status: open
