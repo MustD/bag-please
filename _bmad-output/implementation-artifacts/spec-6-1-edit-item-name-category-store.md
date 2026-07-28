@@ -2,8 +2,9 @@
 title: 'Story 6.1 — Edit an Item: Name, Category & Store with Suggestions'
 type: 'feature'
 created: '2026-07-28'
-status: 'in-review'
+status: 'done'
 baseline_revision: 'f643b82'
+final_revision: '62dec3b'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
