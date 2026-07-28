@@ -383,6 +383,84 @@ Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These
   summary: Membership mutation failures (leave/accept/decline/remove) do not trigger a `Lists` refetch, so a stale list row or pending-invite row can persist until a manual reload.
   evidence: bp_front/src/routes/ListsPage.tsx (leave/delete ConfirmDialog `onConfirm` calls `refresh()` only after the awaited mutation resolves) + PendingInvites.tsx (`run` returns without `onChanged()` on error). Concrete race: owner removes member A at the same moment A clicks Leave; A's `leaveList` returns FORBIDDEN ("not a member"), A sees the inline error, but A's now-stale list row stays in the index until a manual `/lists` reload. Low consequence (recoverable by reload) and an unlikely concurrent-action window; a clean fix would refetch on the error path too.
 
+## Deferred from: planning of 6-1-edit-item-name-category-store (2026-07-28)
+
+Both are **unfixable from the frontend** and both ship with Epic 6 by decision (AR-E6-0 freezes `bp_back/`). Filing them
+is an acceptance criterion of Story 6.1, not a note. Both were **observed live** during the story's manual browser pass
+against `:2080`, not merely reasoned about.
+
+- **BUG-E6-1 — `saveItem` re-attributes `addedBy` to whoever edited the item, stealing authorship.**
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `addedBy` is server-set from the caller's principal and is deliberately not part of `ItemInput`
+  (`ItemApi.kt:52` → `GqlItemMapper.mapItemFromInput(item, caller.value)`), so every `saveItem` overwrites it with the
+  *current* caller. Because `saveItem` is a full-document upsert, an edit is indistinguishable from a create.
+  user-visible impact: on a shared list, when a co-member fixes a typo in an item someone else added, the shopping view's
+  `addedBy` avatar/name (`ListShoppingPage.tsx:440-454`, `shopping-item-addedby-<name>`) silently flips to the editor.
+  Attribution is quietly wrong with no user action that could cause or undo it. This is also *why* Story 6.1's editor
+  sends no mutation at all for a no-op save — the request would re-attribute the item for zero benefit.
+  proposed fix (server-side): preserve the stored `addedBy` on update — look up the existing item in
+  `ItemService.saveItem` and keep its `addedBy`, only setting the caller's name when the item does not yet exist.
+
+- **BUG-E6-2 — `saveItem` resets `checkedAt` to `null`, clearing the check-off clock the recurring scheduler reads.**
+  **Prerequisite for undeferring the one-timer / recurring item UI (FR42/FR43).**
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `GqlItemMapper.mapItemFromInput` (`GqlItemMapper.kt:26-41`) constructs a **fresh** `Item` from the input alone,
+  and `Item` (`Item.kt:6-18`) defaults `checkedAt`, `deletedAt` and `deleted`. `ItemRepository.save` then `Updates.set`s
+  every field, so any field absent from `ItemInput` — and `checkedAt` is not in `ItemInput` at all — is written back as
+  its default. Confirmed in the manual pass: an item checked through the UI (`checkedAt` set by `ItemService.checkItem`)
+  came back with `checked: true, checkedAt: null` after a UI rename.
+  user-visible impact: `ItemService.runSchedulerCycle` restores a checked recurring item only once
+  `item.checkedAt` is older than the cadence threshold, and `continue`s when `checkedAt == null`. So a recurring item
+  that is edited after being checked off **never comes back** — the hourly scheduler skips it forever. Today the blast
+  radius is limited because no UI can set `recurring` (FR42/FR43 are deferred), which is exactly why this is a
+  **prerequisite**: shipping the lifecycle control on top of this defect would make editing silently break the feature
+  the control exists to expose.
+  proposed fix (server-side): merge the input onto the stored item instead of constructing a fresh one — load the
+  existing `Item` in `ItemService.saveItem` and `copy()` only the fields `ItemInput` actually carries, leaving
+  `checkedAt` / `deletedAt` / `deleted` (and `addedBy`, per BUG-E6-1) untouched. One change fixes both bugs.
+
+## Deferred from: code review of 6-1-edit-item-name-category-store (2026-07-28)
+
+- **BUG-E6-3 — a stale open edit dialog can resurrect a deleted item or orphan it under a deleted category.**
+  Third member of the same family as BUG-E6-1/E6-2 above, and the one Story 6.1 newly exposes: before it, no UI path ever
+  issued `saveItem` for an *already existing* id.
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `ItemStorage.delete` is a **hard** delete (`ItemStorage.kt:41-46`) while `ItemRepository.save` runs
+  `UpdateOptions().upsert(true)` (`ItemRepository.kt:41-56`), and `/lists/:id` is refetch-driven by design (no
+  `subscribeToMore`, per AR-E6-5), so a dialog left open holds a snapshot the page never refreshes. Two outcomes:
+  (a) another member removes the item → Save re-creates it from the snapshot and broadcasts a `SAVED` event that puts the
+  row back on every shopping view, now attributed to the editor with `checkedAt` cleared; (b) another member removes the
+  *category* → Save writes a dangling `category` id, and the item renders under no group on either screen — invisible and
+  therefore unremovable through the UI.
+  user-visible impact: a deleted item reappears for everyone, or an item vanishes while still occupying the list. Both
+  need concurrent action by two members inside one dialog's open window, so the window is narrow — but recovery from (b)
+  requires direct database access.
+  mitigation already in place: the edit payload reads its carry-forward fields from the live `item` prop rather than the
+  open-time snapshot, so anything a refetch *has* observed is not clobbered. That narrows the window; it does not close
+  it, because nothing refetches while the dialog is open.
+  proposed fix: server-side, the same `ItemService.saveItem` change that fixes BUG-E6-1/E6-2 should also reject an
+  upsert whose id does not exist (make `saveItem` create-or-update explicitly rather than blind-upsert), and validate that
+  `category` still belongs to the list. Client-side alternatives (refetch-before-save, or clearing `editItemTarget` when
+  the item leaves `items`) only shrink the race.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  summary: `bp_front/e2e/` is covered by neither ESLint nor `tsc`, so the Playwright suite — the project's primary quality
+  gate — has no static verification at all.
+  evidence: `package.json` runs `lint` as `eslint src/`; `tsconfig.app.json` includes only `["src"]` and
+  `tsconfig.node.json` only `vite.config.ts`. Playwright transpiles without type checking, so a type error in a spec
+  surfaces as a runtime failure or not at all. `item-editing.spec.ts` alone is ~620 lines and is the entire evidence base
+  for AC1/AC3/AC4/AC7, yet "lint and build pass" (AC5) says nothing about it. Fix: add an `e2e` tsconfig project to the
+  build references and widen the lint glob.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  summary: the E2E helper block (`uniqueUsername`, `registerViaUi`, `openListsViaMenu`, `createListAndOpen`, `addCategory`,
+  `addItem`, `loginApi`, `gql`) is now copy-pasted into a fourth spec file; no shared fixture module exists.
+  evidence: `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and now `item-editing.spec.ts` each re-declare them,
+  differing only in the `uniqueUsername` prefix. `registerViaUi` carries the `expect(...).toPass()` workaround for the
+  shared `registrationEnabled` race — logic that will drift silently between copies, and that has to be fixed in four
+  places when that race is finally fixed at the source (itself an open Epic 5 retro action). Pre-existing convention, not
+  caused by this story, but each new spec raises the cost of undoing it.
+
 ## Deferred from: code review of 6-2-back-to-home-and-lists-navigation (2026-07-28)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`

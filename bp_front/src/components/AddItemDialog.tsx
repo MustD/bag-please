@@ -17,6 +17,8 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import {type ListCategory, SaveItemMutation} from '@/lib/lists/listsQueries'
 import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
+import StoreField from '@/components/StoreField'
+import {normalizeStore} from '@/lib/lists/storeValue'
 
 interface Props {
   open: boolean
@@ -45,6 +47,7 @@ export default function AddItemDialog({
 }: Props) {
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [store, setStore] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -58,6 +61,7 @@ export default function AddItemDialog({
     if (open) {
       setName('')
       setCategoryId(defaultCategoryId ?? '')
+      setStore('')
       setNameError(null)
       setCategoryError(null)
       setFormError(null)
@@ -106,6 +110,10 @@ export default function AddItemDialog({
             category: categoryId,
             listId,
             recurring: null,
+            // Story 6.1: a store can be set while adding, so it no longer needs
+            // a second trip through the editor. Same normalizer as the edit
+            // dialog — blank/whitespace means null, never ''.
+            store: normalizeStore(store),
           },
         },
       })
@@ -162,6 +170,16 @@ export default function AddItemDialog({
               </Select>
               <FormHelperText>{categoryError ?? ' '}</FormHelperText>
             </FormControl>
+            {/* Shared with EditItemDialog. `keepMounted` is deliberately left
+                off the Dialog so the suggestions query refires per open and
+                picks up stores added since the last time it was shown. */}
+            <StoreField
+              listId={listId}
+              value={store}
+              onChange={setStore}
+              testIdPrefix="add-item"
+              disabled={loading}
+            />
           </Stack>
           {formError && (
             <Alert severity="error" role="alert" data-testid="add-item-error" sx={{mt: 1}}>

@@ -19,6 +19,7 @@ import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import {
   CategoriesQuery,
   DeleteCategoryMutation,
@@ -32,6 +33,7 @@ import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import AddCategoryDialog from '@/components/AddCategoryDialog'
 import AddItemDialog from '@/components/AddItemDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import EditItemDialog from '@/components/EditItemDialog'
 
 // List detail / management surface (Story 5.5, FR46/FR51). Renders the list's
 // categories and, under each, its items — with add-category / add-item overlays
@@ -64,6 +66,7 @@ export default function ListDetailPage() {
   const [addItemCategoryId, setAddItemCategoryId] = useState<string | undefined>(undefined)
   const [removeCategoryTarget, setRemoveCategoryTarget] = useState<ListCategory | null>(null)
   const [removeItemTarget, setRemoveItemTarget] = useState<ListItemType | null>(null)
+  const [editItemTarget, setEditItemTarget] = useState<ListItemType | null>(null)
 
   const [deleteCategory] = useMutation(DeleteCategoryMutation)
   const [deleteItem] = useMutation(DeleteItemMutation)
@@ -189,22 +192,36 @@ export default function ListDetailPage() {
                           key={item.id}
                           data-testid={`item-row-${item.name}`}
                           secondaryAction={
-                            <Tooltip title="Remove item">
-                              <IconButton
-                                edge="end"
-                                color="error"
-                                aria-label={`Remove item ${item.name}`}
-                                onClick={() => setRemoveItemTarget(item)}
-                                data-testid="remove-item-button"
-                              >
-                                <DeleteOutlinedIcon fontSize="small"/>
-                              </IconButton>
-                            </Tooltip>
+                            <Stack direction="row">
+                              <Tooltip title="Edit item">
+                                <IconButton
+                                  aria-label={`Edit item ${item.name}`}
+                                  onClick={() => setEditItemTarget(item)}
+                                  data-testid="edit-item-button"
+                                >
+                                  <EditOutlinedIcon fontSize="small"/>
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Remove item">
+                                <IconButton
+                                  edge="end"
+                                  color="error"
+                                  aria-label={`Remove item ${item.name}`}
+                                  onClick={() => setRemoveItemTarget(item)}
+                                  data-testid="remove-item-button"
+                                >
+                                  <DeleteOutlinedIcon fontSize="small"/>
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           }
                         >
                           <ListItemText
                             primary={
-                              <Typography noWrap sx={{maxWidth: {xs: 200, sm: 420}}}>
+                              // Narrowed at xs so the name truncates instead of
+                              // running under the now-two-control secondary
+                              // action at ~360px (Story 6.1).
+                              <Typography noWrap sx={{maxWidth: {xs: 150, sm: 400}}}>
                                 {item.name}
                               </Typography>
                             }
@@ -236,6 +253,19 @@ export default function ListDetailPage() {
         defaultCategoryId={addItemCategoryId}
         onClose={() => setAddItemOpen(false)}
         onAdded={() => {
+          void refetch().catch(() => {})
+        }}
+      />
+
+      {/* Item editing (Story 6.1). This page stays refetch-driven by design —
+          no subscribeToMore here; the shopping view's existing per-list
+          subscription already propagates an edit live to other members. */}
+      <EditItemDialog
+        item={editItemTarget}
+        listId={listId}
+        categories={categories}
+        onClose={() => setEditItemTarget(null)}
+        onSaved={() => {
           void refetch().catch(() => {})
         }}
       />

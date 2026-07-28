@@ -150,6 +150,11 @@ export const CategoriesQuery = graphql(`
     }
 `)
 
+// `recurring` is selected even though no UI renders it (the one-timer/recurring
+// control is deferred): `saveItem` is a FULL-DOCUMENT upsert, so the edit dialog
+// can only carry a field forward if this query fetched it. Dropping `recurring`
+// from the selection would make every edit silently wipe an item's cadence
+// (Story 6.1).
 export const ItemsQuery = graphql(`
     query Items($listId: ID!) {
         getItems(listId: $listId) {
@@ -160,7 +165,18 @@ export const ItemsQuery = graphql(`
             listId
             store
             addedBy
+            recurring
         }
+    }
+`)
+
+// Store values already used on this list, offered as suggestions under the
+// store field in the add/edit item dialogs (Story 6.1). Scalar list — no
+// sub-selection. The backend returns them unsorted and does not drop empty
+// strings, so StoreField trims/dedupes/sorts client-side.
+export const ItemStoreSuggestionsQuery = graphql(`
+    query ItemStoreSuggestions($listId: ID!) {
+        itemStoreSuggestions(listId: $listId)
     }
 `)
 
@@ -182,6 +198,9 @@ export const DeleteCategoryMutation = graphql(`
     }
 `)
 
+// The result selection mirrors ItemsQuery's so Apollo's by-id normalization
+// refreshes every field an edit can change. A narrower selection would leave a
+// stale `store`/`addedBy`/`recurring` in the cache after a save (Story 6.1).
 export const SaveItemMutation = graphql(`
     mutation SaveItem($item: ItemInput!) {
         saveItem(item: $item) {
@@ -190,6 +209,9 @@ export const SaveItemMutation = graphql(`
             checked
             category
             listId
+            store
+            addedBy
+            recurring
         }
     }
 `)
@@ -245,7 +267,11 @@ export const UncheckItemMutation = graphql(`
 // carry item.deleted === true (one-timer check), so the merge keys by id and is
 // idempotent: DELETED / SAVED+deleted → drop, SAVED+!deleted → upsert. The
 // CategoryUpdate payload field is literally named `item` even though it carries a
-// Category.
+// Category. `recurring` is selected (Story 6.1) purely so the payload stays a
+// superset of ItemsQuery's item shape — ListShoppingPage writes the event's
+// `item` straight into the Items result, so a field missing here would be a
+// missing field in the cache (and a type error at the merge). No merge or
+// subscription behaviour changed.
 export const ItemUpdatesSubscription = graphql(`
     subscription ItemUpdates($listId: ID!) {
         getItemUpdates(listId: $listId) {
@@ -259,6 +285,7 @@ export const ItemUpdatesSubscription = graphql(`
                 store
                 addedBy
                 deleted
+                recurring
             }
         }
     }
