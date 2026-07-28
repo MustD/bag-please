@@ -1,5 +1,5 @@
 import {type ChangeEvent, type MouseEvent, useEffect, useMemo, useState} from 'react'
-import {Navigate, useNavigate, useParams} from 'react-router-dom'
+import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
@@ -11,6 +11,7 @@ import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
+import Link from '@mui/material/Link'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Select, {type SelectChangeEvent} from '@mui/material/Select'
@@ -19,6 +20,7 @@ import TextField from '@mui/material/TextField'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import {
   CategoriesQuery,
@@ -254,6 +256,18 @@ export default function ListShoppingPage() {
   return (
     <Box data-testid="list-shopping-page" sx={{flexGrow: 1, py: {xs: 3, sm: 4}}}>
       <Container maxWidth="md">
+        {/* Back to lists (Story 6.2, FR57) — same idiom as the management
+            screen's `list-detail-back`, so there is one back-link pattern. */}
+        <Link
+          component={RouterLink}
+          to="/lists"
+          data-testid="list-shopping-back"
+          sx={{display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 2}}
+        >
+          <ArrowBackIcon fontSize="small"/>
+          Back to lists
+        </Link>
+
         <Typography
           variant="h4"
           color="text.primary"

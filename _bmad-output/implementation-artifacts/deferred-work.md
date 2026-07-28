@@ -382,3 +382,44 @@ Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-7-sharing-and-membership.md`
   summary: Membership mutation failures (leave/accept/decline/remove) do not trigger a `Lists` refetch, so a stale list row or pending-invite row can persist until a manual reload.
   evidence: bp_front/src/routes/ListsPage.tsx (leave/delete ConfirmDialog `onConfirm` calls `refresh()` only after the awaited mutation resolves) + PendingInvites.tsx (`run` returns without `onChanged()` on error). Concrete race: owner removes member A at the same moment A clicks Leave; A's `leaveList` returns FORBIDDEN ("not a member"), A sees the inline error, but A's now-stale list row stays in the index until a manual `/lists` reload. Low consequence (recoverable by reload) and an unlikely concurrent-action window; a clean fix would refetch on the error path too.
+
+## Deferred from: code review of 6-2-back-to-home-and-lists-navigation (2026-07-28)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: `HomeRedirect` picks the oldest list with a lexicographic string compare on `createdAt`, which is wrong for
+  the variable-precision ISO instants the backend emits — FR38 can send a user to the wrong list.
+  evidence: bp_front/src/routes/HomeRedirect.tsx (`[...lists].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]`)
+  against bp_back/.../entity/list/gql/GqlListMapper.kt:19 (`createdAt = list.createdAt.toString()` on a
+  `java.time.Instant`). `Instant.toString()` omits the fractional part entirely when nanos are zero, so a list created at
+  exactly `…:05Z` compares as *greater* than one created at `…:05.100Z` (`'Z'` 0x5A > `'.'` 0x2E) — the earlier list
+  sorts last. Roughly a 1-in-1000 window per list pair, and it also makes the new
+  `FR57/FR38 — …lands on the oldest list` spec flaky at the same rate. Pre-existing (shipped in Story 5.6, exercised by
+  `shopping.spec.ts` FR38 since); untouched by this story. Fix by comparing `Date.parse(createdAt)` / `new Date(...)`
+  numerically, or by having the backend emit a fixed-precision timestamp.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: `bp_front/e2e/` is outside both frontend quality gates — E2E specs are neither linted nor type-checked.
+  evidence: bp_front/package.json:12 (`"lint": "eslint src/"`) and bp_front/tsconfig.app.json:30-32 (`"include": ["src"]`)
+  / tsconfig.node.json:20-22 (`"include": ["vite.config.ts"]`). Playwright transpiles specs without type checking, so a
+  type error, unused import, or bad locator type in any of the nine spec files ships undetected and AC-level claims of
+  "`npm run lint` and `npm run build` pass" are vacuous for the E2E suite — the very layer the project treats as its hard
+  gate. Project-wide and pre-existing (affects all specs, not just the one added here). Fix by adding `e2e` to a
+  tsconfig project and widening the lint glob.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: Activating the new app-bar title link while already on the route home resolves to is a visible no-op that
+  still leaves a redundant history entry.
+  evidence: bp_front/src/components/AppShell.tsx (title link `to="/"`) + HomeRedirect.tsx — a user standing on their
+  oldest list, or on `/lists` with no lists, pushes `/`, sees `home-redirect-loading` flash while `ListsQuery` resolves,
+  then gets `replace`d back to the same route. Net effect: a spinner blink and a duplicate history entry, so Back appears
+  to do nothing once. Not fixable inside this story: suppressing it requires knowing the resolved home path in the app
+  bar, which AR-E6-7 explicitly forbids ("the app bar does not re-implement or duplicate that logic"). Low consequence;
+  the clean fix belongs in `HomeRedirect` (or a shared hook exposing the resolved path) if it is ever worth doing.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: The new `navigation.spec.ts` adds 14 more UI registrations per full run, measurably increasing pressure on the
+  already-tracked shared `registrationEnabled` race.
+  evidence: The race is probabilistic, and two full-suite runs at `--retries=2` after this story bracket it: one returned
+  **4 flaky** (every one in the untouched `lists.spec.ts`, every one carrying `alert: "Registration is disabled"` in its
+  error context, all healed on retry1) and a later one returned **84 passed, 0 flaky**. An earlier run at the default
+  local `retries: 0` had **1 outright failure**, same file, same cause. So the race is unchanged in kind but each new
+  registering spec widens the window it can hit, and this story adds 14 registrations per full run. This is the fourth
+  spec to copy the `toPass()` workaround instead of the race being fixed at the source — the standing Epic 5 retro action
+  item.

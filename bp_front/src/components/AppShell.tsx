@@ -1,9 +1,10 @@
 import {type MouseEvent, useState} from 'react'
-import {Outlet, useNavigate} from 'react-router-dom'
+import {Link as RouterLink, Outlet, useNavigate} from 'react-router-dom'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Link from '@mui/material/Link'
 import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import Menu from '@mui/material/Menu'
@@ -81,9 +82,37 @@ export default function AppShell() {
         }}
       >
         <Toolbar>
-          <Typography variant="h6" color="text.primary" sx={{flexGrow: 1, fontWeight: 600}}>
-            Bag Please
-          </Typography>
+          {/* Home link (Story 6.2, FR57). `flexGrow: 1` lives on the wrapper, not
+              the Link: on the Link it would stretch the anchor across the empty
+              toolbar, making the whole bar navigate home. `minWidth: 0` lets this
+              flex child shrink at ~360px instead of pushing the username chip off
+              screen. All home resolution stays in HomeRedirect behind `to="/"`. */}
+          <Box sx={{flexGrow: 1, minWidth: 0}}>
+            <Link
+              component={RouterLink}
+              to="/"
+              variant="h6"
+              color="text.primary"
+              underline="hover"
+              data-testid="app-bar-home"
+              sx={{
+                fontWeight: 600,
+                // `minWidth: 0` on the wrapper lets this shrink; without nowrap it
+                // would wrap below ~340px (or under a large minimum font size) and
+                // grow the bar to two lines.
+                whiteSpace: 'nowrap',
+                borderRadius: 1,
+                // MUI v9's Link tracks keyboard focus itself and applies
+                // .Mui-focusVisible; the native selector is kept as a fallback.
+                '&.Mui-focusVisible, &:focus-visible': {
+                  outline: theme => `2px solid ${theme.palette.primary.main}`,
+                  outlineOffset: 3,
+                },
+              }}
+            >
+              Bag Please
+            </Link>
+          </Box>
 
           <Button
             onClick={openMenu}
