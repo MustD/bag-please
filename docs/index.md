@@ -11,8 +11,8 @@ parts: 3
 
 - **Type:** Multi-part repository (3 parts)
 - **Primary Languages:** Kotlin (backend), TypeScript (frontend)
-- **Architecture:** Layered backend (GQL → Service → Storage → MongoDB) + Next.js App Router frontend + nginx reverse
-  proxy
+- **Architecture:** Layered backend (GQL → Service → Storage → MongoDB) + Vite/React SPA served by Caddy (single
+  entrypoint on `:2080`, HTTPS via an external edge proxy)
 
 ## Quick Reference
 
@@ -26,19 +26,19 @@ parts: 3
 
 ### bp_front (Frontend SPA)
 
-- **Type:** web (Next.js/React)
-- **Tech Stack:** TypeScript 6, Next.js 16.2.4, React 19, Apollo Client 4, MUI v9
+- **Type:** web (Vite + React SPA)
+- **Tech Stack:** TypeScript, Vite, React 19, Apollo Client, MUI (dark theme)
 - **Root:** `bp_front/`
-- **Port:** 3000
-- **Entry point:** `bp_front/src/app/layout.tsx`
+- **Port:** 5173 (Vite dev server); served via Caddy on `:2080` in the built stack
+- **Entry point:** `bp_front/src/main.tsx` → `bp_front/src/App.tsx`
 
-### routing (nginx)
+### routing (Caddy)
 
 - **Type:** infra
-- **Tech Stack:** nginx
+- **Tech Stack:** Caddy (baked into the `bp_front` image; no standalone service)
 - **Root:** `routing/`
 - **Port:** 2080 (unified entry point)
-- **Entry point:** `routing/nginx.conf`
+- **Entry point:** `routing/Caddyfile`
 
 ## Generated Documentation
 
@@ -69,35 +69,36 @@ parts: 3
 ## Existing Documentation
 
 - [CLAUDE.md](../CLAUDE.md) — AI agent coding rules, tech stack details, critical patterns
-- [bag-please.drawio](../documentation/bag-please.drawio) — Architecture diagram (DrawIO)
-- [bp_front/README.md](../bp_front/README.md) — Next.js boilerplate README
-- [bp_front/issues.md](../bp_front/issues.md) — In-progress frontend issue notes
-- [ApiPlayground/](../ApiPlayground/) — IntelliJ HTTP Client `.http` files for all API operations
+- [routing/edge-proxy.md](../routing/edge-proxy.md) — external edge proxy / TLS / public domain contract
+- [ApiPlayground/](../ApiPlayground/) — IntelliJ HTTP Client `.http` files for API operations
 
 ## Getting Started
 
 ### Run the app locally (dev mode)
 
 ```bash
-# 1. Start infrastructure
-docker compose up mongo router
+# 1. Start infrastructure (mongo + backend in Docker)
+docker compose up mongo bp_back
 
-# 2. Start backend (from bp_back/)
-../gradlew run -t
+# 2. Start the frontend dev server (from bp_front/)
+npm install && npm run dev        # Vite on :5173, proxies /api → :4000
 
-# 3. Start frontend (from bp_front/)
-npm install && npm run dev
-
-# 4. Open browser
-open http://localhost:2080
+# 3. Open browser
+open http://localhost:5173
 # Login: admin / admin
 ```
 
-### Run everything in Docker
+For backend hot reload, run `docker compose up mongo` + `cd bp_back && ../gradlew run -t` instead of the backend
+container. See [development-guide.md](./development-guide.md).
+
+### Run everything in Docker (built stack)
 
 ```bash
-docker compose up --build
+docker compose up --build         # served by Caddy on http://localhost:2080
 ```
+
+HTTPS on `https://bag-please.localhost` is provided by an external edge proxy — see
+[routing/edge-proxy.md](../routing/edge-proxy.md).
 
 ### Run backend tests
 
@@ -108,13 +109,11 @@ cd bp_back && ../gradlew test   # requires Docker running for Testcontainers
 ### Regenerate GraphQL types after schema change
 
 ```bash
-# 1. Get JWT
-curl -X POST http://localhost:2080/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}'
-
-# 2. Update token in bp_front/codegen.ts, then:
-cd bp_front && npm run generate
+# Mint a fresh admin access token and pass it via CODEGEN_TOKEN (do not edit codegen.ts):
+cd bp_front
+CODEGEN_TOKEN="$(curl -s -X POST http://localhost:2080/api/auth/login \
+  -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')" npm run generate
 ```
 
 ## For AI Agents

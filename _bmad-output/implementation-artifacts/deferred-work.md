@@ -1,5 +1,129 @@
 # Deferred Work
 
+> **Ledger rule (from the Epic 5 retro, 2026-07-28):** anything deferred "to a later story" must be recorded HERE, not
+> only in a story file or dev-auto spec. The FR9 item below was tracked only in story prose and was silently orphaned
+> when the epic switched from the story-file dev workflow to the dev-auto spec flow. This file is the ledger both
+> workflows read.
+
+## Epic 5 close-out — carried forward (2026-07-28)
+
+Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These are tracked as retro action items in
+`sprint-status.yaml → action_items` as well.
+
+- **FR9 automated E2E is orphaned debt — 401 → silent refresh → refresh-fail → `/auth?expired=1`.**
+  Deferred in Story 5.2 (AC#7, explicitly "tracked debt, not FR9 fully E2E-covered" — 5.2 issued no GraphQL query to
+  trigger a 401), re-deferred in 5.3 (Decision #4 — the clean sign-out redirects too fast to fire it organically), and
+  raised in 5.4 (Decision #8) as an **open question to `md` that was never answered** now that a query-bearing route
+  made it organically reachable. Specs 5.5/5.6/5.7 do not mention it. The wiring exists and was hand-verified
+  (`ApolloProvider.tsx` error link → `clearAuth(true)` → `RouteGuard` owns the `/auth?expired=1` redirect); only the
+  automated coverage is missing. **Action:** either write the FR9-tagged E2E (any query-bearing route can host it now)
+  or close this entry with a stated reason.
+
+- **Shared `registrationEnabled` flag races the E2E suite; masked by `retries: 2` rather than fixed.**
+  `registrationEnabled` is one Mongo document and the `chromium` + `mobile` projects run concurrently against a single
+  backend, so the admin-toggle test's brief OFF window can break register-based specs in the other project. Accepted in
+  5.4 ("keep the real flip + CI retries") and re-reported as "1 flaky, retry-healed" in 5.5, 5.6, and 5.7 — five
+  acceptances, no fix. Full suite is NOT green at `retries: 0` locally. **Action:** serialize the toggle spec or give it
+  a dedicated project/worker so the race is deleted rather than retried.
+
+- **Auth rate limiter is effectively disabled in the deployed stack.**
+  `docker-compose.yaml` sets `KTOR_RATE_LIMIT_ATTEMPTS: 6000` (default 5/60s per IP) for E2E convenience. Previously
+  flagged in the SSL/entrypoint review; restated here because the stack now sits behind a public-capable TLS edge.
+  **Action:** a production compose profile with a sane per-IP value; keep 6000 dev/E2E-only.
+
+- **Real-device (physical phone) auth validation never performed.**
+  Assigned to `md` as a manual sign-off in Stories 5.1/5.2 and never recorded. The blocker at the time was the `Secure`
+  `refresh_token` cookie, which Chrome rejects over a plain-HTTP LAN IP; that is now solved —
+  `spec-ssl-termination-single-entrypoint`
+  (commit `6b141e3`) provides the TLS edge and `playwright.config.ts` accepts
+  `E2E_BASE_URL=https://bag-please.localhost`. Epic 4's "mobile login broken on a real device" finding is therefore
+  **unrefuted, not fixed** — the emulated Pixel-7 gate is green but no physical device has been tested.
+
+- **FR47 migration path never validated against real data** (open since Epic 4). Unscoped items → default list
+  migration; needs a production DB snapshot and an idempotency check (run twice, no duplicates, no errors) plus a
+  deployment runbook.
+
+- **FR42 (one-timer) / FR43 (recurring) item UI deferred by epic design.** Backend support is complete and live,
+  including the hourly scheduler; the UI affordances were intentionally postponed. `AddItemDialog` sends
+  `recurring: null`. UI-only work against a frozen, tested contract whenever it is picked up.
+
+- **Playwright `webServer` gaps, carried since Epic 3** (still unaddressed after the Epic 5 harness rebuild): no
+  teardown command (containers accumulate across CI runs), the `url` health check only proves the entrypoint responds —
+  not that Ktor is warm inside the container (first tests can see 502), and no `stdout`/`stderr` filtering, so a compose
+  startup failure silently burns the full timeout before surfacing.
+
+- **`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)** was never investigated. Understand the
+  threshold and whether it degraded anything before the next dev-auto run.
+
+## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
+
+- `ListStorage.rename` not atomic — in-memory updated before MongoDB write; if MongoDB throws, in-memory reflects rename
+  but DB does not until process restart; same pre-existing pattern as `save()` and `delete()` across all Storage classes
+- Concurrent delete+rename race causes `IllegalStateException` bypassing GQL error model — service confirms existence
+  via `listStorage.getById`, then storage re-confirms; a concurrent `deleteList` between the two calls evicts the list
+  from the map, causing `storage[id] ?: throw IllegalStateException(...)` to throw an uncaught 500 instead of a
+  structured GQL error; pre-existing pattern across all Storage classes
+
+## Deferred from: code review of 4-7-frontend-today-tab-shopping-loop-core-components (2026-05-25)
+
+- `usePrefersReducedMotion` hook duplicated in `ItemCard.tsx` and `ProgressStrip.tsx` — registers separate matchMedia
+  listeners per instance; extract to a shared `src/hooks/usePrefersReducedMotion.ts`
+- `announceToSR` fires immediately on check before mutation resolves — on checkItem failure, SR has already announced
+  item as removed; no correction is announced; AC10 satisfied for happy path only; error path SR UX not spec'd
+- `uncheckItem` (Undo) failure is silent — no onError handler; UI shows unchecked while backend may remain checked; not
+  spec'd for this story
+- Concurrent check+undo race — if Undo is tapped while checkItem is still in-flight, both mutations run concurrently;
+  last writer wins; rare edge case not spec'd
+- `ListChipRow` shows skeleton chips when user genuinely has zero lists — `lists.length === 0` shows skeletons
+  regardless of loading state; requires a separate `loading` prop to distinguish; enhancement deferred
+- Subscription `updateQuery` merge safety — `{...items[idx], ...update.item}` overwrites known-good fields with
+  undefined if the subscription document is trimmed in future; low-risk forward-looking concern
+
+## Deferred from: code review of 4-6-frontend-bpsheet-spike-component (2026-05-25)
+
+- No keyboard alternative for drag handle expand/collapse — drag handle is `aria-hidden` and `useSwipeable` is
+  touch/mouse only; keyboard users cannot move the sheet between PEEKED and OPEN states; not in spec scope for this
+  story; forward-looking accessibility gap to address when BPSheet API is locked
+- `triggerRef.current` null at focus restore leaves focus on `<body>` — if the trigger element is conditionally
+  unmounted while the sheet is open, focus after close lands on `<body>`; component handles it safely via optional
+  chaining (no crash); caller responsibility to keep trigger mounted until close
+
+## Deferred from: code review of 4-5-frontend-foundation-theme-navigation-layout (2026-05-24)
+
+- Today tab `onChange` navigates to `/lists` instead of a list route — intentional scaffold; dev notes confirm Story 4.7 wires the Today tab properly with a real `listId`
+- `no-sx-color` ESLint rule only inspects flat `ObjectExpression` — spread/nested/conditional `sx` patterns bypass enforcement; acceptable for current scope, enhance rule when a bypass is observed in practice
+- `router` in `useEffect` dependency array on `page.tsx` — theoretically triggers re-fire if router identity changes; stable in Next.js practice; `page.tsx` will be substantially rewritten in Story 4.7
+- `AuthContext` `clearAuth` + `isLoading` timing edge case — if `clearAuth` fires before initial `refresh` resolves, `isLoading` stays `true` until `refresh` completes, holding `RouteGuard` in null-render state while Apollo redirect fires; pre-existing in `AuthContext`, not introduced by this story
+
+## Deferred from: code review of 4-3-list-sharing-backend-pending-invites-member-management (2026-05-22)
+
+- Untyped status strings `"PENDING"/"ACCEPTED"/"DECLINED"` — no sealed enum or constants; typos silently produce broken state; pre-existing design choice not introduced by this story
+- `acceptInvite` TOCTOU double-accept race — two concurrent accepts can both pass the `PENDING` check and insert the user's UUID into `List.members` twice; spec-acknowledged acceptable at this scale
+- `deleteList` doesn't clean up `list_members` rows — orphaned `list_members` rows accumulate for deleted lists; `getLists` silently drops them via null-map; `deleteList` predates this story
+- Re-invite after DECLINE overwrites original `createdAt` — `shareList` constructs a new `ListMember(..., Instant.now())` on re-invite, upsert overwrites original invite timestamp; acceptable for current audit requirements
+- Username recycling UUID/username desync — `removeMember`/`leaveList` filter `List.members` by resolved UUID but `memberUsernames` by string; if a username is re-registered to a different UUID the two arrays diverge; pre-existing design gap not introduced by this story
+- Non-auth validation errors wrapped in `GraphQLForbiddenException` — `UserNotFound`, `AlreadyMember`, `AlreadyPending`, `SelfShare` are semantic validation errors but use the same exception type as auth failures; pre-existing GQL error taxonomy (noted in 2-1 deferred items)
+- `acceptInvite` UUID oracle via error differentiation — valid `listId` returns `NotPendingInvite` (confirming existence) vs error for unknown UUIDs; auth-gated endpoint, UUID space makes enumeration infeasible; acceptable design tradeoff
+- `runBlocking` in `ListMemberRepository.init` — follows same pattern as all other repository `init` blocks; already deferred in 4-1 review
+
+## Deferred from: code review of 4-2-websocket-auth-per-list-subscription-scoping (2026-05-22)
+
+- Stale `isMember` cache — `ListStorage.getByIdCached` bypasses `sync()`; a user revoked from a list mid-subscription may continue receiving events until the process restarts or the cache is refreshed; full test requires Story 4.3 member-removal mutation
+- Race window between Point 1 `verifyMembership` and `emitAll` start — theoretical TOCTOU gap; mitigated in practice by Point 2 `takeWhile` re-check on every event; acceptable design tradeoff given two-point enforcement
+- Lost SharedFlow events during subscribe setup — events emitted between `verifyMembership` and `emitAll` may be silently dropped if the SharedFlow buffer is full (DROP_OLDEST); pre-existing SharedFlow backpressure behavior not introduced by this change
+- AC4 Point 2 (`takeWhile` membership revocation) test absent — implementation exists and is correct; test blocked on Story 4.3 member-removal mutation (noted with TODO in `SubscriptionScopingTest.kt`)
+
+## Deferred from: code review of 4-1-list-entity-backend-crud-authorization-migration (2026-05-22)
+
+- TOCTOU `synced` flag — `private var synced = false` is non-volatile; two coroutines can double-sync on startup; pre-existing pattern in `UserStorage` from story 1.2; affects `ItemStorage`, `CategoryStorage`, and new `ListStorage`
+- `runBlocking` in repository init + duplicate instantiation — repository constructors call `runBlocking { createIndexes }` (pre-existing pattern); `Application.kt` and `GQL.kt` now create separate repository instances, doubling startup index-creation calls; idempotent but wasteful
+- `isMember` cold-cache false-denial — `ListStorage.getByIdCached` bypasses `sync()`; if called before any sync, returns `false` for legitimate members; `isMember` is currently unused in production paths but is a latent trap
+- `deleteList` partial-failure stale in-memory data — if `listRepository.delete()` throws after `itemRepository.deleteAllInList` + `categoryRepository.deleteAllInList` succeed, the `evictList` calls are never reached; in-memory data stays stale for the process lifetime; process restart recovers from MongoDB; design-acknowledged via spec cascade ordering
+- `verifyMembership` error message leaks list existence — "List not found" vs "Access denied" reveals whether a list UUID exists; UUID space makes enumeration infeasible in practice
+- `GqlItem @GraphQLName("Item")` input/output collision — same class used as both input and output type in graphql-kotlin; pre-existing pattern before this story; all 65 tests pass; investigate if schema generation creates `ItemInput` vs `Item` conflict
+- AC7 error shape — `IllegalArgumentException` for list name > 100 chars produces a GQL execution error, not a formal GQL validation error; behavior is correct (no DB write, error returned to client) but error format differs from spec intent
+- `ListStorage.delete()` dead code — the method exists but `ListService.deleteList` bypasses it (calls `listRepository.delete` + `evictFromCache` directly); latent inconsistency; could cause a double-delete if future code routes through `listStorage.delete()`
+
 ## Deferred from: code review of 3-2-e2e-test-coverage-admin-panel (2026-05-18)
 
 - `webServer` has no teardown command — containers started by `docker compose up -d` during the test suite are never
@@ -164,3 +288,216 @@
   `/auth/login` in `rateLimit(RateLimitName("auth"))`; no structural refactor needed
 - Monitoring plugin may log request bodies including passwords — pre-existing concern not introduced by Story 1.1; audit
   `configureMonitoring()` before production deployment
+
+## Deferred from: code review of spec-fix-new-list-sheet-crash (2026-06-15)
+
+- BPSheet focus-on-open does not fire under reduced motion — `bp_front/src/app/BPSheet.tsx`: with
+  `prefers-reduced-motion: reduce`, the Paper has `transition: 'none'` and uses a `Fade` slot, so no `height`
+  `transitionend` ever fires and `handleTransitionEnd` never runs; the open sheet's first focusable (e.g. the New list
+  name field) is never auto-focused. A11y gap, pre-existing — needs a fallback (e.g. focus on `Fade` `onEntered` or an
+  effect keyed on `state === 'open'`). Out of scope for the crash/blink fix.
+- BPSheet re-fires focus-on-open on every height transition — `bp_front/src/app/BPSheet.tsx:handleTransitionEnd`: any
+  completed `height` transition while `state !== 'closed'` (incl. peeked↔open collapse and the picker-toggle expand)
+  re-runs `first?.focus()`, which can yank focus to the first focusable mid-interaction. Pre-existing; the
+  `target === currentTarget` guard only filters child-vs-self transitions, not open-vs-peeked re-entry. Consider firing
+  focus only on the initial open transition.
+
+## Deferred from: code review of spec-fix-list-golden-path (2026-06-15)
+
+- BPSheet history sentinels carry no per-instance identity — `bp_front/src/app/BPSheet.tsx`: every instance (and the
+  consumer-pushed sentinel in `SheetNewList`) uses the identical `{bpSheetSentinel: true}` marker. If two BPSheet
+  consumers were ever open/closing concurrently, one instance's cleanup `history.back()` could pop another's sentinel.
+  No current trigger (only one sheet is open at a time on `/lists` and `/list/[listId]`). Fix: tag each sentinel with a
+  unique per-instance id and only pop your own.
+- Orphan sentinel history entry after create-navigate — `SheetNewList` create path intentionally skips the sentinel
+  pop and `router.push`es over it, leaving one extra `/lists` history entry beneath the new list. Cosmetic: pressing
+  Back from the new list still lands on the lists view; there is just a redundant duplicate entry. Consider
+  `router.replace`-style cleanup if history hygiene matters.
+- `crypto.randomUUID()` requires a secure context — `bp_front/src/app/list/[listId]/page.tsx` generates item/category
+  UUIDs client-side; `crypto.randomUUID` is undefined over plain `http://<LAN-IP>` (non-localhost), so add-item throws
+  on a phone hitting the LAN IP. Ties into Epic 5 mobile-login work. Fix: a UUID fallback, or have the backend generate
+  the id like `createList` does. (`SheetNewList` is unaffected — the server generates the list id there.)
+- Orphan empty "Uncategorized" category on partial add failure — `handleAddItem`: if `saveCategory` succeeds but the
+  subsequent `saveItem` throws, the list keeps a created-but-empty category. Minor data hygiene; low priority.
+
+## Deferred from: code review of 5-1-foundation-vite-mui-caddy-apollo-shell (2026-07-14)
+
+- `getConfig()` failure leaves `registrationEnabled` stuck at `null` with no retry [bp_front/src/lib/auth/AuthContext.tsx:55-58] — the bootstrap `.catch(() => {})` swallows the error and never retries; `registrationEnabled` is consumed by the auth screen (Story 5.2), which must handle the null/retry case.
+- WS `connectionParams` sends `Bearer ` (empty) when unauthenticated, and a live WebSocket won't pick up a refreshed token until it reconnects [bp_front/src/lib/apollo/ApolloProvider.tsx:37-39] — unreachable in 5.1 (no subscription operations open the socket; backend WS is unauthenticated). Revisit when subscriptions are introduced.
+- Bare `/api` (no subpath) falls through to the SPA `index.html` instead of the backend [routing/Caddyfile:10] — `handle /api/*` does not match the exact path `/api`; latent because the app only calls `/api/<subpath>`. Tighten the matcher if a bare `/api` request is ever added.
+
+## Deferred from: code review of 5-2-authentication (2026-07-15)
+
+- `authApi.logout` has no timeout/AbortController (unlike `refresh`, which caps at
+  8s) [bp_front/src/lib/auth/authApi.ts:24] — its `.catch()` only handles a rejected fetch, not a socket that stays open
+  with no response. If `/api/auth/logout` accepts the connection but never replies, `HomePage.handleLogout`'s `await`
+  never settles, `clearAuth()` never runs, and the user is trapped signed in (no button-disabled/pending state either).
+  Fix belongs in `authApi.ts` (add an abort like `refresh`), which was out of scope for Story 5.2. Revisit when a story
+  is allowed to touch `authApi.ts`.
+- Authenticated user is not redirected away from `/auth` [bp_front/src/App.tsx:12] — `/auth` is a public route outside
+  the `RouteGuard` subtree and `AuthPage` does not check `username`, so a logged-in user who navigates to `/auth` (
+  bookmark, back button, manual URL) sees the sign-in form despite a live session. Pre-existing Story 5.1 routing
+  design; not a Story 5.2 acceptance criterion. Add a "if authenticated, redirect to /" guard if/when this becomes a
+  product requirement.
+
+## Deferred from: code review of ssl-termination-single-entrypoint (2026-07-16)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-ssl-termination-single-entrypoint.md`
+  summary: Auth rate limiter is effectively disabled in the deployed stack (`KTOR_RATE_LIMIT_ATTEMPTS: 6000`).
+  evidence: docker-compose.yaml sets 6000 attempts/60s per IP (default is 5), so the per-client auth limiter this SSL/entrypoint work carefully preserves is off in practice. Pre-existing (dev/E2E convenience), but directly relevant now that the stack is being prepared for a public domain — lower it to a sane per-IP value for the production profile before going live.
+- source_spec: `_bmad-output/implementation-artifacts/spec-ssl-termination-single-entrypoint.md`
+  summary: Defense-in-depth — Ktor `XForwardedHeaders` trusts the leftmost X-Forwarded-For unconditionally.
+  evidence: ForwardedHeaders.kt installs XForwardedHeaders with defaults, so app-layer client-IP resolution relies entirely on the edge proxy overwriting X-Forwarded-For (now documented in routing/edge-proxy.md). A misconfigured edge (appends instead of overwrites) re-enables IP spoofing / rate-limit bypass. Hardening (e.g. app-level trusted-proxy validation / skipLastProxies) was out of scope — the frozen intent forbade auth-code behavior changes. Revisit when a story may touch the auth path.
+
+## Deferred from: code review of story-5.3 (2026-07-17)
+
+- source_spec: `_bmad-output/implementation-artifacts/5-3-user-account.md`
+  summary: Consumed one-shot auth flags (`passwordChanged`/`expired`) are never reset after the guard redirect.
+  evidence: bp_front/src/lib/auth/AuthContext.tsx:87-92 + RouteGuard.tsx:21-25 — `clearAuth` sets the flag and only a
+  later `setAuth`/`clearAuth` clears it, so it stays sticky until the next sign-in. Re-entering a guarded route while
+  still unauthenticated (e.g. manually navigating to `/` after a password change) re-fires the redirect and re-shows the
+  banner. `expired` has had this latent behaviour since Story 5.2; `passwordChanged` inherits the accepted pattern. Low
+  consequence, narrow trigger — consider a shared "reset flag on consumption" when this area is next touched.
+- source_spec: `_bmad-output/implementation-artifacts/5-3-user-account.md`
+  summary: Change-password error alert can shift the vertically-centered form on a failed submit (mobile, AC9 no-shift).
+  evidence: bp_front/src/routes/ChangePasswordPage.tsx:93-105,187-197 — field `helperText ?? ' '` reserves space (no
+  shift on inline errors), but the conditional `change-password-error` Typography grows a `justifyContent: 'center'`
+  column, re-centering the stack on failure. Mirrors the accepted Story 5.2 `auth-error` convention, so consistent
+  rather than a regression; revisit holistically if the no-shift bar tightens.
+
+## Deferred from: planning of 5-5-lists-management (2026-07-21)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-5-lists-management.md`
+  summary: List optional description (FR34) is not implemented — the frozen backend has no `List.description` field.
+  evidence: `type List` (GqlList.kt) exposes only id/name/emoji/ownerId/ownerUsername/members/createdAt/uncheckedItemCount, and `createList(name, emoji)` (ListApi.kt) takes no description arg. Epic-5 freezes the backend, so shipping description would require a backend schema + mutation change (needs `md` sign-off). Create-list UI ships name + emoji only. Revisit if/when the backend gains a description field.
+
+## Deferred from: code review of 5-5-lists-management (2026-07-21)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-5-lists-management.md`
+  summary: `ItemsQuery` (getItems) neither selects nor filters the backend `Item.deleted` flag, and ListDetailPage groups items without a deleted guard.
+  evidence: bp_front/src/lib/lists/listsQueries.ts (ItemsQuery selects id/name/checked/category/listId only) + ListDetailPage.tsx (`items.filter(i => i.category === category.id)`). Harmless in Story 5.5 (no soft-delete path is exercised — `deleteItem` is a hard delete and there is no check/uncheck), but Story 5.6 introduces `checkItem` (ONE_TIME → deleted=true) and the shopping view; if `getItems` returns soft-deleted rows, 5.6 must select `deleted` and filter/handle it or removed one-timers will reappear. Flag for Story 5.6.
+
+## Deferred from: code review of 5-7-sharing-and-membership (2026-07-23)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-7-sharing-and-membership.md`
+  summary: Membership mutation failures (leave/accept/decline/remove) do not trigger a `Lists` refetch, so a stale list row or pending-invite row can persist until a manual reload.
+  evidence: bp_front/src/routes/ListsPage.tsx (leave/delete ConfirmDialog `onConfirm` calls `refresh()` only after the awaited mutation resolves) + PendingInvites.tsx (`run` returns without `onChanged()` on error). Concrete race: owner removes member A at the same moment A clicks Leave; A's `leaveList` returns FORBIDDEN ("not a member"), A sees the inline error, but A's now-stale list row stays in the index until a manual `/lists` reload. Low consequence (recoverable by reload) and an unlikely concurrent-action window; a clean fix would refetch on the error path too.
+
+## Deferred from: planning of 6-1-edit-item-name-category-store (2026-07-28)
+
+Both are **unfixable from the frontend** and both ship with Epic 6 by decision (AR-E6-0 freezes `bp_back/`). Filing them
+is an acceptance criterion of Story 6.1, not a note. Both were **observed live** during the story's manual browser pass
+against `:2080`, not merely reasoned about.
+
+- **BUG-E6-1 — `saveItem` re-attributes `addedBy` to whoever edited the item, stealing authorship.**
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `addedBy` is server-set from the caller's principal and is deliberately not part of `ItemInput`
+  (`ItemApi.kt:52` → `GqlItemMapper.mapItemFromInput(item, caller.value)`), so every `saveItem` overwrites it with the
+  *current* caller. Because `saveItem` is a full-document upsert, an edit is indistinguishable from a create.
+  user-visible impact: on a shared list, when a co-member fixes a typo in an item someone else added, the shopping view's
+  `addedBy` avatar/name (`ListShoppingPage.tsx:440-454`, `shopping-item-addedby-<name>`) silently flips to the editor.
+  Attribution is quietly wrong with no user action that could cause or undo it. This is also *why* Story 6.1's editor
+  sends no mutation at all for a no-op save — the request would re-attribute the item for zero benefit.
+  proposed fix (server-side): preserve the stored `addedBy` on update — look up the existing item in
+  `ItemService.saveItem` and keep its `addedBy`, only setting the caller's name when the item does not yet exist.
+
+- **BUG-E6-2 — `saveItem` resets `checkedAt` to `null`, clearing the check-off clock the recurring scheduler reads.**
+  **Prerequisite for undeferring the one-timer / recurring item UI (FR42/FR43).**
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `GqlItemMapper.mapItemFromInput` (`GqlItemMapper.kt:26-41`) constructs a **fresh** `Item` from the input alone,
+  and `Item` (`Item.kt:6-18`) defaults `checkedAt`, `deletedAt` and `deleted`. `ItemRepository.save` then `Updates.set`s
+  every field, so any field absent from `ItemInput` — and `checkedAt` is not in `ItemInput` at all — is written back as
+  its default. Confirmed in the manual pass: an item checked through the UI (`checkedAt` set by `ItemService.checkItem`)
+  came back with `checked: true, checkedAt: null` after a UI rename.
+  user-visible impact: `ItemService.runSchedulerCycle` restores a checked recurring item only once
+  `item.checkedAt` is older than the cadence threshold, and `continue`s when `checkedAt == null`. So a recurring item
+  that is edited after being checked off **never comes back** — the hourly scheduler skips it forever. Today the blast
+  radius is limited because no UI can set `recurring` (FR42/FR43 are deferred), which is exactly why this is a
+  **prerequisite**: shipping the lifecycle control on top of this defect would make editing silently break the feature
+  the control exists to expose.
+  proposed fix (server-side): merge the input onto the stored item instead of constructing a fresh one — load the
+  existing `Item` in `ItemService.saveItem` and `copy()` only the fields `ItemInput` actually carries, leaving
+  `checkedAt` / `deletedAt` / `deleted` (and `addedBy`, per BUG-E6-1) untouched. One change fixes both bugs.
+
+## Deferred from: code review of 6-1-edit-item-name-category-store (2026-07-28)
+
+- **BUG-E6-3 — a stale open edit dialog can resurrect a deleted item or orphan it under a deleted category.**
+  Third member of the same family as BUG-E6-1/E6-2 above, and the one Story 6.1 newly exposes: before it, no UI path ever
+  issued `saveItem` for an *already existing* id.
+  source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  cause: `ItemStorage.delete` is a **hard** delete (`ItemStorage.kt:41-46`) while `ItemRepository.save` runs
+  `UpdateOptions().upsert(true)` (`ItemRepository.kt:41-56`), and `/lists/:id` is refetch-driven by design (no
+  `subscribeToMore`, per AR-E6-5), so a dialog left open holds a snapshot the page never refreshes. Two outcomes:
+  (a) another member removes the item → Save re-creates it from the snapshot and broadcasts a `SAVED` event that puts the
+  row back on every shopping view, now attributed to the editor with `checkedAt` cleared; (b) another member removes the
+  *category* → Save writes a dangling `category` id, and the item renders under no group on either screen — invisible and
+  therefore unremovable through the UI.
+  user-visible impact: a deleted item reappears for everyone, or an item vanishes while still occupying the list. Both
+  need concurrent action by two members inside one dialog's open window, so the window is narrow — but recovery from (b)
+  requires direct database access.
+  mitigation already in place: the edit payload reads its carry-forward fields from the live `item` prop rather than the
+  open-time snapshot, so anything a refetch *has* observed is not clobbered. That narrows the window; it does not close
+  it, because nothing refetches while the dialog is open.
+  proposed fix: server-side, the same `ItemService.saveItem` change that fixes BUG-E6-1/E6-2 should also reject an
+  upsert whose id does not exist (make `saveItem` create-or-update explicitly rather than blind-upsert), and validate that
+  `category` still belongs to the list. Client-side alternatives (refetch-before-save, or clearing `editItemTarget` when
+  the item leaves `items`) only shrink the race.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  summary: `bp_front/e2e/` is covered by neither ESLint nor `tsc`, so the Playwright suite — the project's primary quality
+  gate — has no static verification at all.
+  evidence: `package.json` runs `lint` as `eslint src/`; `tsconfig.app.json` includes only `["src"]` and
+  `tsconfig.node.json` only `vite.config.ts`. Playwright transpiles without type checking, so a type error in a spec
+  surfaces as a runtime failure or not at all. `item-editing.spec.ts` alone is ~620 lines and is the entire evidence base
+  for AC1/AC3/AC4/AC7, yet "lint and build pass" (AC5) says nothing about it. Fix: add an `e2e` tsconfig project to the
+  build references and widen the lint glob.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+  summary: the E2E helper block (`uniqueUsername`, `registerViaUi`, `openListsViaMenu`, `createListAndOpen`, `addCategory`,
+  `addItem`, `loginApi`, `gql`) is now copy-pasted into a fourth spec file; no shared fixture module exists.
+  evidence: `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and now `item-editing.spec.ts` each re-declare them,
+  differing only in the `uniqueUsername` prefix. `registerViaUi` carries the `expect(...).toPass()` workaround for the
+  shared `registrationEnabled` race — logic that will drift silently between copies, and that has to be fixed in four
+  places when that race is finally fixed at the source (itself an open Epic 5 retro action). Pre-existing convention, not
+  caused by this story, but each new spec raises the cost of undoing it.
+
+## Deferred from: code review of 6-2-back-to-home-and-lists-navigation (2026-07-28)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: `HomeRedirect` picks the oldest list with a lexicographic string compare on `createdAt`, which is wrong for
+  the variable-precision ISO instants the backend emits — FR38 can send a user to the wrong list.
+  evidence: bp_front/src/routes/HomeRedirect.tsx (`[...lists].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]`)
+  against bp_back/.../entity/list/gql/GqlListMapper.kt:19 (`createdAt = list.createdAt.toString()` on a
+  `java.time.Instant`). `Instant.toString()` omits the fractional part entirely when nanos are zero, so a list created at
+  exactly `…:05Z` compares as *greater* than one created at `…:05.100Z` (`'Z'` 0x5A > `'.'` 0x2E) — the earlier list
+  sorts last. Roughly a 1-in-1000 window per list pair, and it also makes the new
+  `FR57/FR38 — …lands on the oldest list` spec flaky at the same rate. Pre-existing (shipped in Story 5.6, exercised by
+  `shopping.spec.ts` FR38 since); untouched by this story. Fix by comparing `Date.parse(createdAt)` / `new Date(...)`
+  numerically, or by having the backend emit a fixed-precision timestamp.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: `bp_front/e2e/` is outside both frontend quality gates — E2E specs are neither linted nor type-checked.
+  evidence: bp_front/package.json:12 (`"lint": "eslint src/"`) and bp_front/tsconfig.app.json:30-32 (`"include": ["src"]`)
+  / tsconfig.node.json:20-22 (`"include": ["vite.config.ts"]`). Playwright transpiles specs without type checking, so a
+  type error, unused import, or bad locator type in any of the nine spec files ships undetected and AC-level claims of
+  "`npm run lint` and `npm run build` pass" are vacuous for the E2E suite — the very layer the project treats as its hard
+  gate. Project-wide and pre-existing (affects all specs, not just the one added here). Fix by adding `e2e` to a
+  tsconfig project and widening the lint glob.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: Activating the new app-bar title link while already on the route home resolves to is a visible no-op that
+  still leaves a redundant history entry.
+  evidence: bp_front/src/components/AppShell.tsx (title link `to="/"`) + HomeRedirect.tsx — a user standing on their
+  oldest list, or on `/lists` with no lists, pushes `/`, sees `home-redirect-loading` flash while `ListsQuery` resolves,
+  then gets `replace`d back to the same route. Net effect: a spinner blink and a duplicate history entry, so Back appears
+  to do nothing once. Not fixable inside this story: suppressing it requires knowing the resolved home path in the app
+  bar, which AR-E6-7 explicitly forbids ("the app bar does not re-implement or duplicate that logic"). Low consequence;
+  the clean fix belongs in `HomeRedirect` (or a shared hook exposing the resolved path) if it is ever worth doing.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+  summary: The new `navigation.spec.ts` adds 14 more UI registrations per full run, measurably increasing pressure on the
+  already-tracked shared `registrationEnabled` race.
+  evidence: The race is probabilistic, and two full-suite runs at `--retries=2` after this story bracket it: one returned
+  **4 flaky** (every one in the untouched `lists.spec.ts`, every one carrying `alert: "Registration is disabled"` in its
+  error context, all healed on retry1) and a later one returned **84 passed, 0 flaky**. An earlier run at the default
+  local `retries: 0` had **1 outright failure**, same file, same cause. So the race is unchanged in kind but each new
+  registering spec widens the window it can hit, and this story adds 14 registrations per full run. This is the fourth
+  spec to copy the `toPass()` workaround instead of the race being fixed at the source — the standing Epic 5 retro action
+  item.

@@ -1,5 +1,7 @@
 # Memory Index
 
+- [Login endpoint is /api/auth/login](feedback_login_endpoint.md) — Not /api/login as docs say; correct path confirmed
+  from backend routing
 - [Ktor ContentNegotiation wiring gotcha](feedback_ktor_contentnegotiation.md) — Route-level plugin rule for bag-please
   backend
 - [MongoDB UUID filter for users](feedback_mongo_uuid_filter.md) — Use UUID object (not toString()) in Filters.eq for _

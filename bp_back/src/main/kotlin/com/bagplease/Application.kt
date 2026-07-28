@@ -2,6 +2,9 @@ package com.bagplease
 
 import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.mongo.ApplicationConfigRepository
+import com.bagplease.entity.category.mongo.CategoryRepository
+import com.bagplease.entity.item.mongo.ItemRepository
+import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.mongo.UserRepository
 import com.bagplease.features.auth.AuthService
@@ -11,6 +14,7 @@ import com.bagplease.mongo.MongoConnection
 import com.bagplease.plugins.configureCors
 import com.bagplease.plugins.configureForwardedHeaders
 import com.bagplease.plugins.configureGql
+import com.bagplease.plugins.configureMigration
 import com.bagplease.plugins.configureMonitoring
 import com.bagplease.plugins.configureRateLimiting
 import com.bagplease.plugins.configureRouting
@@ -53,12 +57,24 @@ fun Application.module() {
     val appConfigRepository = ApplicationConfigRepository(connection.db)
     val appConfigService = ApplicationConfigService(appConfigRepository)
 
+    val migrationTargetUser = config.propertyOrNull("migration.targetUser")?.getString() ?: ""
+
     configureCors()
     configureMonitoring()
     configureForwardedHeaders()
     configureRateLimiting()
     configureSecurity()
+
+    configureMigration(
+        db = connection.db,
+        userRepository = userRepository,
+        itemRepository = ItemRepository(connection.db),
+        categoryRepository = CategoryRepository(connection.db),
+        listRepository = ListRepository(connection.db),
+        migrationTargetUsername = migrationTargetUser,
+    )
+
     configureAuthRoutes(appConfigService, adminLogin, authService, userService)
-    configureGql(appConfigService, adminLogin, authService, userService)
+    configureGql(appConfigService, adminLogin, authService, userService, userRepository)
     configureRouting()
 }

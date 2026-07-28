@@ -2,8 +2,7 @@
 
 ## Principle
 
-Automatically detect and fail tests when HTTP 4xx/5xx errors occur during execution. Act like Sentry for tests - catch
-silent backend failures even when UI passes assertions.
+Automatically detect and fail tests when HTTP 4xx/5xx errors occur during execution. Act like Sentry for tests - catch silent backend failures even when UI passes assertions.
 
 ## Rationale
 
@@ -319,7 +318,7 @@ The monitor has minimal performance impact:
 ## Comparison with Alternatives
 
 | Approach                    | Network Error Monitor | Manual afterEach      |
-|-----------------------------|-----------------------|-----------------------|
+| --------------------------- | --------------------- | --------------------- |
 | **Setup Required**          | Zero (auto-enabled)   | Every test file       |
 | **Catches Silent Failures** | Yes                   | Yes (if configured)   |
 | **Structured Artifacts**    | JSON attached         | Custom impl           |
@@ -345,8 +344,7 @@ The monitor has minimal performance impact:
 
 ### Test fails with network errors but I don't see them in my app
 
-The errors might be happening during page load or in background polling. Check the `network-errors.json` artifact in
-your test report for full details including timestamps.
+The errors might be happening during page load or in background polling. Check the `network-errors.json` artifact in your test report for full details including timestamps.
 
 ### False positives from external services
 

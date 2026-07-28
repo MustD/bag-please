@@ -2,8 +2,7 @@
 
 **Objective:** Intelligently load project files (whole or sharded) based on the workflow's Input Files configuration.
 
-**Prerequisite:** Only execute this protocol if the workflow defines an Input Files section. If no input file patterns
-are configured, skip this entirely.
+**Prerequisite:** Only execute this protocol if the workflow defines an Input Files section. If no input file patterns are configured, skip this entirely.
 
 ---
 
@@ -18,13 +17,11 @@ For each pattern in the Input Files table, work through the following substeps i
 
 ### 2a: Try Sharded Documents First
 
-If a sharded pattern exists for this input, determine the load strategy (defaults to **FULL_LOAD** if not specified),
-then apply the matching strategy:
+If a sharded pattern exists for this input, determine the load strategy (defaults to **FULL_LOAD** if not specified), then apply the matching strategy:
 
 #### FULL_LOAD Strategy
 
-Load ALL files in the sharded directory. Use this for PRD, Architecture, UX, brownfield docs, or whenever the full
-picture is needed.
+Load ALL files in the sharded directory. Use this for PRD, Architecture, UX, brownfield docs, or whenever the full picture is needed.
 
 1. Use the glob pattern to find ALL `.md` files (e.g., `{planning_artifacts}/*architecture*/*.md`).
 2. Load EVERY matching file completely.
@@ -45,15 +42,13 @@ Load a specific shard using a template variable. Example: used for epics with `{
 
 Load index.md, analyze the structure and description of each doc in the index, then intelligently load relevant docs.
 
-**DO NOT BE LAZY** -- use best judgment to load documents that might have relevant information, even if there is only a
-5% chance of relevance.
+**DO NOT BE LAZY** -- use best judgment to load documents that might have relevant information, even if there is only a 5% chance of relevance.
 
 1. Load `index.md` from the sharded directory.
 2. Parse the table of contents, links, and section headers.
 3. Analyze the workflow's purpose and objective.
 4. Identify which linked/referenced documents are likely relevant.
-    - *Example:* If the workflow is about authentication and the index shows "Auth Overview", "Payment Setup", "
-      Deployment" -- load the auth docs, consider deployment docs, skip payment.
+   - *Example:* If the workflow is about authentication and the index shows "Auth Overview", "Payment Setup", "Deployment" -- load the auth docs, consider deployment docs, skip payment.
 5. Load all identified relevant documents.
 6. Store combined content in variable: `{pattern_name_content}`.
 
@@ -77,8 +72,7 @@ If no sharded matches were found OR no sharded pattern exists for this input:
 If no matches were found for either sharded or whole patterns:
 
 1. Set `{pattern_name_content}` to empty string.
-2. Note in session: "No {pattern_name} files found" -- this is not an error, just unavailable. Offer the user a chance
-   to provide the file.
+2. Note in session: "No {pattern_name} files found" -- this is not an error, just unavailable. Offer the user a chance to provide the file.
 
 ## Step 3: Report Discovery Results
 

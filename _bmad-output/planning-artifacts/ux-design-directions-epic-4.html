@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>bag-please Epic 4 — Design Directions</title>
+  <style>
+      * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+      }
+
+      /* ── Design tokens (light / teal) ── */
+      :root {
+          --bg: #F2F2F7;
+          --bg2: #E5E5EA;
+          --card: #FFFFFF;
+          --text: #000000;
+          --sec: rgba(60, 60, 67, 0.6);
+          --ter: rgba(60, 60, 67, 0.3);
+          --sep: rgba(60, 60, 67, 0.18);
+          --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 24px rgba(0, 0, 0, 0.06);
+          --accent: #2AA396;
+          --soft: rgba(42, 163, 150, 0.14);
+          --success: #34C759;
+          --err: #FF3B30;
+          --warn: #FF9F0A;
+          --row-h: 52px;
+          --radius: 14px;
+      }
+
+      body {
+          background: #E8E8ED;
+          font-family: -apple-system, 'Roboto', sans-serif;
+      }
+
+      /* ── Page layout ── */
+      h1 {
+          font-size: 22px;
+          font-weight: 700;
+          color: #000;
+          padding: 32px 24px 8px;
+      }
+
+      .subtitle {
+          font-size: 14px;
+          color: var(--sec);
+          padding: 0 24px 24px;
+          line-height: 1.5;
+          max-width: 640px;
+      }
+
+      .section-title {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.6px;
+          text-transform: uppercase;
+          color: var(--ter);
+          padding: 24px 24px 10px;
+      }
+
+      .variants {
+          display: flex;
+          gap: 20px;
+          padding: 0 24px 32px;
+          flex-wrap: wrap;
+      }
+
+      .variant {
+          background: var(--bg);
+          border-radius: 20px;
+          padding: 20px;
+          width: 340px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .variant-label {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          text-transform: uppercase;
+          color: var(--accent);
+          margin-bottom: 14px;
+      }
+
+      .variant-title {
+          font-size: 17px;
+          font-weight: 600;
+          color: var(--text);
+          margin-bottom: 4px;
+      }
+
+      .variant-desc {
+          font-size: 13px;
+          color: var(--sec);
+          margin-bottom: 16px;
+          line-height: 1.4;
+      }
+
+      /* ── Shared components ── */
+      .card {
+          background: var(--card);
+          border-radius: var(--radius);
+          overflow: hidden;
+          box-shadow: var(--shadow);
+          margin-bottom: 12px;
+      }
+
+      .item-row {
+          display: flex;
+          align-items: center;
+          min-height: var(--row-h);
+          padding: 0 16px;
+          gap: 4px;
+          border-bottom: 1px solid var(--sep);
+      }
+
+      .item-row:last-child {
+          border-bottom: none;
+      }
+
+      .item-row.checked {
+          opacity: 0.5;
+      }
+
+      .check-btn {
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          border: none;
+          background: transparent;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+      }
+
+      .check-circle {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          border: 1.5px solid var(--ter);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          transition: background 180ms;
+      }
+
+      .check-circle.on {
+          background: var(--accent);
+          border-color: var(--accent);
+      }
+
+      .check-svg {
+          display: none;
+      }
+
+      .check-circle.on .check-svg {
+          display: block;
+      }
+
+      .item-body {
+          flex: 1;
+          min-width: 0;
+          padding: 10px 0;
+      }
+
+      .item-name {
+          font-size: 16px;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+      }
+
+      .item-meta {
+          font-size: 12px;
+          color: var(--sec);
+          margin-top: 1px;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+      }
+
+      /* ── Lifecycle badges ── */
+      .badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          padding: 2px 6px;
+          border-radius: 99px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.3px;
+          flex-shrink: 0;
+      }
+
+      .badge-once {
+          background: rgba(255, 59, 48, 0.10);
+          color: #FF3B30;
+      }
+
+      .badge-week {
+          background: var(--soft);
+          color: var(--accent);
+      }
+
+      .badge-bi {
+          background: var(--soft);
+          color: var(--accent);
+      }
+
+      .badge-month {
+          background: var(--soft);
+          color: var(--accent);
+      }
+
+      /* ── Progress strip ── */
+      .progress-wrap {
+          padding: 0 20px 10px;
+      }
+
+      .progress-track {
+          height: 6px;
+          border-radius: 99px;
+          background: var(--bg2);
+          overflow: hidden;
+      }
+
+      .progress-fill {
+          height: 100%;
+          border-radius: 99px;
+          background: var(--accent);
+          transition: width 320ms cubic-bezier(.2, .7, .2, 1);
+      }
+
+      .progress-fill.done {
+          background: var(--success);
+      }
+
+      /* ── Toolbar ── */
+      .toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 20px 6px;
+      }
+
+      .toolbar-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--text);
+      }
+
+      .toolbar-sub {
+          font-size: 13px;
+          color: var(--sec);
+      }
+
+      .toolbar-add {
+          width: 34px;
+          height: 34px;
+          border-radius: 99px;
+          background: var(--accent);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-size: 20px;
+      }
+
+      /* ── Completion state ── */
+      .completion {
+          margin: 8px 0;
+          padding: 16px 20px;
+          background: var(--card);
+          border-radius: var(--radius);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: var(--shadow);
+      }
+
+      .completion-icon {
+          font-size: 28px;
+      }
+
+      .completion-text {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text);
+      }
+
+      .completion-sub {
+          font-size: 13px;
+          color: var(--sec);
+      }
+
+      /* ── Divider between sections ── */
+      hr {
+          border: none;
+          border-top: 1px solid var(--sep);
+          margin: 8px 0;
+      }
+
+      /* ── Trailing indicator ── */
+      .trailing {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+      }
+
+      .repeat-icon {
+          color: var(--accent);
+          display: flex;
+          opacity: 0.8;
+      }
+
+      .once-icon {
+          color: var(--err);
+          display: flex;
+          opacity: 0.7;
+      }
+
+      /* ── Selection marker ── */
+      .selected-marker {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #34C759;
+          color: #fff;
+          padding: 4px 10px;
+          border-radius: 99px;
+          font-size: 11px;
+          font-weight: 700;
+          margin-top: 12px;
+      }
+
+      /* ── Chip row ── */
+      .chip-row {
+          display: flex;
+          gap: 8px;
+          padding: 4px 16px 10px;
+          overflow-x: auto;
+          scrollbar-width: none;
+      }
+
+      .chip {
+          appearance: none;
+          border: 0;
+          cursor: pointer;
+          padding: 6px 12px;
+          border-radius: 99px;
+          background: var(--card);
+          color: var(--text);
+          box-shadow: var(--shadow);
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+          flex-shrink: 0;
+      }
+
+      .chip.active {
+          background: var(--accent);
+          color: #fff;
+          box-shadow: none;
+      }
+
+      .chip-count {
+          font-size: 11px;
+          font-weight: 600;
+      }
+
+      .chip.active .chip-count {
+          color: rgba(255, 255, 255, 0.85);
+      }
+
+      .chip:not(.active) .chip-count {
+          color: var(--ter);
+      }
+
+      /* ── Section header ── */
+      .cat-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 24px 4px;
+      }
+
+      .cat-num {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--ter);
+          width: 22px;
+          font-variant-numeric: tabular-nums;
+      }
+
+      .cat-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: var(--text);
+          flex: 1;
+          letter-spacing: -0.1px;
+      }
+
+      .cat-count {
+          font-size: 12px;
+          color: var(--sec);
+      }
+  </style>
+</head>
+<body>
+
+<h1>Epic 4 — Design Direction Exploration</h1>
+<p class="subtitle">
+  The overall design direction is settled (the <code>design/</code> prototype). This file explores
+  the three open visual decisions: how lifecycle status appears on item rows,
+  and what the list-complete state looks like.
+</p>
+
+<!-- ─────────────────────────────────────────────────── -->
+<div class="section-title">Section A — Item Row Lifecycle Indicator</div>
+<p class="subtitle" style="padding-top:0">
+  How does Mia know at a glance that an item is a one-timer or recurring?
+  Three approaches — pick the one that reads most clearly.
+</p>
+
+<div class="variants">
+
+  <!-- Variant A1: Trailing badge -->
+  <div class="variant">
+    <div class="variant-label">Variant A</div>
+    <div class="variant-title">Trailing pill badge</div>
+    <div class="variant-desc">Badge appears at the right of the row. "1×" for one-timers, "W" / "2W" / "M" for
+      recurring. Icon-free — purely typographic.
+    </div>
+
+    <div class="card">
+      <!-- regular -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Oat milk</div>
+          <div class="item-meta">Dairy · Whole Foods</div>
+        </div>
+      </div>
+      <!-- one-timer -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Ibuprofen 200mg</div>
+          <div class="item-meta">Pharmacy</div>
+        </div>
+        <div class="trailing">
+          <span class="badge badge-once">1×</span>
+        </div>
+      </div>
+      <!-- weekly -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Greek yogurt</div>
+          <div class="item-meta">Dairy</div>
+        </div>
+        <div class="trailing">
+          <span class="badge badge-week">W</span>
+        </div>
+      </div>
+      <!-- monthly -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Dish soap</div>
+          <div class="item-meta">Cleaning · Target</div>
+        </div>
+        <div class="trailing">
+          <span class="badge badge-month">M</span>
+        </div>
+      </div>
+      <!-- checked one-timer (about to exit) -->
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name" style="text-decoration:line-through">Printer ink</div>
+          <div class="item-meta">Electronics</div>
+        </div>
+        <div class="trailing">
+          <span class="badge badge-once">1×</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--sec);line-height:1.5">
+      ✓ Compact, never wraps<br>
+      ✓ Works on short names<br>
+      △ "1×" may not be intuitive on first encounter
+    </div>
+  </div>
+
+  <!-- Variant A2: Inline meta text -->
+  <div class="variant">
+    <div class="variant-label">Variant B</div>
+    <div class="variant-title">Inline sub-text indicator</div>
+    <div class="variant-desc">Lifecycle info appears in the metadata line below the item name. "Gone after check-off"
+      for one-timers; "↻ weekly" for recurring.
+    </div>
+
+    <div class="card">
+      <!-- regular -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Oat milk</div>
+          <div class="item-meta">Dairy · Whole Foods</div>
+        </div>
+      </div>
+      <!-- one-timer -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Ibuprofen 200mg</div>
+          <div class="item-meta" style="color:var(--err);opacity:0.8">Gone after check-off · Pharmacy</div>
+        </div>
+      </div>
+      <!-- weekly -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Greek yogurt</div>
+          <div class="item-meta">
+            <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                 style="color:var(--accent);flex-shrink:0" viewBox="0 0 24 24" width="11">
+              <polyline points="17 1 21 5 17 9"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <polyline points="7 23 3 19 7 15"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+            weekly · Dairy
+          </div>
+        </div>
+      </div>
+      <!-- monthly -->
+      <div class="item-row">
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Dish soap</div>
+          <div class="item-meta">
+            <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                 style="color:var(--accent);flex-shrink:0" viewBox="0 0 24 24" width="11">
+              <polyline points="17 1 21 5 17 9"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <polyline points="7 23 3 19 7 15"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+            monthly · Cleaning · Target
+          </div>
+        </div>
+      </div>
+      <!-- checked one-timer -->
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name" style="text-decoration:line-through">Printer ink</div>
+          <div class="item-meta" style="color:var(--err);opacity:0.6">Gone after check-off · Electronics</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--sec);line-height:1.5">
+      ✓ Self-explanatory — no icon learning required<br>
+      ✓ Works for all literacy levels<br>
+      △ Meta line can get long with store + lifecycle<br>
+      △ "Gone after check-off" is verbose
+    </div>
+  </div>
+
+  <!-- Variant A3: Leading icon + trailing minimal -->
+  <div class="variant">
+    <div class="variant-label">Variant C</div>
+    <div class="variant-title">Leading icon dot</div>
+    <div class="variant-desc">A small colored dot left of the checkbox signals lifecycle type. Teal = recurring, soft
+      red = one-timer. Tooltip/label only in item editor.
+    </div>
+
+    <div class="card">
+      <!-- regular (no dot) -->
+      <div class="item-row">
+        <div style="width:8px;flex-shrink:0"></div>
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Oat milk</div>
+          <div class="item-meta">Dairy · Whole Foods</div>
+        </div>
+      </div>
+      <!-- one-timer (red dot) -->
+      <div class="item-row">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--err);opacity:0.6;flex-shrink:0;margin-right:0"></div>
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Ibuprofen 200mg</div>
+          <div class="item-meta">Pharmacy</div>
+        </div>
+      </div>
+      <!-- weekly (teal dot) -->
+      <div class="item-row">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:0.7;flex-shrink:0"></div>
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Greek yogurt</div>
+          <div class="item-meta">Dairy</div>
+        </div>
+      </div>
+      <!-- monthly (teal dot) -->
+      <div class="item-row">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:0.7;flex-shrink:0"></div>
+        <button class="check-btn">
+          <div class="check-circle"></div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Dish soap</div>
+          <div class="item-meta">Cleaning · Target</div>
+        </div>
+      </div>
+      <!-- checked one-timer -->
+      <div class="item-row checked">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--err);opacity:0.4;flex-shrink:0"></div>
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name" style="text-decoration:line-through">Printer ink</div>
+          <div class="item-meta">Electronics</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--sec);line-height:1.5">
+      ✓ Cleanest row — no extra text or trailing elements<br>
+      ✓ Color-coded at a glance<br>
+      △ Dot meaning must be learned (not self-evident)<br>
+      △ Fails accessibility rule: color alone carries meaning<br>
+      ✗ <strong>Not recommended</strong> — violates color independence principle
+    </div>
+  </div>
+
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<div class="section-title">Section B — List Complete State</div>
+<p class="subtitle" style="padding-top:0">
+  When the last item is checked, what does Today look like?
+  Two approaches — one subtle, one more rewarding.
+</p>
+
+<div class="variants">
+
+  <!-- Completion B1: filled bar + quiet message -->
+  <div class="variant">
+    <div class="variant-label">Variant B1</div>
+    <div class="variant-title">Silent fill</div>
+    <div class="variant-desc">Progress bar turns green and fills. A quiet "All done" line replaces the item count. No
+      banner. Calm.
+    </div>
+
+    <div class="toolbar">
+      <div>
+        <div class="toolbar-title">🛒 Groceries</div>
+        <div class="toolbar-sub" style="color:var(--success);font-weight:500">All done</div>
+      </div>
+      <button class="toolbar-add">+</button>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill done" style="width:100%"></div>
+      </div>
+    </div>
+
+    <div class="chip-row">
+      <button class="chip active">🛒 <span>Groceries</span><span class="chip-count">0</span></button>
+      <button class="chip">🧺 <span>IKEA run</span><span class="chip-count">3</span></button>
+    </div>
+
+    <div class="card">
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Oat milk</div>
+        </div>
+      </div>
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Greek yogurt</div>
+        </div>
+        <div class="trailing"><span class="badge badge-week">W</span></div>
+      </div>
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Avocado</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--sec);line-height:1.5">
+      ✓ Calm — matches emotional baseline<br>
+      ✓ No interruption; user can leave immediately<br>
+      △ Easy to miss — may not feel like a "moment"
+    </div>
+  </div>
+
+  <!-- Completion B2: filled bar + inline card -->
+  <div class="variant">
+    <div class="variant-label">Variant B2</div>
+    <div class="variant-title">Completion card</div>
+    <div class="variant-desc">Progress bar turns green. A small card appears below the progress strip: "You're done ·
+      Ready to go." Dismissible. Disappears after 8s.
+    </div>
+
+    <div class="toolbar">
+      <div>
+        <div class="toolbar-title">🛒 Groceries</div>
+        <div class="toolbar-sub">0 to buy · 3 done</div>
+      </div>
+      <button class="toolbar-add">+</button>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill done" style="width:100%"></div>
+      </div>
+    </div>
+
+    <div class="chip-row">
+      <button class="chip active">🛒 <span>Groceries</span><span class="chip-count">0</span></button>
+      <button class="chip">🧺 <span>IKEA run</span><span class="chip-count">3</span></button>
+    </div>
+
+    <!-- Completion card -->
+    <div style="margin: 0 0 10px; padding: 14px 18px; background: #E8F9EE; border-radius: 12px; display:flex; align-items:center; gap:12px; box-shadow: 0 1px 4px rgba(52,199,89,0.15);">
+      <span style="font-size:24px">✓</span>
+      <div>
+        <div style="font-size:15px;font-weight:600;color:#1A6632">You're done</div>
+        <div style="font-size:12px;color:#34874D;margin-top:1px">Ready to leave · 3 items checked off</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Oat milk</div>
+        </div>
+      </div>
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Greek yogurt</div>
+        </div>
+        <div class="trailing"><span class="badge badge-week">W</span></div>
+      </div>
+      <div class="item-row checked">
+        <button class="check-btn">
+          <div class="check-circle on">
+            <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2.5" viewBox="0 0 24 24" width="14">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+        </button>
+        <div class="item-body">
+          <div class="item-name">Avocado</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--sec);line-height:1.5">
+      ✓ Clear job-completion signal<br>
+      ✓ Disappears after 8s — doesn't overstay<br>
+      △ Slightly more expressive — may feel un-calm<br>
+      △ Green card can feel alarming at first glance
+    </div>
+  </div>
+
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<div class="section-title">Section C — Today Screen Overview (Variant A badges)</div>
+<p class="subtitle" style="padding-top:0">
+  Full Today view with chip switcher, progress strip, and mixed lifecycle items using Variant A badges.
+  Shows how all elements work together.
+</p>
+
+<div class="variants">
+  <div class="variant" style="width:360px">
+    <div class="variant-label">Reference</div>
+    <div class="variant-title">Today — in progress</div>
+    <div class="variant-desc">4 items: 1 regular, 1 one-timer, 1 weekly, 1 checked. Progress at 25%.</div>
+
+    <div style="background:var(--bg);border-radius:16px;overflow:hidden">
+      <div class="toolbar">
+        <div>
+          <div class="toolbar-title">🛒 Groceries</div>
+          <div class="toolbar-sub">3 to buy · 1 done</div>
+        </div>
+        <button class="toolbar-add">+</button>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill" style="width:25%"></div>
+        </div>
+      </div>
+
+      <div class="chip-row">
+        <button class="chip active">🛒 <span>Groceries</span><span class="chip-count">3</span></button>
+        <button class="chip">🧺 <span>IKEA run</span><span class="chip-count">5</span></button>
+        <button class="chip">💊 <span>Pharmacy</span><span class="chip-count">1</span></button>
+      </div>
+
+      <div class="cat-header">
+        <span class="cat-num">01</span>
+        <span class="cat-name">Produce</span>
+        <span class="cat-count">2</span>
+      </div>
+      <div class="card" style="margin:0 16px 0">
+        <div class="item-row">
+          <button class="check-btn">
+            <div class="check-circle"></div>
+          </button>
+          <div class="item-body">
+            <div class="item-name">Avocado</div>
+            <div class="item-meta">Produce</div>
+          </div>
+        </div>
+        <div class="item-row">
+          <button class="check-btn">
+            <div class="check-circle"></div>
+          </button>
+          <div class="item-body">
+            <div class="item-name">Bananas</div>
+            <div class="item-meta">Produce</div>
+          </div>
+          <div class="trailing"><span class="badge badge-week">W</span></div>
+        </div>
+      </div>
+
+      <div class="cat-header" style="margin-top:18px">
+        <span class="cat-num">03</span>
+        <span class="cat-name">Pharmacy</span>
+        <span class="cat-count">1</span>
+      </div>
+      <div class="card" style="margin:0 16px 0">
+        <div class="item-row">
+          <button class="check-btn">
+            <div class="check-circle"></div>
+          </button>
+          <div class="item-body">
+            <div class="item-name">Ibuprofen 200mg</div>
+            <div class="item-meta">CVS</div>
+          </div>
+          <div class="trailing"><span class="badge badge-once">1×</span></div>
+        </div>
+      </div>
+
+      <div class="cat-header" style="margin-top:18px;opacity:0.5">
+        <span class="cat-num">02</span>
+        <span class="cat-name">Dairy</span>
+        <span class="cat-count">1</span>
+      </div>
+      <div class="card" style="margin:0 16px 16px">
+        <div class="item-row checked">
+          <button class="check-btn">
+            <div class="check-circle on">
+              <svg class="check-svg" fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"
+                   stroke-width="2.5" viewBox="0 0 24 24" width="14">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </button>
+          <div class="item-body">
+            <div class="item-name" style="text-decoration:line-through">Greek yogurt</div>
+            <div class="item-meta">Dairy</div>
+          </div>
+          <div class="trailing"><span class="badge badge-week" style="opacity:0.5">W</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="padding: 16px 24px 48px; font-size: 13px; color: var(--sec); line-height: 1.6; max-width: 700px;">
+  <strong style="color:var(--text)">Decision needed:</strong>
+  Choose between <strong>Variant A</strong> (trailing pill badge — compact, requires learning "1×"),
+  <strong>Variant B</strong> (inline sub-text — self-explanatory, can be verbose), or discuss a hybrid.
+  Variant C is not recommended (color-only).
+  <br><br>
+  For the completion state, choose between <strong>B1</strong> (silent green fill — calm baseline)
+  or <strong>B2</strong> (completion card — clearer job-completion signal, auto-dismisses after 8s).
+</div>
+
+</body>
+</html>

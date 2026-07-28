@@ -2,9 +2,7 @@
 
 ## Principle
 
-Register network interceptions **before** any navigation or user action. Store the interception promise and await it
-immediately after the triggering step. Replace implicit waits with deterministic signals based on network responses,
-spinner disappearance, or event hooks.
+Register network interceptions **before** any navigation or user action. Store the interception promise and await it immediately after the triggering step. Replace implicit waits with deterministic signals based on network responses, spinner disappearance, or event hooks.
 
 ## Rationale
 
@@ -25,8 +23,7 @@ Network-first patterns provide:
 
 ### Example 1: Intercept Before Navigate Pattern
 
-**Context**: The foundational pattern for all E2E tests. Always register route interception **before** the action that
-triggers the request (navigation, click, form submit).
+**Context**: The foundational pattern for all E2E tests. Always register route interception **before** the action that triggers the request (navigation, click, form submit).
 
 **Implementation**:
 
@@ -85,8 +82,7 @@ test('flaky test example', async ({ page }) => {
 
 ### Example 2: HAR Capture for Debugging
 
-**Context**: When debugging flaky tests or building deterministic mocks, capture real network traffic with HAR files.
-Replay them in tests for consistent, offline-capable test runs.
+**Context**: When debugging flaky tests or building deterministic mocks, capture real network traffic with HAR files. Replay them in tests for consistent, offline-capable test runs.
 
 **Implementation**:
 
@@ -162,8 +158,7 @@ test('mock order response based on HAR', async ({ page }) => {
 
 ### Example 3: Network Stub with Edge Cases
 
-**Context**: When testing error handling, timeouts, and edge cases, stub network responses to simulate failures. Test
-both happy path and error scenarios.
+**Context**: When testing error handling, timeouts, and edge cases, stub network responses to simulate failures. Test both happy path and error scenarios.
 
 **Implementation**:
 
@@ -280,8 +275,7 @@ describe('Order Edge Cases', () => {
 
 ### Example 4: Deterministic Waiting
 
-**Context**: Never use hard waits (`waitForTimeout(3000)`). Always wait for explicit signals: network responses, element
-state changes, or custom events.
+**Context**: Never use hard waits (`waitForTimeout(3000)`). Always wait for explicit signals: network responses, element state changes, or custom events.
 
 **Implementation**:
 
@@ -462,9 +456,9 @@ test('deterministic test', async ({ page }) => {
 
 - **Used in workflows**: `*atdd` (test generation), `*automate` (test expansion), `*framework` (network setup)
 - **Related fragments**:
-    - `fixture-architecture.md` - Network fixture patterns
-    - `data-factories.md` - API-first setup with network
-    - `test-quality.md` - Deterministic test principles
+  - `fixture-architecture.md` - Network fixture patterns
+  - `data-factories.md` - API-first setup with network
+  - `test-quality.md` - Deterministic test principles
 
 ## Debugging Network Issues
 

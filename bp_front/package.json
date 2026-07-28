@@ -1,46 +1,48 @@
 {
   "name": "bp_front",
   "license": "ISC",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
     "generate": "graphql-codegen --config codegen.ts",
+    "lint": "eslint src/",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@apollo/client": "4.1.9",
-    "@apollo/client-integration-nextjs": "0.14.5",
-    "@emotion/cache": "11.14.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "@mui/icons-material": "9.0.0",
-    "@mui/lab": "9.0.0-beta.2",
     "@mui/material": "9.0.0",
-    "@mui/material-nextjs": "9.0.0",
     "graphql": "16.14.0",
     "graphql-ws": "6.0.8",
-    "immutable": "5.1.5",
-    "next": "16.2.4",
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "uuid": "14.0.0"
+    "react-router-dom": "^7.9.0",
+    "rxjs": "7.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@graphql-codegen/cli": "7.0.0",
     "@graphql-codegen/client-preset": "6.0.0",
-    "@graphql-codegen/typescript": "6.0.0",
-    "@graphql-codegen/typescript-graphql-request": "7.0.1",
-    "@graphql-codegen/typescript-operations": "6.0.0",
-    "@graphql-codegen/typescript-react-apollo": "4.4.2",
     "@playwright/test": "^1.60.0",
     "@types/node": "25.6.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/uuid": "11.0.0",
-    "string-width": "8.2.1",
-    "typescript": "6.0.3"
+    "@vitejs/plugin-react": "^5.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.0",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.50.0",
+    "vite": "^7.3.5"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true
   }
 }

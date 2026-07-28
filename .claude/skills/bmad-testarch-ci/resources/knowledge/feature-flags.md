@@ -2,16 +2,11 @@
 
 ## Principle
 
-Feature flags enable controlled rollouts and A/B testing, but require disciplined testing governance. Centralize flag
-definitions in a frozen enum, test both enabled and disabled states, clean up targeting after each spec, and maintain a
-comprehensive flag lifecycle checklist. For LaunchDarkly-style systems, script API helpers to seed variations
-programmatically rather than manual UI mutations.
+Feature flags enable controlled rollouts and A/B testing, but require disciplined testing governance. Centralize flag definitions in a frozen enum, test both enabled and disabled states, clean up targeting after each spec, and maintain a comprehensive flag lifecycle checklist. For LaunchDarkly-style systems, script API helpers to seed variations programmatically rather than manual UI mutations.
 
 ## Rationale
 
-Poorly managed feature flags become technical debt: untested variations ship broken code, forgotten flags clutter the
-codebase, and shared environments become unstable from leftover targeting rules. Structured governance ensures flags are
-testable, traceable, temporary, and safe. Testing both states prevents surprises when flags flip in production.
+Poorly managed feature flags become technical debt: untested variations ship broken code, forgotten flags clutter the codebase, and shared environments become unstable from leftover targeting rules. Structured governance ensures flags are testable, traceable, temporary, and safe. Testing both states prevents surprises when flags flip in production.
 
 ## Pattern Examples
 

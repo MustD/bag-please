@@ -1,0 +1,93 @@
+// Project tasks — one per mise task (see mise.toml). Each delegates to `mise run <task>`.
+// Run via the Zed command palette: "task: spawn". See https://zed.dev/docs/tasks.
+[
+  // --- Backend (Kotlin/Ktor, Gradle multi-project, port 4000) ---
+  {
+    "label": "back:build",
+    "command": "mise run back:build",
+    "reveal": "always"
+  },
+  {
+    "label": "back:run",
+    "command": "mise run back:run",
+    "reveal": "always",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "back:test",
+    "command": "mise run back:test",
+    "reveal": "always"
+  },
+  // --- Frontend (Vite + React 19 SPA, dev server on :5173) ---
+  {
+    "label": "front:install",
+    "command": "mise run front:install",
+    "reveal": "always"
+  },
+  {
+    "label": "front:dev",
+    "command": "mise run front:dev",
+    "reveal": "always",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "front:build",
+    "command": "mise run front:build",
+    "reveal": "always"
+  },
+  {
+    "label": "front:lint",
+    "command": "mise run front:lint",
+    "reveal": "always"
+  },
+  {
+    "label": "front:generate",
+    "command": "mise run front:generate",
+    "reveal": "always"
+  },
+  {
+    "label": "front:e2e",
+    "command": "mise run front:e2e",
+    "reveal": "always"
+  },
+  // --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
+  {
+    "label": "up",
+    "command": "mise run up",
+    "reveal": "always",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "down",
+    "command": "mise run down",
+    "reveal": "always"
+  },
+  {
+    "label": "infra",
+    "command": "mise run infra",
+    "reveal": "always",
+    "allow_concurrent_runs": false
+  },
+  // --- Ai infra ---
+  {
+    "label": "skill-validate",
+    "command": "mise run skill-validate",
+    "reveal": "always"
+  },
+  // --- Update / maintenance ---
+  {
+    "label": "update:bmad",
+    "command": "mise run update:bmad",
+    "reveal": "always"
+  },
+  {
+    "label": "update:front",
+    "command": "mise run update:front",
+    "reveal": "always"
+  },
+  {
+    "label": "gradle:dependencyUpdates",
+    "command": "mise run gradle:dependencyUpdates",
+    "reveal": "always"
+  }
+]

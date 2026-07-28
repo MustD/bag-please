@@ -2,8 +2,7 @@
 
 ## Principle
 
-Intercept network requests with a single declarative call that returns a Promise. Automatically parse JSON responses,
-support both spy (observe) and stub (mock) patterns, and use powerful glob pattern matching for URL filtering.
+Intercept network requests with a single declarative call that returns a Promise. Automatically parse JSON responses, support both spy (observe) and stub (mock) patterns, and use powerful glob pattern matching for URL filtering.
 
 ## Rationale
 
@@ -313,8 +312,7 @@ try {
 
 ## URL Pattern Matching
 
-The utility uses [picomatch](https://github.com/micromatch/picomatch) for powerful glob pattern matching, dramatically
-simplifying URL targeting:
+The utility uses [picomatch](https://github.com/micromatch/picomatch) for powerful glob pattern matching, dramatically simplifying URL targeting:
 
 **Supported glob patterns:**
 
@@ -348,7 +346,7 @@ interceptNetworkCall({ url: '/api/users/**' }); // Match all
 ### `interceptNetworkCall(options)`
 
 | Parameter         | Type       | Description                                                           |
-|-------------------|------------|-----------------------------------------------------------------------|
+| ----------------- | ---------- | --------------------------------------------------------------------- |
 | `page`            | `Page`     | Required when using direct import (not needed with fixture)           |
 | `method`          | `string`   | Optional: HTTP method to match (e.g., 'GET', 'POST')                  |
 | `url`             | `string`   | Optional: URL pattern to match (supports glob patterns via picomatch) |
@@ -359,7 +357,7 @@ interceptNetworkCall({ url: '/api/users/**' }); // Match all
 ### `fulfillResponse` Object
 
 | Property  | Type                     | Description                                           |
-|-----------|--------------------------|-------------------------------------------------------|
+| --------- | ------------------------ | ----------------------------------------------------- |
 | `status`  | `number`                 | HTTP status code (default: 200)                       |
 | `headers` | `Record<string, string>` | Response headers                                      |
 | `body`    | `any`                    | Response body (will be JSON.stringified if an object) |
@@ -369,7 +367,7 @@ interceptNetworkCall({ url: '/api/users/**' }); // Match all
 Returns a `Promise<NetworkCallResult>` with:
 
 | Property       | Type       | Description                             |
-|----------------|------------|-----------------------------------------|
+| -------------- | ---------- | --------------------------------------- |
 | `request`      | `Request`  | The intercepted request                 |
 | `response`     | `Response` | The response (null if mocked)           |
 | `responseJson` | `any`      | Parsed JSON response (if available)     |
@@ -379,7 +377,7 @@ Returns a `Promise<NetworkCallResult>` with:
 ## Comparison with Vanilla Playwright
 
 | Vanilla Playwright                                          | intercept-network-call                                       |
-|-------------------------------------------------------------|--------------------------------------------------------------|
+| ----------------------------------------------------------- | ------------------------------------------------------------ |
 | `await page.route('/api/users', route => route.continue())` | `const call = interceptNetworkCall({ url: '**/api/users' })` |
 | `const resp = await page.waitForResponse('/api/users')`     | (Combined in single statement)                               |
 | `const json = await resp.json()`                            | `const { responseJson } = await call`                        |

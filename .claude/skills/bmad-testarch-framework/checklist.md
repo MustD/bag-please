@@ -8,8 +8,7 @@ This checklist ensures the framework workflow completes successfully and all del
 
 Before starting the workflow:
 
-- [ ] Project root contains a valid project manifest (`package.json`, `pyproject.toml`, `pom.xml`, `build.gradle`,
-  `go.mod`, `*.csproj`, `Gemfile`, or `Cargo.toml`)
+- [ ] Project root contains a valid project manifest (`package.json`, `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`, `*.csproj`, `Gemfile`, or `Cargo.toml`)
 - [ ] No existing test framework detected that conflicts with the target setup
 - [ ] Project type identifiable (React, Vue, Angular, Next.js, Node, Python, Java, Go, .NET, Ruby, Rust, etc.)
 - [ ] Bundler identifiable (Vite, Webpack, Rollup, esbuild) or not applicable (backend projects)
@@ -119,8 +118,7 @@ Before starting the workflow:
 
 ### Step 11: Build & Test Script Updates
 
-- [ ] Minimal test script added to appropriate config (`package.json` for frontend, `Makefile`/`pyproject.toml`/
-  `build.gradle` for backend)
+- [ ] Minimal test script added to appropriate config (`package.json` for frontend, `Makefile`/`pyproject.toml`/`build.gradle` for backend)
 - [ ] Test framework dependency added (if not already present)
 - [ ] Type definitions added (if TypeScript)
 - [ ] Users can extend with additional scripts as needed
@@ -193,8 +191,7 @@ Before starting the workflow:
 ### Pact Consumer CDC Alignment (when `tea_use_pactjs_utils` enabled)
 
 - [ ] `vitest.config.pact.ts` is minimal (no pool/coverage/setup copied from unit config)
-- [ ] Script names match pactjs-utils (`test:pact:consumer`, `publish:pact`, `can:i:deploy:consumer`,
-  `record:consumer:deployment`)
+- [ ] Script names match pactjs-utils (`test:pact:consumer`, `publish:pact`, `can:i:deploy:consumer`, `record:consumer:deployment`)
 - [ ] Scripts source `env-setup.sh` inline in package.json
 - [ ] Shell scripts use `pact-broker` not `npx pact-broker`
 - [ ] Shell scripts use `PACTICIPANT` env var pattern (not hardcoded service names)

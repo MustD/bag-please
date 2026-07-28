@@ -50,8 +50,7 @@ inputDocuments: []
 - **Checklist Path:** `{test_artifacts}/atdd-checklist-{story_key}.md`
 - **Generated Test Files:** `{e2e_test_file_path}`, `{api_test_file_path}`, `{component_test_file_path}`
 
-If this story came from BMM `create-story`, mirror these artifact paths into the story's `Dev Notes` so `dev-story` can
-discover and activate the red-phase scaffolds.
+If this story came from BMM `create-story`, mirror these artifact paths into the story's `Dev Notes` so `dev-story` can discover and activate the red-phase scaffolds.
 
 ---
 
@@ -64,8 +63,8 @@ discover and activate the red-phase scaffolds.
 {List each E2E test with its current status and expected failure reason}
 
 - ✅ **Test:** {test_name}
-    - **Status:** RED - {failure_reason}
-    - **Verifies:** {what_this_test_validates}
+  - **Status:** RED - {failure_reason}
+  - **Verifies:** {what_this_test_validates}
 
 ### API Tests ({api_test_count} tests)
 
@@ -74,8 +73,8 @@ discover and activate the red-phase scaffolds.
 {List each API test with its current status and expected failure reason}
 
 - ✅ **Test:** {test_name}
-    - **Status:** RED - {failure_reason}
-    - **Verifies:** {what_this_test_validates}
+  - **Status:** RED - {failure_reason}
+  - **Verifies:** {what_this_test_validates}
 
 ### Component Tests ({component_test_count} tests)
 
@@ -84,8 +83,8 @@ discover and activate the red-phase scaffolds.
 {List each component test with its current status and expected failure reason}
 
 - ✅ **Test:** {test_name}
-    - **Status:** RED - {failure_reason}
-    - **Verifies:** {what_this_test_validates}
+  - **Status:** RED - {failure_reason}
+  - **Verifies:** {what_this_test_validates}
 
 ---
 
@@ -122,9 +121,9 @@ const users = createUsers(5); // Generate 5 random users
 **Fixtures:**
 
 - `{fixtureName}` - {description_of_what_fixture_provides}
-    - **Setup:** {what_setup_does}
-    - **Provides:** {what_test_receives}
-    - **Cleanup:** {what_cleanup_does}
+  - **Setup:** {what_setup_does}
+  - **Provides:** {what_test_receives}
+  - **Cleanup:** {what_cleanup_does}
 
 **Example Usage:**
 
@@ -319,14 +318,11 @@ test('should do something', async ({ {fixtureName} }) => {
 
 ## Next Steps
 
-1. **Link this checklist and generated tests** into the story file `Dev Notes` / `ATDD Artifacts` section when a
-   writable story file is available
-2. **If the story file cannot be updated automatically**, share this checklist and generated tests with the dev workflow
-   as a manual handoff
+1. **Link this checklist and generated tests** into the story file `Dev Notes` / `ATDD Artifacts` section when a writable story file is available
+2. **If the story file cannot be updated automatically**, share this checklist and generated tests with the dev workflow as a manual handoff
 3. **Review this checklist** with team in standup or planning
 4. **Begin implementation** using implementation checklist as guide
-5. **Activate one scaffold at a time** by removing `test.skip()` for the current task, then confirm it fails before
-   implementing
+5. **Activate one scaffold at a time** by removing `test.skip()` for the current task, then confirm it fails before implementing
 6. **Work one activated test at a time** (red → green for each)
 7. **Share progress** in daily standup
 8. **When all activated tests pass**, refactor code for quality
@@ -338,10 +334,8 @@ test('should do something', async ({ {fixtureName} }) => {
 
 This ATDD workflow consulted the following knowledge fragments:
 
-- **fixture-architecture.md** - Test fixture patterns with setup/teardown and auto-cleanup using Playwright's
-  `test.extend()`
-- **data-factories.md** - Factory patterns using `@faker-js/faker` for random test data generation with overrides
-  support
+- **fixture-architecture.md** - Test fixture patterns with setup/teardown and auto-cleanup using Playwright's `test.extend()`
+- **data-factories.md** - Factory patterns using `@faker-js/faker` for random test data generation with overrides support
 - **component-tdd.md** - Component test strategies using Playwright Component Testing
 - **network-first.md** - Route interception patterns (intercept BEFORE navigation to prevent race conditions)
 - **test-quality.md** - Test design principles (Given-When-Then, one assertion per test, determinism, isolation)

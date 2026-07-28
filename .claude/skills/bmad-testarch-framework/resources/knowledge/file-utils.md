@@ -2,8 +2,7 @@
 
 ## Principle
 
-Read and validate files (CSV, XLSX, PDF, ZIP) with automatic parsing, type-safe results, and download handling. Simplify
-file operations in Playwright tests with built-in format support and validation helpers.
+Read and validate files (CSV, XLSX, PDF, ZIP) with automatic parsing, type-safe results, and download handling. Simplify file operations in Playwright tests with built-in format support and validation helpers.
 
 ## Rationale
 
@@ -26,7 +25,7 @@ The `file-utils` module provides:
 ## Why Use This Instead of Vanilla Playwright?
 
 | Vanilla Playwright                          | File Utils                                       |
-|---------------------------------------------|--------------------------------------------------|
+| ------------------------------------------- | ------------------------------------------------ |
 | ~80 lines per CSV flow (download + parse)   | ~10 lines end-to-end                             |
 | Manual event orchestration for downloads    | Encapsulated in `handleDownload()`               |
 | Manual path handling and `saveAs`           | Returns a ready-to-use file path                 |
@@ -277,7 +276,7 @@ expect(headers).toContain('age');
 ### CSV Reader Options
 
 | Option         | Type               | Default  | Description                            |
-|----------------|--------------------|----------|----------------------------------------|
+| -------------- | ------------------ | -------- | -------------------------------------- |
 | `filePath`     | `string`           | -        | Path to CSV file (mutually exclusive)  |
 | `content`      | `string \| Buffer` | -        | Direct content (mutually exclusive)    |
 | `delimiter`    | `string \| 'auto'` | `','`    | Value separator, auto-detect if 'auto' |
@@ -288,14 +287,14 @@ expect(headers).toContain('age');
 ### XLSX Reader Options
 
 | Option      | Type     | Description                    |
-|-------------|----------|--------------------------------|
+| ----------- | -------- | ------------------------------ |
 | `filePath`  | `string` | Path to XLSX file              |
 | `sheetName` | `string` | Name of sheet to set as active |
 
 ### PDF Reader Options
 
 | Option       | Type      | Default | Description                 |
-|--------------|-----------|---------|-----------------------------|
+| ------------ | --------- | ------- | --------------------------- |
 | `filePath`   | `string`  | -       | Path to PDF file (required) |
 | `mergePages` | `boolean` | `true`  | Merge text from all pages   |
 | `maxPages`   | `number`  | -       | Maximum pages to extract    |
@@ -304,7 +303,7 @@ expect(headers).toContain('age');
 ### ZIP Reader Options
 
 | Option          | Type     | Description                        |
-|-----------------|----------|------------------------------------|
+| --------------- | -------- | ---------------------------------- |
 | `filePath`      | `string` | Path to ZIP file                   |
 | `fileToExtract` | `string` | Specific file to extract to Buffer |
 
@@ -346,8 +345,7 @@ expect(headers).toContain('age');
 }
 ```
 
-> **Note**: When `mergePages: false`, `content` is an array of strings (one per page). When `maxPages` is set, only that
-> many pages are extracted.
+> **Note**: When `mergePages: false`, `content` is an array of strings (one per page). When `maxPages` is set, only that many pages are extracted.
 
 #### ZIP Reader Return Value
 

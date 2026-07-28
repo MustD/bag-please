@@ -24,11 +24,9 @@ validation-rules:
 
 ## 📋 Context & Requirements Validation
 
-- [ ] **Story Context Completeness:** Dev Notes contains ALL necessary technical requirements, architecture patterns,
-  and implementation guidance
+- [ ] **Story Context Completeness:** Dev Notes contains ALL necessary technical requirements, architecture patterns, and implementation guidance
 - [ ] **Architecture Compliance:** Implementation follows all architectural requirements specified in Dev Notes
-- [ ] **Technical Specifications:** All technical specifications (libraries, frameworks, versions) from Dev Notes are
-  implemented correctly
+- [ ] **Technical Specifications:** All technical specifications (libraries, frameworks, versions) from Dev Notes are implemented correctly
 - [ ] **Previous Story Learnings:** Previous story insights incorporated (if applicable) and build upon appropriately
 
 ## ✅ Implementation Completion
@@ -42,8 +40,7 @@ validation-rules:
 ## 🧪 Testing & Quality Assurance
 
 - [ ] **Unit Tests:** Unit tests added/updated for ALL core functionality introduced/changed by this story
-- [ ] **Integration Tests:** Integration tests added/updated for component interactions when story requirements demand
-  them
+- [ ] **Integration Tests:** Integration tests added/updated for component interactions when story requirements demand them
 - [ ] **End-to-End Tests:** End-to-end tests created for critical user flows when story requirements specify them
 - [ ] **Test Coverage:** Tests cover acceptance criteria and edge cases from story Dev Notes
 - [ ] **Regression Prevention:** ALL existing tests pass (no regressions introduced)
@@ -55,8 +52,7 @@ validation-rules:
 - [ ] **File List Complete:** File List includes EVERY new, modified, or deleted file (paths relative to repo root)
 - [ ] **Dev Agent Record Updated:** Contains relevant Implementation Notes and/or Debug Log for this work
 - [ ] **Change Log Updated:** Change Log includes clear summary of what changed and why
-- [ ] **Review Follow-ups:** All review follow-up tasks (marked [AI-Review]) completed and corresponding review items
-  marked resolved (if applicable)
+- [ ] **Review Follow-ups:** All review follow-up tasks (marked [AI-Review]) completed and corresponding review items marked resolved (if applicable)
 - [ ] **Story Structure Compliance:** Only permitted sections of story file were modified
 
 ## 🔚 Final Status Verification

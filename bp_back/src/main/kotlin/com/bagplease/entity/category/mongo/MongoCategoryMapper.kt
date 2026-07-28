@@ -4,29 +4,20 @@ import com.bagplease.entity.category.Category
 
 object MongoCategoryMapper {
 
-    /**
-     * Maps an instance of [Category] to [MongoCategory].
-     *
-     * @param category The [Category] to be mapped.
-     * @return The [MongoCategory] mapped from the given [Category].
-     */
     fun mapCategoryToMongo(category: Category): MongoCategory {
         return MongoCategory(
             id = category.id,
-            name = category.name
+            name = category.name,
+            listId = category.listId,
         )
     }
 
-    /**
-     * Maps a [MongoCategory] object to an [Category] object.
-     *
-     * @param category The [MongoCategory] object to be mapped.
-     * @return The mapped [Category] object.
-     */
-    fun mapCategoryFromMongo(category: MongoCategory): Category {
+    fun mapCategoryFromMongo(category: MongoCategory): Category? {
+        val listId = category.listId ?: return null  // skip pre-migration docs with no listId
         return Category(
             id = category.id,
-            name = category.name
+            name = category.name,
+            listId = listId,
         )
     }
 }

@@ -2,27 +2,15 @@
 
 ## Principle
 
-Contract testing validates API contracts between consumer and provider services without requiring integrated end-to-end
-tests. Store consumer contracts alongside integration specs, version contracts semantically, and publish on every CI
-run. Provider verification before merge surfaces breaking changes immediately, while explicit fallback behavior (
-timeouts, retries, error payloads) captures resilience guarantees in contracts.
+Contract testing validates API contracts between consumer and provider services without requiring integrated end-to-end tests. Store consumer contracts alongside integration specs, version contracts semantically, and publish on every CI run. Provider verification before merge surfaces breaking changes immediately, while explicit fallback behavior (timeouts, retries, error payloads) captures resilience guarantees in contracts.
 
-> **Pact.js Utils Note**: When `tea_use_pactjs_utils` is enabled, prefer the patterns in the `pactjs-utils-*.md`
-> fragments over the raw Pact.js patterns shown below. The pactjs-utils library eliminates boilerplate for provider
-> states, verifier configuration, and request filters. See `pactjs-utils-overview.md` for the decision tree.
+> **Pact.js Utils Note**: When `tea_use_pactjs_utils` is enabled, prefer the patterns in the `pactjs-utils-*.md` fragments over the raw Pact.js patterns shown below. The pactjs-utils library eliminates boilerplate for provider states, verifier configuration, and request filters. See `pactjs-utils-overview.md` for the decision tree.
 
 ## Rationale
 
-Traditional integration testing requires running both consumer and provider simultaneously, creating slow, flaky tests
-with complex setup. Contract testing decouples services: consumers define expectations (pact files), providers verify
-against those expectations independently. This enables parallel development, catches breaking changes early, and
-documents API behavior as executable specifications. Pair contract tests with API smoke tests to validate data mapping
-and UI rendering in tandem.
+Traditional integration testing requires running both consumer and provider simultaneously, creating slow, flaky tests with complex setup. Contract testing decouples services: consumers define expectations (pact files), providers verify against those expectations independently. This enables parallel development, catches breaking changes early, and documents API behavior as executable specifications. Pair contract tests with API smoke tests to validate data mapping and UI rendering in tandem.
 
-> **Recommended**: When `tea_use_pactjs_utils` is enabled, use `@seontechnologies/pactjs-utils` utilities instead of the
-> manual patterns below. The library handles JsonMap conversion, verifier configuration, and request filter assembly
-> automatically. See the `pactjs-utils-overview.md`, `pactjs-utils-consumer-helpers.md`,
-`pactjs-utils-provider-verifier.md`, and `pactjs-utils-request-filter.md` fragments for the simplified approach.
+> **Recommended**: When `tea_use_pactjs_utils` is enabled, use `@seontechnologies/pactjs-utils` utilities instead of the manual patterns below. The library handles JsonMap conversion, verifier configuration, and request filter assembly automatically. See the `pactjs-utils-overview.md`, `pactjs-utils-consumer-helpers.md`, `pactjs-utils-provider-verifier.md`, and `pactjs-utils-request-filter.md` fragments for the simplified approach.
 
 ## Pattern Examples
 
@@ -174,8 +162,7 @@ describe('User API Contract', () => {
 });
 ```
 
-**package.json scripts** (when using pactjs-utils conventions, prefer `test:pact:consumer` naming — see
-`pact-consumer-framework-setup.md`):
+**package.json scripts** (when using pactjs-utils conventions, prefer `test:pact:consumer` naming — see `pact-consumer-framework-setup.md`):
 
 ```json
 {
@@ -189,10 +176,7 @@ describe('User API Contract', () => {
 **Key Points**:
 
 - **Consumer-driven**: Frontend defines expectations, not backend
-- **Matchers (Postel's Law)**: Use `like`, `string`, `integer` matchers in `willRespondWith` (responses) for flexible
-  matching. Do NOT use `like()` on request bodies in `withRequest` — the consumer controls what it sends, so request
-  bodies should use exact values. This follows Postel's Law: be strict in what you send (requests), be lenient in what
-  you accept (responses).
+- **Matchers (Postel's Law)**: Use `like`, `string`, `integer` matchers in `willRespondWith` (responses) for flexible matching. Do NOT use `like()` on request bodies in `withRequest` — the consumer controls what it sends, so request bodies should use exact values. This follows Postel's Law: be strict in what you send (requests), be lenient in what you accept (responses).
 - **Provider states**: given() sets up test preconditions
 - **Isolation**: No real backend needed, runs fast
 - **Pact generation**: Automatically creates JSON pact files
@@ -348,8 +332,7 @@ jobs:
 
 ### Example 3: Contract CI Integration (Consumer & Provider Workflow)
 
-**Context**: Simplified overview of consumer and provider CI coordination. For the complete consumer CI workflow with
-env blocks, concurrency, and breaking-change detection, see `pact-consumer-framework-setup.md` Example 5.
+**Context**: Simplified overview of consumer and provider CI coordination. For the complete consumer CI workflow with env blocks, concurrency, and breaking-change detection, see `pact-consumer-framework-setup.md` Example 5.
 
 **Implementation**:
 
@@ -963,15 +946,9 @@ jobs:
 
 ## Provider Scrutiny Protocol
 
-When generating consumer contract tests, the agent **MUST** analyze provider source code — or the provider's
-OpenAPI/Swagger spec — before writing any Pact interaction. Generating contracts from consumer-side assumptions alone
-leads to mismatches that only surface during provider verification — wrong response shapes, wrong status codes, wrong
-field names, wrong types, missing required fields, and wrong enum values.
+When generating consumer contract tests, the agent **MUST** analyze provider source code — or the provider's OpenAPI/Swagger spec — before writing any Pact interaction. Generating contracts from consumer-side assumptions alone leads to mismatches that only surface during provider verification — wrong response shapes, wrong status codes, wrong field names, wrong types, missing required fields, and wrong enum values.
 
-**Source priority**: Provider source code is the most authoritative reference. When an OpenAPI/Swagger spec exists (
-`openapi.yaml`, `openapi.json`, `swagger.json`), use it as a complementary or alternative source — it documents the
-provider's contract explicitly and can be faster to parse than tracing through handler code. When both exist,
-cross-reference them; if they disagree, the source code wins.
+**Source priority**: Provider source code is the most authoritative reference. When an OpenAPI/Swagger spec exists (`openapi.yaml`, `openapi.json`, `swagger.json`), use it as a complementary or alternative source — it documents the provider's contract explicitly and can be faster to parse than tracing through handler code. When both exist, cross-reference them; if they disagree, the source code wins.
 
 ### Provider Endpoint Comment
 
@@ -984,22 +961,21 @@ await provider.given('user with id 1 exists').uponReceiving('a request for user 
 
 **Format**: `// Provider endpoint: <relative-path-to-handler> -> <METHOD> <route-pattern>`
 
-If the provider source is not accessible, use:
-`// Provider endpoint: TODO — provider source not accessible, verify manually`
+If the provider source is not accessible, use: `// Provider endpoint: TODO — provider source not accessible, verify manually`
 
 ### Seven-Point Scrutiny Checklist
 
 Before generating each Pact interaction, read the provider route handler and/or OpenAPI spec and verify:
 
-| # | Check                 | What to Read (source code / OpenAPI spec)                         | Common Mismatch                                               |
-|---|-----------------------|-------------------------------------------------------------------|---------------------------------------------------------------|
-| 1 | **Response shape**    | Handler's `res.json()` calls / OpenAPI `responses.content.schema` | Nested object vs flat; array wrapper vs direct                |
-| 2 | **Status codes**      | Handler's `res.status()` calls / OpenAPI `responses` keys         | 200 vs 201 for creation; 204 vs 200 for delete                |
-| 3 | **Field names**       | Response type/DTO definitions / OpenAPI `schema.properties`       | `transaction_id` vs `transactionId`; `fraud_score` vs `score` |
-| 4 | **Enum values**       | Validation schemas, constants / OpenAPI `schema.enum`             | `"active"` vs `"ACTIVE"`; `"pending"` vs `"in_progress"`      |
-| 5 | **Required fields**   | Request validation (Joi, Zod) / OpenAPI `schema.required`         | Missing required header; optional field assumed required      |
-| 6 | **Data types**        | TypeScript types, DB models / OpenAPI `schema.type` + `format`    | `string` ID vs `number` ID; ISO date vs Unix timestamp        |
-| 7 | **Nested structures** | Response builder, serializer / OpenAPI `$ref` + `allOf`/`oneOf`   | `{ data: { items: [] } }` vs `{ items: [] }`                  |
+| #   | Check                 | What to Read (source code / OpenAPI spec)                         | Common Mismatch                                               |
+| --- | --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| 1   | **Response shape**    | Handler's `res.json()` calls / OpenAPI `responses.content.schema` | Nested object vs flat; array wrapper vs direct                |
+| 2   | **Status codes**      | Handler's `res.status()` calls / OpenAPI `responses` keys         | 200 vs 201 for creation; 204 vs 200 for delete                |
+| 3   | **Field names**       | Response type/DTO definitions / OpenAPI `schema.properties`       | `transaction_id` vs `transactionId`; `fraud_score` vs `score` |
+| 4   | **Enum values**       | Validation schemas, constants / OpenAPI `schema.enum`             | `"active"` vs `"ACTIVE"`; `"pending"` vs `"in_progress"`      |
+| 5   | **Required fields**   | Request validation (Joi, Zod) / OpenAPI `schema.required`         | Missing required header; optional field assumed required      |
+| 6   | **Data types**        | TypeScript types, DB models / OpenAPI `schema.type` + `format`    | `string` ID vs `number` ID; ISO date vs Unix timestamp        |
+| 7   | **Nested structures** | Response builder, serializer / OpenAPI `$ref` + `allOf`/`oneOf`   | `{ data: { items: [] } }` vs `{ items: [] }`                  |
 
 ### Scrutiny Evidence Block
 
@@ -1022,13 +998,9 @@ Document what was found from provider source and/or OpenAPI spec as a block comm
 
 When provider source code is not accessible (different repo, no access, closed source):
 
-1. **OpenAPI/Swagger spec available**: Use the spec as the source of truth for response shapes, status codes, and field
-   names
-2. **Pact Broker has existing contracts**: Use `pact_mcp` tools to fetch existing provider states and verified
-   interactions as reference
-3. **Neither available**: Generate contracts from consumer-side types but use the TODO form of the mandatory comment:
-   `// Provider endpoint: TODO — provider source not accessible, verify manually` and add a
-   `provider_scrutiny: "pending"` field to the output JSON
+1. **OpenAPI/Swagger spec available**: Use the spec as the source of truth for response shapes, status codes, and field names
+2. **Pact Broker has existing contracts**: Use `pact_mcp` tools to fetch existing provider states and verified interactions as reference
+3. **Neither available**: Generate contracts from consumer-side types but use the TODO form of the mandatory comment: `// Provider endpoint: TODO — provider source not accessible, verify manually` and add a `provider_scrutiny: "pending"` field to the output JSON
 4. **Never silently guess**: If you cannot verify, document what you assumed and why
 
 ---
@@ -1052,11 +1024,7 @@ Before implementing contract testing, verify:
 ## Integration Points
 
 - Used in workflows: `*automate` (integration test generation), `*ci` (contract CI setup)
-- Related fragments: `test-levels-framework.md`, `ci-burn-in.md`, `pact-consumer-framework-setup.md` (consumer vitest
-  `fileParallelism: false` + `pool: 'forks'` + `singleFork: true`), `pactjs-utils-consumer-helpers.md` (PactV4
-  one-interaction-per-`it()` rule), `pactjs-utils-provider-verifier.md` (provider vitest `pool: 'forks'` +
-  `singleFork: true` — same rule as consumer), `pact-broker-webhooks.md` (PactFlow → GitHub webhook auth, PAT rotation,
-  staleness monitoring)
+- Related fragments: `test-levels-framework.md`, `ci-burn-in.md`, `pact-consumer-framework-setup.md` (consumer vitest `fileParallelism: false` + `pool: 'forks'` + `singleFork: true`), `pactjs-utils-consumer-helpers.md` (PactV4 one-interaction-per-`it()` rule), `pactjs-utils-provider-verifier.md` (provider vitest `pool: 'forks'` + `singleFork: true` — same rule as consumer), `pact-broker-webhooks.md` (PactFlow → GitHub webhook auth, PAT rotation, staleness monitoring)
 - Tools: Pact.js, Pact Broker (Pactflow or self-hosted), Pact CLI
 
 ---
@@ -1066,7 +1034,7 @@ Before implementing contract testing, verify:
 When `tea_use_pactjs_utils` is enabled, the following utilities replace manual boilerplate:
 
 | Manual Pattern (raw Pact.js)                             | Pact.js Utils Equivalent                                                          | Benefit                                                                                                    |
-|----------------------------------------------------------|-----------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Manual `JsonMap` casting for `.given()` params           | `createProviderState({ name, params })`                                           | Type-safe, auto-conversion of Date/null/nested objects                                                     |
 | Repeated builder callbacks for query/header/body         | `setJsonContent({ query, headers, body })`                                        | Reusable callback for `.withRequest(...)` and `.willRespondWith(...)`                                      |
 | Inline body lambda `(builder) => builder.jsonBody(body)` | `setJsonBody(body)`                                                               | Body-only shorthand for cleaner response builders                                                          |
@@ -1078,38 +1046,27 @@ When `tea_use_pactjs_utils` is enabled, the following utilities replace manual b
 | Inline no-op filter `(req, res, next) => next()`         | `noOpRequestFilter`                                                               | Pre-built pass-through for no-auth providers                                                               |
 | Hand-written matcher helper duplicating a Zod/TS type    | `zodToPactMatchers(ConsumerMovieSchema, example)`                                 | Single source of truth for response shape; consumer-curated scope keeps contracts lean and consumer-driven |
 
-See the `pactjs-utils-*.md` knowledge fragments for complete examples and anti-patterns (`pactjs-utils-zod-to-pact.md`
-covers the consumer-curated schema pattern).
+See the `pactjs-utils-*.md` knowledge fragments for complete examples and anti-patterns (`pactjs-utils-zod-to-pact.md` covers the consumer-curated schema pattern).
 
 ### PactV4 Determinism & FFI Safety (Mandatory)
 
-Four rules that together prevent both (a) non-deterministic pact generation failures that cause
-`Cannot change pact content for already published pact` errors at PactFlow publish, and (b) "request was expected but
-not received" flakes observed on Linux CI once a consumer+provider pair has more than one `.pacttest.ts` file:
+Four rules that together prevent both (a) non-deterministic pact generation failures that cause `Cannot change pact content for already published pact` errors at PactFlow publish, and (b) "request was expected but not received" flakes observed on Linux CI once a consumer+provider pair has more than one `.pacttest.ts` file:
 
-1. **Consumer Vitest `fileParallelism: false`** in `vitest.config.pact.ts` — prevents parallel workers from racing on
-   the shared pact JSON. See `pact-consumer-framework-setup.md` Example 2.
+1. **Consumer Vitest `fileParallelism: false`** in `vitest.config.pact.ts` — prevents parallel workers from racing on the shared pact JSON. See `pact-consumer-framework-setup.md` Example 2.
 2. **Consumer Vitest `pool: 'forks'` + `poolOptions.forks.singleFork: true`** in `vitest.config.pact.ts` — same config
    as the provider side (`pactjs-utils-provider-verifier.md` Example 7). Best current understanding: the
    `@pact-foundation/pact` napi-rs binding is not robust across Vitest worker threads sharing a process; serialization
    alone (via `fileParallelism: false`) is insufficient on the default threads pool in Vitest v1. Forks +
    `singleFork: true` runs every pact file in one subprocess with a coherent FFI handle and eliminated a reproducible
-   Linux-CI flake on two repos (`pactjs-utils`, `seon-mcp-server`). Single-file consumer suites have not been observed
-   to flake; this rule is still recommended as a future-proof. See `pact-consumer-framework-setup.md` Example 2.
+   Linux-CI flake across multiple repos. Single-file consumer suites have not been observed to flake; this rule is still
+   recommended as a future-proof. See `pact-consumer-framework-setup.md` Example 2.
 3. **One `addInteraction()` per `it()` block** — see `pactjs-utils-consumer-helpers.md` Example 6.
-4. **`publish-pact.sh` jq normalization** sorts interactions before publish — ensures byte-stable payload to PactFlow
-   regardless of generator ordering quirks. See `pact-consumer-framework-setup.md` Example 4.
+4. **`publish-pact.sh` jq normalization** sorts interactions before publish — ensures byte-stable payload to PactFlow regardless of generator ordering quirks. See `pact-consumer-framework-setup.md` Example 4.
 
-Provider suites require the same `pool: 'forks'` + `singleFork: true` combination — see
-`pactjs-utils-provider-verifier.md` Example 7.
+Provider suites require the same `pool: 'forks'` + `singleFork: true` combination — see `pactjs-utils-provider-verifier.md` Example 7.
 
 ### Webhook Auth & Staleness
 
-When `can-i-deploy` in a consumer repo times out with
-`There is no verified pact between <consumer> and the version of <provider> currently in <env>` — check the provider's
-PactFlow webhook. Silent failures from an expired/revoked GitHub PAT are the most common non-code cause of this symptom.
-See `pact-broker-webhooks.md` for the dedicated-machine-user pattern, classic-PAT-with-`repo`-scope rationale, rotation
-runbook, and staleness monitoring options.
+When `can-i-deploy` in a consumer repo times out with `There is no verified pact between <consumer> and the version of <provider> currently in <env>` — check the provider's PactFlow webhook. Silent failures from an expired/revoked GitHub PAT are the most common non-code cause of this symptom. See `pact-broker-webhooks.md` for the dedicated-machine-user pattern, classic-PAT-with-`repo`-scope rationale, rotation runbook, and staleness monitoring options.
 
-_Source: Pact consumer/provider sample repos, Murat contract testing blog, Pact official documentation,
-@seontechnologies/pactjs-utils library_
+_Source: Pact consumer/provider sample repos, Murat contract testing blog, Pact official documentation, @seontechnologies/pactjs-utils library_

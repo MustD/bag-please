@@ -2,9 +2,7 @@
 
 ## Principle
 
-Record network traffic to HAR files during test execution, then play back from disk for offline testing. Enables
-frontend tests to run in complete isolation from backend services with intelligent stateful CRUD detection for realistic
-API behavior.
+Record network traffic to HAR files during test execution, then play back from disk for offline testing. Enables frontend tests to run in complete isolation from backend services with intelligent stateful CRUD detection for realistic API behavior.
 
 ## Rationale
 
@@ -244,7 +242,7 @@ await networkRecorder.setup(context, {
 **When to Use Each:**
 
 | Use `embed` (default) when          | Use `attach` when               |
-|-------------------------------------|---------------------------------|
+| ----------------------------------- | ------------------------------- |
 | Recording API responses (JSON, XML) | Recording large images, videos  |
 | Small to medium HTML pages          | HAR file size >50MB             |
 | You want a single, portable file    | Maximum disk efficiency needed  |
@@ -254,8 +252,7 @@ await networkRecorder.setup(context, {
 
 **Context**: Record in dev environment, play back in CI with different base URLs.
 
-**The Problem**: HAR files contain URLs for the recording environment (e.g., `dev.example.com`). Playing back on a
-different environment fails.
+**The Problem**: HAR files contain URLs for the recording environment (e.g., `dev.example.com`). Playing back on a different environment fails.
 
 **Simple Hostname Mapping:**
 
@@ -329,7 +326,7 @@ await networkRecorder.setup(context, {
 ## Why Use This Instead of Native Playwright?
 
 | Native Playwright (`routeFromHAR`) | network-recorder Utility       |
-|------------------------------------|--------------------------------|
+| ---------------------------------- | ------------------------------ |
 | ~80 lines setup boilerplate        | ~5 lines total                 |
 | Manual HAR file management         | Automatic file organization    |
 | Complex setup/teardown             | Automatic cleanup via fixtures |
@@ -339,9 +336,7 @@ await networkRecorder.setup(context, {
 
 **The game-changer: Stateful CRUD detection**
 
-Native Playwright HAR playback is stateless - a POST create followed by GET list won't show the created item. This
-utility intelligently tracks CRUD operations in memory to reflect state changes, making offline tests behave like real
-APIs.
+Native Playwright HAR playback is stateless - a POST create followed by GET list won't show the created item. This utility intelligently tracks CRUD operations in memory to reflect state changes, making offline tests behave like real APIs.
 
 ## How Stateful CRUD Detection Works
 
@@ -365,7 +360,7 @@ It automatically switches from static HAR playback to an intelligent stateful mo
 ### NetworkRecorder Methods
 
 | Method               | Return Type              | Description                                   |
-|----------------------|--------------------------|-----------------------------------------------|
+| -------------------- | ------------------------ | --------------------------------------------- |
 | `setup(context)`     | `Promise<void>`          | Sets up recording/playback on browser context |
 | `cleanup()`          | `Promise<void>`          | Flushes data to disk and cleans up memory     |
 | `getContext()`       | `NetworkRecorderContext` | Gets current recorder context information     |
@@ -464,8 +459,7 @@ test('Authenticated recording', async ({ page, context, authSession, networkReco
 
 ### Concurrent Test Issues
 
-The recorder includes built-in file locking for safe parallel execution. Each test gets its own HAR file based on the
-test name.
+The recorder includes built-in file locking for safe parallel execution. Each test gets its own HAR file based on the test name.
 
 ## Integration with Other Utilities
 

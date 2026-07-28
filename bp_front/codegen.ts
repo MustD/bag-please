@@ -1,34 +1,44 @@
-import {CodegenConfig} from "@graphql-codegen/cli";
+import type {CodegenConfig} from '@graphql-codegen/cli'
 
+// GraphQL codegen (client-preset) — introspects the live backend schema at
+// :2080 and emits typed helpers into src/__generated__/ (never hand-edited).
+//
+// The schema endpoint requires a Bearer token. Access tokens are short-lived
+// (~15 min), so rather than commit one, mint a fresh admin token and pass it in:
+//
+//   TOKEN=$(curl -s -X POST http://localhost:2080/api/auth/login \
+//     -H 'Content-Type: application/json' \
+//     -d '{"username":"admin","password":"admin"}' | jq -r .accessToken)
+//   CODEGEN_TOKEN="$TOKEN" npm run generate
+//
+// Requires the full stack running on :2080 (docker compose up -d --build).
 const config: CodegenConfig = {
   overwrite: true,
   schema: {
-    "http://localhost:2080/api/graphql": {
+    'http://localhost:2080/api/graphql': {
       headers: {
-        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJiYWctcGxlYXNlLmNvbSIsImlzcyI6ImJhZy1wbGVhc2UuY29tIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3ODg0NzI2N30.GN7NfssXGMP1d3MKyArrQJM-Sr1txkNRAUgssaHmZkw",
+        Authorization: `Bearer ${process.env.CODEGEN_TOKEN ?? ''}`,
       },
     },
   },
-  // This assumes that all your source files are in a top-level `src/` directory - you might need to adjust this to your file structure
-  documents: ["src/**/*.{ts,tsx}"],
-  // Don't exit with non-zero status when there are no documents
+  documents: ['src/**/*.{ts,tsx}'],
+  // Don't fail when there are no operations yet (none defined in Story 5.1).
   ignoreNoDocuments: true,
+  // Allow partial output when documents are invalid.
+  allowPartialOutputs: true,
   generates: {
-    // Use a path that works the best for the structure of your application
-    "./src/__generated__/": {
-      preset: "client",
+    './src/__generated__/': {
+      preset: 'client',
       presetConfig: {
-        // Disable fragment masking
         fragmentMasking: true,
       },
       config: {
-        // Apollo Client always includes `__typename` fields
+        // Apollo Client always includes `__typename` fields.
         nonOptionalTypename: true,
-        // Apollo Client doesn't add the `__typename` field to root types so
-        // don't generate a type for the `__typename` for root operation types.
+        // Apollo Client doesn't add `__typename` to root operation types.
         skipTypeNameForRoot: true,
       },
     },
   },
-};
-export default config;
+}
+export default config

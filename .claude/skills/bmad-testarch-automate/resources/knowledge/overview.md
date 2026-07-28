@@ -2,9 +2,7 @@
 
 ## Principle
 
-Use production-ready, fixture-based utilities from `@seontechnologies/playwright-utils` for common Playwright testing
-patterns. Build test helpers as pure functions first, then wrap in framework-specific fixtures for composability and
-reuse. **Works equally well for pure API testing (no browser) and UI testing.**
+Use production-ready, fixture-based utilities from `@seontechnologies/playwright-utils` for common Playwright testing patterns. Build test helpers as pure functions first, then wrap in framework-specific fixtures for composability and reuse. **Works equally well for pure API testing (no browser) and UI testing.**
 
 ## Rationale
 
@@ -22,8 +20,7 @@ Writing Playwright utilities from scratch for every project leads to:
 - **Composable fixtures**: Use `mergeTests` to combine utilities
 - **TypeScript support**: Full type safety with generic types
 - **Comprehensive coverage**: API requests, auth, network, logging, file handling, burn-in
-- **Backend-first mentality**: Most utilities work without a browser - pure API/service testing is a first-class use
-  case
+- **Backend-first mentality**: Most utilities work without a browser - pure API/service testing is a first-class use case
 
 ## Installation
 
@@ -42,7 +39,7 @@ npm install -D @seontechnologies/playwright-utils
 ### Core Testing Utilities
 
 | Utility                    | Purpose                                                                       | Test Context       |
-|----------------------------|-------------------------------------------------------------------------------|--------------------|
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------ |
 | **api-request**            | Typed HTTP client with schema validation, retry, and operation-based overload | **API/Backend**    |
 | **recurse**                | Polling for async operations, background jobs                                 | **API/Backend**    |
 | **auth-session**           | Token persistence, multi-user, service-to-service                             | **API/Backend/UI** |
@@ -53,8 +50,7 @@ npm install -D @seontechnologies/playwright-utils
 | **intercept-network-call** | Network spy/stub with auto JSON parsing                                       | UI only            |
 | **network-error-monitor**  | Automatic HTTP 4xx/5xx detection                                              | UI only            |
 
-**Note**: 6 of 9 utilities work without a browser. Only 3 are UI-specific (network-recorder, intercept-network-call,
-network-error-monitor).
+**Note**: 6 of 9 utilities work without a browser. Only 3 are UI-specific (network-recorder, intercept-network-call, network-error-monitor).
 
 ## Design Patterns
 
@@ -266,8 +262,7 @@ import { apiRequest } from '@seontechnologies/playwright-utils/api-request'; // 
 
 ## Reference Implementation
 
-The official `@seontechnologies/playwright-utils` repository provides working examples of all patterns described in
-these fragments.
+The official `@seontechnologies/playwright-utils` repository provides working examples of all patterns described in these fragments.
 
 **Repository:** <https://github.com/seontechnologies/playwright-utils>
 

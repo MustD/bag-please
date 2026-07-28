@@ -1,14 +1,12 @@
 # Requirements Traceability & Gate Decision - Validation Checklist
 
 **Workflow:** `testarch-trace`
-**Purpose:** Ensure complete traceability matrix with actionable gap analysis AND make deployment readiness decision (
-PASS/CONCERNS/FAIL/WAIVED)
+**Purpose:** Ensure complete traceability matrix with actionable gap analysis AND make deployment readiness decision (PASS/CONCERNS/FAIL/WAIVED)
 
 This checklist covers **two sequential phases**:
 
 - **PHASE 1**: Requirements Traceability (always executed)
-- **PHASE 2**: Quality Gate Decision (decision fields emitted only when `allow_gate: true` and the collection is
-  gate-eligible)
+- **PHASE 2**: Quality Gate Decision (decision fields emitted only when `allow_gate: true` and the collection is gate-eligible)
 
 ---
 
@@ -16,8 +14,7 @@ This checklist covers **two sequential phases**:
 
 ## Prerequisites Validation
 
-- [ ] A coverage oracle is available or inferred (formal requirements, spec, resolvable external pointer, or synthetic
-  journeys)
+- [ ] A coverage oracle is available or inferred (formal requirements, spec, resolvable external pointer, or synthetic journeys)
 - [ ] Test suite exists (or gaps are acknowledged and documented)
 - [ ] If tests are missing, recommend `*atdd` (trace does not run it automatically)
 - [ ] Test directory path is correct (`test_dir` variable)
@@ -43,11 +40,11 @@ This checklist covers **two sequential phases**:
 - [ ] Tests auto-discovered using multiple strategies (test IDs, describe blocks, file paths)
 - [ ] Tests categorized by level (E2E, API, Component, Unit)
 - [ ] Test metadata extracted:
-    - [ ] Test IDs (e.g., 1.3-E2E-001)
-    - [ ] Describe/context blocks
-    - [ ] It blocks (individual test cases)
-    - [ ] Given-When-Then structure (if BDD)
-    - [ ] Priority markers (P0/P1/P2/P3)
+  - [ ] Test IDs (e.g., 1.3-E2E-001)
+  - [ ] Describe/context blocks
+  - [ ] It blocks (individual test cases)
+  - [ ] Given-When-Then structure (if BDD)
+  - [ ] Priority markers (P0/P1/P2/P3)
 - [ ] All relevant test files found (no tests missed due to naming conventions)
 
 ---
@@ -59,23 +56,23 @@ This checklist covers **two sequential phases**:
 - [ ] Test level documented (E2E, API, Component, Unit)
 - [ ] Given-When-Then narrative verified for alignment
 - [ ] Traceability matrix table generated:
-    - [ ] Criterion ID
-    - [ ] Description
-    - [ ] Test ID
-    - [ ] Test File
-    - [ ] Test Level
-    - [ ] Coverage Status
+  - [ ] Criterion ID
+  - [ ] Description
+  - [ ] Test ID
+  - [ ] Test File
+  - [ ] Test Level
+  - [ ] Coverage Status
 
 ---
 
 ## Coverage Classification
 
 - [ ] Coverage status classified for each criterion:
-    - [ ] **FULL** - All scenarios validated at appropriate level(s)
-    - [ ] **PARTIAL** - Some coverage but missing edge cases or levels
-    - [ ] **NONE** - No test coverage at any level
-    - [ ] **UNIT-ONLY** - Only unit tests (missing integration/E2E validation)
-    - [ ] **INTEGRATION-ONLY** - Only API/Component tests (missing unit confidence)
+  - [ ] **FULL** - All scenarios validated at appropriate level(s)
+  - [ ] **PARTIAL** - Some coverage but missing edge cases or levels
+  - [ ] **NONE** - No test coverage at any level
+  - [ ] **UNIT-ONLY** - Only unit tests (missing integration/E2E validation)
+  - [ ] **INTEGRATION-ONLY** - Only API/Component tests (missing unit confidence)
 - [ ] Classification justifications provided
 - [ ] Edge cases considered in FULL vs PARTIAL determination
 
@@ -94,26 +91,26 @@ This checklist covers **two sequential phases**:
 ## Gap Analysis
 
 - [ ] Coverage gaps identified:
-    - [ ] Criteria with NONE status
-    - [ ] Criteria with PARTIAL status
-    - [ ] Criteria with UNIT-ONLY status
-    - [ ] Criteria with INTEGRATION-ONLY status
+  - [ ] Criteria with NONE status
+  - [ ] Criteria with PARTIAL status
+  - [ ] Criteria with UNIT-ONLY status
+  - [ ] Criteria with INTEGRATION-ONLY status
 - [ ] Coverage heuristics gaps identified:
-    - [ ] Endpoints referenced in requirements/specs but not covered by API tests
-    - [ ] Auth/authz criteria missing denied/invalid path tests
-    - [ ] Criteria with happy-path-only coverage (missing error scenarios)
-    - [ ] Inferred UI journeys missing E2E/component coverage
-    - [ ] Inferred UI journeys missing loading/empty/error/permission state coverage
+  - [ ] Endpoints referenced in requirements/specs but not covered by API tests
+  - [ ] Auth/authz criteria missing denied/invalid path tests
+  - [ ] Criteria with happy-path-only coverage (missing error scenarios)
+  - [ ] Inferred UI journeys missing E2E/component coverage
+  - [ ] Inferred UI journeys missing loading/empty/error/permission state coverage
 - [ ] Gaps prioritized by risk level using test-priorities framework:
-    - [ ] **CRITICAL** - P0 criteria without FULL coverage (BLOCKER)
-    - [ ] **HIGH** - P1 criteria without FULL coverage (PR blocker)
-    - [ ] **MEDIUM** - P2 criteria without FULL coverage (nightly gap)
-    - [ ] **LOW** - P3 criteria without FULL coverage (acceptable)
+  - [ ] **CRITICAL** - P0 criteria without FULL coverage (BLOCKER)
+  - [ ] **HIGH** - P1 criteria without FULL coverage (PR blocker)
+  - [ ] **MEDIUM** - P2 criteria without FULL coverage (nightly gap)
+  - [ ] **LOW** - P3 criteria without FULL coverage (acceptable)
 - [ ] Specific test recommendations provided for each gap:
-    - [ ] Suggested test level (E2E, API, Component, Unit)
-    - [ ] Test description (Given-When-Then)
-    - [ ] Recommended test ID (e.g., 1.3-E2E-004)
-    - [ ] Explanation of why test is needed
+  - [ ] Suggested test level (E2E, API, Component, Unit)
+  - [ ] Test description (Given-When-Then)
+  - [ ] Recommended test ID (e.g., 1.3-E2E-004)
+  - [ ] Explanation of why test is needed
 
 ---
 
@@ -124,10 +121,10 @@ This checklist covers **two sequential phases**:
 - [ ] P1 coverage percentage calculated
 - [ ] P2 coverage percentage calculated (if applicable)
 - [ ] Coverage by level calculated:
-    - [ ] E2E coverage %
-    - [ ] API coverage %
-    - [ ] Component coverage %
-    - [ ] Unit coverage %
+  - [ ] E2E coverage %
+  - [ ] API coverage %
+  - [ ] Component coverage %
+  - [ ] Unit coverage %
 
 ---
 
@@ -192,8 +189,7 @@ Knowledge fragments referenced:
 - [ ] `links.trace_report_path` points to `traceability-matrix.md`
 - [ ] `links.trace_report_url`, `links.artifact_url`, and `links.journey_evidence_url` fields present (may be empty)
 - [ ] `gate-decision.json` written to `{gate_decision_output}` when gate-eligible
-- [ ] `gate-decision.json` contains `evaluated_at`, `gate_basis`, `gate_status`, `rationale`, and per-criterion status
-  fields
+- [ ] `gate-decision.json` contains `evaluated_at`, `gate_basis`, `gate_status`, `rationale`, and per-criterion status fields
 
 ### Updated Story File (if enabled)
 
@@ -244,8 +240,7 @@ Knowledge fragments referenced:
 
 # PHASE 2: QUALITY GATE DECISION
 
-**Note**: Phase 2 always emits `e2e-trace-summary.json`; gate decision fields are populated only when `allow_gate: true`
-and `collection_status` resolves to `COLLECTED`.
+**Note**: Phase 2 always emits `e2e-trace-summary.json`; gate decision fields are populated only when `allow_gate: true` and `collection_status` resolves to `COLLECTED`.
 
 ---
 
@@ -257,7 +252,7 @@ and `collection_status` resolves to `COLLECTED`.
 - [ ] Story/epic/release file identified and read
 - [ ] Test design document discovered or explicitly provided (if available)
 - [ ] Traceability matrix discovered or explicitly provided (available from Phase 1)
-- [ ] NFR assessment discovered or explicitly provided (if available)
+- [ ] NFR evidence audit discovered or explicitly provided (if available)
 - [ ] Code coverage report discovered or explicitly provided (if available)
 - [ ] Burn-in results discovered or explicitly provided (if available)
 

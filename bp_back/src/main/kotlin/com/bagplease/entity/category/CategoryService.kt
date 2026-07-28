@@ -1,5 +1,10 @@
 package com.bagplease.entity.category
 
+import arrow.core.Either
+import arrow.core.raise.either
+import com.bagplease.entity.list.ListAuthError
+import com.bagplease.entity.list.ListService
+import com.bagplease.features.auth.CallerUsername
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -7,6 +12,7 @@ import java.util.*
 
 class CategoryService(
     private val storage: CategoryStorage,
+    private val listService: ListService,
 ) {
 
     private val categoryUpdateChannel = MutableSharedFlow<Category>(
@@ -19,37 +25,22 @@ class CategoryService(
     val categoryUpdates = categoryUpdateChannel as SharedFlow<Category>
     val categoryDeletions = categoryDeleteChannel as SharedFlow<Category>
 
-    /**
-     * Retrieves a list of categories.
-     *
-     * This method asynchronously fetches a list of categories from storage using the `getAll` method and returns the result.
-     *
-     * @return A list of categories.
-     */
-    suspend fun getCategories(): List<Category> = storage.getAll()
-
-    /**
-     * Saves a category to the storage.
-     *
-     * @param category The category to be saved.
-     * @return The saved category.
-     */
-    suspend fun saveCategory(category: Category): Category {
-        val savedCategory = storage.save(category)
-        categoryUpdateChannel.emit(savedCategory)
-        return savedCategory
+    suspend fun getCategories(listId: UUID, caller: CallerUsername): Either<ListAuthError, List<Category>> = either {
+        listService.verifyMembership(caller, listId).bind()
+        storage.getByListId(listId)
     }
 
-    /**
-     * Deletes a category with the specified ID from the storage.
-     *
-     * @param id The ID of the category to be deleted.
-     * @return The deleted category.
-     * @throws IllegalStateException if the category is not found in the storage.
-     */
-    suspend fun deleteCategory(id: UUID): Category {
-        val deletedCategory = storage.delete(id)
+    suspend fun saveCategory(category: Category, caller: CallerUsername): Either<ListAuthError, Category> = either {
+        listService.verifyMembership(caller, category.listId).bind()
+        val savedCategory = storage.save(category)
+        categoryUpdateChannel.emit(savedCategory)
+        savedCategory
+    }
+
+    suspend fun deleteCategory(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Category> = either {
+        listService.verifyMembership(caller, listId).bind()
+        val deletedCategory = storage.delete(id, listId)
         categoryDeleteChannel.emit(deletedCategory)
-        return deletedCategory
+        deletedCategory
     }
 }

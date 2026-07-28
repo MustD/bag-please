@@ -6,6 +6,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.bagplease.entity.user.AuthError
 import com.bagplease.entity.user.UserService
+import io.ktor.server.auth.jwt.JWTPrincipal
 import java.time.Instant
 import java.util.*
 
@@ -51,6 +52,19 @@ class AuthService(
 
     suspend fun invalidateUserSessions(username: String) {
         refreshTokenRepository.deleteAllForUser(username)
+    }
+
+    fun verifyAccessToken(token: String): JWTPrincipal? = try {
+        val decoded = JWT.require(Algorithm.HMAC256(jwtSecret))
+            .withAudience(jwtAudience)
+            .withIssuer(jwtIssuer)
+            .build()
+            .verify(token)
+        val username = decoded.getClaim("username").asString() ?: ""
+        val role = decoded.getClaim("role").asString() ?: ""
+        if (username.isNotEmpty() && role.isNotEmpty()) JWTPrincipal(decoded) else null
+    } catch (e: Exception) {
+        null
     }
 
     private fun issueAccessToken(username: String, role: String): String =

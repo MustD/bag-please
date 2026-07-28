@@ -2,25 +2,17 @@
 
 ## Principle
 
-CI pipelines must execute tests reliably, quickly, and provide clear feedback. Burn-in testing (running changed tests
-multiple times) flushes out flakiness before merge. Stage jobs strategically: install/cache once, run changed specs
-first for fast feedback, then shard full suites with fail-fast disabled to preserve evidence.
+CI pipelines must execute tests reliably, quickly, and provide clear feedback. Burn-in testing (running changed tests multiple times) flushes out flakiness before merge. Stage jobs strategically: install/cache once, run changed specs first for fast feedback, then shard full suites with fail-fast disabled to preserve evidence.
 
 ## Rationale
 
-CI is the quality gate for production. A poorly configured pipeline either wastes developer time (slow feedback, false
-positives) or ships broken code (false negatives, insufficient coverage). Burn-in testing ensures reliability by
-stress-testing changed code, while parallel execution and intelligent test selection optimize speed without sacrificing
-thoroughness.
+CI is the quality gate for production. A poorly configured pipeline either wastes developer time (slow feedback, false positives) or ships broken code (false negatives, insufficient coverage). Burn-in testing ensures reliability by stress-testing changed code, while parallel execution and intelligent test selection optimize speed without sacrificing thoroughness.
 
 ## Security: Script Injection Prevention
 
-**Rule:** NEVER use `${{ inputs.* }}` or user-controlled GitHub context directly in `run:` blocks. Always pass through
-`env:` and reference as `"$ENV_VAR"` (double-quoted).
+**Rule:** NEVER use `${{ inputs.* }}` or user-controlled GitHub context directly in `run:` blocks. Always pass through `env:` and reference as `"$ENV_VAR"` (double-quoted).
 
-When CI templates are extended into reusable workflows (`on: workflow_call`), manual dispatch workflows (
-`on: workflow_dispatch`), or composite actions, `${{ inputs.* }}` values become user-controllable. Interpolating them
-directly in `run:` blocks enables shell command injection.
+When CI templates are extended into reusable workflows (`on: workflow_call`), manual dispatch workflows (`on: workflow_dispatch`), or composite actions, `${{ inputs.* }}` values become user-controllable. Interpolating them directly in `run:` blocks enables shell command injection.
 
 ### Vulnerable vs Safe Pattern
 
@@ -41,13 +33,10 @@ directly in `run:` blocks enables shell command injection.
 ### Unsafe Contexts (require env: intermediary)
 
 - `${{ inputs.* }}` — workflow_call and workflow_dispatch inputs
-- `${{ github.event.* }}` — treat the entire event namespace as unsafe (PR titles, issue bodies, comment bodies, label
-  names, etc.)
+- `${{ github.event.* }}` — treat the entire event namespace as unsafe (PR titles, issue bodies, comment bodies, label names, etc.)
 - `${{ github.head_ref }}` — PR source branch name (user-controlled)
 
-**Important:** Passing through `env:` prevents GitHub expression injection, but inputs must still be treated as DATA,
-not COMMANDS. Never execute an input-derived env var as a shell command (e.g., `run: $CMD` where CMD came from an
-input). Use fixed commands and pass inputs only as quoted arguments.
+**Important:** Passing through `env:` prevents GitHub expression injection, but inputs must still be treated as DATA, not COMMANDS. Never execute an input-derived env var as a shell command (e.g., `run: $CMD` where CMD came from an input). Use fixed commands and pass inputs only as quoted arguments.
 
 ### Safe Contexts (safe from GitHub expression injection in run: blocks)
 
@@ -57,9 +46,7 @@ input). Use fixed commands and pass inputs only as quoted arguments.
 - `${{ secrets.* }}` — secret store, not user-injectable
 - `${{ env.* }}` — already an env var
 
-> **Note:** "Safe from expression injection" means these values cannot be manipulated by external actors to break out of
-`${{ }}` interpolation. Standard shell quoting practices still apply — always double-quote variable references in `run:`
-> blocks.
+> **Note:** "Safe from expression injection" means these values cannot be manipulated by external actors to break out of `${{ }}` interpolation. Standard shell quoting practices still apply — always double-quote variable references in `run:` blocks.
 
 ---
 

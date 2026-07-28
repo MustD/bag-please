@@ -8,8 +8,7 @@
 
 ## Overview
 
-Expands test automation coverage by generating prioritized tests at the appropriate level (E2E, API, Component, Unit)
-with supporting fixtures and helpers.
+Expands test automation coverage by generating prioritized tests at the appropriate level (E2E, API, Component, Unit) with supporting fixtures and helpers.
 
 Modes:
 

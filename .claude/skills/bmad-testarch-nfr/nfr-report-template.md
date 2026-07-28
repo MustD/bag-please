@@ -6,7 +6,7 @@ workflowType: 'testarch-nfr-assess'
 inputDocuments: []
 ---
 
-# NFR Assessment - {FEATURE_NAME}
+# NFR Evidence Audit - {FEATURE_NAME}
 
 **Date:** {DATE}
 **Story:** {STORY_ID} (if applicable)
@@ -14,7 +14,7 @@ inputDocuments: []
 
 ---
 
-Note: This assessment summarizes existing evidence; it does not run tests or CI workflows.
+Note: This audit summarizes existing implementation evidence; it does not run tests or CI workflows. NFR thresholds and planned evidence should come from PRD, architecture, and `test-design` outputs where available.
 
 ## Executive Summary
 
@@ -49,16 +49,16 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Resource Usage
 
 - **CPU Usage**
-    - **Status:** {STATUS} {STATUS_ICON}
-    - **Threshold:** {THRESHOLD_VALUE}
-    - **Actual:** {ACTUAL_VALUE}
-    - **Evidence:** {EVIDENCE_SOURCE}
+  - **Status:** {STATUS} {STATUS_ICON}
+  - **Threshold:** {THRESHOLD_VALUE}
+  - **Actual:** {ACTUAL_VALUE}
+  - **Evidence:** {EVIDENCE_SOURCE}
 
 - **Memory Usage**
-    - **Status:** {STATUS} {STATUS_ICON}
-    - **Threshold:** {THRESHOLD_VALUE}
-    - **Actual:** {ACTUAL_VALUE}
-    - **Evidence:** {EVIDENCE_SOURCE}
+  - **Status:** {STATUS} {STATUS_ICON}
+  - **Threshold:** {THRESHOLD_VALUE}
+  - **Actual:** {ACTUAL_VALUE}
+  - **Evidence:** {EVIDENCE_SOURCE}
 
 ### Scalability
 
@@ -160,16 +160,16 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Disaster Recovery (if applicable)
 
 - **RTO (Recovery Time Objective)**
-    - **Status:** {STATUS} {STATUS_ICON}
-    - **Threshold:** {THRESHOLD_VALUE}
-    - **Actual:** {ACTUAL_VALUE}
-    - **Evidence:** {EVIDENCE_SOURCE}
+  - **Status:** {STATUS} {STATUS_ICON}
+  - **Threshold:** {THRESHOLD_VALUE}
+  - **Actual:** {ACTUAL_VALUE}
+  - **Evidence:** {EVIDENCE_SOURCE}
 
 - **RPO (Recovery Point Objective)**
-    - **Status:** {STATUS} {STATUS_ICON}
-    - **Threshold:** {THRESHOLD_VALUE}
-    - **Actual:** {ACTUAL_VALUE}
-    - **Evidence:** {EVIDENCE_SOURCE}
+  - **Status:** {STATUS} {STATUS_ICON}
+  - **Threshold:** {THRESHOLD_VALUE}
+  - **Actual:** {ACTUAL_VALUE}
+  - **Evidence:** {EVIDENCE_SOURCE}
 
 ---
 
@@ -217,7 +217,7 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ---
 
-## Custom NFR Assessments (if applicable)
+## Custom NFR Evidence Audits (if applicable)
 
 ### {CUSTOM_NFR_NAME_1}
 
@@ -242,11 +242,11 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 {QUICK_WIN_COUNT} quick wins identified for immediate implementation:
 
 1. **{QUICK_WIN_TITLE_1}** ({NFR_CATEGORY}) - {PRIORITY} - {ESTIMATED_EFFORT}
-    - {QUICK_WIN_DESCRIPTION}
-    - No code changes needed / Minimal code changes
+   - {QUICK_WIN_DESCRIPTION}
+   - No code changes needed / Minimal code changes
 
 2. **{QUICK_WIN_TITLE_2}** ({NFR_CATEGORY}) - {PRIORITY} - {ESTIMATED_EFFORT}
-    - {QUICK_WIN_DESCRIPTION}
+   - {QUICK_WIN_DESCRIPTION}
 
 ---
 
@@ -255,27 +255,27 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Immediate (Before Release) - CRITICAL/HIGH Priority
 
 1. **{ACTION_TITLE_1}** - {PRIORITY} - {ESTIMATED_EFFORT} - {OWNER}
-    - {ACTION_DESCRIPTION}
-    - {SPECIFIC_STEPS}
-    - {VALIDATION_CRITERIA}
+   - {ACTION_DESCRIPTION}
+   - {SPECIFIC_STEPS}
+   - {VALIDATION_CRITERIA}
 
 2. **{ACTION_TITLE_2}** - {PRIORITY} - {ESTIMATED_EFFORT} - {OWNER}
-    - {ACTION_DESCRIPTION}
-    - {SPECIFIC_STEPS}
-    - {VALIDATION_CRITERIA}
+   - {ACTION_DESCRIPTION}
+   - {SPECIFIC_STEPS}
+   - {VALIDATION_CRITERIA}
 
 ### Short-term (Next Milestone) - MEDIUM Priority
 
 1. **{ACTION_TITLE_3}** - {PRIORITY} - {ESTIMATED_EFFORT} - {OWNER}
-    - {ACTION_DESCRIPTION}
+   - {ACTION_DESCRIPTION}
 
 2. **{ACTION_TITLE_4}** - {PRIORITY} - {ESTIMATED_EFFORT} - {OWNER}
-    - {ACTION_DESCRIPTION}
+   - {ACTION_DESCRIPTION}
 
 ### Long-term (Backlog) - LOW Priority
 
 1. **{ACTION_TITLE_5}** - {PRIORITY} - {ESTIMATED_EFFORT} - {OWNER}
-    - {ACTION_DESCRIPTION}
+   - {ACTION_DESCRIPTION}
 
 ---
 
@@ -286,30 +286,30 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Performance Monitoring
 
 - [ ] {MONITORING_TOOL_1} - {MONITORING_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
 
 - [ ] {MONITORING_TOOL_2} - {MONITORING_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
 
 ### Security Monitoring
 
 - [ ] {MONITORING_TOOL_3} - {MONITORING_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
 
 ### Reliability Monitoring
 
 - [ ] {MONITORING_TOOL_4} - {MONITORING_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
 
 ### Alerting Thresholds
 
 - [ ] {ALERT_DESCRIPTION} - Notify when {THRESHOLD_CONDITION}
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
 
 ---
 
@@ -320,26 +320,26 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Circuit Breakers (Reliability)
 
 - [ ] {CIRCUIT_BREAKER_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Estimated Effort:** {EFFORT}
+  - **Owner:** {OWNER}
+  - **Estimated Effort:** {EFFORT}
 
 ### Rate Limiting (Performance)
 
 - [ ] {RATE_LIMITING_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Estimated Effort:** {EFFORT}
+  - **Owner:** {OWNER}
+  - **Estimated Effort:** {EFFORT}
 
 ### Validation Gates (Security)
 
 - [ ] {VALIDATION_GATE_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Estimated Effort:** {EFFORT}
+  - **Owner:** {OWNER}
+  - **Estimated Effort:** {EFFORT}
 
 ### Smoke Tests (Maintainability)
 
 - [ ] {SMOKE_TEST_DESCRIPTION}
-    - **Owner:** {OWNER}
-    - **Estimated Effort:** {EFFORT}
+  - **Owner:** {OWNER}
+  - **Estimated Effort:** {EFFORT}
 
 ---
 
@@ -348,16 +348,16 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 {EVIDENCE_GAP_COUNT} evidence gaps identified - action required:
 
 - [ ] **{NFR_NAME_1}** ({NFR_CATEGORY})
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
-    - **Suggested Evidence:** {SUGGESTED_EVIDENCE_SOURCE}
-    - **Impact:** {IMPACT_DESCRIPTION}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
+  - **Suggested Evidence:** {SUGGESTED_EVIDENCE_SOURCE}
+  - **Impact:** {IMPACT_DESCRIPTION}
 
 - [ ] **{NFR_NAME_2}** ({NFR_CATEGORY})
-    - **Owner:** {OWNER}
-    - **Deadline:** {DEADLINE}
-    - **Suggested Evidence:** {SUGGESTED_EVIDENCE_SOURCE}
-    - **Impact:** {IMPACT_DESCRIPTION}
+  - **Owner:** {OWNER}
+  - **Deadline:** {DEADLINE}
+  - **Suggested Evidence:** {SUGGESTED_EVIDENCE_SOURCE}
+  - **Impact:** {IMPACT_DESCRIPTION}
 
 ---
 
@@ -366,7 +366,7 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 **Based on ADR Quality Readiness Checklist (8 categories, 29 criteria)**
 
 | Category                                         | Criteria Met       | PASS             | CONCERNS             | FAIL             | Overall Status                      |
-|--------------------------------------------------|--------------------|------------------|----------------------|------------------|-------------------------------------|
+| ------------------------------------------------ | ------------------ | ---------------- | -------------------- | ---------------- | ----------------------------------- |
 | 1. Testability & Automation                      | {T_MET}/4          | {T_PASS}         | {T_CONCERNS}         | {T_FAIL}         | {T_STATUS} {T_ICON}                 |
 | 2. Test Data Strategy                            | {TD_MET}/3         | {TD_PASS}        | {TD_CONCERNS}        | {TD_FAIL}        | {TD_STATUS} {TD_ICON}               |
 | 3. Scalability & Availability                    | {SA_MET}/4         | {SA_PASS}        | {SA_CONCERNS}        | {SA_FAIL}        | {SA_STATUS} {SA_ICON}               |
@@ -425,10 +425,10 @@ nfr_assessment:
 - **PRD:** {PRD_PATH} (if available)
 - **Test Design:** {TEST_DESIGN_PATH} (if available)
 - **Evidence Sources:**
-    - Test Results: {TEST_RESULTS_DIR}
-    - Metrics: {METRICS_DIR}
-    - Logs: {LOGS_DIR}
-    - CI Results: {CI_RESULTS_PATH}
+  - Test Results: {TEST_RESULTS_DIR}
+  - Metrics: {METRICS_DIR}
+  - Logs: {LOGS_DIR}
+  - CI Results: {CI_RESULTS_PATH}
 
 ---
 
@@ -446,7 +446,7 @@ nfr_assessment:
 
 ## Sign-Off
 
-**NFR Assessment:**
+**NFR Evidence Audit:**
 
 - Overall Status: {OVERALL_STATUS} {OVERALL_ICON}
 - Critical Issues: {CRITICAL_COUNT}
@@ -463,7 +463,7 @@ nfr_assessment:
 - If FAIL ❌: Resolve FAIL status NFRs, re-run `*nfr-assess`
 
 **Generated:** {DATE}
-**Workflow:** testarch-nfr v4.0
+**Workflow:** testarch-nfr v5.0
 
 ---
 

@@ -1,0 +1,33 @@
+# Production routing for Bag Please.
+# Caddy serves the built Vite SPA from /srv and proxies the API to the backend.
+# `handle` blocks are mutually exclusive and evaluated in source order, so
+# /api/subscriptions (WebSocket) is matched before the generic /api/* rule.
+# Caddy's reverse_proxy upgrades WebSockets automatically — no extra directives.
+#
+# An external edge proxy on the host terminates TLS + owns the domain and forwards
+# plain HTTP to this Caddy (the single served entrypoint, 127.0.0.1:2080). Caddy
+# ignores incoming X-Forwarded-* by default (anti-spoofing). The edge reaches Caddy
+# over the Docker bridge, so its source lands in a private range; trusting
+# private_ranges lets the real client IP (X-Forwarded-For) reach bp_back, where the
+# auth rate limiter keys on it. CAVEAT: this trusts the WHOLE private range — any local
+# process reaching :2080 is trusted too — and the edge MUST overwrite X-Forwarded-For
+# (not append client input). See routing/edge-proxy.md.
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	handle /api/subscriptions {
+		reverse_proxy bp_back:4000
+	}
+	handle /api/* {
+		reverse_proxy bp_back:4000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
