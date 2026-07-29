@@ -35,7 +35,7 @@ docker build \
   -f bp_front/Dockerfile \
   -t "$DOCKER_IMAGE_FRONT:$VERSION" \
   -t "$DOCKER_IMAGE_FRONT:latest" \
-  ./bp_front
+  .
 
 echo "Pushing version $VERSION"
 
