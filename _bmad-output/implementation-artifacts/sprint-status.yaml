@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-28"  # epic-5 closed: all 7 stories done, retrospective complete (epic-5-retro-2026-07-28.md)
+last_updated: "2026-07-29"  # epic-6 closed: both stories done, retrospective complete (epic-6-retro-2026-07-29.md); Epic 6 shipped to production
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -90,13 +90,28 @@ development_status:
   5-7-sharing-and-membership: done
   epic-5-retrospective: done
 
+  # Epic 6: Item Editing & Home Navigation — frontend-only, backend frozen (AR-E6-0)
+  # Block added retroactively at the Epic 6 retrospective: the dev-auto flow does not own
+  # sprint tracking, so neither story was ever recorded here. This is the Epic 5 agreement
+  # ("sprint-status.yaml is reconciled at story close, whichever dev workflow ran") being
+  # enforced after the fact — see Epic 6 action item A2.
+  epic-6: done
+  6-1-edit-item-name-category-store: done
+  6-2-back-to-home-and-lists-navigation: done
+  epic-6-retrospective: done
+
 # Action items from retrospectives. Reviewed at the start of the next retro
 # before new items are added (standing team agreement since Epic 3).
+#
+# STATUS VOCABULARY: open | in-progress | done | closed
+#   closed = deliberately retired without being executed, with a recorded reason.
+#            Introduced at the Epic 6 retro, where Epic 5's action items came back 0/7
+#            and four of them were retired rather than carried a third time.
 action_items:
   - epic: 4
     action: "Gradle MCP evaluation — adopt or formally close"
     owner: "Winston"
-    status: open  # slipped 4x (Epics 2,3,4,5); Epic 5 re-scoped it to 'close it out' (see Epic 5 action #6)
+    status: closed  # Epic 6 retro: retired after slipping 5x (Epics 2-5). The wrapper has since moved to Gradle 9.6.1, so the original evaluation question is stale. Not carried forward.
   - epic: 4
     action: "Enforce E2E requirement at story creation time"
     owner: "Amelia"
@@ -104,24 +119,75 @@ action_items:
   - epic: 5
     action: "Real-device HTTPS auth validation on a physical phone via the TLS edge domain (E2E_BASE_URL=https://bag-please.localhost) — the one Epic-4 finding still unrefuted"
     owner: "md"
-    status: open
+    status: done  # Epic 6 retro: validated and working on a real device. Epic 4's "mobile login broken on a real device" finding is now REFUTED, not merely unaddressed.
   - epic: 5
     action: "Discharge or formally close the FR9 automated E2E debt (401 -> silent refresh -> refresh-fail -> /auth?expired=1), orphaned across the 5.4 -> 5.5 workflow handoff"
     owner: "md"
-    status: open
+    status: closed  # Epic 6 retro: closed by decision. The wiring exists and was hand-verified; automated coverage is deliberately not pursued.
   - epic: 5
     action: "Fix the shared registrationEnabled E2E race at the source instead of relying on CI retries: 2"
     owner: "Murat"
-    status: open
+    status: open  # Epic 6 retro: re-scoped and promoted to an Epic 7 story. Decided approach: keep registration ENABLED as the steady state and run the registration-disabled test non-parallel, rather than serializing the whole toggle spec.
   - epic: 5
     action: "Lower KTOR_RATE_LIMIT_ATTEMPTS for a production profile — 6000 in docker-compose.yaml disables the auth limiter in the deployed stack"
     owner: "Winston"
-    status: open
+    status: closed  # Epic 6 retro: production runs a separate compose/env held on the server only (deliberate, for security). The 6000 value is dev/E2E-only as intended. Nothing to change in this repo.
   - epic: 5
     action: "Validate the FR47 migration path against a production DB snapshot, idempotent on re-run (open since Epic 4)"
     owner: "md"
-    status: open
+    status: closed  # Epic 6 retro: discharged by the real deployment. The migration ran against production data and succeeded; it is idempotent via the app_migrations 'epic4-list-seed' record and cannot re-run. Unvalidated but also unrepeatable — carrying it further was theatre.
   - epic: 5
     action: "Inspect the dev-auto 'warnings: [oversized]' signal carried by all three spec files before the next dev-auto run"
     owner: "Amelia"
-    status: open
+    status: open  # Epic 6 retro: 3rd consecutive slip, and Story 6.1 added a new warning type ('multiple-goals'). Promoted to an Epic 7 story.
+
+  # --- Epic 6 ---
+  # Recording change (Epic 6 retro): Epic 5's items went 0/7 while its *agreements* largely held.
+  # The difference was encoding: the debt-ledger agreement became Story 6.1's AC15 and executed
+  # perfectly; the seven table rows did not. So Epic 6's items are split explicitly into
+  # (a) done-in-retro housekeeping and (b) named Epic 7 story slots. Nothing is left as an
+  # aspiration owned by a table.
+  - epic: 6
+    action: "A1 — commit the images-build-push.sh build-context fix (./bp_front -> .); it was the only thing making the production frontend image buildable and it existed solely in the working tree"
+    owner: "md"
+    status: done  # committed as fe31fbf during the retrospective
+  - epic: 6
+    action: "A2 — reconcile sprint-status.yaml with Epic 6 (epic, both stories, retrospective key)"
+    owner: "Amelia"
+    status: done  # done in this retro
+  - epic: 6
+    action: "A3 — supersede the stale bmad-dev-auto-result-epic-6.md, which still read status: blocked after the work completed"
+    owner: "Amelia"
+    status: done  # done in this retro
+  - epic: 6
+    action: "A4 — production compose/env location: recorded as server-only by deliberate security decision; no runbook lives in this repo"
+    owner: "md"
+    status: done  # recorded in project-context.md; supersedes Epic 5 action #4
+  - epic: 6
+    action: "B1 — convention: a new E2E test is unproven until it has been observed FAILING (break the code, confirm red on both projects, restore) — 6 of Epic 6's 17 review patches were assertions that could not fail for the reason they were written"
+    owner: "Murat"
+    status: done  # added to project-context.md testing rules in this retro
+  - epic: 6
+    action: "B7 — run the two deferred follow-up reviews (followup_review_recommended: true on both Epic 6 specs)"
+    owner: "Amelia"
+    status: done  # reviews completed; spec frontmatter updated
+  - epic: 6
+    action: "B3 — add bp_front/e2e/ to eslint and a tsconfig project; ~1015 lines of new spec code shipped this epic outside both quality gates, making 'lint and build pass' vacuous for the layer the project treats as its hard gate"
+    owner: "Amelia"
+    status: open  # Epic 7 story
+  - epic: 6
+    action: "B4 — extract a shared E2E helper module (uniqueUsername, registerViaUi, openListsViaMenu, createListAndOpen, addCategory, addItem, loginApi, gql); now copy-pasted into a 4th spec file"
+    owner: "Amelia"
+    status: open  # Epic 7 story; blocks the registrationEnabled fix from being a one-place change
+  - epic: 6
+    action: "B6 — fix HomeRedirect's lexicographic createdAt sort (use numeric Date.parse); Instant.toString() omits the fractional part when nanos are zero, so ...:05Z sorts after ...:05.100Z and FR38 can send a user to the wrong list"
+    owner: "Amelia"
+    status: open  # Epic 7 story; real shipped bug from Story 5.6, ~1-in-1000, also makes two specs flaky
+  - epic: 6
+    action: "C1 — backend unfreeze to fix BUG-E6-1, BUG-E6-2 and BUG-E6-3 in one change: merge ItemInput onto the stored Item in ItemService.saveItem instead of constructing a fresh one, and reject an upsert for a non-existent id"
+    owner: "Winston"
+    status: open  # Epic 7 story; BUG-E6-2 is the recorded prerequisite for FR42/FR43. All three ship in production today.
+  - epic: 6
+    action: "C3 — FR42 (one-timer) / FR43 (recurring) item UI: held in backlog pending a requirements reconsideration by md, not scheduled"
+    owner: "md"
+    status: open  # backlog, blocked on C1 and on md revisiting the requirements

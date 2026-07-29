@@ -54,7 +54,7 @@ All existing shared data (items, categories) remains shared across all users in 
 rules are deferred to subsequent features.
 
 > **Frontend Reframe (Epic 5, 2026-06-23).** The frontend is being re-implemented from scratch as a **Vite + Material UI
-**
+> **
 > single-page app served by **Caddy** (replacing the Next.js app and nginx). The Ktor/GraphQL backend is unchanged and
 > consumed as-is. No functional requirements change — the same FRs are re-delivered on the new stack — except that
 > one-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend support remains) while real-time
@@ -652,6 +652,11 @@ to lists and introduces sharing.
 - **FR51:** All item creation and editing occurs in bottom sheet overlays without navigating away from the
   shopping view; the create-list sheet contains a name field (required) and a description field (optional);
   closing any sheet returns the user to their exact scroll position
+- **FR57:** From any authenticated screen the user can return to the application home destination in one action:
+  the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
+  oldest list by creation date, the lists index when they own none, the admin area for the admin account); the shopping
+  view additionally offers a back-to-lists affordance matching the list management screen's existing back link. No
+  screen is a navigational dead end requiring the browser back button.
 
 ### Real-Time Collaboration & Authentication
 

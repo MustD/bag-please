@@ -143,7 +143,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Frontend (Playwright e2e) — the hard gate
 
 - **Framework**: Playwright — config at `bp_front/playwright.config.ts`, tests at `bp_front/e2e/`, run via
-  `npm run test:e2e`. 32 specs at the end of Epic 5.
+  `npm run test:e2e`. **52 specs / 104 runs at the end of Epic 6** (32/64 at the end of Epic 5; Epic 6 added
+  `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each).
+- **`bp_front/e2e/` is currently outside both quality gates** — `lint` is `eslint src/` and `tsconfig.app.json` includes
+  only `src`, while Playwright transpiles without type checking. So "lint and build pass" says *nothing* about the suite
+  the project treats as its hard gate. Scheduled to be fixed (Epic 6 retro action B3); until then, treat a spec-file
+  type error as something only a runtime failure will reveal.
 - **E2E runs against the PRODUCTION image, not the dev server** — `webServer` runs `docker compose up -d --build` and
   `baseURL` is `http://localhost:2080` (built `dist/` served by Caddy). This is deliberate: it closes the "green on the
   dev server, broken in the shipped bundle" gap (asset hashing, base path, tree-shaking, SPA-fallback misconfig). Do not
@@ -158,6 +163,20 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Every test names its FR (s)** in the `describe`/`test` title.
 - **Manually exercise each flow in a real browser before writing its test.** This caught three real bugs in Epic 5 that
   no type check or unit test could reach.
+- **A new test is unproven until it has been observed FAILING.** Before accepting any new spec: break the behaviour it
+  guards (in the product code), rebuild the production image, confirm the test goes **red on both `chromium` and
+  `mobile`**, then restore. A green test is evidence of nothing until you have seen it be red for the right reason.
+  Established as a convention at the Epic 6 retro, because **6 of that epic's 17 review patches were assertions that
+  could not fail for the reason they were written** — an app-bar height bound a two-line wrap fits inside, `.focus()`
+  standing in for `:focus-visible`, a `browser.newContext()` that silently dropped mobile emulation and voided the
+  mandatory mobile gate, a suggestion-absence check that fired before its query resolved, and an error-alert testid that
+  was only ever asserted *absent* so the `catch` branch never once executed. The counter-practice was already proven in
+  the same epic: Story 6.1 temporarily set `checked: false, recurring: null`, confirmed both carry-forward regression
+  tests failed on both projects, and restored — which is the only reason those two tests are known to be non-vacuous.
+- **`browser.newContext()` does NOT inherit the project's `use` block.** A hand-built context silently runs at a desktop
+  viewport on the `mobile` project, quietly voiding the mobile gate for whatever it covers. Prefer the `page` fixture
+  (already per-test isolated); when a second actor genuinely needs its own context, put the actor whose *rendering* the
+  mobile gate must cover on `page`, not in the hand-built context.
 - **No login fixture and no `storageState` exist** — each spec registers a fresh unique user through the UI
   (`<prefix>_e2e_${project.name}_${Date.now()}`) and logs in through the form. Use `browser.newContext()` when a second
   actor is needed so the first session is untouched.
@@ -165,7 +184,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
   test created, and never on total row counts.
 - **Known race**: `registrationEnabled` is one shared Mongo document; the admin-toggle test flips it for real, so its
   OFF window can break register-based specs in the other project. CI `retries: 2` heals it; the suite is not reliably
-  green at `retries: 0`. Tracked in `deferred-work.md` — do not paper over it further.
+  green at `retries: 0`. **Decided fix (Epic 6 retro, scheduled as an Epic 7 story):** keep registration **enabled** as
+  the steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle
+  spec. Until that lands, do not add a fifth copy of the `expect(...).toPass()` workaround — it is already duplicated
+  across `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and `item-editing.spec.ts`, which is itself why the fix
+  cannot currently be made in one place (Epic 6 retro action B4).
 - **No component/unit test framework exists** — do not assume one.
 
 ### Code Quality & Style Rules
@@ -253,8 +276,30 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Backend readiness — no health endpoint yet** — there is currently no `/health` or `/ping` endpoint; this is a known
   gap / tech debt; for now, `http://localhost:2080/api/graphiql` loading is the manual readiness check
 - **Backend hot reload** — `../gradlew run -t` (from `bp_back/`) enables continuous compilation; `application.yaml` changes require a manual restart — resource files are not hot-reloaded
-- **`KTOR_RATE_LIMIT_ATTEMPTS: 6000` in `docker-compose.yaml`** effectively disables the auth rate limiter for E2E
-  convenience. This is dev-only and must be lowered for any production profile (tracked in `deferred-work.md`)
+- **`KTOR_RATE_LIMIT_ATTEMPTS: 6000` in `docker-compose.yaml` is dev/E2E-only and is overridden in production.**
+  The repo default in `application.yaml` is `5` per 60s; the compose value exists purely so the E2E suite's many
+  registrations don't trip the limiter. **Production does not use this repo's `docker-compose.yaml`** — see the
+  deployment note below. Do not "fix" the 6000 here and do not re-file it as debt; that was closed at the Epic 6 retro.
+
+#### Deployment
+
+- **Production configuration lives on the server only, by deliberate security decision.** The production compose file
+  and its environment (real credentials, `MIGRATION_TARGET_USER`, JWT secrets, the rate-limit value, the TLS edge
+  wiring) are **not** in this repo and must not be added to it. `docker-compose.yaml` in the repo is the local dev / E2E
+  topology and nothing more. Consequence for agents: never infer production behaviour from `docker-compose.yaml`, and
+  never conclude from repo contents alone that a production value is wrong — ask. Recorded at the Epic 6 retro (action
+  item A4), which supersedes Epic 5's "lower `KTOR_RATE_LIMIT_ATTEMPTS` for a production profile" item.
+- **Images are published with `images-build-push.sh`** (reads `version=` from `gradle.properties`, needs `project.env`
+  with the image names, and a `docker login`). **Both images build from the repo root as context** —
+  `bp_front/Dockerfile`
+  does `COPY routing/Caddyfile` and `COPY bp_front/ ./`, so it cannot build with `./bp_front` as context. The script
+  passed `./bp_front` from before Epic 1 and was silently broken by Epic 5's Caddy rewrite; fixed in `fe31fbf`. Note the
+  gap this left: the E2E gate builds via `docker compose` (`context: .`), so **the image that actually ships was never
+  covered by the "test the production artifact" gate** — a build-path divergence that survived two epics undetected.
+- **First deployment to production happened at the close of Epic 6** (version `0.16.0`). The FR47 Epic-4 migration ran
+  against real data at that point and succeeded; it is idempotent via the `app_migrations` `epic4-list-seed` record and
+  will not re-run. Real-device HTTPS auth was validated and works, which finally refutes Epic 4's "mobile login broken
+  on a real device" finding.
 
 #### Schema & Code Generation
 
@@ -298,7 +343,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-07-28 — frontend, infrastructure, testing, and workflow sections rewritten for the Epic 5 reframe (
+_Last Updated: 2026-07-29 (Epic 6 retro) — added the "a new test is unproven until observed failing" testing convention
+and the `browser.newContext()` viewport trap; added a Deployment section recording that production config is server-only
+by design, the repo-root build-context requirement for both images, and the first production deployment (`0.16.0`);
+closed out the rate-limiter item; refreshed the E2E counts and the `registrationEnabled` decided fix. Prior entry:
+2026-07-28 — frontend, infrastructure, testing, and workflow sections rewritten for the Epic 5 reframe (
 Vite SPA + MUI + Caddy, in-memory tokens, production-image E2E). The prior Next.js / nginx / localStorage content was
 stale from Story 5.3 onward and had been warned about in four consecutive story records instead of fixed. Backend rules
 are unchanged — Epic 5 touched no backend code._

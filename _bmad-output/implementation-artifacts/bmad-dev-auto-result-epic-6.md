@@ -1,11 +1,29 @@
 ---
-status: blocked
+status: superseded
+superseded_on: '2026-07-29'
+superseded_by:
+  - '_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md'
+  - '_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md'
 ---
+
+> **SUPERSEDED — 2026-07-29 (Epic 6 retrospective).** This report records a halt that was correct at the time and has
+> since been resolved. Every unblock step below was carried out: the planning work was committed, and the run was
+> re-invoked **per story, smallest first** exactly as recommended — Story 6.2 landed as `5d56e58`, then Story 6.1 as
+> `62dec3b`. Both specs are `status: done`; Epic 6 is merged to `main` via `d4d94fa` (#30) and is deployed to
+> production. Do not read the `blocked` state below as current — it was left stale for a full epic and was corrected
+> as action item A3 of the Epic 6 retro.
+>
+> One recommendation was **not** followed and is recorded as a finding rather than a defect: both stories ran on the
+> stale branch `epic-4-lists` rather than a fresh `epic-6-*` branch. This was flagged as a soft signal here, flagged
+> again in Story 6.2's residual risks, and had no consequence — the branch squash-merged cleanly.
+>
+> The oversized/multiple-goals concern raised in §3 below was **prescient and remains open**: Story 6.1's spec shipped
+> carrying `warnings: [multiple-goals, oversized]`. It is now an Epic 7 story (Epic 6 action item B8).
 
 # BMad Dev Auto Result
 
-Status: blocked Blocking condition: dirty working tree (Epic 6's own planning artifacts are uncommitted), compounded by
-a branch mismatch and an epic-level rather than story-level intent
+Status: ~~blocked~~ **superseded** — Blocking condition at the time: dirty working tree (Epic 6's own planning artifacts
+were uncommitted), compounded by a branch mismatch and an epic-level rather than story-level intent
 
 ## Invocation
 

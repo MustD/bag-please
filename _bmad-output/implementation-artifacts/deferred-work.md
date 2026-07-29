@@ -5,12 +5,47 @@
 > when the epic switched from the story-file dev workflow to the dev-auto spec flow. This file is the ledger both
 > workflows read.
 
+## Epic 6 close-out (2026-07-29)
+
+Full context: `epic-6-retro-2026-07-29.md`. **Epic 6 shipped to production** (version `0.16.0`) — the project's first
+deployment. That resolved or retired five long-standing entries below; the remainder became named Epic 7 stories rather
+than carried table rows, because Epic 5's action items came back **0/7** while its *agreements* largely held. The one
+agreement that was encoded into an artifact (this ledger, as Story 6.1's **AC15**) executed perfectly.
+
+**Closed by the Epic 6 retrospective — do not re-file these:**
+
+- ✅ **Real-device HTTPS auth validation — DONE and working.** Epic 4's "mobile login broken on a real device" finding is
+  now **refuted**, not merely unaddressed. Open since Epic 4, assigned in Stories 5.1/5.2.
+- ✅ **FR47 migration — discharged by the real deployment.** It ran against production data and succeeded. Idempotent via
+  the `app_migrations` `epic4-list-seed` record, so it cannot re-run. Validated-by-execution rather than by dry-run;
+  carrying it a third epic was theatre.
+- ❌ **FR9 automated E2E (401 → silent refresh → refresh-fail → `/auth?expired=1`) — CLOSED by decision.** The wiring
+  exists and was hand-verified (`ApolloProvider.tsx` error link → `clearAuth(true)` → `RouteGuard` owns the
+  `/auth?expired=1` redirect); automated coverage is deliberately not pursued. This is the "or close this entry with a
+  stated reason" branch of the original action, exercised.
+- ❌ **Auth rate limiter — CLOSED, not a defect.** Production runs a **separate compose/env held on the server only**, a
+  deliberate security decision. `KTOR_RATE_LIMIT_ATTEMPTS: 6000` in this repo's `docker-compose.yaml` is dev/E2E-only
+  and is overridden in production. Never infer production config from this repo.
+- ❌ **Gradle MCP evaluation — CLOSED after 5 slips** (open since the Epic 2 retro). The wrapper has since moved to
+  Gradle 9.6.1, so the original evaluation question is stale. Not carried forward.
+
+**New from the Epic 6 deployment:**
+
+- **The image publish path was never covered by the E2E gate.** `images-build-push.sh` built the frontend image with
+  `./bp_front` as context while `bp_front/Dockerfile` requires the **repo root** (`COPY routing/Caddyfile`). Broken by
+  Epic 5's Caddy rewrite, undetected through Epics 5 and 6, found only when md deployed by hand. Fixed in `fe31fbf`. The
+  structural point outlives the fix: `docker compose` builds with `context: .` and the publish script builds separately,
+  so **the artifact that ships is built by a path no gate exercises** — the one hole in Epic 5's "test the production
+  artifact" principle. Accepted as closed by the fix; re-raise only if the paths diverge again.
+
 ## Epic 5 close-out — carried forward (2026-07-28)
 
-Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These are tracked as retro action items in
-`sprint-status.yaml → action_items` as well.
+Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These were tracked as retro action items in
+`sprint-status.yaml → action_items` as well. **Statuses updated at the Epic 6 retro (2026-07-29) — see the Epic 6
+close-out above before acting on anything here.**
 
-- **FR9 automated E2E is orphaned debt — 401 → silent refresh → refresh-fail → `/auth?expired=1`.**
+- ~~**FR9 automated E2E is orphaned debt — 401 → silent refresh → refresh-fail → `/auth?expired=1`.**~~
+  **CLOSED 2026-07-29 by decision** (see Epic 6 close-out). Retained for history:
   Deferred in Story 5.2 (AC#7, explicitly "tracked debt, not FR9 fully E2E-covered" — 5.2 issued no GraphQL query to
   trigger a 401), re-deferred in 5.3 (Decision #4 — the clean sign-out redirects too fast to fire it organically), and
   raised in 5.4 (Decision #8) as an **open question to `md` that was never answered** now that a query-bearing route
@@ -20,18 +55,25 @@ Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These
   or close this entry with a stated reason.
 
 - **Shared `registrationEnabled` flag races the E2E suite; masked by `retries: 2` rather than fixed.**
+  **STILL OPEN — now an Epic 7 story with a decided approach (Epic 6 retro):** keep registration **enabled** as the
+  steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle spec.
+  Epic 6 accepted the flake a 6th and 7th time and added +34 UI registrations per run, widening the window.
   `registrationEnabled` is one Mongo document and the `chromium` + `mobile` projects run concurrently against a single
   backend, so the admin-toggle test's brief OFF window can break register-based specs in the other project. Accepted in
   5.4 ("keep the real flip + CI retries") and re-reported as "1 flaky, retry-healed" in 5.5, 5.6, and 5.7 — five
   acceptances, no fix. Full suite is NOT green at `retries: 0` locally. **Action:** serialize the toggle spec or give it
   a dedicated project/worker so the race is deleted rather than retried.
 
-- **Auth rate limiter is effectively disabled in the deployed stack.**
+- ~~**Auth rate limiter is effectively disabled in the deployed stack.**~~ **CLOSED 2026-07-29 — the premise was
+  wrong:**
+  production uses a separate server-only compose/env, so the repo value never reached the deployed stack. Retained for
+  history:
   `docker-compose.yaml` sets `KTOR_RATE_LIMIT_ATTEMPTS: 6000` (default 5/60s per IP) for E2E convenience. Previously
   flagged in the SSL/entrypoint review; restated here because the stack now sits behind a public-capable TLS edge.
   **Action:** a production compose profile with a sane per-IP value; keep 6000 dev/E2E-only.
 
-- **Real-device (physical phone) auth validation never performed.**
+- ~~**Real-device (physical phone) auth validation never performed.**~~ **DONE 2026-07-29 — validated and working on a
+  real device; Epic 4's finding is refuted.** Retained for history:
   Assigned to `md` as a manual sign-off in Stories 5.1/5.2 and never recorded. The blocker at the time was the `Secure`
   `refresh_token` cookie, which Chrome rejects over a plain-HTTP LAN IP; that is now solved —
   `spec-ssl-termination-single-entrypoint`
@@ -39,9 +81,9 @@ Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These
   `E2E_BASE_URL=https://bag-please.localhost`. Epic 4's "mobile login broken on a real device" finding is therefore
   **unrefuted, not fixed** — the emulated Pixel-7 gate is green but no physical device has been tested.
 
-- **FR47 migration path never validated against real data** (open since Epic 4). Unscoped items → default list
-  migration; needs a production DB snapshot and an idempotency check (run twice, no duplicates, no errors) plus a
-  deployment runbook.
+- ~~**FR47 migration path never validated against real data** (open since Epic 4).~~ **CLOSED 2026-07-29 — discharged by
+  the production deployment:** the migration ran against real data, succeeded, and cannot re-run (`app_migrations`
+  `epic4-list-seed` record). Validated by execution rather than by dry-run.
 
 - **FR42 (one-timer) / FR43 (recurring) item UI deferred by epic design.** Backend support is complete and live,
   including the hourly scheduler; the UI affordances were intentionally postponed. `AddItemDialog` sends
@@ -53,7 +95,36 @@ Consolidated at retrospective. Full context: `epic-5-retro-2026-07-28.md`. These
   startup failure silently burns the full timeout before surfacing.
 
 - **`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)** was never investigated. Understand the
-  threshold and whether it degraded anything before the next dev-auto run.
+  threshold and whether it degraded anything before the next dev-auto run. **STILL OPEN — 3rd consecutive slip, and
+  escalating.** Both Epic 6 specs carry `oversized` too, and Story 6.1 added a **new** warning type:
+  `warnings: [multiple-goals, oversized]`. `bmad-dev-auto` had independently flagged the multiple-goals risk in its own
+  blocked report before Epic 6 ran. Now an Epic 7 story (Epic 6 retro action B8).
+
+- **`bp_front/e2e/` is outside both frontend quality gates** — neither linted (`eslint src/`) nor type-checked
+  (`tsconfig.app.json` includes only `src`), while Playwright transpiles without type checking. Flagged as a defer in
+  **both** Epic 6 stories; Epic 6 added ~1,015 lines of spec code into that blind spot, and AC-level claims that
+  "`npm run lint` and `npm run build` pass" are vacuous for the layer the project treats as its hard gate. Now an Epic 7
+  story (Epic 6 retro action B3).
+
+- **No shared E2E fixture module; the helper block is copy-pasted into four spec files** (`lists`, `shopping`,
+  `sharing`,
+  `item-editing`). `registerViaUi` carries the `registrationEnabled` `toPass()` workaround, so that logic will drift
+  between copies — and the race fix has to land in four places instead of one. Now an Epic 7 story (Epic 6 retro action
+  B4), sequenced **before** the race fix itself.
+
+- **`HomeRedirect` sorts `createdAt` lexicographically, so FR38 can send a user to the wrong list.**
+  `[...lists].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]` against a backend that emits
+  `Instant.toString()`, which omits the fractional part entirely when nanos are zero — so `…:05Z` compares *greater*
+  than
+  `…:05.100Z` (`'Z'` 0x5A > `'.'` 0x2E) and the earlier list sorts last. ~1-in-1000 per list pair; also makes the FR38
+  specs in `navigation.spec.ts` and `shopping.spec.ts` flaky at the same rate. Shipped in Story 5.6, untouched since.
+  Fix: compare `Date.parse(createdAt)` numerically, or emit a fixed-precision timestamp. Now an Epic 7 story (Epic 6
+  retro action B6).
+
+- **Activating the app-bar home link while already on the resolved home route is a visible no-op that still pushes a
+  history entry** — spinner blink, then `replace` back to the same route, so Back appears to do nothing once. Not
+  fixable in the app bar (AR-E6-7 forbids it re-deriving the home path); the clean fix belongs in `HomeRedirect` or a
+  shared hook exposing the resolved path. Low consequence, unscheduled.
 
 ## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
 

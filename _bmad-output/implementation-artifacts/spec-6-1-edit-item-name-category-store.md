@@ -6,7 +6,8 @@ status: 'done'
 baseline_revision: 'f643b82'
 final_revision: '62dec3b'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false  # discharged 2026-07-29 at the Epic 6 retro (action item B7) — the recommended follow-up review was performed; no further findings
+followup_review_completed: '2026-07-29'
 context:
   - '{project-root}/_bmad-output/project-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/epic-6-context.md'
