@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-29"  # epic-6 closed: both stories done, retrospective complete (epic-6-retro-2026-07-29.md); Epic 6 shipped to production
+last_updated: "2026-07-30"  # epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -99,6 +99,31 @@ development_status:
   6-1-edit-item-name-category-store: done
   6-2-back-to-home-and-lists-navigation: done
   epic-6-retrospective: done
+
+  # Epic 7: Item Integrity, a Trustworthy Test Suite & Dependency Currency
+  # Block created at epic OPEN (2026-07-30), not retroactively — the implementation-readiness
+  # review found Epic 7 entirely absent from this file, which is Epic 6 action item A2
+  # recurring verbatim. The Epic 5 agreement ("reconciled at story close, whichever dev
+  # workflow ran") cannot create a block that never existed at open, so the epic and all
+  # fifteen story keys are registered up front. Story order is the epic's design, not a
+  # preference — each step gates the next (see the Epic 7 story-order rationale in epics.md).
+  epic-7: backlog
+  7-1-e2e-suite-inside-frontend-quality-gates: backlog
+  7-2-shared-e2e-support-module: backlog
+  7-3-delete-registration-enabled-race: backlog
+  7-4-item-edit-merges-stored-item: backlog
+  7-5-home-resolution-and-inert-home-link: backlog
+  7-6-backend-safety-fixes: backlog
+  7-7-minor-and-patch-dependency-sweep: backlog
+  7-8-types-node-25-to-26: backlog
+  7-9-vite-7-to-8-with-plugin-react-5-to-6: backlog
+  7-10-typescript-6-to-7: backlog
+  7-11-eslint-9-to-10: backlog
+  7-12-graphql-kotlin-9-to-10-with-kotlin: backlog
+  7-13-graphql-16-to-17: backlog
+  7-14-installable-pwa: backlog
+  7-15-dev-auto-warnings-verdict: backlog
+  epic-7-retrospective: optional
 
 # Action items from retrospectives. Reviewed at the start of the next retro
 # before new items are added (standing team agreement since Epic 3).

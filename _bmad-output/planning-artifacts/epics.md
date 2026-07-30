@@ -168,9 +168,12 @@ later epic and depends on the `checkedAt` preservation gap recorded in AR-E6-3.
 
 FR58: Saving an item that already exists modifies only the fields the item editor sends. The item's recorded author
 (`addedBy`), its check-off timestamp (`checkedAt`), and its soft-delete state (`deleted`, `deletedAt`) survive the save
-unchanged. A save naming an item id that does not exist on the target list is rejected with an error rather than
-creating the item, and a save naming a category that does not belong to the target list is rejected rather than being
-written as a dangling reference.
+unchanged. Create and update are discriminated by **whether the item id already exists on the target list**, never by
+whether an id was supplied: the client generates the id with `crypto.randomUUID()` for new items as well as for edits,
+so an id is always present. A save whose id is not found on the target list creates the item, with `addedBy` set from
+the caller; a save whose id is found merges the input onto the stored item. A save naming an id that exists on a
+**different** list is rejected with an error and moves nothing, and a save naming a category that does not belong to
+the target list is rejected rather than being written as a dangling reference.
 
 **Also delivered in Epic 7 (correctness restored on already-shipped FRs, not new requirements):**
 
@@ -222,6 +225,14 @@ NFR13: All input fields on auth forms have visible, associated labels
 NFR14: Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 NFR15: Form error messages are associated with their corresponding input fields
 NFR16: Text and interactive elements on auth screens meet minimum colour contrast for readability
+NFR17: The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
+production artifact (built SPA served by Caddy + backend + MongoDB) on both a desktop and a mobile viewport, and must
+pass with zero failures before any story in any epic is marked done; it is deliberately not pointed at the Vite dev
+server
+NFR18: E2E tests use browser-level isolation (no shared auth state across test files) and are UI-driven — each spec
+registers its own fresh user and signs in through the form; there is deliberately no login fixture and no
+`storageState`; direct API calls are permitted only to prepare the environment, never for the behaviour under
+assertion
 
 #### Epic 4 — Lists & Sharing
 
@@ -3197,6 +3208,13 @@ zero — so `…:05Z` sorts *after* `…:05.100Z` under `localeCompare` (`'Z'` 0
 **Then** a test constructs the specific precision pair (one timestamp with zero nanos, one with a fractional part) and
 asserts the earlier list wins
 **And** the test was confirmed to **fail** against `localeCompare` before the fix was applied
+**And** the vehicle is a Playwright `page.route` interception of the `ListsQuery` response returning the crafted
+`createdAt` pair — `createdAt` is server-generated from `Instant.now()`, so the precision case cannot be produced
+through the UI. This is permitted under the standing rule "mock only the *input to a render*, never the thing under
+test": the thing under test is `HomeRedirect`'s comparison, and the query result is its input.
+**And** it is explicitly **not** implemented by adding a unit-test framework (none exists in `bp_front/`, and this epic
+is not the place to introduce one) nor by writing `createdAt` values directly into MongoDB (which would violate the
+API-only test-data rule)
 
 **AC3 — activating home while already home changes nothing visible (FR57, UX-DR-E7-2)**
 
