@@ -4,7 +4,7 @@ type: 'chore'
 created: '2026-08-07'
 status: 'done'
 baseline_revision: 'ea6ebde'
-final_revision: '98a1e01'
+final_revision: 'cf6fa9e'
 review_loop_iteration: 0
 followup_review_recommended: true  # 8 patches (4 medium) all landed in the documentation/bookkeeping ~80% of the diff that no gate checks — including two factually false ledger prescriptions and a rules-file correction; that text is read as authoritative by later agents, so an independent pass over the corrected prose is cheap and warranted
 context:
