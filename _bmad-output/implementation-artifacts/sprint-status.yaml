@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-08-07"  # story 7.1 done (E2E suite inside the frontend quality gates); Epic 6 action item B3 open -> done, delivered by that story; prior: 2026-07-30 story 7.1 contexted: epic-7 backlog -> in-progress (first story created), 7-1 backlog -> ready-for-dev; prior same day: epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
+last_updated: "2026-08-08"  # story 7.2 contexted: 7-2 backlog -> ready-for-dev. Context measured the duplication rather than trusting the epic: the eight helpers are declared across SEVEN spec files, not the four the epic's Files line names, and the registrationEnabled toPass workaround has FIVE copies, not four (navigation.spec.ts:41 was missed by every prior document). Scope set to the seven declaring files so AC1's grep clause is satisfiable; deviation flagged to md. Prior: 2026-08-07 story 7.1 done (E2E suite inside the frontend quality gates); Epic 6 action item B3 open -> done, delivered by that story; prior: 2026-07-30 story 7.1 contexted: epic-7 backlog -> in-progress (first story created), 7-1 backlog -> ready-for-dev; prior same day: epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -109,7 +109,7 @@ development_status:
   # preference — each step gates the next (see the Epic 7 story-order rationale in epics.md).
   epic-7: in-progress
   7-1-e2e-suite-inside-frontend-quality-gates: done
-  7-2-shared-e2e-support-module: backlog
+  7-2-shared-e2e-support-module: ready-for-dev
   7-3-delete-registration-enabled-race: backlog
   7-4-item-edit-merges-stored-item: backlog
   7-5-home-resolution-and-inert-home-link: backlog
