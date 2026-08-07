@@ -100,7 +100,18 @@ close-out above before acting on anything here.**
   `warnings: [multiple-goals, oversized]`. `bmad-dev-auto` had independently flagged the multiple-goals risk in its own
   blocked report before Epic 6 ran. Now an Epic 7 story (Epic 6 retro action B8).
 
-- **`bp_front/e2e/` is outside both frontend quality gates** — neither linted (`eslint src/`) nor type-checked
+- ~~**`bp_front/e2e/` is outside both frontend quality gates**~~ **CLOSED 2026-08-07 — Story 7.1 brought the suite
+  inside both gates.** `bp_front/tsconfig.e2e.json` (a third project covering `e2e` + `playwright.config.ts`) is now
+  referenced from the solution `tsconfig.json`, so `npm run build`'s `tsc -b` type-checks all 9 spec files plus
+  `global-setup.ts`; `npm run
+  lint` is now `eslint .`, which lints `e2e/`, `playwright.config.ts`, `vite.config.ts` and `codegen.ts` alongside
+  `src/` (`dist` and `src/__generated__` stay ignored via the flat config's `ignores`). One pre-existing error was
+  surfaced and fixed at the source (`e2e/lists.spec.ts:1`, an unused `type Browser` import); the gate was then observed
+  **failing** on a deliberately injected type error and a deliberately injected lint error before being accepted.
+  This entry is the rollup; the two per-review duplicates below (6.1 review, 6.2 review) close with it. **Residual gap
+  filed separately:** type-aware linting is still not enabled, so an un-awaited assertion still ships undetected — see
+  the new entry under "Deferred from: Story 7.1". Retained for history:
+  neither linted (`eslint src/`) nor type-checked
   (`tsconfig.app.json` includes only `src`), while Playwright transpiles without type checking. Flagged as a defer in
   **both** Epic 6 stories; Epic 6 added ~1,015 lines of spec code into that blind spot, and AC-level claims that
   "`npm run lint` and `npm run build` pass" are vacuous for the layer the project treats as its hard gate. Now an Epic 7
@@ -125,6 +136,104 @@ close-out above before acting on anything here.**
   history entry** — spinner blink, then `replace` back to the same route, so Back appears to do nothing once. Not
   fixable in the app bar (AR-E6-7 forbids it re-deriving the home path); the clean fix belongs in `HomeRedirect` or a
   shared hook exposing the resolved path. Low consequence, unscheduled.
+
+## Deferred from: Story 7.1 — E2E suite inside the frontend quality gates (2026-08-07)
+
+Story 7.1 closed the "no static gate on `e2e/`" gap (three entries above). What follows is the residue it deliberately
+did **not** take on, plus what its own adversarial review surfaced — recorded here rather than in `project-context.md`
+(NFR-E7-1: that file is a rules file, this one is the ledger).
+
+- **Type-aware linting is not enabled, so `@typescript-eslint/no-floating-promises` does not run — an un-awaited
+  Playwright assertion still ships undetected.** This is the single highest-value remaining addition to the frontend
+  static gate and the one rule class that would catch the canonical "assertion that never ran" defect
+  (`expect(locator).toBeVisible()` without `await`). Story 7.1 audited all 2,474 lines of `e2e/` and found **zero**
+  instances today, but nothing in the current rule set would catch a future one. **Why deferred (Story 7.1 Decision 9):**
+  `bp_front/eslint.config.mjs` extends `tseslint.configs.recommended`, not `recommendedTypeChecked`, and
+  `parserOptions` carries no `project`/`projectService`. Switching it on changes the rule set for `src/` too, and that
+  blast radius is unmeasured; Story 7.1's whole value was a small, readable, tooling-only diff. **Natural home:
+  Story 7.11 (ESLint 9→10)** — the next time the lint config is opened deliberately.
+  **Implementation trap, verified on `typescript-eslint` 8.65.0 — do not lose a cycle to it:** with a solution-style
+  root (`bp_front/tsconfig.json` is `{"files": [], "references": [...]}`), the documented
+  `parserOptions: {project: ['./tsconfig.json']}` **fails** with
+  `Parsing error: The file was not found in any of the provided project(s)`, because typescript-eslint does **not**
+  follow project references. Use `parserOptions: {projectService: true, tsconfigRootDir: import.meta.dirname}` instead —
+  it is what typescript-eslint now recommends over `project`, and it needs no per-project maintenance as further
+  tsconfigs are added (there are now three).
+
+- **`codegen.ts` is still inside no tsconfig project.** After Story 7.1, `tsconfig.app.json` covers `src`,
+  `tsconfig.node.json` covers `vite.config.ts`, and `tsconfig.e2e.json` covers `e2e` + `playwright.config.ts` —
+  `codegen.ts` is the one remaining root file that `tsc -b` never sees. It *is* now linted (the widened `eslint .`
+  picks it up) but it is not type-checked. Deliberately out of Story 7.1's scope (Decision 8): it is not E2E
+  infrastructure, and widening the story to cover it would have meant either a fourth project or editing
+  `tsconfig.node.json`, which Story 7.1 was forbidden to touch. Low severity — the file is 44 lines of codegen config.
+  Fix by adding `codegen.ts` to `tsconfig.node.json`'s `include`; **verified sufficient on its own** — no `types` change
+  is needed alongside it (`tsc -b` exits 0), contrary to this entry's first draft.
+
+- **Informational, not debt — how Node ambient globals actually reach a project on TypeScript 6.** TypeScript 6.0
+  changed the `types` default from "all of `@types/*`" to `[]`, so `@types/node` is no longer auto-discovered from an
+  empty `types`. The operative rule is that **Node ambients are in scope only if something you import drags them in**:
+  `vite.config.ts` imports from `vite`, whose own type surface pulls in `@types/node`, so `tsconfig.node.json` gets
+  `process` transitively despite omitting `types`; `playwright.config.ts` imports only `@playwright/test`, which does
+  not, which is why `tsconfig.e2e.json` must set `"types": ["node"]` explicitly (Story 7.1 hit four `TS2591`s on its
+  `process.env` sites without it).
+  **Correction (Story 7.1 review, 2026-08-07):** this entry was first filed claiming `tsconfig.node.json` was "one
+  `process.env` reference away from a `TS2591`". **That is false and was disproved by probe** — appending
+  `export const __probe: string = process.env.NODE_ENV ?? 'x'` to `vite.config.ts` and rebuilding from a cleared
+  tsbuildinfo gives `tsc -b` exit **0**. There is no debt here; adding `"types": ["node"]` to `tsconfig.node.json`
+  would be belt-and-braces, not a fix. Recorded because the *general* rule is the thing worth knowing, and because a
+  ledger entry that sends the next agent at a non-problem is worse than no entry. If you do ever add `types` there, use
+  the explicit `["node"]`, **not** `["*"]`, which the TS 6 release notes discourage.
+
+### Surfaced by the Story 7.1 code review (2026-08-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+  summary: the production frontend **image build** now type-checks the E2E suite, so one spec type error blocks the
+  image — and the E2E `webServer` builds that image, so the suite cannot run to reveal what broke it.
+  evidence: `bp_front/Dockerfile:11-12` is `COPY bp_front/ ./` then `RUN npm run build`, and the root `.dockerignore`
+  excludes only `node_modules`, `dist`, `test-results`, `playwright-report`, `blob-report`, `.vite` — so `e2e/`,
+  `playwright.config.ts` and `tsconfig.e2e.json` all enter the build context and `tsc -b` checks them inside the image.
+  This is a direct and arguably *correct* consequence of AC1 ("`tsc -b` type-checks the spec files as part of the normal
+  build"), but the coupling is new and unrecorded: a broken spec now fails the shipping artifact, not just the gate.
+  Note that dropping `e2e` from the Docker context is **not** a fix — `tsconfig.e2e.json` would then raise `TS18003`.
+  The clean options are building the image with `tsc -b tsconfig.app.json tsconfig.node.json`, or accepting the coupling
+  deliberately and saying so. Decide before Story 7.14 makes the image build more expensive.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+  summary: `tsc -b` has no working incremental cache — all three projects fully re-check on every `npm run build`, and
+  this story made that cost 50% larger.
+  evidence: two consecutive `npx tsc -b --verbose` runs both print `Project 'tsconfig.e2e.json' is out of date because
+  output file 'e2e/account.spec.js' does not exist` and rebuild everything. With `noEmit` and no `composite`, the
+  `.tsbuildinfo` is written (337 bytes — not a real program graph) but never satisfies the up-to-date check. Pre-existing
+  for the two original projects; Story 7.1 added a third without observing it. Low consequence today (full build ~2s).
+  The `composite: true` + `noEmit: true` combination is accepted on TypeScript 6.0.3 and is the obvious thing to test —
+  Story 7.1 rejected it only on "buys nothing here" grounds, which this finding contradicts.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+  summary: `types: ["node"]` makes `setTimeout` return `Timeout` rather than `number` inside `e2e/`, while `src/` still
+  gets `number` — the same line type-checks in one project and fails in the other.
+  evidence: probe — `const t: number = setTimeout(() => {}, 1)` yields `TS2322: Type 'Timeout' is not assignable to type
+  'number'` under `tsconfig.e2e.json` and compiles clean under `tsconfig.app.json`. Node's ambient timer declarations
+  win over the DOM lib's when both are in scope. Not a defect, but a real gotcha for **Story 7.2**, whose shared support
+  module is exactly the kind of code that reaches for a timer handle. Annotate as `ReturnType<typeof setTimeout>`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+  summary: `npm run test:e2e` cannot reliably cold-start — Story 7.1's green run was obtained via `reuseExistingServer`
+  after the documented command aborted, so the headline evidence is not reproducible by that command on a clean machine.
+  evidence: the first invocation failed with `Error: Process from config.webServer exited early.` because
+  `docker compose up -d --build` returns once containers are *started*, before Caddy answers on `:2080`; the stack was
+  then hand-verified healthy (`/` → 200, `/api/graphiql` → 401) and the suite re-run against the same freshly built
+  production image, giving 104/104. This is the concrete, now-observed consequence of the long-standing "Playwright
+  `webServer` gaps, carried since Epic 3" entry above — recorded separately because that entry describes the gap in the
+  abstract and this is a run it actually cost. A `webServer.url` health check that waits for real readiness would fix it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+  summary: `react-refresh/only-export-components` is still `error` for `vite.config.ts` and `codegen.ts`, which the
+  widened `eslint .` newly lints and which the `bp/e2e-playwright` override's glob does not cover.
+  evidence: the override is `files: ['e2e/**/*.ts', 'playwright.config.ts']`, while the base block is
+  `files: ['**/*.{ts,tsx}']`. Neither tooling file violates the rule today (both export only a default config object),
+  so this is latent, not live. Left alone deliberately: widening the override glob beyond what AC3 asked for was out of
+  Story 7.1's scope. Fold `vite.config.ts` and `codegen.ts` into the override glob whenever the lint config is next
+  opened (Story 7.11).
 
 ## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
 
@@ -514,7 +623,10 @@ against `:2080`, not merely reasoned about.
   `category` still belongs to the list. Client-side alternatives (refetch-before-save, or clearing `editItemTarget` when
   the item leaves `items`) only shrink the race.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`~~
+  **CLOSED 2026-08-07 — resolved by Story 7.1** (duplicate of the rollup entry at the top of this file; see it for the
+  full closure note). `tsconfig.e2e.json` is referenced from the solution `tsconfig.json` and `"lint"` is now
+  `eslint .`. Retained for history:
   summary: `bp_front/e2e/` is covered by neither ESLint nor `tsc`, so the Playwright suite — the project's primary quality
   gate — has no static verification at all.
   evidence: `package.json` runs `lint` as `eslint src/`; `tsconfig.app.json` includes only `["src"]` and
@@ -545,7 +657,10 @@ against `:2080`, not merely reasoned about.
   `FR57/FR38 — …lands on the oldest list` spec flaky at the same rate. Pre-existing (shipped in Story 5.6, exercised by
   `shopping.spec.ts` FR38 since); untouched by this story. Fix by comparing `Date.parse(createdAt)` / `new Date(...)`
   numerically, or by having the backend emit a fixed-precision timestamp.
-- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`~~
+  **CLOSED 2026-08-07 — resolved by Story 7.1** (duplicate of the rollup entry at the top of this file; see it for the
+  full closure note). `tsconfig.e2e.json` is referenced from the solution `tsconfig.json` and `"lint"` is now
+  `eslint .`. Retained for history:
   summary: `bp_front/e2e/` is outside both frontend quality gates — E2E specs are neither linted nor type-checked.
   evidence: bp_front/package.json:12 (`"lint": "eslint src/"`) and bp_front/tsconfig.app.json:30-32 (`"include": ["src"]`)
   / tsconfig.node.json:20-22 (`"include": ["vite.config.ts"]`). Playwright transpiles specs without type checking, so a

@@ -145,10 +145,22 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Framework**: Playwright — config at `bp_front/playwright.config.ts`, tests at `bp_front/e2e/`, run via
   `npm run test:e2e`. **52 specs / 104 runs at the end of Epic 6** (32/64 at the end of Epic 5; Epic 6 added
   `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each).
-- **`bp_front/e2e/` is currently outside both quality gates** — `lint` is `eslint src/` and `tsconfig.app.json` includes
-  only `src`, while Playwright transpiles without type checking. So "lint and build pass" says *nothing* about the suite
-  the project treats as its hard gate. Scheduled to be fixed (Epic 6 retro action B3); until then, treat a spec-file
-  type error as something only a runtime failure will reveal.
+- **`bp_front/e2e/` is inside both quality gates** (since Story 7.1). `npm run lint` is `eslint .`; rules apply to
+  `**/*.{ts,tsx}` only, so `e2e/`, `playwright.config.ts`, `vite.config.ts` and `codegen.ts` are now checked alongside
+  `src/`, while `.mjs`/`.js` files are walked but carry no rules. Flat config does **not** read `.gitignore` — the
+  config's `ignores` array is the only thing keeping `dist`, `src/__generated__` and the Playwright output directories
+  out, so add to it rather than to the script glob. `npm run build`'s `tsc -b` type-checks the specs through a third
+  project, `bp_front/tsconfig.e2e.json`, referenced from the solution `tsconfig.json`
+  (`include: ["e2e", "playwright.config.ts"]`, `types: ["node"]`, and `lib` **includes** `DOM`/`DOM.Iterable` because
+  `page.evaluate` callbacks are genuinely browser code — omitting DOM produces 11 spurious errors in correct specs).
+  `react-refresh/only-export-components` is switched off for `e2e/**` so a support module of exported helpers is legal
+  there. So a spec-file type error or unused import now fails the build — **including the production image build**,
+  which runs `npm run build` inside `bp_front/Dockerfile`.
+- **The static gate proves a spec compiles, not that every assertion is awaited.** Type-aware linting is not enabled
+  (`tseslint.configs.recommended`, no `parserOptions.project`/`projectService`), so
+  `@typescript-eslint/no-floating-promises` does not run: a forgotten `await` on `expect(locator).toBeVisible()` still
+  passes both gates and silently asserts nothing. **Await every web-first matcher by hand.** (Ledger entry and the fix's
+  implementation trap: `deferred-work.md`, "Deferred from: Story 7.1".)
 - **E2E runs against the PRODUCTION image, not the dev server** — `webServer` runs `docker compose up -d --build` and
   `baseURL` is `http://localhost:2080` (built `dist/` served by Caddy). This is deliberate: it closes the "green on the
   dev server, broken in the shipped bundle" gap (asset hashing, base path, tree-shaking, SPA-fallback misconfig). Do not
@@ -208,7 +220,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Frontend (TypeScript / React)
 
 - **ESLint is a flat config** (`bp_front/eslint.config.mjs`): `typescript-eslint` + `eslint-plugin-react-hooks` +
-  `eslint-plugin-react-refresh`. `eslint-config-next` is gone. `npm run lint` runs `eslint src/`
+  `eslint-plugin-react-refresh`. `eslint-config-next` is gone. `npm run lint` runs `eslint .` — the whole package is
+  *walked*, but only `**/*.{ts,tsx}` carries rules, so a `.mjs`/`.js` file appearing in the linted set is not evidence
+  it was checked (see the E2E gate section above). The flat config's `ignores` is the only exclusion mechanism —
+  `.gitignore` is not consulted. Flat config objects concatenate and **later objects win**, so the `bp/e2e-playwright`
+  override must stay last
 - **All styling via the MUI theme + `sx`** — no `style={{}}`, no `className` styling, no CSS modules. The theme is
   dark-only (`src/theme.ts`): bg `#000`, paper `#1C1C1E`, primary teal `#4DC9BB`, success `#30D158`, error `#FF453A`,
   warning `#FFD60A`, plus `theme.custom.bp.*` tokens. Theme switching is out of scope
@@ -343,7 +359,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-07-29 (Epic 6 retro) — added the "a new test is unproven until observed failing" testing convention
+_Last Updated: 2026-08-07 (Story 7.1) — `bp_front/e2e/` is now **inside** both frontend quality gates: the "outside both
+quality gates" bullet was replaced with the new reality (third tsconfig project `tsconfig.e2e.json` referenced from the
+solution config; `npm run lint` widened to `eslint .`; `react-refresh/only-export-components` off for `e2e/**`), and the
+residual gap was named — type-aware linting is still not enabled, so an un-awaited assertion still ships undetected. New
+debt from that story lives in `deferred-work.md`, not here. Prior entry:
+2026-07-29 (Epic 6 retro) — added the "a new test is unproven until observed failing" testing convention
 and the `browser.newContext()` viewport trap; added a Deployment section recording that production config is server-only
 by design, the repo-root build-context requirement for both images, and the first production deployment (`0.16.0`);
 closed out the rate-limiter item; refreshed the E2E counts and the `registrationEnabled` decided fix. Prior entry:

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-30"  # story 7.1 contexted: epic-7 backlog -> in-progress (first story created), 7-1 backlog -> ready-for-dev; prior same day: epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
+last_updated: "2026-08-07"  # story 7.1 done (E2E suite inside the frontend quality gates); Epic 6 action item B3 open -> done, delivered by that story; prior: 2026-07-30 story 7.1 contexted: epic-7 backlog -> in-progress (first story created), 7-1 backlog -> ready-for-dev; prior same day: epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -108,7 +108,7 @@ development_status:
   # fifteen story keys are registered up front. Story order is the epic's design, not a
   # preference — each step gates the next (see the Epic 7 story-order rationale in epics.md).
   epic-7: in-progress
-  7-1-e2e-suite-inside-frontend-quality-gates: ready-for-dev
+  7-1-e2e-suite-inside-frontend-quality-gates: done
   7-2-shared-e2e-support-module: backlog
   7-3-delete-registration-enabled-race: backlog
   7-4-item-edit-merges-stored-item: backlog
@@ -199,7 +199,7 @@ action_items:
   - epic: 6
     action: "B3 — add bp_front/e2e/ to eslint and a tsconfig project; ~1015 lines of new spec code shipped this epic outside both quality gates, making 'lint and build pass' vacuous for the layer the project treats as its hard gate"
     owner: "Amelia"
-    status: open  # Epic 7 story
+    status: done  # delivered by Story 7.1 (2026-08-07): tsconfig.e2e.json referenced from the solution tsconfig, "lint" widened to `eslint .`, one pre-existing TS6133 fixed at source, gate observed failing on injected type + lint errors
   - epic: 6
     action: "B4 — extract a shared E2E helper module (uniqueUsername, registerViaUi, openListsViaMenu, createListAndOpen, addCategory, addItem, loginApi, gql); now copy-pasted into a 4th spec file"
     owner: "Amelia"

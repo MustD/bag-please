@@ -1,4 +1,4 @@
-import {type Browser, expect, type Page, test} from '@playwright/test'
+import {expect, type Page, test} from '@playwright/test'
 
 // Lists Management E2E (Story 5.5). UI-driven only — no API shortcuts for the
 // asserted behaviour (the sole exception is the one-time registration-enable in
