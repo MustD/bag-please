@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "2026-07-30"  # epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
+last_updated: "2026-07-30"  # story 7.1 contexted: epic-7 backlog -> in-progress (first story created), 7-1 backlog -> ready-for-dev; prior same day: epic-7 registered at open (15 stories, backlog) following the implementation-readiness review; prior: 2026-07-29 epic-6 closed, both stories done, retrospective complete (epic-6-retro-2026-07-29.md), Epic 6 shipped to production
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -107,8 +107,8 @@ development_status:
   # workflow ran") cannot create a block that never existed at open, so the epic and all
   # fifteen story keys are registered up front. Story order is the epic's design, not a
   # preference — each step gates the next (see the Epic 7 story-order rationale in epics.md).
-  epic-7: backlog
-  7-1-e2e-suite-inside-frontend-quality-gates: backlog
+  epic-7: in-progress
+  7-1-e2e-suite-inside-frontend-quality-gates: ready-for-dev
   7-2-shared-e2e-support-module: backlog
   7-3-delete-registration-enabled-race: backlog
   7-4-item-edit-merges-stored-item: backlog
