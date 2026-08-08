@@ -2,8 +2,9 @@
 title: 'Story 7.3 — Delete the `registrationEnabled` race'
 type: 'bugfix'
 created: '2026-08-08'
-status: 'in-review'
+status: 'done'
 baseline_revision: '00e95cf'
+final_revision: '13079c7'
 review_loop_iteration: 0
 followup_review_recommended: true  # 11 patches (8 medium) and 8 of them landed in newly written authoritative prose — a false mobile-gate claim, a recovery command that could not work, a false "only construct" claim, an over-read measurement propagated to three documents, and a ledger action item aimed at a CI pipeline that does not exist. That text is read as binding by later agents and no gate checks it; same exposure that earned 7.1 and 7.2 follow-up passes, at higher volume.
 context:
