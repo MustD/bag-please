@@ -4,7 +4,7 @@ type: 'refactor'
 created: '2026-08-08'
 status: 'done'
 baseline_revision: '5ba0a9e'
-final_revision: 'PENDING'
+final_revision: '34ea998'
 review_loop_iteration: 0
 followup_review_recommended: true  # the code half is an extraction proved byte-identical by AC7, but ~40% of the diff is ledger/rules prose (two closed entries, a count correction that three prior documents got wrong, 11 new deferred candidates, a new project-context rules block) that no gate checks and that later agents read as authoritative — the same exposure that earned Story 7.1 a follow-up pass
 context:
