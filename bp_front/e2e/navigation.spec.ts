@@ -1,5 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+
 // Global Navigation E2E (Story 6.2, FR57 — with FR38/FR56 for the home-resolution
 // outcomes the title link delegates to). Covers the app-bar "Bag Please" title as
 // a genuine link to `/` on every guarded screen, and the shopping view's new
@@ -23,72 +25,6 @@ import {expect, type Page, test} from '@playwright/test'
 // link reaches it, not that it re-derives it.
 
 const ADMIN = {username: 'admin', password: 'admin'}
-const PASSWORD = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `nav_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated. Hardened
-// against the documented shared registration-flag race (admin.spec flips the
-// flag OFF for real while projects run concurrently; AuthPage reads it only on
-// mount) by reloading /auth until the Register link appears — mirrors
-// shopping.spec / lists.spec.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  // `/` is a redirect; a new user lands on /lists. Assert auth route-agnostically.
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
-async function openListsViaMenu(page: Page): Promise<void> {
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-lists').click()
-  await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
-
-// Create a list via the index overlay and open its management detail; returns
-// the list id (parsed from the /lists/:id URL) so the shopping view /list/:id
-// can be reached directly.
-async function createListAndOpen(page: Page, name: string): Promise<string> {
-  await page.getByTestId('create-list-button').click()
-  await expect(page.getByTestId('create-list-dialog')).toBeVisible()
-  await page.getByTestId('create-list-name').fill(name)
-  await page.getByTestId('create-list-submit').click()
-  await expect(page.getByTestId('create-list-dialog')).toHaveCount(0)
-  await page.getByTestId(`list-open-${name}`).click()
-  await expect(page).toHaveURL(/\/lists\/[^/]+$/)
-  await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  return page.url().split('/lists/')[1]
-}
-
-async function addCategory(page: Page, name: string): Promise<void> {
-  await page.getByTestId('add-category-button').click()
-  await expect(page.getByTestId('add-category-dialog')).toBeVisible()
-  await page.getByTestId('add-category-name').fill(name)
-  await page.getByTestId('add-category-submit').click()
-  await expect(page.getByTestId('add-category-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
-}
-
-async function addItem(page: Page, categoryName: string, itemName: string): Promise<void> {
-  await page.getByTestId('add-item-button').click()
-  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
-  await page.getByTestId('add-item-name').fill(itemName)
-  await page.getByTestId('add-item-dialog').getByRole('combobox').click()
-  await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  await page.getByTestId('add-item-submit').click()
-  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
-}
 
 // The title as the accessibility tree sees it: a link named "Bag Please".
 function titleLink(page: Page) {
@@ -96,7 +32,7 @@ function titleLink(page: Page) {
 }
 
 test('FR57 — the app-bar title is a link to home on every guarded screen', async ({page}, testInfo) => {
-  const username = uniqueUsername('everywhere', testInfo.project.name)
+  const username = uniqueUsername('nav', 'everywhere', testInfo.project.name)
   const listName = `Everywhere ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
 
@@ -133,7 +69,7 @@ test('FR57 — the app-bar title is a link to home on every guarded screen', asy
 })
 
 test('FR57 — the title link keeps the title\'s look and only the text is clickable', async ({page}, testInfo) => {
-  const username = uniqueUsername('styling', testInfo.project.name)
+  const username = uniqueUsername('nav', 'styling', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
   const link = page.getByTestId('app-bar-home')
@@ -174,7 +110,7 @@ test('FR57 — the title link keeps the title\'s look and only the text is click
 })
 
 test('FR57 — the title link is Tab-reachable and activatable with Enter', async ({page}, testInfo) => {
-  const username = uniqueUsername('keyboard', testInfo.project.name)
+  const username = uniqueUsername('nav', 'keyboard', testInfo.project.name)
   const listName = `Keyboard ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
@@ -207,7 +143,7 @@ test('FR57 — the title link is Tab-reachable and activatable with Enter', asyn
 })
 
 test('FR57/FR38 — activating the title link from the newer list lands on the oldest list', async ({page}, testInfo) => {
-  const username = uniqueUsername('oldest', testInfo.project.name)
+  const username = uniqueUsername('nav', 'oldest', testInfo.project.name)
   const oldest = `Oldest ${Date.now()}`
   const newer = `Newer ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
@@ -231,7 +167,7 @@ test('FR57/FR38 — activating the title link from the newer list lands on the o
 })
 
 test('FR38 — activating the title link with no lists lands on the lists index', async ({page}, testInfo) => {
-  const username = uniqueUsername('nolists', testInfo.project.name)
+  const username = uniqueUsername('nav', 'nolists', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
 
   // A brand-new user owns no lists. Stand on a non-home screen first so the
@@ -281,7 +217,7 @@ test('FR56 — admin activating the title link lands on the admin area with no l
 })
 
 test('FR57 — the shopping view\'s back link returns to the lists index', async ({page}, testInfo) => {
-  const username = uniqueUsername('back', testInfo.project.name)
+  const username = uniqueUsername('nav', 'back', testInfo.project.name)
   const listName = `Back ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
@@ -297,7 +233,7 @@ test('FR57 — the shopping view\'s back link returns to the lists index', async
 })
 
 test('FR57 — the shopping view\'s item rows still offer check-off only', async ({page}, testInfo) => {
-  const username = uniqueUsername('checkonly', testInfo.project.name)
+  const username = uniqueUsername('nav', 'checkonly', testInfo.project.name)
   const listName = `CheckOnly ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`
@@ -341,7 +277,7 @@ test('FR57 — an unauthenticated visitor gets no app bar and no title link', as
 })
 
 test('NFR-E6-2 — at 360px the title link and username chip both stay inside a single-line bar', async ({page}, testInfo) => {
-  const username = uniqueUsername('narrow', testInfo.project.name)
+  const username = uniqueUsername('nav', 'narrow', testInfo.project.name)
   const listName = `Narrow ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)

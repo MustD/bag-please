@@ -117,7 +117,20 @@ close-out above before acting on anything here.**
   "`npm run lint` and `npm run build` pass" are vacuous for the layer the project treats as its hard gate. Now an Epic 7
   story (Epic 6 retro action B3).
 
-- **No shared E2E fixture module; the helper block is copy-pasted into four spec files** (`lists`, `shopping`,
+- ~~**No shared E2E fixture module; the helper block is copy-pasted into four spec files**~~
+  **CLOSED 2026-08-08 — resolved by Story 7.2.** The eight helpers (`uniqueUsername`, `registerViaUi`,
+  `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`, `loginApi`, `gql`) now live exactly once, in
+  `bp_front/e2e/support/api.ts` and `bp_front/e2e/support/ui.ts`;
+  `grep -c "function <helper>" bp_front/e2e/*.spec.ts` returns **0** for all eight, and each spec passes its own
+  `uniqueUsername` prefix so all seven namespaces survive byte-for-byte.
+  **Two counts in the retained text are wrong; both were re-measured at `e4c54dc` by Story 7.2.** (a) The block was
+  copy-pasted into **seven** spec files, not four — `account`, `admin`, `lists`, `navigation`, `sharing`, `shopping`,
+  `item-editing` (per-helper: 7/6/5/4/4/4/2/2). (b) The `registrationEnabled` `toPass()` workaround had **five**
+  copies, not four — `lists:32`, `navigation:41`, `sharing:32`, `shopping:33`, `item-editing:41`; `navigation.spec.ts:41`
+  was missed by every prior document. The workaround itself is **unchanged and still present** (once, in
+  `support/ui.ts`) — removing it is Story 7.3, which now lands in **one** place instead of five.
+  Retained for history:
+  **No shared E2E fixture module; the helper block is copy-pasted into four spec files** (`lists`, `shopping`,
   `sharing`,
   `item-editing`). `registerViaUi` carries the `registrationEnabled` `toPass()` workaround, so that logic will drift
   between copies — and the race fix has to land in four places instead of one. Now an Epic 7 story (Epic 6 retro action
@@ -234,6 +247,81 @@ did **not** take on, plus what its own adversarial review surfaced — recorded 
   so this is latent, not live. Left alone deliberately: widening the override glob beyond what AC3 asked for was out of
   Story 7.1's scope. Fold `vite.config.ts` and `codegen.ts` into the override glob whenever the lint config is next
   opened (Story 7.11).
+
+## Deferred from: Story 7.2 — shared E2E support module (2026-08-08)
+
+Story 7.2 extracted the **eight helpers the epic named** into `bp_front/e2e/support/`. Everything below is duplication
+that was measured and left in place.
+
+**Read this list as a statement about provenance, not severity.** The selection criterion for what Story 7.2 extracted
+was "the epic named these eight" — it was *not* "these are the worst duplication in the suite". Some rows below are
+objectively larger than things that shipped: `loginApi` had 2 copies and was extracted, while `withSecondActor` has 15
+sites across 6 files and was not. **Nothing here has been assessed and found acceptable. It has been assessed and found
+out of that story's charter.** A later story should rank them properly.
+
+- **`withSecondActor(browser, baseURL, fn)` — 15 `browser.newContext({baseURL, ignoreHTTPSErrors: true})` sites across
+  5 files** (`admin` ×5, `sharing` ×5, `item-editing` ×2, `lists` ×2, `shopping` ×1 — the row said "6 files" while
+  enumerating 5; corrected at Story 7.2's review). The largest single duplication in
+  the suite. **Any extraction must preserve the AC4 caveat**: `browser.newContext()` does **not** inherit the project's
+  `use` block, so a hand-built context silently runs at a desktop viewport on the `mobile` project. The convention the
+  specs already follow — put the actor whose *rendering* the mobile gate must cover on the `page` fixture, the other in
+  the hand-built context — is load-bearing and easy to lose in a helper.
+
+- **`seedMembership(listId, owner, member, pw)` — 3 copies** (`shopping.spec.ts:278-281`, `item-editing.spec.ts:446-449`
+  and `:594-597` at `e4c54dc`), each a 4-line `loginApi`×2 + `gql`×2 block. Missed by Epic 7 planning entirely. Now the
+  cheapest remaining extraction, because both of its ingredients already live in `support/api.ts`.
+
+- **`loginViaUi` — a helper in `admin.spec.ts:22-27`, inlined 4× elsewhere.** **Must not bake in success assertions**:
+  `admin.spec.ts:133` calls it expecting a *failed* login. That constraint is why it was not folded into
+  `registerViaUi`'s neighbourhood.
+
+- **`backToLists` — a helper in `sharing.spec.ts`, inlined 3×**, one of which asserts on the URL instead of the
+  `lists-page` testid. Converging them changes what one test asserts; that needs a decision, not a move.
+
+- **`logoutViaMenu` — 2 copies, one missing the trailing `auth-page` assertion.** Same shape of problem: the copies are
+  not equivalent, so extraction is a behaviour decision.
+
+- **`uniqueName(label)` — 79 inline `` `<Label> ${Date.now()}` `` sites, no helper anywhere.** By site count the
+  single most repeated idiom in `e2e/`. Trivially extractable and deliberately untouched: it is not one of the eight.
+
+- **The `ADMIN` credential literal — 5 sites, 3 shapes.** `{username: 'admin', password: 'admin'}` is a named const in
+  `admin.spec.ts:15` and `navigation.spec.ts:25`, and a bare inline literal in `account.spec.ts`, `lists.spec.ts` and
+  `sharing.spec.ts`. Natural home is `support/ui.ts`.
+
+- **`DEFAULT_PW` vs `PASSWORD` — and a third, uncounted copy in `auth.spec.ts`.** `admin.spec.ts:18` holds the same
+  `'e2e-password-123'` literal under a different name; the other six copies were converged into `support/ui.ts`'s
+  `PASSWORD` by Story 7.2. Renaming `DEFAULT_PW` is an `admin.spec.ts`-wide edit for zero behavioural gain — left alone
+  on purpose. **Corrected during Story 7.2's review:** it is **not** the only surviving alias.
+  `grep -rn "e2e-password-123" bp_front/e2e/` returns **three** sites — `admin.spec.ts:18`, `auth.spec.ts:13` and
+  `support/ui.ts:20`. See the `auth.spec.ts` entry below.
+
+- **`auth.spec.ts` inlines the whole registration flow and was invisible to every measurement in Story 7.2.**
+  `auth.spec.ts:18-28` is `registerViaUi`'s body verbatim as a *test body* (goto `/auth` → `to-register-link` → fill →
+  submit → `not.toHaveURL(/\/auth$/)` + `app-bar`), and `:13` holds its own password literal, `:12` its own
+  `mia_e2e_${project.name}_${Date.now()}` username shape (no label segment). Story 7.2's ground truth was measured with
+  `grep "function <helper>"`, which by construction cannot see an inlined copy — **the same class of undercount that
+  story corrected in three prior documents.** Deliberately left inline: registration *is* the behaviour `auth.spec.ts`
+  asserts (FR1), so routing it through the shared helper would have the test exercise the helper rather than the flow.
+  **The consequence to record:** it is the one register-based spec with **no `toPass` hardening at all**, so it remains
+  bare against the `registrationEnabled` race that Story 7.3 deletes. Decide there whether it wants the guard.
+
+- **`global-setup.ts` overlaps `support/api.ts` in all but name.** Its `BASE_URL` is the same literal as `BACKEND`, and
+  its inline admin login and `setRegistrationEnabled` call are `loginApi`/`gql` re-implemented. **Deliberately deferred
+  to Story 7.3**, which owns that file. Note the constraint Story 7.2 built for it: `support/api.ts` imports nothing
+  from `@playwright/test` precisely so `global-setup.ts` can import it without dragging the runner into the globalSetup
+  phase. That is the whole reason the support module is two files rather than one.
+
+- **Shopping-checkbox selector split.** 9 sites reach the checkbox as `shopping-item-<name>` +
+  `getByRole('checkbox')`; `navigation.spec.ts:316` alone uses a dedicated `shopping-item-checkbox-<name>` testid. Not
+  duplication so much as an inconsistency that a future helper would have to pick a side on.
+
+- **`lists.spec.ts`'s four inline `addCategory`/`addItem` blocks are NOT a cleanup candidate — leave them.** Two are
+  deliberately *weaker* than the shared helper (`:155-158` and `:160-165` at `e4c54dc` omit the dialog assertions) and
+  one is deliberately *stronger* (`:106-116` asserts the item row scoped **under its category row**, which is the whole
+  point of that test). Replacing them would silently add assertions to the FR46 cascade test and **lose** the nesting
+  check. Likewise `createListViaUi` is a genuinely different function from `createListAndOpen` — it returns `void` and
+  stays on `/lists`, where `createListAndOpen` returns the list id and navigates into the detail. Recorded here so a
+  future "finish the job" story does not treat them as leftovers.
 
 ## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
 
@@ -635,7 +723,12 @@ against `:2080`, not merely reasoned about.
   for AC1/AC3/AC4/AC7, yet "lint and build pass" (AC5) says nothing about it. Fix: add an `e2e` tsconfig project to the
   build references and widen the lint glob.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`~~
+  **CLOSED 2026-08-08 — resolved by Story 7.2** (duplicate of the Epic 6 close-out entry near the top of this file; see
+  it for the full closure note). The eight helpers now live once under `bp_front/e2e/support/`. **Count correction:**
+  the block was in **seven** spec files at `e4c54dc`, not four, and the `toPass()` workaround in **five**, not four —
+  `item-editing.spec.ts` was the *sixth* `registerViaUi` copy and the *fifth* `toPass` copy, not the fourth of either.
+  Retained for history:
   summary: the E2E helper block (`uniqueUsername`, `registerViaUi`, `openListsViaMenu`, `createListAndOpen`, `addCategory`,
   `addItem`, `loginApi`, `gql`) is now copy-pasted into a fourth spec file; no shared fixture module exists.
   evidence: `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and now `item-editing.spec.ts` each re-declare them,
@@ -684,6 +777,73 @@ against `:2080`, not merely reasoned about.
   **4 flaky** (every one in the untouched `lists.spec.ts`, every one carrying `alert: "Registration is disabled"` in its
   error context, all healed on retry1) and a later one returned **84 passed, 0 flaky**. An earlier run at the default
   local `retries: 0` had **1 outright failure**, same file, same cause. So the race is unchanged in kind but each new
-  registering spec widens the window it can hit, and this story adds 14 registrations per full run. This is the fourth
-  spec to copy the `toPass()` workaround instead of the race being fixed at the source — the standing Epic 5 retro action
-  item.
+  registering spec widens the window it can hit, and this story adds 14 registrations per full run. This is the ~~fourth~~
+  **fifth** spec to copy the `toPass()` workaround instead of the race being fixed at the source — the standing Epic 5
+  retro action item.
+  **Count corrected 2026-08-08 by Story 7.2** (this entry stays OPEN — the race is Story 7.3's): re-measured at
+  `e4c54dc`, the workaround existed in **five** files — `lists:32`, `shopping:33`, `sharing:32`, `item-editing:41` and
+  `navigation:41`, the copy this entry itself added and then undercounted. Story 7.3's AC3 ("no spec retains a local
+  copy") depends on that count. Since Story 7.2 the workaround exists in exactly **one** place,
+  `bp_front/e2e/support/ui.ts:35-38`, unchanged in behaviour and with its 1500/20000 ms timeouts untouched.
+  (`navigation.spec.ts` also carries a sixth, *unrelated* `toPass` — CSS hover settling, 2000 ms — which is not this.)
+
+## Deferred from: code review of 7-2-shared-e2e-support-module (2026-08-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: `PASSWORD` lives in `support/ui.ts`, so any pure-API consumer must import the runner-importing module to get a
+  credential — the exact coupling the two-file split exists to prevent.
+  evidence: all seven `loginApi(x, PASSWORD)` call sites pair `./support/api`'s function with `./support/ui`'s constant,
+  and `ui.ts` imports `@playwright/test` at the top level. Story 7.3 converges `global-setup.ts` onto `api.ts` and will
+  hit this immediately. `PASSWORD` is a bare string literal with no Playwright dependency; moving it to `api.ts`
+  alongside `BACKEND` costs seven import-line edits and no behaviour change. Not done here: Story 7.2's spec assigned it
+  to `ui.ts` explicitly, and the suite is green as shipped.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: none of the five new E2E invariants has a machine gate — all five are prose in `project-context.md`, which is
+  the precise failure mode Epic 6's retro action B4 and Story 7.1 exist to correct.
+  evidence: "never re-declare a helper", "`api.ts` stays runner-free", "`BACKEND` must not become `baseURL`", "support
+  files must not match `*.spec.ts`" and "imports must be relative" are enforced by nothing; a one-line
+  `import {expect} from '@playwright/test'` added to `api.ts` passes both gates today. Two cheap enforcements exist and
+  were **blocked by Story 7.2's own no-config-change boundary**, not judged unnecessary: an ESLint `no-restricted-imports`
+  entry scoped to `files: ['e2e/support/api.ts']`, and an explicit `testMatch`/`testIgnore` in `playwright.config.ts`
+  (which would also convert the documented `support/helpers.spec.ts` trap from a warning into an impossibility).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: the shared `gql(query, token)` has no `variables` parameter, institutionalising string interpolation of test
+  data into GraphQL documents across all eight call sites.
+  evidence: every caller interpolates `listId` and usernames directly into the query string. Safe only incidentally —
+  `uniqueUsername` emits `[a-z0-9_]` and the interpolated ids are UUIDs. A list *name* (already a template literal,
+  e.g. `` `Shared ${Date.now()}` ``) or any string containing `"` would break the document. Extraction was the cheap
+  moment to add `variables`; it now costs eight call-site edits instead of two.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: `loginApi` and `gql` have no timeout, no retry, and no readiness assumption, so a stalled backend surfaces as
+  an opaque Playwright test timeout that does not distinguish setup from assertion.
+  evidence: both call bare `fetch` with no `AbortSignal`. `global-setup.ts` deliberately polls the backend for 120 s
+  before touching it; the shared helpers inherited none of that. `gql` also calls `res.json()` before checking `res.ok`,
+  so a Caddy 502 HTML body or an empty 401 yields a `SyntaxError` instead of the intended status diagnostic. All
+  pre-existing — Story 7.2 was a byte-identical extraction and correctly changed none of it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: `createListAndOpen` returns `page.url().split('/lists/')[1]` with no validation, and that unchecked id is now
+  fanned out to four specs and interpolated into GraphQL mutations.
+  evidence: the guarding assertion is `toHaveURL(/\/lists\/[^/]+$/)`, which still matches a URL carrying a query string
+  or fragment; the resulting id would be interpolated into `shareList(listId: "…")` and fail far from its cause.
+  `tsconfig.e2e.json` does not set `noUncheckedIndexedAccess`, so the declared `Promise<string>` is not compiler-guaranteed.
+  `new URL(page.url()).pathname.split('/lists/')[1]` is the one-line hardening. Pre-existing; extracted verbatim.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: the "no re-declaration" check greps for the literal string `function <helper>`, which tests a spelling rather
+  than the property it stands for.
+  evidence: it returns 0 today, but is equally satisfied by `const registerViaUi = async () => …` and was blind to
+  `auth.spec.ts`'s fully inlined copy — a real omission this very story made and only the review caught. Any future
+  restatement of this check should assert on imports (every spec using a helper imports it from `support/`) rather than
+  on the absence of a keyword.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-2-shared-e2e-support-module.md`
+  summary: `uniqueUsername(prefix, label, projectName)` takes three interchangeable positional `string`s to guard an
+  invariant the rules file calls "load-bearing".
+  evidence: transposing any two arguments compiles, lints and type-checks clean while silently placing a spec in a
+  foreign namespace — exactly the collision the prefix exists to prevent — and the change spread a repeated string
+  literal across ~40 call sites. A per-spec factory (`const userFor = namespace('shopping')`) or a
+  `type SpecPrefix` union removes both the repetition and the transposition hazard.

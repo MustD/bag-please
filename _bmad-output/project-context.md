@@ -189,19 +189,50 @@ _This file contains critical rules and patterns that AI agents must follow when 
   viewport on the `mobile` project, quietly voiding the mobile gate for whatever it covers. Prefer the `page` fixture
   (already per-test isolated); when a second actor genuinely needs its own context, put the actor whose *rendering* the
   mobile gate must cover on `page`, not in the hand-built context.
-- **No login fixture and no `storageState` exist** — each spec registers a fresh unique user through the UI
-  (`<prefix>_e2e_${project.name}_${Date.now()}`) and logs in through the form. Use `browser.newContext()` when a second
-  actor is needed so the first session is untouched.
+- **No login fixture and no `storageState` exist** — each spec registers a fresh unique user through the UI and logs in
+  through the form. The shared helper emits `` `${prefix}_e2e_${label}_${projectName}_${Date.now()}` `` —
+  `uniqueUsername(prefix, label, projectName)` in `e2e/support/ui.ts`, one distinct prefix per spec. (`auth.spec.ts:12`
+  predates the helper and inlines an eighth shape, `mia_e2e_${project.name}_${Date.now()}`, with **no label segment** —
+  do not "unify" it.) Use `browser.newContext()` when a second actor is needed so the first session is untouched.
 - **The DB volume `./db/data` persists across runs and the two projects run concurrently** — assert only on data your
   test created, and never on total row counts.
 - **Known race**: `registrationEnabled` is one shared Mongo document; the admin-toggle test flips it for real, so its
   OFF window can break register-based specs in the other project. CI `retries: 2` heals it; the suite is not reliably
   green at `retries: 0`. **Decided fix (Epic 6 retro, scheduled as an Epic 7 story):** keep registration **enabled** as
   the steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle
-  spec. Until that lands, do not add a fifth copy of the `expect(...).toPass()` workaround — it is already duplicated
-  across `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and `item-editing.spec.ts`, which is itself why the fix
-  cannot currently be made in one place (Epic 6 retro action B4).
+  spec. Until that lands, the `expect(...).toPass()` workaround around registration lives in **exactly one place** —
+  `bp_front/e2e/support/ui.ts`'s `registerViaUi` — and must stay there. **That is one place, not full coverage:**
+  `auth.spec.ts` registers inline (`:18-28`) and is hardened by nothing, so it stays bare against this race; and the
+  wrapper only guards reaching the register form, **not the submit**, which is the window the observed failures land in
+  (`alert: "Registration is disabled"` on `not.toHaveURL(/\/auth$/)`). **Count correction (Story 7.2, re-measured at
+  `e4c54dc`):** before the extraction it had **five** copies, not the four this bullet used to name — `lists.spec.ts:32`,
+  `shopping.spec.ts:33`, `sharing.spec.ts:32`, `item-editing.spec.ts:41` **and `navigation.spec.ts:41`**, the copy every
+  prior document missed. (`navigation.spec.ts` also has a sixth, *unrelated* `toPass` for CSS hover settling at 2000 ms —
+  not this one.) Being duplicated is why the fix could not be made in one place (Epic 6 retro action B4); Story 7.2
+  removed that obstacle, so the race fix now lands once.
 - **No component/unit test framework exists** — do not assume one.
+
+##### Shared E2E helpers live in `bp_front/e2e/support/` (Story 7.2)
+
+- **`e2e/support/ui.ts`** holds `PASSWORD` and the UI-driving helpers (`uniqueUsername`, `registerViaUi`,
+  `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`). **`e2e/support/api.ts`** holds `BACKEND`,
+  `loginApi` and `gql<T>`. Do not re-declare any of them in a spec — that is the duplication Story 7.2 removed.
+- **`support/api.ts` must never import `@playwright/test`.** `global-setup.ts` runs in Playwright's globalSetup phase,
+  before the runner exists; a top-level runner import in `api.ts` would drag it into that phase.
+- **`BACKEND` stays `'http://localhost:2080'`** — API prep always hits the local Caddy entrypoint directly. It must not
+  become `baseURL` or `E2E_BASE_URL`, which only control the *browser-facing* origin, or the TLS-edge run mode breaks.
+- **Imports are relative — `from './support/ui'`, never `@/`.** `tsconfig.e2e.json` has no `paths`, and Playwright
+  resolves the *closest* `tsconfig.json` walking up, so it reads `bp_front/tsconfig.json` and an alias would type-check
+  and then fail at runtime.
+- **A support file must not match `*.spec.ts` / `*.test.ts`, and must be `.ts`, never `.tsx`.** `playwright.config.ts`
+  sets no `testMatch`, so the default pattern applies and a `support/helpers.spec.ts` would be *collected* and fail the
+  run with zero tests. `.tsx` falls outside the `bp/e2e-playwright` override glob (`e2e/**/*.ts`) and would get
+  `react-refresh/only-export-components: error` — the rule that exists to permit a module of named exports here.
+- **`uniqueUsername` takes the caller's prefix first**: `uniqueUsername('shopping', label, project.name)`. The seven
+  prefixes (`acct`, `admin`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing — `./db/data`
+  persists and both projects run concurrently, so collapsing the namespaces would make specs collide on foreign data.
+- **It is a support module, not a login fixture** (AR-E7-5). No `storageState`, no `test.extend`, no session reuse:
+  every spec still registers a fresh user through the UI and logs in through the form.
 
 ### Code Quality & Style Rules
 
@@ -359,7 +390,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-07 (Story 7.1) — `bp_front/e2e/` is now **inside** both frontend quality gates: the "outside both
+_Last Updated: 2026-08-08 (Story 7.2) — the eight duplicated E2E helpers now live once under `bp_front/e2e/support/`;
+added the "Shared E2E helpers live in `bp_front/e2e/support/`" rules block (two-file split and why `api.ts` must stay
+runner-free, relative imports, the `*.spec.ts`/`.tsx` naming traps, the prefix parameter, support-module ≠ login
+fixture), and corrected the `registrationEnabled` bullet's copy count from four to **five** — `navigation.spec.ts:41`
+was the copy every prior document missed. New debt from that story lives in `deferred-work.md`, not here. Prior entry:
+2026-08-07 (Story 7.1) — `bp_front/e2e/` is now **inside** both frontend quality gates: the "outside both
 quality gates" bullet was replaced with the new reality (third tsconfig project `tsconfig.e2e.json` referenced from the
 solution config; `npm run lint` widened to `eslint .`; `react-refresh/only-export-components` off for `e2e/**`), and the
 residual gap was named — type-aware linting is still not enabled, so an un-awaited assertion still ships undetected. New

@@ -1,5 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+
 // Lists Management E2E (Story 5.5). UI-driven only — no API shortcuts for the
 // asserted behaviour (the sole exception is the one-time registration-enable in
 // global-setup.ts). Runs on both the chromium and mobile (Pixel 7) projects
@@ -10,45 +12,6 @@ import {expect, type Page, test} from '@playwright/test'
 // register UI — `admin` is blocked from list resources and there is no seeded
 // account (the ./db/data volume persists across runs and the two projects run
 // concurrently), so tests only ever assert on rows they created, never on totals.
-
-const PASSWORD = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `lists_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated on home
-// (FR1/FR4). Registration is enabled by global-setup.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  // Registration is enabled by global-setup, but the admin-panel spec briefly
-  // toggles the SHARED backend registration flag OFF and back ON while the two
-  // projects run concurrently (documented shared-state hazard). AuthPage reads
-  // the flag only on mount, so reload /auth until the Register link appears
-  // rather than failing on that transient window — this preserves the assertion,
-  // it just doesn't race the flag.
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  // `/` is now a redirect (Story 5.6): a brand-new user lands on /lists, not a
-  // home placeholder. Assert route-agnostic authentication (off /auth + the
-  // shared app-bar visible) rather than a specific landing URL/testid.
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
-// Open the lists index via the AppShell user-menu affordance (not by navigating
-// to /lists directly) — proves the nav entry routes there.
-async function openListsViaMenu(page: Page): Promise<void> {
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-lists').click()
-  await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
 
 // Create a list via the index overlay and wait for its row (refetch-driven, no
 // page reload / navigation).
@@ -63,7 +26,7 @@ async function createListViaUi(page: Page, name: string): Promise<void> {
 }
 
 test('FR50 — a brand-new user sees the lists zero-state onboarding prompt', async ({page}, testInfo) => {
-  const username = uniqueUsername('zero', testInfo.project.name)
+  const username = uniqueUsername('lists', 'zero', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
 
   await openListsViaMenu(page)
@@ -76,7 +39,7 @@ test('FR50 — a brand-new user sees the lists zero-state onboarding prompt', as
 })
 
 test('FR34/FR46/FR51 — golden path: create list, add category + item, remove both, delete list', async ({page}, testInfo) => {
-  const username = uniqueUsername('golden', testInfo.project.name)
+  const username = uniqueUsername('lists', 'golden', testInfo.project.name)
   const listName = `List ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`
@@ -140,7 +103,7 @@ test('FR34/FR46/FR51 — golden path: create list, add category + item, remove b
 })
 
 test('FR46 — removing a category that still contains an item removes the item with it (no orphan)', async ({page}, testInfo) => {
-  const username = uniqueUsername('cascade', testInfo.project.name)
+  const username = uniqueUsername('lists', 'cascade', testInfo.project.name)
   const listName = `Cascade ${Date.now()}`
   const categoryName = `Dairy ${Date.now()}`
   const itemName = `Milk ${Date.now()}`
@@ -177,8 +140,8 @@ test('FR46 — removing a category that still contains an item removes the item 
 })
 
 test('FR37 — the owner sees a delete affordance; a non-owner never sees the list at all', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner', testInfo.project.name)
-  const other = uniqueUsername('other', testInfo.project.name)
+  const owner = uniqueUsername('lists', 'owner', testInfo.project.name)
+  const other = uniqueUsername('lists', 'other', testInfo.project.name)
   const listName = `Owned ${Date.now()}`
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)
@@ -211,8 +174,8 @@ test('FR37 — the owner sees a delete affordance; a non-owner never sees the li
 })
 
 test('FR37/FR55 — role affordances: a shared member sees Leave but no Delete/Share controls', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('roleowner', testInfo.project.name)
-  const member = uniqueUsername('rolemember', testInfo.project.name)
+  const owner = uniqueUsername('lists', 'roleowner', testInfo.project.name)
+  const member = uniqueUsername('lists', 'rolemember', testInfo.project.name)
   const listName = `Roles ${Date.now()}`
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)

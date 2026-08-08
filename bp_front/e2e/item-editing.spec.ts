@@ -1,5 +1,8 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {gql, loginApi} from './support/api'
+import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+
 // Item Editing E2E (Story 6.1, FR40 + FR44). Every asserted behaviour is
 // UI-driven. There are exactly three non-UI uses, all named and justified:
 //   1. membership seeding for the two-actor test (sharing UI is Story 5.7) —
@@ -19,82 +22,6 @@ import {expect, type Page, test} from '@playwright/test'
 // The shopping view is always reached by page.goto(`/list/:id`), never through
 // Story 6.2's title/back links, so 6.1 stands alone.
 
-const PASSWORD = 'e2e-password-123'
-
-// Backend for API-only SETUP. Hit the Caddy entrypoint on :2080 directly — same
-// rationale as global-setup.ts — independent of E2E_BASE_URL, which only
-// controls the browser-facing origin under test.
-const BACKEND = 'http://localhost:2080'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `item_editing_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated. Hardened
-// against the documented shared registration-flag race (admin.spec briefly flips
-// the flag OFF while projects run concurrently; AuthPage reads it only on mount)
-// by reloading /auth until the Register link appears — mirrors shopping.spec.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
-async function openListsViaMenu(page: Page): Promise<void> {
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-lists').click()
-  await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
-
-// Create a list via the index overlay and open its management detail; returns the
-// list id (parsed from the /lists/:id URL) so both /lists/:id and the shopping
-// view /list/:id can be reached directly.
-async function createListAndOpen(page: Page, name: string): Promise<string> {
-  await page.getByTestId('create-list-button').click()
-  await expect(page.getByTestId('create-list-dialog')).toBeVisible()
-  await page.getByTestId('create-list-name').fill(name)
-  await page.getByTestId('create-list-submit').click()
-  await expect(page.getByTestId('create-list-dialog')).toHaveCount(0)
-  await page.getByTestId(`list-open-${name}`).click()
-  await expect(page).toHaveURL(/\/lists\/[^/]+$/)
-  await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  return page.url().split('/lists/')[1]
-}
-
-async function addCategory(page: Page, name: string): Promise<void> {
-  await page.getByTestId('add-category-button').click()
-  await expect(page.getByTestId('add-category-dialog')).toBeVisible()
-  await page.getByTestId('add-category-name').fill(name)
-  await page.getByTestId('add-category-submit').click()
-  await expect(page.getByTestId('add-category-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
-}
-
-// Add an item through the overlay. `store` exercises the Story 6.1 store field
-// on the ADD dialog; omit it to leave the item store-less.
-async function addItem(page: Page, categoryName: string, itemName: string, store?: string): Promise<void> {
-  await page.getByTestId('add-item-button').click()
-  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
-  await page.getByTestId('add-item-name').fill(itemName)
-  // Scoped role=combobox: the category Select must stay the ONLY combobox in
-  // this dialog, which is why the store field is a plain input with Chip
-  // suggestions rather than an Autocomplete.
-  await page.getByTestId('add-item-dialog').getByRole('combobox').click()
-  await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  if (store !== undefined) await page.getByTestId('add-item-store').fill(store)
-  await page.getByTestId('add-item-submit').click()
-  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
-}
-
 async function openEditDialog(page: Page, itemName: string): Promise<void> {
   await page.getByTestId(`item-row-${itemName}`).getByTestId('edit-item-button').click()
   await expect(page.getByTestId('edit-item-dialog')).toBeVisible()
@@ -113,30 +40,6 @@ async function setStoreViaEdit(page: Page, itemName: string, store: string): Pro
 }
 
 // --- API-only setup helpers (membership seeding, recurring seed/read-back) ---
-
-async function loginApi(username: string, password: string): Promise<string> {
-  const res = await fetch(`${BACKEND}/api/auth/login`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, password}),
-  })
-  if (!res.ok) throw new Error(`API login failed for ${username}: ${res.status}`)
-  const {accessToken} = (await res.json()) as {accessToken: string}
-  return accessToken
-}
-
-async function gql<T>(query: string, token: string): Promise<T> {
-  const res = await fetch(`${BACKEND}/api/graphql`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
-    body: JSON.stringify({query}),
-  })
-  const body = (await res.json()) as {data?: T; errors?: unknown}
-  if (!res.ok || body.errors || !body.data) {
-    throw new Error(`GraphQL setup call failed: ${res.status} ${JSON.stringify(body.errors)}`)
-  }
-  return body.data
-}
 
 interface ApiItem {
   id: string
@@ -158,7 +61,7 @@ async function fetchItem(listId: string, itemName: string, token: string): Promi
 }
 
 test('FR40 — renaming an item and moving it to another category persists across a reload', async ({page}, testInfo) => {
-  const username = uniqueUsername('rename', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'rename', testInfo.project.name)
   const listName = `Rename ${Date.now()}`
   const dairy = `Dairy ${Date.now()}`
   const fridge = `Fridge ${Date.now()}`
@@ -200,7 +103,7 @@ test('FR40 — renaming an item and moving it to another category persists acros
 })
 
 test('FR44 — a store can be set (trimmed), changed and cleared, seen via the shopping-view chip', async ({page}, testInfo) => {
-  const username = uniqueUsername('store', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'store', testInfo.project.name)
   const listName = `Store ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`
@@ -240,7 +143,7 @@ test('FR44 — a store can be set (trimmed), changed and cleared, seen via the s
 })
 
 test('FR44 — store suggestions are absent on a store-less list, then appear and are clickable', async ({page}, testInfo) => {
-  const username = uniqueUsername('suggest', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'suggest', testInfo.project.name)
   const listName = `Suggest ${Date.now()}`
   const categoryName = `Pantry ${Date.now()}`
   const first = `Rice ${Date.now()}`
@@ -296,7 +199,7 @@ test('FR44 — store suggestions are absent on a store-less list, then appear an
 })
 
 test('FR40 — editing a checked item keeps it checked (full-document upsert regression)', async ({page}, testInfo) => {
-  const username = uniqueUsername('checked', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'checked', testInfo.project.name)
   const listName = `Checked ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const before = `Bananas ${Date.now()}`
@@ -331,7 +234,7 @@ test('FR40 — editing a checked item keeps it checked (full-document upsert reg
 })
 
 test('FR40 — editing an item preserves its recurring cadence', async ({page}, testInfo) => {
-  const username = uniqueUsername('recurring', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'recurring', testInfo.project.name)
   const listName = `Recurring ${Date.now()}`
   const categoryName = `Pantry ${Date.now()}`
   const before = `Coffee ${Date.now()}`
@@ -372,7 +275,7 @@ test('FR40 — editing an item preserves its recurring cadence', async ({page}, 
 })
 
 test('FR40 — saving an unchanged item issues no SaveItem mutation and closes the dialog', async ({page}, testInfo) => {
-  const username = uniqueUsername('noop', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'noop', testInfo.project.name)
   const listName = `Noop ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Apples ${Date.now()}`
@@ -415,8 +318,8 @@ test('FR40 — saving an unchanged item issues no SaveItem mutation and closes t
 })
 
 test('FR40 — a co-member (not the owner) can edit, and the change lands live on another member\'s shopping view', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner', testInfo.project.name)
-  const member = uniqueUsername('member', testInfo.project.name)
+  const owner = uniqueUsername('item_editing', 'owner', testInfo.project.name)
+  const member = uniqueUsername('item_editing', 'member', testInfo.project.name)
   const listName = `Shared ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const before = `Bananas ${Date.now()}`
@@ -477,7 +380,7 @@ test('FR40 — a co-member (not the owner) can edit, and the change lands live o
 })
 
 test('FR40 — at ~360px both item controls fit, the name truncates, and the page does not scroll sideways', async ({page}, testInfo) => {
-  const username = uniqueUsername('narrow', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'narrow', testInfo.project.name)
   const listName = `Narrow ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const longName = `Extra long semi skimmed organic milk carton ${Date.now()}`
@@ -532,7 +435,7 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
 })
 
 test('FR40 — clearing the name blocks the save with an inline field error, sending no mutation', async ({page}, testInfo) => {
-  const username = uniqueUsername('blankname', testInfo.project.name)
+  const username = uniqueUsername('item_editing', 'blankname', testInfo.project.name)
   const listName = `Blank ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Pears ${Date.now()}`
@@ -573,8 +476,8 @@ test('FR40 — clearing the name blocks the save with an inline field error, sen
 })
 
 test('FR40 — a rejected save keeps the dialog open and shows the backend message inline', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('revokeowner', testInfo.project.name)
-  const member = uniqueUsername('revoked', testInfo.project.name)
+  const owner = uniqueUsername('item_editing', 'revokeowner', testInfo.project.name)
+  const member = uniqueUsername('item_editing', 'revoked', testInfo.project.name)
   const listName = `Revoked ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Plums ${Date.now()}`

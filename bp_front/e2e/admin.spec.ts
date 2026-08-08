@@ -1,5 +1,7 @@
 import {type Browser, expect, type Page, test} from '@playwright/test'
 
+import {uniqueUsername} from './support/ui'
+
 // Admin User Management E2E (Story 5.4). UI-driven only — no API shortcuts for
 // the asserted behaviour (the sole exception is the one-time registration-enable
 // in global-setup.ts). Runs on both the chromium and mobile (Pixel 7) projects
@@ -14,10 +16,6 @@ import {type Browser, expect, type Page, test} from '@playwright/test'
 
 const ADMIN = {username: 'admin', password: 'admin'}
 const DEFAULT_PW = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `admin_e2e_${label}_${projectName}_${Date.now()}`
-}
 
 async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/auth')
@@ -90,7 +88,7 @@ test('FR13/FR14 — admin creates a user via the panel; the new user can log in'
                                                                                          page,
                                                                                          baseURL
                                                                                        }, testInfo) => {
-  const username = uniqueUsername('create', testInfo.project.name)
+  const username = uniqueUsername('admin', 'create', testInfo.project.name)
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
 
@@ -113,7 +111,7 @@ test('FR16/FR17 — admin resets a user password via the confirm dialog; new pas
                                                                                                                 page,
                                                                                                                 baseURL
                                                                                                               }, testInfo) => {
-  const username = uniqueUsername('reset', testInfo.project.name)
+  const username = uniqueUsername('admin', 'reset', testInfo.project.name)
   const newPassword = 'e2e-reset-pw-789'
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
@@ -144,7 +142,7 @@ test('FR16/FR17 — admin resets a user password via the confirm dialog; new pas
 })
 
 test('FR15/FR17 — admin deletes a user via the confirm dialog; the row disappears', async ({page}, testInfo) => {
-  const username = uniqueUsername('delete', testInfo.project.name)
+  const username = uniqueUsername('admin', 'delete', testInfo.project.name)
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
 
@@ -211,7 +209,7 @@ test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /a
                                                                                               page,
                                                                                               baseURL
                                                                                             }, testInfo) => {
-  const username = uniqueUsername('nonadmin', testInfo.project.name)
+  const username = uniqueUsername('admin', 'nonadmin', testInfo.project.name)
   // Provision a regular user via the admin panel — deterministic and independent
   // of the shared registration flag the toggle scenario flips. FR31 is a
   // role-gating requirement, satisfied by any role==='user' account.

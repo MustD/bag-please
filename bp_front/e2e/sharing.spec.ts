@@ -1,5 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+
 // Sharing & Membership E2E (Story 5.7). UI-driven for every asserted behaviour:
 // the sharing itself is driven through the owner's Share & Members dialog and the
 // invitee's Accept/Decline in the Pending Invites section — never the
@@ -14,70 +16,6 @@ import {expect, type Page, test} from '@playwright/test'
 // Every scenario registers FRESH unique users per run/project via the register UI
 // and asserts only on self-created data (the ./db/data volume persists across
 // runs and the two projects run concurrently).
-
-const PASSWORD = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `sharing_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated. Hardened
-// against the documented shared registration-flag race (admin.spec briefly flips
-// the flag OFF while projects run concurrently; AuthPage reads it only on mount)
-// by reloading /auth until the Register link appears — mirrors the other specs.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
-async function openListsViaMenu(page: Page): Promise<void> {
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-lists').click()
-  await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
-
-// Create a list via the index overlay and open its management detail; returns the
-// list id parsed from the /lists/:id URL.
-async function createListAndOpen(page: Page, name: string): Promise<string> {
-  await page.getByTestId('create-list-button').click()
-  await expect(page.getByTestId('create-list-dialog')).toBeVisible()
-  await page.getByTestId('create-list-name').fill(name)
-  await page.getByTestId('create-list-submit').click()
-  await expect(page.getByTestId('create-list-dialog')).toHaveCount(0)
-  await page.getByTestId(`list-open-${name}`).click()
-  await expect(page).toHaveURL(/\/lists\/[^/]+$/)
-  await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  return page.url().split('/lists/')[1]
-}
-
-async function addCategory(page: Page, name: string): Promise<void> {
-  await page.getByTestId('add-category-button').click()
-  await expect(page.getByTestId('add-category-dialog')).toBeVisible()
-  await page.getByTestId('add-category-name').fill(name)
-  await page.getByTestId('add-category-submit').click()
-  await expect(page.getByTestId('add-category-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
-}
-
-async function addItem(page: Page, categoryName: string, itemName: string): Promise<void> {
-  await page.getByTestId('add-item-button').click()
-  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
-  await page.getByTestId('add-item-name').fill(itemName)
-  await page.getByTestId('add-item-dialog').getByRole('combobox').click()
-  await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  await page.getByTestId('add-item-submit').click()
-  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
-}
 
 // Owner-side share through the Share & Members dialog (UI, not API). Leaves the
 // dialog open so the caller can assert on the members list or an error.
@@ -99,8 +37,8 @@ async function backToLists(page: Page): Promise<void> {
 }
 
 test('FR39/FR41/FR50 — owner shares; invitee accepts and can write to the shared list', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner_share', testInfo.project.name)
-  const invitee = uniqueUsername('invitee_share', testInfo.project.name)
+  const owner = uniqueUsername('sharing', 'owner_share', testInfo.project.name)
+  const invitee = uniqueUsername('sharing', 'invitee_share', testInfo.project.name)
   const listName = `Shared ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`
@@ -150,9 +88,9 @@ test('FR39/FR41/FR50 — owner shares; invitee accepts and can write to the shar
 })
 
 test('FR39 — share errors (unknown user, self, duplicate) show the exact backend message inline', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner_err', testInfo.project.name)
-  const invitee = uniqueUsername('invitee_err', testInfo.project.name)
-  const ghost = uniqueUsername('ghost_err', testInfo.project.name)
+  const owner = uniqueUsername('sharing', 'owner_err', testInfo.project.name)
+  const invitee = uniqueUsername('sharing', 'invitee_err', testInfo.project.name)
+  const ghost = uniqueUsername('sharing', 'ghost_err', testInfo.project.name)
   const listName = `Errors ${Date.now()}`
 
   await registerViaUi(page, owner, PASSWORD)
@@ -190,8 +128,8 @@ test('FR39 — share errors (unknown user, self, duplicate) show the exact backe
 })
 
 test('FR40/FR48 — owner removes a member; the removed user loses access (next list load redirects)', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner_rm', testInfo.project.name)
-  const invitee = uniqueUsername('invitee_rm', testInfo.project.name)
+  const owner = uniqueUsername('sharing', 'owner_rm', testInfo.project.name)
+  const invitee = uniqueUsername('sharing', 'invitee_rm', testInfo.project.name)
   const listName = `Remove ${Date.now()}`
 
   await registerViaUi(page, owner, PASSWORD)
@@ -239,8 +177,8 @@ test('FR40/FR48 — owner removes a member; the removed user loses access (next 
 })
 
 test('FR55 — a non-owner member leaves a shared list; it stays for the owner', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner_leave', testInfo.project.name)
-  const invitee = uniqueUsername('invitee_leave', testInfo.project.name)
+  const owner = uniqueUsername('sharing', 'owner_leave', testInfo.project.name)
+  const invitee = uniqueUsername('sharing', 'invitee_leave', testInfo.project.name)
   const listName = `Leave ${Date.now()}`
 
   await registerViaUi(page, owner, PASSWORD)
@@ -279,8 +217,8 @@ test('FR55 — a non-owner member leaves a shared list; it stays for the owner',
 })
 
 test('FR39/FR41 — invitee declines; the invite disappears and grants no access', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner_dec', testInfo.project.name)
-  const invitee = uniqueUsername('invitee_dec', testInfo.project.name)
+  const owner = uniqueUsername('sharing', 'owner_dec', testInfo.project.name)
+  const invitee = uniqueUsername('sharing', 'invitee_dec', testInfo.project.name)
   const listName = `Decline ${Date.now()}`
 
   await registerViaUi(page, owner, PASSWORD)

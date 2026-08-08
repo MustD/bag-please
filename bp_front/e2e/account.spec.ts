@@ -1,4 +1,6 @@
-import {expect, type Page, test} from '@playwright/test'
+import {expect, test} from '@playwright/test'
+
+import {PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // User Account E2E (Story 5.3). UI-driven only — no API shortcuts for the
 // asserted behaviour (the sole exception is the one-time registration-enable in
@@ -12,29 +14,8 @@ import {expect, type Page, test} from '@playwright/test'
 // The admin scenario uses the guaranteed first-boot admin/admin account purely
 // to assert the ABSENCE of the change-password affordance.
 
-const PASSWORD = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `acct_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated (FR1/FR4).
-// The Create-account affordance is present because registration is enabled in
-// global-setup. `/` is now a redirect (Story 5.6) — a new user lands on /lists —
-// so assert route-agnostic auth (off /auth + the shared app-bar) rather than a
-// specific landing route/testid.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/auth')
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
 test('FR11/FR12 — change password signs out cleanly; new password works, old fails', async ({page}, testInfo) => {
-  const username = uniqueUsername('change', testInfo.project.name)
+  const username = uniqueUsername('acct', 'change', testInfo.project.name)
   const newPassword = 'e2e-new-password-456'
   await registerViaUi(page, username, PASSWORD)
 
@@ -71,7 +52,7 @@ test('FR11/FR12 — change password signs out cleanly; new password works, old f
 })
 
 test('FR11 — confirm-mismatch blocks submit with an inline error and fires no request', async ({page}, testInfo) => {
-  const username = uniqueUsername('mismatch', testInfo.project.name)
+  const username = uniqueUsername('acct', 'mismatch', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
 
   // Count any change-password network calls — validation must block before one.
@@ -120,7 +101,7 @@ test('FR11 — admin has no change-password affordance and is redirected from /a
 })
 
 test('FR5 — welcome banner appears once after registration, not on later logins', async ({page}, testInfo) => {
-  const username = uniqueUsername('welcome', testInfo.project.name)
+  const username = uniqueUsername('acct', 'welcome', testInfo.project.name)
   await registerViaUi(page, username, PASSWORD)
 
   // The welcome banner relocated from the removed HomePage to ListsPage (Story
