@@ -6,8 +6,8 @@
 //
 // This module deliberately imports nothing from `@playwright/test`:
 // `global-setup.ts` runs in Playwright's globalSetup phase, before the runner
-// exists, and Story 7.3 converges it onto this module. A top-level runner import
-// here would drag the test runner into that phase.
+// exists, and since Story 7.3 it imports BACKEND/loginApi/gql from here. A
+// top-level runner import here would drag the test runner into that phase.
 
 // Backend for API-only SETUP (membership seeding + token minting). Hit the Caddy
 // entrypoint on :2080 directly — same rationale as global-setup.ts — independent

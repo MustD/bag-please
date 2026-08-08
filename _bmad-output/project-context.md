@@ -165,8 +165,35 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `baseURL` is `http://localhost:2080` (built `dist/` served by Caddy). This is deliberate: it closes the "green on the
   dev server, broken in the shipped bundle" gap (asset hashing, base path, tree-shaking, SPA-fallback misconfig). Do not
   point E2E at `:5173`.
-- **Two projects are mandatory: `chromium` (Desktop Chrome) + `mobile` (Pixel 7).** Mobile is not optional — Epic 4's
-  regression was a mobile-only failure. Every flow must pass on both.
+- **Two viewport projects are mandatory: `chromium` (Desktop Chrome) + `mobile` (Pixel 7).** Mobile is not optional —
+  Epic 4's regression was a mobile-only failure. Every flow must pass on both.
+- **The config declares FOUR projects, not two (Story 7.3), and the extra pair is a mutual-exclusion mechanism, not
+  extra coverage.** Topology: `chromium` and `mobile` both carry `grepInvert: /@registration-toggle/`;
+  `registration-toggle-chromium` (Desktop Chrome, `grep: /@registration-toggle/`,
+  `dependencies: ['chromium', 'mobile']`) and `registration-toggle-mobile` (Pixel 7, same `grep`,
+  `dependencies: ['registration-toggle-chromium']`) run afterwards, in series, both with `fullyParallel: false` so a
+  future *second* tagged test cannot race the first. The tagged test is *rerouted*, not duplicated: at Story 7.3 the
+  split was **51 / 51 / 1 / 1 = 104**. Treat the absolute totals as dated; the standing invariant is **exactly 1 test in
+  each `registration-toggle-*` project** and everything else in the two viewport projects. Adding a new spec means +2
+  runs, in `chromium`/`mobile`; only a test that writes the shared registration flag belongs in the tagged pair.
+- **`Total: 104` does NOT prove the routing works — check the per-project split.** Drop or misspell the tag and the test
+  simply runs in `chromium`+`mobile` (52+52) while both toggle projects collect zero: the total is *still exactly 104*,
+  the race is silently back, and the guard that used to absorb it is gone. The real check is
+  `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c`. (Do **not** use `--list --project=<name>`
+  for this — `--project` pulls in that project's `dependencies`, so the toggle projects report 103 and 104.)
+- **Consequence of `dependencies`, measured: a failing dependency project makes the dependent one NOT RUN.** Observed
+  2026-08-08 by deliberately failing one `chromium` test: `1 failed / 2 did not run / 101 passed`, exit code `1`, and
+  Playwright's wording is "did not run" (not "skipped"). One failing dependency is enough — `mobile` passed in that
+  experiment. So **any red run tells you nothing about FR20/FR21**. To get that answer while something else is broken,
+  run `npx playwright test --project=registration-toggle-chromium --no-deps`. **`--no-deps` is not optional here:**
+  without it the command re-runs the still-broken dependency and fails identically. `globalSetup` still runs under
+  `--no-deps`, so registration is still enabled. Note also that `--project=chromium` or `--project=mobile` alone runs
+  **no** FR20/FR21 case at all — it is `grepInvert`ed out of both, and reports as absent rather than skipped.
+- **The exclusivity holds within ONE Playwright invocation only.** `dependencies` orders projects inside a single
+  runner process. Two suites run concurrently against the same `:2080` backend — e.g. a default run plus an
+  `E2E_BASE_URL=https://bag-please.localhost` run, which `reuseExistingServer` makes easy — share one Mongo
+  `ApplicationConfig` document and re-create the original race in full, now with no retry wrapper to absorb it. Same for
+  `--shard`. Run one suite at a time against a given backend.
 - **TLS path**: `E2E_BASE_URL=https://bag-please.localhost npm run test:e2e` exercises the real HTTPS + `Secure`-cookie
   route through the host edge proxy (the edge must already be running; compose only starts `:2080`).
 - **Tests are UI-driven.** API calls are permitted **only** for environment preparation (e.g. `global-setup.ts` enabling
@@ -196,20 +223,36 @@ _This file contains critical rules and patterns that AI agents must follow when 
   do not "unify" it.) Use `browser.newContext()` when a second actor is needed so the first session is untouched.
 - **The DB volume `./db/data` persists across runs and the two projects run concurrently** — assert only on data your
   test created, and never on total row counts.
-- **Known race**: `registrationEnabled` is one shared Mongo document; the admin-toggle test flips it for real, so its
-  OFF window can break register-based specs in the other project. CI `retries: 2` heals it; the suite is not reliably
-  green at `retries: 0`. **Decided fix (Epic 6 retro, scheduled as an Epic 7 story):** keep registration **enabled** as
-  the steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle
-  spec. Until that lands, the `expect(...).toPass()` workaround around registration lives in **exactly one place** —
-  `bp_front/e2e/support/ui.ts`'s `registerViaUi` — and must stay there. **That is one place, not full coverage:**
-  `auth.spec.ts` registers inline (`:18-28`) and is hardened by nothing, so it stays bare against this race; and the
-  wrapper only guards reaching the register form, **not the submit**, which is the window the observed failures land in
-  (`alert: "Registration is disabled"` on `not.toHaveURL(/\/auth$/)`). **Count correction (Story 7.2, re-measured at
-  `e4c54dc`):** before the extraction it had **five** copies, not the four this bullet used to name — `lists.spec.ts:32`,
-  `shopping.spec.ts:33`, `sharing.spec.ts:32`, `item-editing.spec.ts:41` **and `navigation.spec.ts:41`**, the copy every
-  prior document missed. (`navigation.spec.ts` also has a sixth, *unrelated* `toPass` for CSS hover settling at 2000 ms —
-  not this one.) Being duplicated is why the fix could not be made in one place (Epic 6 retro action B4); Story 7.2
-  removed that obstacle, so the race fix now lands once.
+- **`registrationEnabled` is ON for the whole run, and that is now an invariant, not a hope (Story 7.3 — the race is
+  deleted).** It is one shared Mongo `ApplicationConfig` document. `global-setup.ts` sets it to `true` idempotently
+  before the run (which is also what recovers a flag stranded OFF by a crashed prior run — `./db/data` persists). The
+  only test that writes it is the FR20/FR21 toggle case in `admin.spec.ts`, tagged `@registration-toggle` and routed by
+  the four-project topology above so its OFF window opens **only after both viewport projects have finished** — nothing
+  anywhere is registering while it is open. Consequences for anyone writing E2E here:
+    - **Do not add a retry loop around reaching the register form.** `registerViaUi` starts with a plain
+      `await page.goto('/auth')`. The `expect(async () => …).toPass()` wrapper that used to guard it was deleted with
+      the race, deliberately: keeping it "just in case" is what made this flake invisible for seven acceptances. If
+      `to-register-link` is ever missing again, that is a real regression and must be allowed to fail. The rule is
+      about *that guard*, not about the `toPass` matcher in general — `toPass` remains legitimate for genuinely
+      settling UI (`navigation.spec.ts:100` uses it for CSS hover, and is the only remaining occurrence).
+    - **`auth.spec.ts`'s inline, unhardened registration (`:18-28`) is correct as-is** and is no longer an exposure —
+      the decision was taken explicitly in Story 7.3, not by omission. Do not "harden" it.
+    - **Any new test that writes the flag must carry the `@registration-toggle` tag**, or it will run inside
+      `chromium`/`mobile` and re-create the race. Nothing enforces this mechanically yet (ledger item).
+    - The `setRegistration(page, true)` baseline at the top of the tagged test stays: the chain runs that same test
+      twice in sequence, so it is what recovers the flag if the chromium link strands it.
+  **Evidence this was a real race and is really closed** (both measured at `retries: 0` against the production image,
+  2026-08-08): with the mechanism disabled, three consecutive full runs failed **3 / 5 / 4** tests, all inside
+  `registerViaUi`, carrying `alert: "Registration is disabled"` or a 30 s timeout `waiting for
+  getByTestId('to-register-link')`; with the mechanism in place, two consecutive full runs were `104 passed`, 0 flaky.
+  **Read the 3/5/4 correctly:** those runs had the mechanism absent *and the `toPass` workaround already removed*, so
+  they measure the fully-exposed race, not the historical one. They are **not** comparable with the "1 flaky,
+  retry-healed" reports from Epics 5–6, which were measured with the workaround in place and retries on. No run was
+  ever taken in the historical configuration; the honest claim is "the race is real and the mechanism closes it", not
+  "the race was five times worse than reported".
+  Historical note kept because it explains the shape of the fix: the workaround had **five** copies before Story 7.2
+  (`lists:32`, `shopping:33`, `sharing:32`, `item-editing:41`, `navigation:41`), which is why the race could not be
+  fixed in one place (Epic 6 retro action B4); 7.2 removed that obstacle and 7.3 landed the fix once.
 - **No component/unit test framework exists** — do not assume one.
 
 ##### Shared E2E helpers live in `bp_front/e2e/support/` (Story 7.2)
@@ -218,7 +261,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`). **`e2e/support/api.ts`** holds `BACKEND`,
   `loginApi` and `gql<T>`. Do not re-declare any of them in a spec — that is the duplication Story 7.2 removed.
 - **`support/api.ts` must never import `@playwright/test`.** `global-setup.ts` runs in Playwright's globalSetup phase,
-  before the runner exists; a top-level runner import in `api.ts` would drag it into that phase.
+  before the runner exists; a top-level runner import in `api.ts` would drag it into that phase. **This is now
+  load-bearing in fact, not just in principle:** since Story 7.3 `global-setup.ts` does
+  `import {BACKEND, gql, loginApi} from './support/api'` and holds no `BASE_URL` literal, no inline login and no inline
+  GraphQL `fetch` of its own. It imports nothing from `ui.ts` — it authenticates as `admin`/`admin` (the first-boot
+  admin), not with the suite's registered-user `PASSWORD` — so the two-file split is doing exactly the job it was built
+  for.
 - **`BACKEND` stays `'http://localhost:2080'`** — API prep always hits the local Caddy entrypoint directly. It must not
   become `baseURL` or `E2E_BASE_URL`, which only control the *browser-facing* origin, or the TLS-edge run mode breaks.
 - **Imports are relative — `from './support/ui'`, never `@/`.** `tsconfig.e2e.json` has no `paths`, and Playwright
@@ -390,7 +438,17 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-08 (Story 7.2) — the eight duplicated E2E helpers now live once under `bp_front/e2e/support/`;
+_Last Updated: 2026-08-08 (Story 7.3) — the `registrationEnabled` race is **deleted, not retried**. The FR20/FR21
+toggle test is tagged `@registration-toggle` and routed into two new Playwright projects chained behind `chromium` and
+`mobile` with `dependencies`, so its OFF window is exclusive across projects; the `expect(...).toPass()` workaround in
+`support/ui.ts` was deleted in the same change. The "Known race" bullet was replaced with the new invariant
+(registration is ON for the whole run) and its four rules for spec authors; a four-project topology bullet (51/51/1/1 =
+104) and a measured `dependencies`-on-failure bullet ("did not run", exit 1, one failing dependency is enough) were
+added; `global-setup.ts` now consumes `support/api.ts`. Both claims are backed by measurement: three disabled-mechanism
+runs failed 3/5/4 tests inside `registerViaUi`, two consecutive `retries: 0` runs with the mechanism are `104 passed`,
+0 flaky. New debt (no machine gate for the tag; red-run loses toggle coverage; CI still at `retries: 2`) lives in
+`deferred-work.md`, not here. Prior entry:
+2026-08-08 (Story 7.2) — the eight duplicated E2E helpers now live once under `bp_front/e2e/support/`;
 added the "Shared E2E helpers live in `bp_front/e2e/support/`" rules block (two-file split and why `api.ts` must stay
 runner-free, relative imports, the `*.spec.ts`/`.tsx` naming traps, the prefix parameter, support-module ≠ login
 fixture), and corrected the `registrationEnabled` bullet's copy count from four to **five** — `navigation.spec.ts:41`

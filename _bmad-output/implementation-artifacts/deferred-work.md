@@ -54,9 +54,28 @@ close-out above before acting on anything here.**
   automated coverage is missing. **Action:** either write the FR9-tagged E2E (any query-bearing route can host it now)
   or close this entry with a stated reason.
 
-- **Shared `registrationEnabled` flag races the E2E suite; masked by `retries: 2` rather than fixed.**
-  **STILL OPEN — now an Epic 7 story with a decided approach (Epic 6 retro):** keep registration **enabled** as the
-  steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle spec.
+- ~~**Shared `registrationEnabled` flag races the E2E suite; masked by `retries: 2` rather than fixed.**~~
+  **CLOSED 2026-08-08 by Story 7.3 — the race is deleted, not retried.** Mechanism: the FR20/FR21 admin test is tagged
+  `@registration-toggle`; `playwright.config.ts` `grepInvert`s that tag out of `chromium`/`mobile` and grep-selects it
+  into two new projects, `registration-toggle-chromium` (`dependencies: ['chromium', 'mobile']`) and
+  `registration-toggle-mobile` (`dependencies: ['registration-toggle-chromium']`). `dependencies` is the only Playwright
+  construct that orders work **across** projects, which is the scope this race actually had —
+  `test.describe.configure({mode: 'serial'})` was rejected because it serializes within one project. The OFF window
+  therefore opens only after every registering spec on both viewports has finished. The
+  `expect(async () => …)`/`toPass` workaround in `support/ui.ts` was deleted in the same change rather than kept beside
+  the fix. Total collected runs stayed **104** (51 / 51 / 1 / 1) — the test was rerouted, not duplicated.
+  **Observed, not asserted:** with the mechanism disabled (two-project config, workaround already removed), three
+  consecutive `retries: 0` runs failed **3**, **5** and **4** tests, every failure inside `registerViaUi` and carrying
+  either `alert: "Registration is disabled"` or a 30 s timeout `waiting for getByTestId('to-register-link')`. With the
+  mechanism in place, two consecutive `retries: 0` runs were `104 passed`, 0 flaky, 0 failed.
+  **Caveat on that 3/5/4, added at review:** those runs had the mechanism absent *and* the `toPass` workaround already
+  deleted, so they measure the fully-exposed race — **not** the historical one, which always ran with the workaround
+  present. They are therefore not comparable with the "1 flaky, retry-healed" reports from Epics 5–6, and the
+  first-draft inference that "the race is far larger than 1 flaky, the historical numbers were just measuring what
+  survived retries" is **withdrawn**: no run was ever taken in the historical configuration. What the measurement does
+  establish, which is all AC5 asked for, is that the race is real, reproducible on demand, and cross-project (runs 1–3
+  each failed tests on `chromium` *and* `mobile` simultaneously — the empirical refutation of `mode: 'serial'`).
+  Retained for history:
   Epic 6 accepted the flake a 6th and 7th time and added +34 UI registrations per run, widening the window.
   `registrationEnabled` is one Mongo document and the `chromium` + `mobile` projects run concurrently against a single
   backend, so the admin-toggle test's brief OFF window can break register-based specs in the other project. Accepted in
@@ -304,8 +323,21 @@ out of that story's charter.** A later story should rank them properly.
   asserts (FR1), so routing it through the shared helper would have the test exercise the helper rather than the flow.
   **The consequence to record:** it is the one register-based spec with **no `toPass` hardening at all**, so it remains
   bare against the `registrationEnabled` race that Story 7.3 deletes. Decide there whether it wants the guard.
+  **RESOLVED 2026-08-08 by Story 7.3 — it wants no guard, and neither does anything else.** The race it was bare against
+  no longer exists (the toggle test now runs in projects chained behind both viewport projects), and the guard it would
+  have copied was itself deleted from `support/ui.ts` in the same change. Adding one here would have re-created, in the
+  one spec that never had it, the workaround AC3 exists to remove — and would hide the next genuine registration
+  regression in the one spec whose whole subject (FR1) is registration. `auth.spec.ts` stays exactly as it is; its
+  bareness is now the correct shape, not an exposure. The rest of this entry (the inlined flow, the third password
+  literal, the label-less username shape) stays OPEN on its own merits.
 
-- **`global-setup.ts` overlaps `support/api.ts` in all but name.** Its `BASE_URL` is the same literal as `BACKEND`, and
+- ~~**`global-setup.ts` overlaps `support/api.ts` in all but name.**~~ **CLOSED 2026-08-08 by Story 7.3.**
+  `global-setup.ts` now does `import {BACKEND, gql, loginApi} from './support/api'`; its local `BASE_URL` const, its
+  inline `fetch` login and its inline GraphQL `fetch` are deleted (the file went 53 → 55 lines, of which the body
+  shrank from ~22 statements to 4 — the delta is comment, not code). `waitForBackend` stayed local and now polls
+  `${BACKEND}/api/auth/config`. The constraint held in practice: `api.ts` still imports nothing from
+  `@playwright/test`, and the run's globalSetup phase completed normally in five full-suite runs. Retained for history:
+  Its `BASE_URL` is the same literal as `BACKEND`, and
   its inline admin login and `setRegistrationEnabled` call are `loginApi`/`gql` re-implemented. **Deliberately deferred
   to Story 7.3**, which owns that file. Note the constraint Story 7.2 built for it: `support/api.ts` imports nothing
   from `@playwright/test` precisely so `global-setup.ts` can import it without dragging the runner into the globalSetup
@@ -322,6 +354,79 @@ out of that story's charter.** A later story should rank them properly.
   check. Likewise `createListViaUi` is a genuinely different function from `createListAndOpen` — it returns `void` and
   stays on `/lists`, where `createListAndOpen` returns the list id and navigates into the detail. Recorded here so a
   future "finish the job" story does not treat them as leftovers.
+
+## Deferred from: Story 7.3 — delete the `registrationEnabled` race (2026-08-08)
+
+- **A red `chromium` or `mobile` now costs the FR20/FR21 toggle coverage entirely — measured, not assumed.** With one
+  chromium test deliberately failing, the run reported `1 failed / 2 did not run / 101 passed` and exited `1`: both
+  `registration-toggle-*` tests were **not executed**. Playwright's wording is "did not run", not "skipped", and a
+  single failing dependency project is enough (the `mobile` dependency passed in that experiment). This is the accepted
+  price of `dependencies` and the run is already red either way, but it has a real consequence: **any failing run gives
+  you zero information about FR20/FR21**, so a regression in the registration toggle can hide behind an unrelated
+  failure across several red runs. Mitigations if it ever bites: run
+  `npx playwright test --project=registration-toggle-chromium --no-deps` — **`--no-deps` is load-bearing and was missing
+  from the first version of this entry:** without it the command re-runs the still-broken dependency and fails
+  identically, so the recovery it prescribed could not work in the situation it was prescribed for (`globalSetup` still
+  runs under `--no-deps`, so registration is still enabled).
+  **The real fix candidate is `testProject.teardown`, and it was never evaluated.** The config comment written by this
+  story claimed `dependencies` is "the only Playwright construct that orders work across projects" — that is false.
+  `teardown` also orders across projects, and unlike `dependencies` it still runs when the run is red, which would
+  dissolve this entire cost rather than mitigate it. The alternatives that *were* weighed were `mode: 'serial'`
+  (rejected: wrong scope) and a worker-scoped file lock (rejected: re-introduces waiting at every register site). Both
+  the claim and the omission are corrected in `playwright.config.ts`. **Action:** evaluate a teardown-project ordering
+  before accepting this cost as permanent.
+
+- **The whole mechanism is prose-and-config with no machine gate — the same failure mode as the Story 7.2 review's
+  "five invariants, zero gates" entry.** Nothing stops a future test from calling `setRegistrationEnabled` without the
+  `@registration-toggle` tag, and nothing stops the `grepInvert` being dropped from one project; either silently
+  restores the exact race this story deleted, and the deleted `toPass` guard means the next occurrence fails loudly
+  rather than being retried away (which is the intent, but only if someone reads the failure correctly). The cheap
+  enforcement is an ESLint `no-restricted-syntax`/`no-restricted-properties` rule banning `setRegistrationEnabled`
+  outside `admin.spec.ts` + `global-setup.ts`; blocked here by the story's own "config/lint files untouched" boundary.
+  Group it with the 7.2 review's `testMatch`/`no-restricted-imports` item — one small "gate the E2E invariants" story
+  would discharge all three.
+
+- **`retries: process.env.CI ? 2 : 0` points at a pipeline that does not exist in this repo — and the "masked by CI
+  retries" narrative repeated across three epics therefore names the wrong mechanism.** Verified 2026-08-08: there is no
+  `.github/`, no `.gitlab-ci.yml`, no CI workflow of any kind; the only E2E entry point is `mise run front:e2e` →
+  `npm run test:e2e` with `CI` unset, i.e. **`retries: 0`**. So the `retries: 2` branch has, as far as this repo shows,
+  never executed. Whatever actually absorbed the seven acceptances — a developer passing `--retries` by hand, re-running
+  after a red run, or simply reporting "1 flaky" from a `--retries=2` invocation — is undocumented, and the story
+  records that repeat the "CI retries healed it" line (including this story's own) are propagating an unverified
+  premise. **Action:** either stand up the CI pipeline the config already assumes, or delete the `process.env.CI`
+  branch so the config stops describing infrastructure that does not exist. Out of charter here (the spec forbids
+  touching `retries`). Original framing, retained because the underlying judgement still holds: the retries were added
+  to absorb this race, the race is gone, and a surviving `retries: 2` would now mask a genuinely *new* flake rather
+  than a known one.
+
+## Deferred from: code review of 7-3-delete-registrationenabled-race (2026-08-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-3-delete-registrationenabled-race.md`
+  summary: FR20/FR21's mobile coverage is largely nominal — the assertions that observe the public effect of the
+  registration flag run in hand-built contexts that do not inherit the Pixel 7 emulation.
+  evidence: the toggle test asserts `contact-admin` / `to-register-link` on `offPage` (`admin.spec.ts`, from
+  `browser.newContext({baseURL, ignoreHTTPSErrors})`) and inside `withFreshAuthPage`, both hand-built. The project's
+  own documented rule — "`browser.newContext()` does NOT inherit the project's `use` block" — means those run at a
+  desktop viewport on `registration-toggle-mobile` too. Only the admin-panel half (menu → `/admin` → the Switch) is
+  genuinely Pixel-7-emulated there. Pre-existing since Story 5.4; Story 7.3 only made it visible by giving the test its
+  own projects, and corrected the config comment that claimed the opposite. Fix would be to drive the public-effect
+  assertions on the `page` fixture, or to accept and document the split coverage deliberately.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-3-delete-registrationenabled-race.md`
+  summary: `testProject.teardown` was never evaluated as the ordering mechanism, and it is the one candidate that would
+  remove the "a red run yields zero FR20/FR21 information" cost instead of merely mitigating it.
+  evidence: `teardown?: string` exists on `TestProject` in the installed Playwright 1.61 types and orders work across
+  projects like `dependencies`, but runs after its project finishes regardless of outcome. The alternatives actually
+  weighed were `mode: 'serial'` and a worker-scoped file lock. See the corrected entry under "Deferred from: Story 7.3".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-3-delete-registrationenabled-race.md`
+  summary: converging `global-setup.ts` onto the shared `gql` traded a status-aware failure message for the helper's
+  parse-before-`res.ok` behaviour, in the one code path whose failure blocks the entire suite.
+  evidence: the deleted inline code did `if (!gqlRes.ok) throw new Error("Enable-registration request failed: " +
+  status)` before parsing; `support/api.ts:29-38` calls `await res.json()` first, so a Caddy 502 HTML body or an empty
+  401 now surfaces as an opaque `SyntaxError` instead of naming the status. `loginApi`'s message likewise drops the "in
+  global setup" context the old string carried. The underlying `gql` defect is already filed (7.2 review); this records
+  that Story 7.3 removed the one call site that did not have it, so fixing `gql` is now the only way to get it back.
 
 ## Deferred from: code review of 4-8-frontend-lists-tab-list-management-bpavatar (2026-05-25)
 
@@ -786,6 +891,12 @@ against `:2080`, not merely reasoned about.
   copy") depends on that count. Since Story 7.2 the workaround exists in exactly **one** place,
   `bp_front/e2e/support/ui.ts:35-38`, unchanged in behaviour and with its 1500/20000 ms timeouts untouched.
   (`navigation.spec.ts` also carries a sixth, *unrelated* `toPass` — CSS hover settling, 2000 ms — which is not this.)
+  **CLOSED 2026-08-08 by Story 7.3, together with the Epic 5 close-out entry this duplicates** (see "Epic 5 close-out —
+  carried forward" above; that entry is the rollup and carries the mechanism and the measurements). The workaround is
+  gone from `support/ui.ts`, and `grep -rn "toPass" bp_front/e2e/` now returns exactly one line —
+  `navigation.spec.ts:100`, the unrelated CSS-hover one. This entry's own premise ("each new registering spec widens the
+  window") no longer holds: there is no window while anything is registering. No new entry is filed alongside these two
+  restating the same debt.
 
 ## Deferred from: code review of 7-2-shared-e2e-support-module (2026-08-08)
 
@@ -793,8 +904,14 @@ against `:2080`, not merely reasoned about.
   summary: `PASSWORD` lives in `support/ui.ts`, so any pure-API consumer must import the runner-importing module to get a
   credential — the exact coupling the two-file split exists to prevent.
   evidence: all seven `loginApi(x, PASSWORD)` call sites pair `./support/api`'s function with `./support/ui`'s constant,
-  and `ui.ts` imports `@playwright/test` at the top level. Story 7.3 converges `global-setup.ts` onto `api.ts` and will
-  hit this immediately. `PASSWORD` is a bare string literal with no Playwright dependency; moving it to `api.ts`
+  and `ui.ts` imports `@playwright/test` at the top level. ~~Story 7.3 converges `global-setup.ts` onto `api.ts` and will
+  hit this immediately.~~ **Correction 2026-08-08 (Story 7.3, measured): it did not hit this at all.**
+  `global-setup.ts` authenticates as `admin`/`admin` — the first-boot admin credentials, not the suite's registered-user
+  `PASSWORD` — so its convergence onto `api.ts` needed `BACKEND`, `loginApi` and `gql` and no constant from `ui.ts`. It
+  imports the runner-free module only, exactly as designed. **This entry stays OPEN on its own merits** (the seven spec
+  call sites still pair the two modules), but the "a pure-API consumer is forced to import the runner-importing module"
+  claim now has **zero** actual instances — it remains a latent coupling, not an observed one, which lowers its
+  priority. `PASSWORD` is a bare string literal with no Playwright dependency; moving it to `api.ts`
   alongside `BACKEND` costs seven import-line edits and no behaviour change. Not done here: Story 7.2's spec assigned it
   to `ui.ts` explicitly, and the suite is green as shipped.
 

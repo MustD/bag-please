@@ -26,16 +26,15 @@ export function uniqueUsername(prefix: string, label: string, projectName: strin
 // Register a brand-new account through the UI and land authenticated on home
 // (FR1/FR4). Registration is enabled by global-setup.
 export async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  // Registration is enabled by global-setup, but the admin-panel spec briefly
-  // toggles the SHARED backend registration flag OFF and back ON while the two
-  // projects run concurrently (documented shared-state hazard). AuthPage reads
-  // the flag only on mount, so reload /auth until the Register link appears
-  // rather than failing on that transient window — this preserves the assertion,
-  // it just doesn't race the flag.
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
+  // A plain goto, deliberately: registration is ON for the entire time any spec
+  // in `chromium`/`mobile` runs. The one test that flips it OFF is tagged
+  // `@registration-toggle` and routed into projects chained behind both viewport
+  // projects (Story 7.3), so there is no window to retry through. The
+  // `expect(async () => …)` reload-until-visible wrapper that used to guard these
+  // two lines was deleted with the race — keeping it "just in case" would make
+  // the next flake here invisible. If this goto ever fails again, that is a real
+  // regression and it must be allowed to say so.
+  await page.goto('/auth')
   await page.getByTestId('to-register-link').click()
   await page.getByTestId('register-username').fill(username)
   await page.getByTestId('register-password').fill(password)
