@@ -127,6 +127,18 @@ class ItemApiTest : FunSpec({
                 val token = registerAndLogin(username)
                 val listId = createList(token)
 
+                // Story 7.4: this is the suite's only test that reuses an item id across two saveItem
+                // calls, so it is the only one that reaches the merge's UPDATE branch — where the
+                // category must belong to the list. Every other site stays on the create branch, which
+                // is deliberately unguarded.
+                // Asserted, not fire-and-forget: an unnoticed failure here would surface twenty lines
+                // later as a category rejection on saveItem, which reads like a defect in the merge.
+                client.post("/graphql") {
+                    contentType(ContentType.Application.Json)
+                    bearerAuth(token)
+                    setBody("""{"query":"mutation { saveCategory(category: { id: \"$catId\", name: \"Dairy\", listId: \"$listId\" }) { id } }"}""")
+                }.bodyAsText() shouldNotContain "errors"
+
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)

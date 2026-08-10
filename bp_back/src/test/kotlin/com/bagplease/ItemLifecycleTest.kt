@@ -80,6 +80,23 @@ class ItemLifecycleTest : FunSpec({
         return mapper.readTree(res.bodyAsText())["data"]["createList"]["id"].asText()
     }
 
+    suspend fun ApplicationTestBuilder.saveCategory(
+        token: String,
+        catId: UUID,
+        listId: String,
+        name: String = "Category",
+    ): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { saveCategory(category: { id: \"$catId\", name: \"$name\", listId: \"$listId\" }) { id } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    // `checked` is a parameter because Story 7.4's merge takes `checked` from the input while `checkedAt`
+    // stays server-owned: an edit that left `checked: false` would silently un-check the item, and
+    // `findCheckedRecurringItems` would then never see it again.
     suspend fun ApplicationTestBuilder.saveItem(
         token: String,
         itemId: UUID,
@@ -88,13 +105,41 @@ class ItemLifecycleTest : FunSpec({
         name: String = "Item",
         store: String? = null,
         recurring: String? = null,
+        checked: Boolean = false,
     ): String {
         val storeArg = if (store != null) """, store: \"$store\"""" else ""
         val recurringArg = if (recurring != null) """, recurring: \"$recurring\"""" else ""
         val res = client.post("/graphql") {
             contentType(ContentType.Application.Json)
             bearerAuth(token)
-            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"$name\", checked: false, category: \"$catId\", listId: \"$listId\"$storeArg$recurringArg }) { id name checked category listId store recurring addedBy deleted } }"}""")
+            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"$name\", checked: $checked, category: \"$catId\", listId: \"$listId\"$storeArg$recurringArg }) { id name checked category listId store recurring addedBy deleted deletedAt checkedAt } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.checkItem(token: String, itemId: UUID, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { checkItem(id: \"$itemId\", listId: \"$listId\") { id checked checkedAt deleted deletedAt } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.shareList(token: String, listId: String, username: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { shareList(listId: \"$listId\", username: \"$username\") { id } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.acceptInvite(token: String, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { acceptInvite(listId: \"$listId\") { id } }"}""")
         }
         return res.bodyAsText()
     }
@@ -103,7 +148,7 @@ class ItemLifecycleTest : FunSpec({
         val res = client.post("/graphql") {
             contentType(ContentType.Application.Json)
             bearerAuth(token)
-            setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked recurring deleted addedBy store } }"}""")
+            setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked recurring deleted addedBy store category } }"}""")
         }
         return res.bodyAsText()
     }
@@ -142,7 +187,7 @@ class ItemLifecycleTest : FunSpec({
             adminLogin = "admin",
             listMemberRepository = listMemberRepository,
         )
-        return ItemService(itemStorage, listService, itemRepository)
+        return ItemService(itemStorage, listService, itemRepository, categoryStorage)
     }
 
     // ── AC1 / AC2 / AC3 ── field round-trips ──────────────────────────────
@@ -557,6 +602,270 @@ class ItemLifecycleTest : FunSpec({
             }.bodyAsText()
             res shouldContain "errors"
         }
+    }
+
+    // ── Story 7.4 ── saveItem merges the stored item instead of reconstructing it ──────────
+    //
+    // `ItemInput` carries only {name, checked, category, store, recurring}. Everything else on `Item`
+    // is server-owned, so on an update the incoming values for addedBy/checkedAt/deleted/deletedAt are
+    // whatever `Item`'s defaults happen to be — meaningless. These tests pin that they come from the
+    // stored row instead (AC1), that create still works and the discriminator is storage existence
+    // (AC2), the two rejections (AC3, AC4), and that the check-off clock survives well enough for the
+    // scheduler to still restore the item (AC5).
+
+    test("7.4 AC1 an edit by another member keeps addedBy and the check-off clock") {
+        val owner = "own74_${UUID.randomUUID().toString().take(8)}"
+        val member = "mem74_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            // Exactly two registerAndLogin calls: each costs two /auth/login requests and the `auth`
+            // rate limiter allows 5 per 60s. A third here would return 429.
+            val ownerToken = registerAndLogin(owner)
+            val memberToken = registerAndLogin(member)
+            val listId = createList(ownerToken)
+            saveCategory(ownerToken, catId, listId) shouldNotContain "errors"
+            shareList(ownerToken, listId, member) shouldNotContain "errors"
+            acceptInvite(memberToken, listId) shouldNotContain "errors"
+
+            saveItem(ownerToken, itemId, catId, listId, name = "Milk", recurring = "WEEKLY") shouldNotContain "errors"
+            val checkBody = checkItem(ownerToken, itemId, listId)
+            checkBody shouldNotContain "errors"
+            checkBody shouldNotContain """"checkedAt":null"""
+
+            val editBody = saveItem(
+                memberToken, itemId, catId, listId, name = "Oat milk", recurring = "WEEKLY", checked = true,
+            )
+            editBody shouldNotContain "errors"
+            editBody shouldContain """"name":"Oat milk""""
+            editBody shouldContain """"addedBy":"$owner""""
+            editBody shouldNotContain """"addedBy":"$member""""
+            editBody shouldNotContain """"checkedAt":null"""
+            editBody shouldContain """"deleted":false"""
+            editBody shouldContain """"deletedAt":null"""
+        }
+    }
+
+    test("7.4 AC1 an edit preserves a soft delete and the item stays invisible") {
+        val username = "soft74_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            saveItem(token, itemId, catId, listId, name = "Batteries", recurring = "ONE_TIME") shouldNotContain "errors"
+            val checkBody = checkItem(token, itemId, listId)
+            checkBody shouldNotContain "errors"
+            checkBody shouldContain """"deleted":true"""
+
+            val editBody = saveItem(
+                token, itemId, catId, listId, name = "AA batteries", recurring = "ONE_TIME", checked = true,
+            )
+            editBody shouldNotContain "errors"
+            editBody shouldContain """"name":"AA batteries""""
+            editBody shouldContain """"deleted":true"""
+            editBody shouldNotContain """"deletedAt":null"""
+
+            getItems(token, listId) shouldNotContain (itemId.toString())
+        }
+    }
+
+    test("7.4 AC2 an unknown id creates with the caller as addedBy, a known id merges in place") {
+        val username = "crt74_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            // The client generates the UUID for NEW items too, so a non-existent id must NOT be rejected
+            // (Epic 6 action item C1's literal wording would have rejected every add).
+            val createBody = saveItem(token, itemId, catId, listId, name = "Bread")
+            createBody shouldNotContain "errors"
+            createBody shouldContain """"addedBy":"$username""""
+
+            val updateBody = saveItem(token, itemId, catId, listId, name = "Rye bread")
+            updateBody shouldNotContain "errors"
+            updateBody shouldContain """"name":"Rye bread""""
+            updateBody shouldContain """"addedBy":"$username""""
+
+            val items = mapper.readTree(getItems(token, listId))["data"]["getItems"]
+            items.count { it["id"].asText() == itemId.toString() } shouldBe 1
+            items.count { it["name"].asText() == "Bread" } shouldBe 0
+        }
+    }
+
+    test("7.4 AC3 an id that already lives on another list is rejected, not relocated") {
+        val username = "xlst74_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listX = createList(token, "ListX")
+            val listY = createList(token, "ListY")
+
+            saveItem(token, itemId, catId, listX, name = "OnListX") shouldNotContain "errors"
+
+            // getByIdCached is list-scoped, so this misses and lands on the create branch; the global
+            // findById is what stops ItemRepository.save's _id-only upsert from moving the row.
+            saveItem(token, itemId, catId, listY, name = "MovedToY") shouldContain "errors"
+
+            val xBody = getItems(token, listX)
+            xBody shouldContain itemId.toString()
+            xBody shouldContain """"name":"OnListX""""
+            getItems(token, listY) shouldNotContain (itemId.toString())
+        }
+    }
+
+    test("7.4 AC4 an update carrying a category from another list is rejected and writes nothing") {
+        val username = "cat74a_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catHere = UUID.randomUUID()
+        val catElsewhere = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listHere = createList(token, "Here")
+            val listElsewhere = createList(token, "Elsewhere")
+            saveCategory(token, catHere, listHere, "Dairy") shouldNotContain "errors"
+            saveCategory(token, catElsewhere, listElsewhere, "Frozen") shouldNotContain "errors"
+
+            saveItem(token, itemId, catHere, listHere, name = "Butter") shouldNotContain "errors"
+
+            // The rejected edit changes the NAME as well as the category, deliberately: if it resent
+            // "Butter" the re-read below could not tell "nothing was written" from "the name was
+            // written and only the category rejected". The spec's Kotest recipe requires a re-read
+            // that proves the stored row is unchanged, not merely that an error came back.
+            saveItem(token, itemId, catElsewhere, listHere, name = "Margarine") shouldContain "errors"
+
+            val body = getItems(token, listHere)
+            body shouldContain catHere.toString()
+            body shouldNotContain (catElsewhere.toString())
+            body shouldContain """"name":"Butter""""
+            body shouldNotContain """"name":"Margarine""""
+        }
+    }
+
+    test("7.4 AC4 an update carrying a category that belongs to no list is rejected") {
+        val username = "cat74b_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catHere = UUID.randomUUID()
+        val catGhost = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catHere, listId, "Dairy") shouldNotContain "errors"
+
+            saveItem(token, itemId, catHere, listId, name = "Cheese") shouldNotContain "errors"
+
+            // Name changed too — see the sibling test above: same name on both saves would make the
+            // re-read blind to a partial write.
+            saveItem(token, itemId, catGhost, listId, name = "Gouda") shouldContain "errors"
+
+            val body = getItems(token, listId)
+            body shouldContain catHere.toString()
+            body shouldNotContain (catGhost.toString())
+            body shouldContain """"name":"Cheese""""
+            body shouldNotContain """"name":"Gouda""""
+        }
+    }
+
+    test("7.4 AC4 a CREATE with an unknown category is still accepted (ruling A tripwire)") {
+        // Deliberate scope decision (md, 2026-08-10): the check is update-only. Guarding creates too
+        // would fail 29 existing saveItem invocations that invent a catId. This test exists so that a
+        // later "tightening" trips one obvious tripwire instead of those 29, and so the open hole
+        // filed in deferred-work.md is visible in the suite.
+        val username = "cat74c_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catGhost = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+
+            val body = saveItem(token, itemId, catGhost, listId, name = "Ghosted")
+            body shouldNotContain "errors"
+            body shouldContain catGhost.toString()
+        }
+    }
+
+    test("7.4 AC5 an edit keeps the check-off clock, so the scheduler still restores the item") {
+        val username = "sch74_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            saveItem(token, itemId, catId, listId, name = "Coffee", recurring = "WEEKLY") shouldNotContain "errors"
+            val checkBody = checkItem(token, itemId, listId)
+            checkBody shouldNotContain "errors"
+            checkBody shouldNotContain """"checkedAt":null"""
+
+            // The edit under test. It must carry `checked` forward, because `checked` IS in ItemInput
+            // while `checkedAt` is not — sending false here would un-check the item and
+            // findCheckedRecurringItems would stop seeing it, failing for a reason that is not the bug.
+            val editBody = saveItem(
+                token, itemId, catId, listId, name = "Ground coffee", recurring = "WEEKLY", checked = true,
+            )
+            editBody shouldNotContain "errors"
+            editBody shouldContain """"name":"Ground coffee""""
+
+            // Backdate RELATIVE to whatever the edit actually left behind, deliberately. An absolute
+            // Updates.set(..., eightDaysAgo) would hand the scheduler a valid clock even when the merge
+            // had just wiped it, and this test would then pass with the bug fully present.
+            val checkedAtAfterEdit = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
+            itemsCol.updateOne(
+                itemFilter,
+                Updates.set("checkedAt", checkedAtAfterEdit?.let { Date.from(it.toInstant().minus(8, ChronoUnit.DAYS)) }),
+            )
+        }
+
+        // Built AFTER the HTTP writes: this ItemService owns a separate ItemStorage and only sees the
+        // rows written above through its own first lazy sync().
+        buildItemService(db).runSchedulerCycle()
+
+        val restored = itemsCol.find(itemFilter).toList().single()
+        restored.getString("name") shouldBe "Ground coffee"
+        restored.getBoolean("checked") shouldBe false
+        restored["checkedAt"] shouldBe null
     }
 
     test("uncheckItem non-member returns GQL error") {

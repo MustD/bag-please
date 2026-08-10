@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 77
+rule_count: 85
 optimized_for_llm: true
 ---
 
@@ -92,6 +92,41 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **MongoDB upsert `$set` payload** — exclude `_id` from the `Updates.combine()` call; including it causes `"Performing an update on the path '_id' would modify the immutable field"` error
 - **Mapper access pattern** — mappers are `object` singletons; call as `GqlItemMapper.mapItemToGql(item)`, never `GqlItemMapper()` (that's a constructor call and won't compile)
 - **GQL Subscription flow mapping** — the flow exposed by a Subscription class must map domain types to GQL types via the mapper; exposing the domain type directly will fail schema generation or serialize incorrectly
+- **An upsert service method MERGES the stored row; it never reconstructs the entity from the input** (Story 7.4, the
+  shape to copy for every future entity). `ItemService.saveItem` loads the stored row with
+  `storage.getByIdCached(id, listId)` and, when it exists, `stored.copy(...)`s onto it **only the fields the GraphQL
+  input carries** — for `ItemInput` that is exactly `name`, `checked`, `category`, `store`, `recurring`. Everything
+  else on `Item` is **server-owned**: `addedBy`, `checkedAt`, `deleted`, `deletedAt` come from storage on an update
+  and are *meaningless* on the incoming object, because `GqlItemMapper.mapItemFromInput` builds a fresh `Item` and you
+  cannot tell "absent from the input" from "defaulted" inside the service. The direction matters and is not a style
+  choice: **copy the input onto the stored row (allowlist)**, never `item.copy(addedBy = stored.addedBy, …)`
+  (denylist) — the denylist form silently regresses the next server-owned field somebody adds. Three shipped
+  production bugs (BUG-E6-1/2/3) came from the reconstruct form. `checkItem`, `uncheckItem` and `runSchedulerCycle`
+  call `storage.save` directly and never route through `saveItem`; they already `copy()` the stored item and are the
+  reference pattern
+- **Create-vs-update is discriminated by EXISTENCE IN STORAGE, never by presence of an id.** Client-supplied UUIDs
+  mean `GqlItemInput.id` is non-nullable and the frontend calls `crypto.randomUUID()` for **new** items too, so
+  "reject an id that does not exist" rejects every add — measured, it turned **16 of the 25 `ItemLifecycleTest` tests
+  red** on `Exception while fetching data (/saveItem) : Item <uuid> does not exist`. `getByIdCached` hit → update
+  branch, miss → create branch
+- **`saveItem`'s two rejections are scoped differently, and the asymmetry is deliberate.** A **cross-list id** (the id
+  exists globally but on another list) is rejected on **every** call — `ItemRepository.save`'s filter is `_id` only,
+  with no `listId` clause, so an unguarded upsert silently *relocates* the item; the global point read
+  `ItemRepository.findById(id)` exists solely to see that case, because `getByIdCached` is list-scoped and misses it.
+  A **category that does not belong to the list** is rejected on the **update branch only** (`md`'s ruling A,
+  2026-08-10): that is the actual shape of the bug (a stale edit dialog), and guarding creates too would fail 29
+  existing `saveItem` test sites across six files. The create-branch hole is knowingly open, filed in
+  `deferred-work.md`, and pinned by a tripwire test so a later "tightening" fails one obvious test instead of 29
+  unrelated ones. **Both rejections must `throw` before `itemUpdateChannel.emit(...)`** — the subscription broadcasts
+  whatever is emitted, so emitting on a rejected save pushes a `SAVED` event for a write that never happened
+- **A service rejects with `IllegalArgumentException`, never with a `GraphQL*Exception`.** The four
+  `GraphQL*Exception` classes live in `bp_back/src/main/java/com/bagplease/plugins/` and are imported **only** by
+  `*/gql` files; importing one into a service is a service→plugins layering violation. Consequence to accept
+  knowingly: a plain throw surfaces as graphql-java's default `ExceptionWhileDataFetching` with **no
+  `extensions.code`**, so the frontend can only branch on the message string (`graphqlErrorMessage` strips the
+  `Exception while fetching data (/field) : ` wrapper). Arrow's `either { }` captures `Raise` shifts, **not** thrown
+  exceptions, so the throw escapes the block entirely and the caller's `fold` never runs — a test that asserts only
+  `errors` proves nothing about the write, so always re-read and assert the stored row is unchanged as well
 
 #### Vite SPA / Apollo Client (Frontend)
 
@@ -173,7 +208,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `dependencies: ['chromium', 'mobile']`) and `registration-toggle-mobile` (Pixel 7, same `grep`,
   `dependencies: ['registration-toggle-chromium']`) run afterwards, in series, both with `fullyParallel: false` so a
   future *second* tagged test cannot race the first. The tagged test is *rerouted*, not duplicated: at Story 7.3 the
-  split was **51 / 51 / 1 / 1 = 104**. Treat the absolute totals as dated; the standing invariant is **exactly 1 test in
+  split was **51 / 51 / 1 / 1 = 104**; at Story 7.4 it is **52 / 52 / 1 / 1 = 106 tests in 10 files**, the +2 being
+  `item-attribution.spec.ts`'s single untagged test in the two viewport projects.
+  Treat the absolute totals as dated; the standing invariant is **exactly 1 test in
   each `registration-toggle-*` project** and everything else in the two viewport projects. Adding a new spec means +2
   runs, in `chromium`/`mobile`; only a test that writes the shared registration flag belongs in the tagged pair.
 - **`Total: 104` does NOT prove the routing works — check the per-project split.** Drop or misspell the tag and the test
@@ -276,9 +313,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
   sets no `testMatch`, so the default pattern applies and a `support/helpers.spec.ts` would be *collected* and fail the
   run with zero tests. `.tsx` falls outside the `bp/e2e-playwright` override glob (`e2e/**/*.ts`) and would get
   `react-refresh/only-export-components: error` — the rule that exists to permit a module of named exports here.
-- **`uniqueUsername` takes the caller's prefix first**: `uniqueUsername('shopping', label, project.name)`. The seven
-  prefixes (`acct`, `admin`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing — `./db/data`
-  persists and both projects run concurrently, so collapsing the namespaces would make specs collide on foreign data.
+- **`uniqueUsername` takes the caller's prefix first**: `uniqueUsername('shopping', label, project.name)`. The **eight**
+  prefixes (`acct`, `admin`, `attrib`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing —
+  `./db/data` persists and both projects run concurrently, so collapsing the namespaces would make specs collide on
+  foreign data. `attrib` is `item-attribution.spec.ts` (Story 7.4, FR45/FR58). **A new spec claims a new prefix and
+  adds it to the registry comment at `support/ui.ts:14-18`** — that comment is the only inventory there is.
 - **It is a support module, not a login fixture** (AR-E7-5). No `storageState`, no `test.extend`, no session reuse:
   every spec still registers a fresh user through the UI and logs in through the form.
 
@@ -418,6 +457,16 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Testing
 - **Docker daemon required for tests** — `../gradlew test` uses Testcontainers which requires a running Docker daemon; a missing Docker daemon produces a Docker socket error, not a useful test failure message
 - **Run tests from `bp_back/`** — execute as `../gradlew test` from within `bp_back/`; from the repo root use `./gradlew :bp_back:test`
+- **Always `cleanTest` first: `./gradlew :bp_back:cleanTest :bp_back:test`.** `:bp_back:test` on its own is
+  `UP-TO-DATE`-cacheable — it reports `BUILD SUCCESSFUL`, executes nothing, and leaves the previous run's JUnit XML in
+  place, so the totals you then read are **stale**. That trap fired during Story 7.4's planning pass. `:bp_back:build`
+  does run `check` → `test`, so it is not a substitute for reading the results either.
+- **Read the totals from the JUnit XML, not from the console.** Kotest's console output does not print a summary line;
+  the numbers live in `bp_back/build/test-results/test/TEST-*.xml` (`tests`/`failures`/`errors`/`skipped` on each
+  `<testsuite>`). Suite size for reference: **105 at `73db447`, 113 after Story 7.4.** Treat those as dated — the
+  standing rule is to re-measure, never to quote a remembered number.
+- **A `--tests "com.bagplease.SomeTest"` filter runs the whole Kotest class**, which is the cheap way to iterate on one
+  spec's red/green observation without paying for the full suite (~17 s vs ~1 m 35 s).
 
 #### Git
 - **Branch naming** — feature branches follow `feature/<description>`
@@ -438,7 +487,25 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-08 (Story 7.3) — the `registrationEnabled` race is **deleted, not retried**. The FR20/FR21
+_Last Updated: 2026-08-10 (Story 7.4) — an upsert service method **merges the stored row**; it never reconstructs the
+entity from its GraphQL input. Four backend rules added: the merge shape and why the direction is an allowlist
+(`stored.copy(...)`, not `item.copy(addedBy = stored.addedBy, …)`) with the five `ItemInput` fields named and
+`addedBy`/`checkedAt`/`deleted`/`deletedAt` named as server-owned; create-vs-update is discriminated by **existence in
+storage**, never by presence of an id (measured: the id-based form turns 16 of 25 `ItemLifecycleTest` tests red, since
+the client generates UUIDs for new items too); `saveItem`'s two rejections and their deliberate asymmetry (cross-list
+id **always**, category-not-in-list **update branch only** per `md`'s ruling A — 29 test sites across six files is what
+guarding creates would cost), both throwing **before** `itemUpdateChannel.emit`; and the error idiom
+(`IllegalArgumentException`, never a `GraphQL*Exception` — those are imported only by `*/gql` files, so a service
+import is a layering violation — with the `ExceptionWhileDataFetching`/no-`extensions.code` consequence and the
+`either { }` caveat that a thrown exception escapes the block, so an `errors`-only assertion proves nothing about the
+write). Four testing rules added: **`cleanTest` is mandatory** (`:bp_back:test` alone is `UP-TO-DATE`-cacheable — it
+prints `BUILD SUCCESSFUL`, executes nothing and leaves stale JUnit XML), read totals from
+`build/test-results/test/TEST-*.xml`, the suite is **113 after this story (105 at `73db447`)**, and `--tests` filters
+run a whole Kotest class. The E2E prefix registry went from seven to **eight** (`attrib`) and the four-project split is
+now **52 / 52 / 1 / 1 = 106 tests in 10 files**, measured. New debt — the open create-branch category hole, the
+BUG-E6-3a severity downgrade, the declined `BAD_USER_INPUT` shape and the new `checked=false` + non-null `checkedAt`
+state — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-08 (Story 7.3) — the `registrationEnabled` race is **deleted, not retried**. The FR20/FR21
 toggle test is tagged `@registration-toggle` and routed into two new Playwright projects chained behind `chromium` and
 `mobile` with `dependencies`, so its OFF window is exclusive across projects; the `expect(...).toPass()` workaround in
 `support/ui.ts` was deleted in the same change. The "Known race" bullet was replaced with the new invariant

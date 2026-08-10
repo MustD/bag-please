@@ -14,8 +14,8 @@ import {expect, type Page} from '@playwright/test'
 //      while the ./db/data volume persists across runs and the two projects run
 //      concurrently — so tests only ever assert on data they created, never on
 //      totals. `uniqueUsername` therefore takes the CALLER's prefix: each spec
-//      keeps its own namespace (`acct`, `admin`, `lists`, `nav`, `sharing`,
-//      `shopping`, `item_editing`).
+//      keeps its own namespace (`acct`, `admin`, `attrib`, `lists`, `nav`,
+//      `sharing`, `shopping`, `item_editing`).
 
 export const PASSWORD = 'e2e-password-123'
 

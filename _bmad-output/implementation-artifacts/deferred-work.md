@@ -107,6 +107,11 @@ close-out above before acting on anything here.**
 - **FR42 (one-timer) / FR43 (recurring) item UI deferred by epic design.** Backend support is complete and live,
   including the hourly scheduler; the UI affordances were intentionally postponed. `AddItemDialog` sends
   `recurring: null`. UI-only work against a frozen, tested contract whenever it is picked up.
+  **Its recorded prerequisite is discharged 2026-08-10 by Story 7.4:** BUG-E6-2 (an edit wiping `checkedAt` and so
+  permanently hiding the item from the scheduler) is fixed, so shipping the lifecycle control no longer ships a way to
+  silently break the feature the control exposes. One caveat now applies instead, and it is filed in the 7.4 section
+  below: `saveItem` can still produce `checked=false` with a non-null `checkedAt`, because `checked` is in `ItemInput`
+  while `checkedAt` is server-owned. No UI path does this today; a FR42/FR43 UI must not introduce one.
 
 - **Playwright `webServer` gaps, carried since Epic 3** (still unaddressed after the Epic 5 harness rebuild): no
   teardown command (containers accumulate across CI runs), the `url` health check only proves the entrypoint responds —
@@ -398,6 +403,186 @@ out of that story's charter.** A later story should rank them properly.
   touching `retries`). Original framing, retained because the underlying judgement still holds: the retries were added
   to absorb this race, the race is gone, and a surviving `retries: 2` would now mask a genuinely *new* flake rather
   than a known one.
+
+## Deferred from: Story 7.4 — an item edit merges the stored item (2026-08-10)
+
+Story 7.4 turned `ItemService.saveItem` into a **merge**: it loads the stored row with
+`storage.getByIdCached(item.id, item.listId)` and, when the row exists, `copy()`s onto it only the five fields
+`ItemInput` carries (`name`, `checked`, `category`, `store`, `recurring`). The direction is deliberate — copying the
+input **onto** the stored row is an allowlist, so a field added to `Item` later is preserved by default; the inverse
+(`item.copy(addedBy = stored.addedBy, …)`) is a denylist and the next server-owned field would regress silently.
+BUG-E6-1 and BUG-E6-2 are closed above and BUG-E6-3 is partial. What follows is what the story knowingly did **not**
+take, plus one thing the merge newly makes possible.
+
+**Read the first three entries as scope decisions, not discoveries.** Each was put to `md` on 2026-08-10 and answered
+as a ruling *before* any code was written; they are filed so that the next agent inherits the reasoning instead of
+re-deriving it — and so that a later "tightening" is recognised as re-opening a decision rather than fixing an
+oversight.
+
+- **`saveItem`'s create branch still accepts a `category` that belongs to no list** (`md`'s ruling A: the check is
+  **update-only**). No dialog *offers* a foreign category — both pick from the list's own `categories`
+  (`ListDetailPage.tsx` passes them into `AddItemDialog` and `EditItemDialog`), and `SaveCategoryMutation`'s only
+  consumer is `AddCategoryDialog.tsx:32` — so a direct GraphQL caller was the only producer this story's planning
+  identified. **CORRECTED 2026-08-10 by the code review of this story: there IS a UI-reachable producer, and it is a
+  two-member race, not an exotic client.** Removing a category from `/lists/:id` hard-deletes that category's items
+  **first** and the category second (`ListDetailPage.tsx:288-296`, and its comment says why). So if member B removes a
+  category while member A's edit dialog is open on one of its items, A's save finds the id gone from storage **and**
+  gone from Mongo, takes the **create** branch — the branch this ruling deliberately leaves unguarded — and resurrects
+  the item carrying the now-deleted category. That composes the two holes this story knowingly left open (the
+  unguarded create branch here, and BUG-E6-3a's resurrection below) into BUG-E6-3b's state through a path a normal
+  user can walk. **Price this entry accordingly: it is not "direct API callers only".**
+  **Also corrected: the resulting item is not invisible on both screens.** `/list/:id` renders it under the synthetic
+  `Uncategorized` bucket (`ListShoppingPage.tsx:40`, `:194-221`); only `/lists/:id` hides it, because that screen
+  groups strictly by known category. The accurate description of the end state is **visible on the shopping view but
+  unreachable for editing or removal on the management view** — bad, but recoverable-looking to a user who cannot
+  actually recover it, which is arguably worse than being invisible.
+  **The cost of closing it, measured at `73db447` rather than estimated:** `grep -c "saveItem(" *.kt` over
+  `bp_back/src/test/kotlin/com/bagplease/` returns **32 hits across seven files** (`ItemLifecycleTest` 17, `ItemApiTest`
+  5, `ItemCategoryStorageTest` 3, `ListAuthorizationTest` 2, `ListSharingTest` 2, `SubscriptionScopingTest` 2,
+  `ListServiceTest` 1). Two of those hits are `ItemLifecycleTest`'s own helper declaration and its mutation string, so
+  there are **30 invocations, of which 29 across six files invent a `catId` and never create the category** — only
+  `ListServiceTest:183` seeds its own, at `:178`. Re-measured directly in this story's tree by hoisting the guard out
+  of the update branch: **10 of the 25 `ItemLifecycleTest` tests went red**, the ruling-A tripwire among them
+  (`Exception while fetching data (/saveItem) : Category <uuid> does not belong to list <uuid>` … `should not include
+  substring "errors"`). **The cheap partial, if this is ever picked up under time pressure:** reject a category that
+  exists on *another* list even on create. That is the half with a real victim, and **no existing test does it**, so it
+  costs nothing. The expensive half — rejecting a category that exists nowhere — is what the 29 sites pay for.
+  A tripwire test guards the current behaviour: `7.4 AC4 a CREATE with an unknown category is still accepted (ruling A
+  tripwire)` in `ItemLifecycleTest`. Tightening the scoping must delete or rewrite that test deliberately; it is there
+  so the change cannot happen by accident inside an unrelated red run.
+
+- **`Item.category` has no schema-level referential integrity, and after this story the only guard is service-layer
+  and update-only.** Mongo stores the category as a bare string UUID on the item document; nothing at the storage or
+  schema layer relates it to the `categories` collection, and `deleteCategory` does not re-home or reject items that
+  point at it. The service check added by AC4 is therefore the *entire* integrity mechanism, it runs on one of two
+  branches, and it is enforced per-write rather than as an invariant. Recorded so that "categories are validated now"
+  is not read as more than it is.
+
+- **The `BAD_USER_INPUT` error shape was declined** (`md`'s ruling B). AC3 and AC4 `throw IllegalArgumentException`
+  from `ItemService`, and `ItemApi.kt` has no try/catch, so both surface as graphql-java's default
+  `ExceptionWhileDataFetching` with **no `extensions.code`** — measured verbatim:
+  `{"errors":[{"message":"Exception while fetching data (/saveItem) : Category <uuid> does not belong to list <uuid>",
+  "locations":[…],"path":["saveItem"]}]}`. The frontend can therefore only branch on the message string, exactly as
+  the list/sharing flows already have to. Why declined rather than fixed: the four `GraphQL*Exception` classes live in
+  `bp_back/src/main/java/com/bagplease/plugins/` and are imported **only** by `*/gql` files (verified by grep), so
+  throwing one from a service would be a service→plugins layering violation; getting a typed code any other way means
+  editing `ItemApi.kt`, which is outside the scoped unfreeze. This is the same debt already on file as the **"AC7 error
+  shape"** bullet under `## Deferred from: code review of 4-1-list-entity-backend-crud-authorization-migration
+  (2026-05-22)` — that entry is about `ListService`'s over-long-name rejection and this is its second instance. Whoever
+  picks up either should pick up both, and should decide the *shape* once (a `GraphQLBadRequestException` thrown from
+  the `gql/` layer after the service returns a typed Left is the obvious candidate, but it changes `saveItem`'s
+  `Either<ListAuthError, Item>` Left type, which Story 7.4 was explicitly forbidden to touch).
+
+- **BUG-E6-3a — a save against a hard-deleted id resurrects the item. Severity-downgraded by this story, NOT fixed
+  (AR-E7-2a).** This record is created here because the ID never existed in this ledger: `BUG-E6-3a` and `BUG-E6-3b`
+  live only in `epics.md`, and `grep -n "E6-3a"` over this file returned nothing before Story 7.4. BUG-E6-3's parent
+  entry above covers both halves; **(b) the dangling-category half is fixed by AC4, (a) this half is not.**
+  What the merge changes: `ItemStorage.delete` is a **hard** delete, so the row is genuinely gone and a subsequent save
+  against that id misses `getByIdCached`, takes the **create** branch, and is written as a new item — `addedBy` = the
+  editor (who did, factually, create this row), `checkedAt` null (correct for a new item), and the result is visible
+  and removable through the UI. Before the merge the same write reconstructed a row from `ItemInput`'s defaults and the
+  outcome was indistinguishable from silent corruption. So the remaining defect is a **stale-dialog UX race** — B
+  deletes an item while A's edit dialog is open, A saves, the item comes back — not a data-integrity failure.
+  **The real fix is soft-delete tombstones that the scheduler owns:** make `deleteItem` set `deleted`/`deletedAt`
+  instead of removing the row (`getByIdCached` already does not filter `deleted`, which is precisely why AC1's
+  soft-delete test passes), let `saveItem` see the tombstone and reject the write, and give the existing
+  `findSoftDeletedToHardDelete` reaper the job of collecting them. **That is outside the scoped unfreeze**: it changes
+  the delete contract, the reaper's retention window and the subscription's `DELETED` semantics all at once, and Epic 7
+  opened the backend for exactly one merge. Do not close this entry as "fixed by 7.4" — it was downgraded, not
+  resolved. Client-side mitigations (refetch-before-save, clearing `editItemTarget` when the item leaves `items`) only
+  shrink the window and are already described in BUG-E6-3 above.
+
+- **New, and created by this story's own shape: `saveItem` can now write `checked = false` alongside a non-null
+  `checkedAt`, and the scheduler then ignores the item forever.** `checked` **is** in `ItemInput` while `checkedAt` is
+  server-owned, so an update that carries `checked: false` un-checks the row while the merge preserves the stored
+  clock. `findCheckedRecurringItems` filters `checked == true`, so a recurring item in that state is skipped by the
+  scheduler. **CORRECTED 2026-08-10 by the code review of this story: this half is inert, and the dangerous half is
+  its mirror, which this entry originally missed.** `checked = false` **is** the restored, visible state — the
+  scheduler has nothing to restore, and the next `checkItem` overwrites `checkedAt` (`ItemService.kt:86`), so the
+  stale clock is residue, not a defect. It is emphatically **not** "the same end state as BUG-E6-2".
+  **The state that reproduces BUG-E6-2's end state is `checked = true` with a null `checkedAt`.**
+  `findCheckedRecurringItems` *returns* that row (it filters on `checked == true` and the cadence only), and
+  `runSchedulerCycle` then drops it at `if (item.checkedAt == null || …) continue` (`ItemService.kt:120`) — checked
+  off, never restored, on every cycle forever. The merge produces it whenever an update carries `checked: true`
+  against a recurring row whose stored `checkedAt` is null, i.e. one created recurring and never checked through
+  `checkItem`. Note this is **not a regression** — the pre-merge reconstruct nulled `checkedAt` on every save, so it
+  was the norm — but it is the state a fix must actually target, and the remedy sketched below ("clear `checkedAt` on
+  a true→false transition") does **not** close it. A third coherent answer belongs on the list: stamp `checkedAt =
+  now()` when the merge transitions `checked` false→true on a recurring item, which is what `checkItem` already does.
+  **No UI path produces either state today:** `EditItemDialog.tsx:125-144` carries `checked` and `recurring` forward from the **live** `item` prop
+  specifically so an edit cannot reset them, and it says so in a comment. It is filed rather than fixed because
+  closing it means deciding whether `saveItem` may un-check an item **at all** — which is `uncheckItem`'s job, and
+  `uncheckItem` deliberately clears `checkedAt` as part of the scheduler contract. Two coherent answers exist (drop
+  `checked` from the merge's allowlist, or clear `checkedAt` whenever the merge transitions `checked` true→false) and
+  picking one is a product decision, not a bug fix. **Direct consequence for FR42/FR43:** the one-timer / recurring UI
+  is now unblocked (see the FR42/FR43 entry near the top of this file), but it must not introduce the first UI path
+  that sends `checked: false` for a recurring item without going through `uncheckItem`.
+
+## Deferred from: code review of 7-4-item-edit-merges-stored-item (2026-08-10)
+
+Two findings from this review were **not** deferred — they were corrected in place, because they were false statements
+this story had just written into the two entries above: the create-branch category hole is UI-reachable through the
+remove-category cascade (not "direct API callers only"), and the filed `checked`/`checkedAt` desync had the harmful
+and harmless halves the wrong way round. Both corrections are marked `CORRECTED 2026-08-10` in the Story 7.4 section.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: Nothing tests the "throw before `emit`" contract that this story promoted to a stated invariant.
+  evidence: The spec and `project-context.md` both assert that AC3/AC4 must throw before `itemUpdateChannel.emit(...)`
+  so a rejected save broadcasts no `SAVED` event. All four rejection tests assert only on the HTTP response body, so
+  moving the `emit` above the throws would regress the invariant with the suite fully green. It is cheap to cover —
+  `ItemService.itemUpdates` is a public `SharedFlow` and `SubscriptionScopingTest` already shows the collect pattern —
+  but doing it inside a `MutableSharedFlow` with `extraBufferCapacity = 1` and no replay needs a collector attached
+  before the call, which is a timing shape this suite has no precedent for; it was left out of the review pass rather
+  than land a possibly-flaky test on a story whose sibling (7.3) existed to delete a flake.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: AC3's cross-list rejection is a TOCTOU pre-read where an atomic storage-layer fix was available.
+  evidence: Between `repository.findById(item.id) != null` (`ItemService.kt:63`) and `storage.save(toSave)` (`:69`) a
+  concurrent request can create the same `_id` on another list, and `ItemRepository.save`'s filter is `_id` only under
+  `upsert(true)`, so the relocation AC3 forbids still happens. Adding the `listId` to that filter — or a compound
+  unique index — rejects it atomically, needs no extra read per write, and would not have required the new repository
+  method that forced one of this story's two `Files:`-line deviations. The window is narrow and the guard is a strict
+  improvement on the baseline, so this is a follow-up, not a defect in the merge.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: The create/update branch is chosen from the in-memory cache while the cross-list rejection reads Mongo, and
+  nothing pins the two to agree.
+  evidence: `saveItem` discriminates on `storage.getByIdCached` (`ItemStorage`'s `ConcurrentMap`) but rejects on
+  `repository.findById` (a Mongo point read). They agree today only because every write path goes through
+  `save`/`delete`/`deleteAllInList` + `evictList` on a single backend instance. A second instance, a migration writing
+  straight to Mongo, or a future partial eviction makes a legitimate update miss the cache, take the create branch,
+  hit `findById`, and be rejected with the actively misleading `"Item <id> belongs to a different list"`. The coupling
+  is load-bearing and is recorded nowhere in the code, the tests, or `project-context.md`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: AC4's guard creates a new terminal state — an item already carrying a dangling category can never be
+  renamed, and the raw guard message reaches the user verbatim.
+  evidence: The guard validates the *incoming* `category`, and `EditItemDialog` sends back the item's stored category
+  when the user does not change it. An item in the state described in the ruling-A entry above therefore rejects every
+  future edit. The MUI `Select` renders **blank** for a category id absent from `categories` while `validate()` still
+  passes (the id is a non-empty string), so the user sees `Category <uuid> does not belong to list <uuid>` in
+  `edit-item-error` with no indication that re-picking the category is the fix. Cross-reference the declined
+  `BAD_USER_INPUT` shape in the Story 7.4 section: a typed code is what a "pick a category" hint would branch on.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: Four comments in `EditItemDialog.tsx` are now factually wrong and shipped that way, because `bp_front/src/`
+  was out of scope by rule.
+  evidence: `:38-43` still describes `saveItem` as "a full-document upsert (`GqlItemMapper.mapItemFromInput` builds a
+  fresh `Item` from the input alone)" and names "the server-side `checkedAt` reset — see deferred-work.md BUG-E6-2" as
+  a live blocker on the lifecycle control; `:117` and `:127` repeat the premise. BUG-E6-2 is closed. The next
+  developer is pointed at a fixed bug — and, worse, the `checked`/`recurring` carry-forward those comments justify is
+  now the only thing keeping the desync in the Story 7.4 section from being reachable, so a reader who deletes the
+  carry-forward as obsolete opens a real hole. This should be picked up by the first story that is allowed to touch
+  `bp_front/src/` (FR42/FR43 is the natural one).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
+  summary: `ItemRepository.findById` is an existence check built on a mapper that can return null, so AC3's guard
+  cannot see documents it fails to map.
+  evidence: `.mapNotNull(MongoItemMapper::mapItemFromMongo)` drops any `items` document the mapper rejects (e.g. a
+  missing `listId`). Such a row exists in Mongo under that `_id`, so `save`'s `_id`-only upsert would overwrite it,
+  but `findById` reports `null` and the create branch proceeds. `countDocuments` on the same filter would be a true
+  existence check and is cheaper. No such document is known to exist today — the Epic 4 migration is the only writer
+  that ever bypassed the mapper — which is why this is filed rather than fixed.
 
 ## Deferred from: code review of 7-3-delete-registrationenabled-race (2026-08-08)
 
@@ -762,7 +947,18 @@ Both are **unfixable from the frontend** and both ship with Epic 6 by decision (
 is an acceptance criterion of Story 6.1, not a note. Both were **observed live** during the story's manual browser pass
 against `:2080`, not merely reasoned about.
 
-- **BUG-E6-1 — `saveItem` re-attributes `addedBy` to whoever edited the item, stealing authorship.**
+- ~~**BUG-E6-1 — `saveItem` re-attributes `addedBy` to whoever edited the item, stealing authorship.**~~
+  **RESOLVED 2026-08-10 by Story 7.4 — `saveItem` now merges the stored row instead of reconstructing it.**
+  `ItemService.saveItem` loads the stored item with `storage.getByIdCached(item.id, item.listId)` and, when it exists,
+  `copy()`s only the five fields `ItemInput` carries (`name`, `checked`, `category`, `store`, `recurring`) onto it, so
+  `addedBy` comes from storage. Evidence, all measured: the Kotest test
+  `7.4 AC1 an edit by another member keeps addedBy and the check-off clock` was observed red with the merge reverted —
+  `"addedBy":"mem74_e64fd24f"` where the author was `own74_50c571a0` — and green with it in place; the new Playwright
+  spec `bp_front/e2e/item-attribution.spec.ts` was observed red on **both** `chromium` and `mobile` against the unfixed
+  production image (`Received string: "Aattrib_e2e_editor_mobile_1786370690586"`) and green after the fix; and the
+  symptom was reproduced and then re-checked by hand in a real browser at `:2080`. The **fix taken differs from the
+  proposed fix below**: rather than special-casing `addedBy`, the merge copies the input onto the stored row, so every
+  present and future server-owned field is preserved by default (allowlist, not denylist). Retained for history:
   source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
   cause: `addedBy` is server-set from the caller's principal and is deliberately not part of `ItemInput`
   (`ItemApi.kt:52` → `GqlItemMapper.mapItemFromInput(item, caller.value)`), so every `saveItem` overwrites it with the
@@ -774,7 +970,14 @@ against `:2080`, not merely reasoned about.
   proposed fix (server-side): preserve the stored `addedBy` on update — look up the existing item in
   `ItemService.saveItem` and keep its `addedBy`, only setting the caller's name when the item does not yet exist.
 
-- **BUG-E6-2 — `saveItem` resets `checkedAt` to `null`, clearing the check-off clock the recurring scheduler reads.**
+- ~~**BUG-E6-2 — `saveItem` resets `checkedAt` to `null`, clearing the check-off clock the recurring scheduler reads.**~~
+  **RESOLVED 2026-08-10 by Story 7.4 — the same merge; `checkedAt` is server-owned and now comes from storage.**
+  **The FR42/FR43 prerequisite this entry named is therefore discharged** (see the FR42/FR43 entry near the top of this
+  file). Evidence: the Kotest test `7.4 AC5 an edit keeps the check-off clock, so the scheduler still restores the item`
+  *drives* `runSchedulerCycle()` after an HTTP rename, and backdates `checkedAt` **relative to whatever the edit left
+  behind** precisely so that a wiped clock cannot be papered over by the backdate. With the merge reverted it failed at
+  the scheduler assertion — `expected:<false> but was:<true>`, i.e. the scheduler skipped the item exactly as this entry
+  predicted — and passes with the merge in place. Retained for history:
   **Prerequisite for undeferring the one-timer / recurring item UI (FR42/FR43).**
   source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`
   cause: `GqlItemMapper.mapItemFromInput` (`GqlItemMapper.kt:26-41`) constructs a **fresh** `Item` from the input alone,
@@ -811,10 +1014,27 @@ against `:2080`, not merely reasoned about.
   mitigation already in place: the edit payload reads its carry-forward fields from the live `item` prop rather than the
   open-time snapshot, so anything a refetch *has* observed is not clobbered. That narrows the window; it does not close
   it, because nothing refetches while the dialog is open.
-  proposed fix: server-side, the same `ItemService.saveItem` change that fixes BUG-E6-1/E6-2 should also reject an
-  upsert whose id does not exist (make `saveItem` create-or-update explicitly rather than blind-upsert), and validate that
+  proposed fix: server-side, the same `ItemService.saveItem` change that fixes BUG-E6-1/E6-2 should also
+  ~~reject an upsert whose id does not exist (make `saveItem` create-or-update explicitly rather than blind-upsert)~~
+  **[CORRECTED 2026-08-10 — that clause was wrong and must not be implemented as written.** `GqlItemInput.id` is
+  non-nullable and the frontend calls `crypto.randomUUID()` for **new** items too, so rejecting a non-existent id
+  rejects every add. Measured: implementing exactly that wording turned **16 of the 25 `ItemLifecycleTest` tests red**,
+  every one of them on
+  `Exception while fetching data (/saveItem) : Item <uuid> does not exist`. The correct discriminator is **existence in
+  storage** — `getByIdCached` hit → update, miss → create — which is what Story 7.4 implemented. Epic 6 retro action
+  item **C1** carried the same wrong wording and is closed with this correction recorded.**]** and validate that
   `category` still belongs to the list. Client-side alternatives (refetch-before-save, or clearing `editItemTarget` when
   the item leaves `items`) only shrink the race.
+  **PARTIALLY RESOLVED 2026-08-10 by Story 7.4.**
+  **(b) the dangling-category outcome is fixed**: on the update branch `saveItem` now throws
+  `IllegalArgumentException("Category <id> does not belong to list <id>")` before `storage.save` and before
+  `itemUpdateChannel.emit`, so nothing is written and no `SAVED` event is broadcast for a rejected write. Two Kotest
+  tests cover it (category on another list; category on no list); both were observed red with the guard removed
+  (`should include substring "errors"` against a successful `saveItem` payload) and green with it. **The guard is
+  update-only by decision (`md`, ruling A) — the create branch still accepts any category, see
+  `## Deferred from: Story 7.4` above.**
+  **(a) the resurrection outcome is NOT fixed, only severity-downgraded** — tracked as **BUG-E6-3a** in
+  `## Deferred from: Story 7.4` above.
 
 - ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-1-edit-item-name-category-store.md`~~
   **CLOSED 2026-08-07 — resolved by Story 7.1** (duplicate of the rollup entry at the top of this file; see it for the
