@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 85
+rule_count: 87
 optimized_for_llm: true
 ---
 
@@ -158,6 +158,33 @@ _This file contains critical rules and patterns that AI agents must follow when 
   render-phase adjustment or query-derived state instead
 - **Client-supplied UUIDs** — categories and items are upserted with a client-generated `crypto.randomUUID()`; lists get
   their id from the server (`createList`)
+- **Where `/` resolves to has exactly ONE implementation: `useHomePath(mode)` in `src/lib/lists/homePath.ts`** (Story
+  7.5). `HomeRedirect` consumes it and does nothing else; `AppShell`'s title link consumes it to decide whether it is
+  standing on that route. **No consumer may re-derive the path** (AR-E6-7/AR-E7-8) — the app bar compares the path it is
+  *given* against `useLocation().pathname` and nothing more. **The `mode` argument is a permission, not a preference:**
+  `'resolve'` (HomeRedirect, which owns the redirect) is `cache-first` and may fetch; `'observe'` (the app bar, which
+  only decorates an answer that already exists) is **`cache-only`** so the app bar never issues the membership-gated
+  `lists` request — the same reason `ListDetailPage.tsx:52` uses it. **Branch order is load-bearing: `!data` must
+  precede the empty-list check.** Without it a cold cache in observe mode reads as `[]` → `/lists`, and the link goes
+  inert on `/lists` for a user who actually owns lists. `null` is the only honest "not known yet" and it maps to the two
+  correct behaviours — a spinner in `HomeRedirect`, a **live** link in `AppShell` (fail toward navigating, never toward
+  a dead control). **Timestamp ordering is numeric**: `byCreatedAtAsc` = `Date.parse(a) - Date.parse(b)`, exported from
+  the same module and used by every `createdAt` sort (currently `useHomePath` and `ListShoppingPage`'s switcher
+  `useMemo`). `localeCompare` on `createdAt` is a shipped bug, not a style choice — the backend emits
+  `Instant.toString()`, which drops the fractional part at zero nanos, so `…:05Z` sorts *after* `…:05.100Z`
+  (`'Z'` 0x5A > `'.'` 0x2E). Fixing this backend-side was explicitly **rejected** (AR-E7-7): a wire format is not
+  changed to paper over a frontend comparison
+- **An inert control means INERT-BUT-PRESENT** (Story 7.5, the app-bar home link is the reference case). Suppression is
+  a `preventDefault()` in the element's own `onClick` and nothing else: react-router 7's `Link` calls the caller's
+  `onClick` first and skips its internal navigation when `event.defaultPrevented`, and Enter on an anchor dispatches a
+  click, so one line covers pointer *and* keyboard. The element keeps its `href`, its role in the accessibility tree,
+  its Tab-reachability, its visible focus ring and its exact type scale; `aria-current="page"` is the only attribute
+  added. **Never** swap in a `Button`, set `disabled`/`aria-disabled`, set `tabIndex={-1}`, hide it, or unmount it —
+  `/admin` and `/account/password` have no back affordance of their own, so on those screens this link plus the user
+  menu are the only in-app exits, and a title that vanishes on one screen reads as a broken render. Never an imperative
+  `navigate()` either: `RouteGuard` owns auth redirects and the anchor stays declarative. The nearest sibling idiom is
+  `ListShoppingPage.tsx`'s switcher chip (`active ? undefined : onClick` + `aria-current`), but a `Chip` drops a handler
+  where a real anchor must prevent a default
 
 ### Testing Rules
 
@@ -179,7 +206,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - **Framework**: Playwright — config at `bp_front/playwright.config.ts`, tests at `bp_front/e2e/`, run via
   `npm run test:e2e`. **52 specs / 104 runs at the end of Epic 6** (32/64 at the end of Epic 5; Epic 6 added
-  `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each).
+  `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each). Story 7.4 took it to 106 runs and Story 7.5 to
+  **120 runs in 10 files** (`navigation.spec.ts` is now 17 tests). Every figure here is dated — re-measure, never quote.
 - **`bp_front/e2e/` is inside both quality gates** (since Story 7.1). `npm run lint` is `eslint .`; rules apply to
   `**/*.{ts,tsx}` only, so `e2e/`, `playwright.config.ts`, `vite.config.ts` and `codegen.ts` are now checked alongside
   `src/`, while `.mjs`/`.js` files are walked but carry no rules. Flat config does **not** read `.gitignore` — the
@@ -208,13 +236,15 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `dependencies: ['chromium', 'mobile']`) and `registration-toggle-mobile` (Pixel 7, same `grep`,
   `dependencies: ['registration-toggle-chromium']`) run afterwards, in series, both with `fullyParallel: false` so a
   future *second* tagged test cannot race the first. The tagged test is *rerouted*, not duplicated: at Story 7.3 the
-  split was **51 / 51 / 1 / 1 = 104**; at Story 7.4 it is **52 / 52 / 1 / 1 = 106 tests in 10 files**, the +2 being
-  `item-attribution.spec.ts`'s single untagged test in the two viewport projects.
+  split was **51 / 51 / 1 / 1 = 104**; at Story 7.4 **52 / 52 / 1 / 1 = 106**; at Story 7.5 it is
+  **59 / 59 / 1 / 1 = 120 tests in 10 files** — the +2 at 7.4 was `item-attribution.spec.ts`'s single
+  untagged test, the +12 at 7.5 is `navigation.spec.ts`'s six new untagged tests, each in both viewport projects.
   Treat the absolute totals as dated; the standing invariant is **exactly 1 test in
   each `registration-toggle-*` project** and everything else in the two viewport projects. Adding a new spec means +2
   runs, in `chromium`/`mobile`; only a test that writes the shared registration flag belongs in the tagged pair.
-- **`Total: 104` does NOT prove the routing works — check the per-project split.** Drop or misspell the tag and the test
-  simply runs in `chromium`+`mobile` (52+52) while both toggle projects collect zero: the total is *still exactly 104*,
+- **THE TOTAL PROVES NOTHING — check the per-project split.** Drop or misspell the tag and the test
+  simply runs in `chromium`+`mobile` while both toggle projects collect zero: the total is *unchanged*
+  (the tag REROUTES a test rather than duplicating it),
   the race is silently back, and the guard that used to absorb it is gone. The real check is
   `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c`. (Do **not** use `--list --project=<name>`
   for this — `--project` pulls in that project's `dependencies`, so the toggle projects report 103 and 104.)
@@ -487,7 +517,25 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-10 (Story 7.4) — an upsert service method **merges the stored row**; it never reconstructs the
+_Last Updated: 2026-08-11 (Story 7.5) — **where `/` resolves to has exactly one implementation**, and an inert control
+means inert-but-PRESENT. Two frontend rules added: `useHomePath(mode)` in `src/lib/lists/homePath.ts` is the single home
+resolver (both `HomeRedirect` and `AppShell` consume it; no consumer re-derives the path), `mode` is a *permission* —
+`'resolve'` may fetch, `'observe'` is **`cache-only`** so the app bar never issues the membership-gated `lists` request —
+the `!data` branch must precede the empty-list check or a cold cache makes the link inert on `/lists` for a user who owns
+lists, and `byCreatedAtAsc` (`Date.parse` difference) is the only legal `createdAt` ordering because
+`Instant.toString()` drops the fractional part at zero nanos (backend-side fixed precision was **rejected**, AR-E7-7);
+and the inert-but-present contract — a `preventDefault()` in the element's own `onClick` (react-router 7 runs the
+caller's handler first and skips its navigation when `defaultPrevented`, and Enter on an anchor dispatches a click, so
+one line covers both), `aria-current="page"` the only added attribute, never a `Button`/`disabled`/`aria-disabled`/
+`tabIndex={-1}`/hidden/unmounted, and never an imperative `navigate()`. E2E counts corrected: the four-project split is
+**59 / 59 / 1 / 1 = 120 tests in 10 files**, measured, and the "`Total: 104` does not prove the routing works" bullet was
+rewritten as **the total proves nothing** — the tag reroutes a test rather than duplicating it, so a dropped tag leaves
+the total unchanged. The prefix registry is unchanged at eight (`nav` already owned this spec). New debt — the
+`/lists`-with-no-lists dead-end under standalone display, the absence of any mechanical guard against a third
+`localeCompare` sort site, the `/admin/*` splat interaction with exact-pathname equality, the cold-cache window where the
+link is briefly live, and one unreproducible cold-start red run whose failure text was not captured — lives in
+`deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-10 (Story 7.4) — an upsert service method **merges the stored row**; it never reconstructs the
 entity from its GraphQL input. Four backend rules added: the merge shape and why the direction is an allowlist
 (`stored.copy(...)`, not `item.copy(addedBy = stored.addedBy, …)`) with the five `ItemInput` fields named and
 `addedBy`/`checkedAt`/`deleted`/`deletedAt` named as server-owned; create-vs-update is discriminated by **existence in

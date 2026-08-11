@@ -160,7 +160,23 @@ close-out above before acting on anything here.**
   between copies — and the race fix has to land in four places instead of one. Now an Epic 7 story (Epic 6 retro action
   B4), sequenced **before** the race fix itself.
 
-- **`HomeRedirect` sorts `createdAt` lexicographically, so FR38 can send a user to the wrong list.**
+- ~~**`HomeRedirect` sorts `createdAt` lexicographically, so FR38 can send a user to the wrong list.**~~
+  **CLOSED 2026-08-11 — resolved by Story 7.5.** The comparison is now numeric and lives in exactly one place:
+  `byCreatedAtAsc` in `bp_front/src/lib/lists/homePath.ts` returns
+  `Date.parse(a.createdAt) - Date.parse(b.createdAt)`, and both consumers call it — `useHomePath` (which `HomeRedirect`
+  now delegates to entirely) and `ListShoppingPage`'s list-switcher `useMemo`.
+  `grep -rn "createdAt.localeCompare" bp_front/src/` returns **zero** hits.
+  **The retained text undercounts the defect: there were TWO copies of the expression, not one.**
+  `ListShoppingPage.tsx:69` carried the identical sort and ordered the switcher chips, so `/` and the chip row could
+  disagree about which list is first; it is outside the epic's `Files:` line for this story and is recorded as a
+  deviation in the story record, `sprint-status.yaml` and the commit body rather than absorbed silently. The retained
+  text's *other* branch — "or emit a fixed-precision timestamp" — was **rejected**, not merely unused (AR-E7-7): a wire
+  format is not changed to paper over a frontend comparison bug, and `git diff bp_back/` is empty for this story.
+  Verified by a Playwright `page.route` interception that patches only the two `createdAt` values in the real `Lists`
+  response to the precision pair the UI cannot produce (`…:05.100Z` vs `…:05Z`), observed failing on both `chromium` and
+  `mobile` with the comparator reverted.
+  Retained for history:
+  **`HomeRedirect` sorts `createdAt` lexicographically, so FR38 can send a user to the wrong list.**
   `[...lists].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]` against a backend that emits
   `Instant.toString()`, which omits the fractional part entirely when nanos are zero — so `…:05Z` compares *greater*
   than
@@ -169,7 +185,24 @@ close-out above before acting on anything here.**
   Fix: compare `Date.parse(createdAt)` numerically, or emit a fixed-precision timestamp. Now an Epic 7 story (Epic 6
   retro action B6).
 
-- **Activating the app-bar home link while already on the resolved home route is a visible no-op that still pushes a
+- ~~**Activating the app-bar home link while already on the resolved home route is a visible no-op that still pushes a
+  history entry**~~
+  **CLOSED 2026-08-11 — resolved by Story 7.5.** The shared-hook route the retained text names is the one taken:
+  `useHomePath('observe')` in `AppShell` reads the resolved path from the same resolver `HomeRedirect` uses (cache-only,
+  so the app bar never issues the membership-gated `lists` request), compares it against `useLocation().pathname`, and
+  when they are equal calls `event.preventDefault()` on the anchor's click. react-router 7's `Link` runs the caller's
+  `onClick` first and skips its internal navigation when the event was `defaultPrevented`, and Enter on an anchor
+  dispatches a click, so one line covers pointer and keyboard. **Nothing else about the element changes** — same
+  element, `href="/"`, link role, focusability and focus ring, same type scale; `aria-current="page"` is the only added
+  attribute. AR-E6-7 is satisfied because `AppShell` compares a path it is *given* and derives none.
+  **Measured, both `chromium` and `mobile`: the history entry was real** — with the guard removed the click takes
+  `history.length` from 5 to 6, and one `goBack()` then fails to leave the screen. The **spinner blink in the retained
+  text could not be reproduced** and is not what the fix is verified against: by the time the user is standing on the
+  resolved home route the `Lists` cache is warm, so `HomeRedirect` renders no spinner on the round trip and
+  `home-redirect-loading` is absent in both the guarded and unguarded builds. The discriminating symptom is the wasted
+  history entry, not the flash.
+  Retained for history:
+  **Activating the app-bar home link while already on the resolved home route is a visible no-op that still pushes a
   history entry** — spinner blink, then `replace` back to the same route, so Back appears to do nothing once. Not
   fixable in the app bar (AR-E6-7 forbids it re-deriving the home path); the clean fix belongs in `HomeRedirect` or a
   shared hook exposing the resolved path. Low consequence, unscheduled.
@@ -517,6 +550,126 @@ oversight.
   picking one is a product decision, not a bug fix. **Direct consequence for FR42/FR43:** the one-timer / recurring UI
   is now unblocked (see the FR42/FR43 entry near the top of this file), but it must not introduce the first UI path
   that sends `checked: false` for a recurring item without going through `uncheckItem`.
+
+## Deferred from: Story 7.5 — home resolution and the inert home link (2026-08-11)
+
+Story 7.5 closed four entries above (the FR38 lexicographic sort and the home-link no-op, each filed twice — once as a
+rollup and once from the Story-6.2 review). What follows is what it uncovered or deliberately left standing.
+
+- **`/lists` for a user with no lists is a route whose only exits are the user menu and creating a list.** For that
+  user home resolves *to* `/lists`, so the title link is correctly inert there, and `/lists` has no back affordance of
+  its own — leaving `user-menu-button` as the single in-app navigation control on the screen. Harmless today (the URL
+  bar and the browser Back button are both present), but Story 7.14 removes both, and the new `exits` test asserts the
+  user menu as the affordance of record precisely because it is load-bearing there. Worth a deliberate look when
+  standalone display lands: an empty `/lists` in an installed app is one menu away from being a dead end.
+
+- **Nothing mechanically prevents a third `createdAt` sort site from reappearing with `localeCompare`.** Both existing
+  copies now call `byCreatedAtAsc`, and `grep -rn "createdAt.localeCompare" bp_front/src/` is zero — but that is a
+  measurement, not a guard. `grep -rn "localeCompare" bp_front/src/` still returns three legitimate *name* sorts
+  (`components/StoreField.tsx:37`, `routes/ListShoppingPage.tsx:209`, `routes/ListShoppingPage.tsx:327`), so a blanket
+  ban is not the answer. The real guard is a lint rule scoped to the `createdAt` property, or a convention that any
+  timestamp ordering imports the shared comparator. Unscheduled; the cost of rediscovery is one more ~1-in-1000
+  wrong-list bug.
+
+- **`/admin/*` is a splat route, so an admin on a hypothetical `/admin/<sub>` would see a LIVE title link** that
+  navigates to `/admin`. That is correct behaviour, not a bug — but the inert test is exact pathname equality
+  (`homePath === pathname`), so it is worth knowing before `AdminPage` ever gains nested routes: the guard would then
+  fire on the index and not on the children, which is right, while any future assumption that "admin's title link is
+  always inert" would be wrong.
+
+- **The observe mode is cache-only, so on a cold `Lists` cache the link is briefly LIVE on the very route it resolves
+  to** — one wasted click in a window measured in milliseconds, after which the answer is known and the link goes
+  inert. Chosen deliberately over letting the app bar issue its own membership-gated `lists` request (UX-DR-E7-4's
+  fail-toward-navigating direction; the same rationale as `ListDetailPage.tsx:52`). **This is observable in the suite
+  and explains a real measurement:** with the guard deliberately made to over-fire, three of the four existing
+  link-activating tests went red on both projects, but `FR38 — activating the title link with no lists lands on the
+  lists index` stayed green — it reaches `/account/password` by a full page load, which resets the Apollo cache, and
+  nothing on that route queries `Lists`, so the observed path is `null` and the link is live regardless of the guard.
+  Consequence for future authors: a test that means to exercise the inert state must arrive at the route through
+  IN-APP navigation, or warm the cache first. A `goto` is not equivalent.
+
+- **One full-suite run went red immediately after `docker compose up -d --build --force-recreate` and could not be
+  reproduced.** Three `mobile` tests failed — `admin.spec.ts:110` (FR16/FR17 password reset), `:145` (FR15/FR17 delete
+  user) and `:219` (FR30/FR31 non-admin redirect) — on the first traffic against the freshly recreated stack, with the
+  two toggle projects then reporting "did not run". The next three consecutive full runs at `retries: 0` were
+  `118 passed`, 0 flaky, and three isolated `--project=mobile --no-deps` runs of `admin.spec.ts` passed 4/4 each time.
+  **The failure text was not captured** (the console output was `tail`-ed and the following green run overwrote
+  `test-results/`), so this entry cannot name a cause — the honest statement is that the first run against a
+  cold-started backend failed three admin tests and no run since has. It is filed rather than dismissed because it is
+  exactly the shape of a cold-start flake that the epic's "green at zero retries, measured twice" requirement exists to
+  catch, and the next occurrence should be captured with `--reporter=list 2>&1 | tee` before the report is overwritten.
+  Suspected but unverified: JVM/Mongo cold start under 118 concurrent tests. Not attributable to this story's change —
+  `AppShell` fires no new request in observe mode, and `admin.spec.ts` does not touch the title link.
+
+## Deferred from: code review of 7-5-home-resolution-and-inert-home-link (2026-08-11)
+
+Nine findings from this review were **patched in place** (the cold-start test race, the modified-click guard, the
+NaN/tie-break comparator, trailing-slash normalisation, a seventh test for the zero-list home outcome, three
+interception hardenings in the FR38 test, and three overclaiming comments). Six were rejected as not real — two of
+them worth naming so they are not re-raised: the claim that `HomeRedirect`'s `path === '/lists'` welcome-forwarding is
+untested is **false** (`account.spec.ts:103`, FR5, covers it and passes), and the claim that ignoring `search`/`hash`
+in the pathname compare is a live defect is **unreachable** (`useSearchParams` appears only in `AuthPage`, which is
+outside `RouteGuard`; no guarded route ever carries a query string). What follows is what was deferred.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+  summary: **FOR `md` — a design decision, not a bug: should the app bar be allowed to join the in-flight lists query
+  so the inert guard covers the cold-start window?** Today it does not, and for roughly the first 100ms after a full
+  page load of the resolved home route the title link is live, so a click landing in that window still costs the FR57
+  history entry the story exists to remove.
+  evidence: `AppShell.tsx` observes via `useHomePath('observe')`, which is `fetchPolicy: 'cache-only'` — a constraint
+  written into the spec's `<intent-contract>` ("the observing consumer must never issue the membership-gated `lists`
+  request", "unknown path ⇒ not inert"). The window is real and measured: `ListShoppingPage.tsx:228` computes
+  `loading` from `itemsResult`/`categoriesResult` only, so `list-shopping-page` (and the app bar with it) renders
+  before the lists query resolves; a probe reads `aria-current` as absent immediately after the page appears and
+  `page` a moment later. Two of the story's own new tests raced it and failed 2 of 6 isolated runs before they were
+  changed to synchronise on `aria-current`. The implementation is contract-conformant — the contract's I/O matrix
+  explicitly specifies a live link while resolving — so this was NOT overridden unilaterally. The cheap fix is
+  `fetchPolicy: 'cache-first'` in observe mode: on `/list/:id` and `/lists` the page already issues the identical
+  `Lists` query so Apollo would dedupe it to zero extra requests, and the only routes where it would add one
+  (`/lists/:id`, `/account/password`) are never home. That contradicts the contract's letter, which is why it is a
+  question for `md` rather than a patch. Weigh it against the fact that Story 7.14 makes this link the app's only
+  exit and makes launch-then-tap the normal interaction.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+  summary: `useHomePath`'s `if (error) return '/lists'` branch is unreachable in `observe` mode, so while the lists
+  query is failing the two consumers of the "single source of truth" disagree about where home is.
+  evidence: `cache-only` never issues a request and therefore never surfaces an `error`; observe mode falls to
+  `!data → null` instead. Verified by forcing the `Lists` operation to HTTP 500: a zero-list user standing on
+  `/lists` (which is where `HomeRedirect` would send them) gets no `aria-current`, and clicking the title moves
+  `history.length` 2 → 3. Low consequence — one wasted Back press in an already-degraded state — but the hook's own
+  header comment claims both consumers read the same answer, and that is only true once the query has succeeded. Same
+  root cause as the entry above; fixing that fixes this.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+  summary: **UX question for `md`** — for a sighted user the inert link is a silent no-op with no feedback at all, and
+  one of the new tests actively enforces that it looks identical to a live one.
+  evidence: UX-DR-E7-2 and AR-E7-8 require the inert state to keep its type scale, weight, colour, hover underline
+  and focus ring, and `inertlook` asserts exactly that. So the control advertises itself as clickable, underlines on
+  hover, takes focus, activates on Enter — and does nothing. `aria-current="page"` reaches screen readers only.
+  Rejecting `disabled`/`aria-disabled` is right (the element is the only exit on `/admin` and `/account/password`),
+  but the middle ground was never considered: `cursor: 'default'` on the inert state would give sighted users the
+  same signal without touching type, colour, or the accessibility tree. Not applied unilaterally because "identical
+  look" is an explicit UX ruling.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+  summary: `AppShell` now mounts a `ListsQuery` watcher on every guarded screen — including `/account/password` and
+  `/admin` — purely to decide one attribute, and re-renders the whole shell on any write to the lists cache.
+  evidence: `useHomePath('observe')` inside `AppShell`. It costs no network request (`cache-only`, and admin is
+  skipped entirely), so the consequence is a wrong dependency direction rather than a measurable cost: a chrome
+  component now depends on the list domain. The alternative shape is a small context published by whoever already
+  fetches lists, which would give the app bar the answer without giving it the query. Deliberately not done here —
+  the shared hook is what the intent contract prescribes, and inverting the data flow is a bigger change than this
+  story's scope.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+  summary: A semantic change slipped in with the refactor: `/` used to redirect when the lists query settled with no
+  data, and now shows the spinner indefinitely instead.
+  evidence: the old `HomeRedirect` spun only while `loading` and otherwise fell through to `lists = []` → `/lists`;
+  the new one returns `null` for `!data`, which renders `home-redirect-loading` with no timeout. Practically
+  unreachable in `resolve` mode — Apollo sets `data` on success and `error` on failure, and the `skip` path is
+  admin-only, which returns `/admin` before the check — so this is filed as a latent semantic difference, not a live
+  bug. It is not a dead end for the user either: `AppShell` wraps `/`, so the user menu remains available. Worth
+  knowing before anyone adds a fetch policy or an `errorPolicy` that can produce settled-and-dataless.
 
 ## Deferred from: code review of 7-4-item-edit-merges-stored-item (2026-08-10)
 
@@ -1064,7 +1217,10 @@ against `:2080`, not merely reasoned about.
 
 ## Deferred from: code review of 6-2-back-to-home-and-lists-navigation (2026-07-28)
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`~~
+  **CLOSED 2026-08-11 — resolved by Story 7.5** (duplicate of the FR38-sort rollup entry near the top of this file; see
+  it for the full closure note, including the second copy of the expression in `ListShoppingPage.tsx` and why the
+  backend-timestamp alternative was rejected rather than skipped). Retained for history:
   summary: `HomeRedirect` picks the oldest list with a lexicographic string compare on `createdAt`, which is wrong for
   the variable-precision ISO instants the backend emits — FR38 can send a user to the wrong list.
   evidence: bp_front/src/routes/HomeRedirect.tsx (`[...lists].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]`)
@@ -1086,7 +1242,10 @@ against `:2080`, not merely reasoned about.
   "`npm run lint` and `npm run build` pass" are vacuous for the E2E suite — the very layer the project treats as its hard
   gate. Project-wide and pre-existing (affects all specs, not just the one added here). Fix by adding `e2e` to a
   tsconfig project and widening the lint glob.
-- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-6-2-back-to-home-and-lists-navigation.md`~~
+  **CLOSED 2026-08-11 — resolved by Story 7.5** (duplicate of the home-no-op rollup entry near the top of this file; see
+  it for the full closure note, including the measured history-depth evidence and the fact that the spinner blink could
+  not be reproduced). Retained for history:
   summary: Activating the new app-bar title link while already on the route home resolves to is a visible no-op that
   still leaves a redundant history entry.
   evidence: bp_front/src/components/AppShell.tsx (title link `to="/"`) + HomeRedirect.tsx — a user standing on their

@@ -1,5 +1,5 @@
 import {type MouseEvent, useState} from 'react'
-import {Link as RouterLink, Outlet, useNavigate} from 'react-router-dom'
+import {Link as RouterLink, Outlet, useLocation, useNavigate} from 'react-router-dom'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -17,6 +17,7 @@ import LockResetIcon from '@mui/icons-material/LockReset'
 import LogoutIcon from '@mui/icons-material/Logout'
 import {authApi} from '@/lib/auth/authApi'
 import {useAuth} from '@/lib/auth/AuthContext'
+import {useHomePath} from '@/lib/lists/homePath'
 
 // Authenticated app shell (Story 5.3). Renders the top AppBar with the username
 // identity chip on every guarded screen (FR12) and an <Outlet/> for the page
@@ -28,6 +29,28 @@ import {useAuth} from '@/lib/auth/AuthContext'
 export default function AppShell() {
   const {username, role, clearAuth} = useAuth()
   const navigate = useNavigate()
+  const {pathname} = useLocation()
+
+  // Where `/` would take us, OBSERVED from the shared resolver (Story 7.5,
+  // FR57) — cache-only, so the app bar never issues the membership-gated lists
+  // request itself. This shell does not re-derive home (AR-E7-8); it only
+  // compares. `null` means "not resolved yet", which deliberately reads as NOT
+  // already-home: the link stays live rather than becoming a dead control.
+  //
+  // Consequence, measured and knowingly accepted: on a COLD page load of the
+  // home route the app bar reads an empty cache for the ~100ms until whichever
+  // page owns the lists query resolves it, so the link is live in that window
+  // and a click inside it still costs the FR57 history entry. Closing it would
+  // mean the app bar issuing its own request, which the intent forbids. Any test
+  // asserting the inert state must therefore SYNCHRONISE on `aria-current`
+  // rather than race it — two of the six new specs failed 2-of-6 runs before
+  // they did. Filed for `md` in deferred-work.md.
+  const homePath = useHomePath('observe')
+  // Trailing-slash tolerant: react-router matches `/lists/` to the `/lists`
+  // route, so a bare string compare would silently drop the guard on a
+  // hand-typed URL.
+  const trimSlash = (path: string) => path.replace(/\/+$/, '')
+  const alreadyHome = homePath !== null && trimSlash(homePath) === trimSlash(pathname)
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -86,7 +109,20 @@ export default function AppShell() {
               the Link: on the Link it would stretch the anchor across the empty
               toolbar, making the whole bar navigate home. `minWidth: 0` lets this
               flex child shrink at ~360px instead of pushing the username chip off
-              screen. All home resolution stays in HomeRedirect behind `to="/"`. */}
+              screen. All home resolution stays behind `to="/"` and useHomePath.
+
+              When the resolved home IS the current route the click is suppressed
+              with preventDefault() and nothing else changes (Story 7.5): react-
+              router's Link runs this onClick first and skips its own navigation
+              when the event was defaultPrevented, and Enter on an anchor
+              dispatches a click, so keyboard activation is covered by the same
+              line. INERT MUST MEAN INERT-BUT-PRESENT (AR-E7-8): the element keeps
+              its href, its link role, its focusability, its focus ring and its
+              type scale — never a Button, aria-disabled, tabIndex={-1} or an
+              unmount, because on /admin and /account/password this link is the
+              screen's only in-app exit besides the user menu. `aria-current` is
+              the sole added attribute; it is how the state reaches assistive
+              technology without changing the role. */}
           <Box sx={{flexGrow: 1, minWidth: 0}}>
             <Link
               component={RouterLink}
@@ -95,6 +131,20 @@ export default function AppShell() {
               color="text.primary"
               underline="hover"
               data-testid="app-bar-home"
+              aria-current={alreadyHome ? 'page' : undefined}
+              onClick={alreadyHome ? (event: MouseEvent<HTMLAnchorElement>) => {
+                // Only a plain primary activation is suppressed. Ctrl/Cmd/Shift/
+                // Alt+click means "open home in a new tab/window", which is a
+                // real request and must keep working — react-router's own Link
+                // guards the identical way, and middle click never reaches
+                // onClick at all (it fires `auxclick`), so without this check the
+                // two mouse gestures would behave inconsistently. Enter on a
+                // focused anchor dispatches a click with button 0, so keyboard
+                // activation is still suppressed.
+                if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                  event.preventDefault()
+                }
+              } : undefined}
               sx={{
                 fontWeight: 600,
                 // `minWidth: 0` on the wrapper lets this shrink; without nowrap it

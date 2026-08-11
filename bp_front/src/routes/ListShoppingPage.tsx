@@ -33,6 +33,7 @@ import {
   ListsQuery,
   UncheckItemMutation,
 } from '@/lib/lists/listsQueries'
+import {byCreatedAtAsc} from '@/lib/lists/homePath'
 import {graphqlErrorMessage, isForbiddenError} from '@/lib/admin/adminErrors'
 
 type CheckedFilter = 'all' | 'unchecked' | 'checked'
@@ -63,11 +64,11 @@ export default function ListShoppingPage() {
   // The switcher + header read from the membership-scoped lists query (the same
   // cache the index populates). The active list is looked up by id.
   const listsResult = useQuery(ListsQuery)
+  // Ordered with the shared NUMERIC comparator (Story 7.5, FR38): this was the
+  // second copy of the same lexicographic createdAt sort HomeRedirect carried, so
+  // the switcher chips could order two lists differently from `/`.
   const lists = useMemo(
-    () =>
-      [...(listsResult.data?.lists?.lists ?? [])].sort((a, b) =>
-        a.createdAt.localeCompare(b.createdAt),
-      ),
+    () => [...(listsResult.data?.lists?.lists ?? [])].sort(byCreatedAtAsc),
     [listsResult.data],
   )
   const activeList = lists.find(l => l.id === listId)

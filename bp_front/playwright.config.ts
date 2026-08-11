@@ -75,11 +75,21 @@ export default defineConfig({
   // and fails identically.
   //
   // Two collection facts worth knowing before you trust a green run:
-  //   * `Total: 104` does NOT prove the routing works. Drop or misspell the tag
-  //     and the test simply runs in chromium+mobile (52+52) while both toggle
-  //     projects collect zero — still exactly 104. The real check is the
-  //     per-project breakdown, 51/51/1/1:
+  //   * THE TOTAL PROVES NOTHING; the per-project split does. Drop or misspell
+  //     the tag and the tagged test simply runs in chromium+mobile while both
+  //     toggle projects collect zero — and the total is *unchanged*, because the
+  //     tag reroutes a test rather than duplicating it. The INVARIANT to check is
+  //     therefore structural, not numeric: exactly ONE test in each
+  //     `registration-toggle-*` project, everything else split evenly across the
+  //     two viewport projects (every untagged test runs in both, so a new spec is
+  //     +2 runs). Read it with:
   //       npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c
+  //     Never with `--list --project=<name>`: `--project` drags in that project's
+  //     `dependencies` and the toggle projects then report inflated counts.
+  //     Figures are dated on purpose — re-measure, never quote:
+  //       2026-08-08 (Story 7.3): 104 = 51 / 51 / 1 / 1
+  //       2026-08-10 (Story 7.4): 106 = 52 / 52 / 1 / 1
+  //       2026-08-11 (Story 7.5): 120 = 59 / 59 / 1 / 1  (+7 untagged nav tests)
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
