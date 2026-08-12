@@ -3,12 +3,14 @@ package com.bagplease.entity.category
 import com.bagplease.entity.category.mongo.CategoryRepository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.Volatile
 
 @Suppress("RedundantSuspendModifier")
 class CategoryStorage(
     private val repository: CategoryRepository,
 ) {
     private val storage: ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Category>> = ConcurrentHashMap()
+    @Volatile
     private var synced = false
 
     suspend fun sync() {

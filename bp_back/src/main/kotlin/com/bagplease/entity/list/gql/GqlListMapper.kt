@@ -2,6 +2,7 @@ package com.bagplease.entity.list.gql
 
 import com.bagplease.entity.list.List
 import com.bagplease.entity.list.ListMember
+import com.bagplease.entity.list.MemberStatus
 import com.expediagroup.graphql.generator.scalars.ID
 
 object GqlListMapper {
@@ -14,8 +15,8 @@ object GqlListMapper {
             ownerId = list.ownerId.toString(),
             ownerUsername = list.ownerUsername,
             members = members
-                .filter { it.status != "DECLINED" }
-                .map { GqlListMember(userId = it.userId.toString(), username = it.username, status = it.status) },
+                .filter { it.status != MemberStatus.DECLINED }
+                .map { GqlListMember(userId = it.userId.toString(), username = it.username, status = it.status.name) },
             createdAt = list.createdAt.toString(),
             uncheckedItemCount = uncheckedItemCount,
         )

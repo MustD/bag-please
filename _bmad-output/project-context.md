@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 87
+rule_count: 89
 optimized_for_llm: true
 ---
 
@@ -119,6 +119,44 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `deferred-work.md`, and pinned by a tripwire test so a later "tightening" fails one obvious test instead of 29
   unrelated ones. **Both rejections must `throw` before `itemUpdateChannel.emit(...)`** — the subscription broadcasts
   whatever is emitted, so emitting on a rejected save pushes a `SAVED` event for a write that never happened
+- **An enumerated field is an enum in the DOMAIN model only; the Mongo model and the GQL model both keep their own
+  `String`.** This is the codebase's mapper-boundary convention, established by `Recurring` and generalised by
+  `MemberStatus` (Story 7.6). The shape, all four parts required: (1) the enum is its own one-line file in the entity
+  package (`entity/item/Recurring.kt`, `entity/list/MemberStatus.kt`); (2) **the constant names are byte-identical to
+  the persisted strings** — that identity is the entire wire-safety argument and the only thing worth pinning with a
+  test; (3) conversion happens at the mapper on read (`Recurring.valueOf(it)`, `MemberStatus.valueOf(mongo.status)`) and
+  via `.name` on write; (4) `Mongo{Entity}.field` stays `String`/`String?` and `Gql{Entity}.field` holds its **own**
+  `String`, so **the GraphQL SDL never moves and no data migration is needed**. **Never put the enum at the persistence
+  layer:** `kotlinx-serialization` throws `SerializationException` on an unknown enum value, so one unexpected row would
+  fail an entire common query — for `list_members` that is `findActiveByListId`, feeding six `ListApi` call sites, i.e.
+  the whole `lists` query for every member of that list. **Watch the write paths that have no mapper.** A repository
+  `Updates.set(...)` is a domain→Mongo write with no mapper in it and must pass `.name` explicitly
+  (`ItemRepository.kt:60`, `ListMemberRepository.kt:40`). Measured once, so nobody re-litigates it *and nobody
+  over-generalises it*: on driver `mongodb 5.5.1`, with an enum carrying no `@SerialName` overrides, passing the *enum*
+  there was **not** a corruption bug — `org.bson.codecs.EnumCodecProvider` is in the default registry and encoded it to
+  the same BSON string, and Story 7.6's persistence test stayed green under that revert. Read that as a dated
+  measurement of one configuration, not a law: re-measure after any driver bump (Story 7.7 is a dependency sweep).
+  `.name` is therefore mandatory as an explicitness/independence choice — it is what keeps the stored bytes from
+  depending on a driver default — while the thing a test can actually pin is the constant-name identity in (2).
+  A BSON filter on such a field must also use `MemberStatus.PENDING.name`, never a bare literal
+  (`ListMemberRepository.kt:50,63`); note that filtering status **at the database** is what keeps `valueOf`'s throw
+  unreachable on the hot paths, while an `_id`-only lookup like `findByListIdAndUserId` stays exposed (filed in
+  `deferred-work.md`, not fixed)
+- **`ListService.deleteList`'s cascade is `items → categories → members → list`, then the three `evict*` calls**
+  (Story 7.6 inserted the members step). Every child collection of a list is deleted **before**
+  `listRepository.delete(id)`, in the same block. **That ordering is a convention, NOT a safety property — do not repeat
+  the rationale this file carried before 2026-08-12, which had it backwards.** The block is four independent Mongo
+  deletes with no session, so a throw at `listRepository.delete` leaves a *live* list whose children are already gone;
+  and for `list_members` specifically there is no in-memory cache, so "a restart re-syncs it" is false — those rows are
+  gone for good. Neither ordering is failure-safe; only a single `ClientSession` transaction would be (filed in
+  `deferred-work.md`). The returned delete counts are only surfaced for items and categories; **do not add a new count
+  to `DeleteListResult`** for a new child collection, that is a schema change. Orphaned `list_members` rows are
+  invisible through the API (`getLists` `mapNotNull`s them away), so a cascade test must count on the **raw**
+  collection, must assert a *second* list's rows survive (otherwise it passes on a `deleteMany` with no `listId`
+  clause), and must include a **DECLINED** row on the deleted list — DECLINED is the one status `findActiveByListId`
+  cannot see, so it is what a status-filtered `deleteMany` would strand with every other assertion still green
+  (measured: that mistake yields `expected:<0L> but was:<1L>`). **Deleting a USER still leaks membership rows** —
+  `UserService.adminDeleteUser` has no equivalent cascade; that is open, not fixed
 - **A service rejects with `IllegalArgumentException`, never with a `GraphQL*Exception`.** The four
   `GraphQL*Exception` classes live in `bp_back/src/main/java/com/bagplease/plugins/` and are imported **only** by
   `*/gql` files; importing one into a service is a service→plugins layering violation. Consequence to accept
@@ -493,8 +531,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
   does run `check` → `test`, so it is not a substitute for reading the results either.
 - **Read the totals from the JUnit XML, not from the console.** Kotest's console output does not print a summary line;
   the numbers live in `bp_back/build/test-results/test/TEST-*.xml` (`tests`/`failures`/`errors`/`skipped` on each
-  `<testsuite>`). Suite size for reference: **105 at `73db447`, 113 after Story 7.4.** Treat those as dated — the
-  standing rule is to re-measure, never to quote a remembered number.
+  `<testsuite>`). Suite size for reference: **105 at `73db447`, 113 after Story 7.4, 115 after Story 7.6**
+  (`ListSharingTest` 16 → 18). Treat those as dated — the standing rule is to re-measure, never to quote a remembered
+  number.
 - **A `--tests "com.bagplease.SomeTest"` filter runs the whole Kotest class**, which is the cheap way to iterate on one
   spec's red/green observation without paying for the full suite (~17 s vs ~1 m 35 s).
 
@@ -517,7 +556,33 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-11 (Story 7.5) — **where `/` resolves to has exactly one implementation**, and an inert control
+_Last Updated: 2026-08-12 (Story 7.6) — **an enumerated field is an enum in the domain model only; persistence and the
+GraphQL model each keep their own `String`.** Two backend rules added: the mapper-boundary convention generalised from
+`Recurring` to `MemberStatus` (own one-line enum file, constant names byte-identical to the persisted strings, `valueOf`
+on read and `.name` on write, `Mongo*`/`Gql*` both still `String` so the SDL never moves and no migration is needed),
+including the trap that a repository `Updates.set` is a mapper-less write path and a BSON filter must use
+`MemberStatus.PENDING.name` rather than a literal — plus the **measured** correction that passing the enum there was
+*not* a corruption bug on driver `mongodb 5.5.1` (`org.bson.codecs.EnumCodecProvider` is in the default registry, so the
+stored bytes were identical and the persistence test stayed green under that revert), recorded as a dated one-config
+measurement to re-check after Story 7.7's dependency sweep rather than as a law, which is why `.name` stays mandatory for
+explicitness and why the invariant worth pinning is the constant-name identity; and `ListService.deleteList`'s cascade is
+now `items → categories → members → list` before the three `evict*` calls, with the rule that a new child collection gets
+no new count on `DeleteListResult` (schema change) and that a cascade test must count on the raw collection, assert a
+second list's rows survive, **and carry a DECLINED row** on the deleted list (the one status `findActiveByListId` cannot
+see, so the one a status-filtered `deleteMany` would strand — measured `expected:<0L> but was:<1L>`). **Three claims this
+story first wrote and the review then corrected in place, flagged here so the earlier wording is not restored:** the
+cascade ordering is a convention and **not** a partial-failure mitigation (the four deletes share no session, and
+`list_members` has no cache to re-sync, so a throw at the list delete leaves a live list with its memberships
+permanently gone); the `@Volatile` residual is a **correctness** gap, not merely duplicated startup I/O (a stale sync
+snapshot can overwrite a newer cached row and the process never recovers); and *list* deletion no longer leaks
+membership rows but **user deletion still does** (`UserService.adminDeleteUser` has no such cascade). Backend suite size
+refreshed to **115 after Story 7.6** (`ListSharingTest` 16 → 18). New debt — the check-then-act half of the lazy-sync
+race that `@Volatile` does *not* fix (with a `Mutex`-shaped proposal), the `findByListIdAndUserId` unknown-status throw,
+`md`'s standing no-backfill assumption, the two non-equivalent "active member" predicates, and the seven findings
+deferred by this story's code review (user-delete leak, non-transactional cascade, the share-during-delete window,
+AC4's inspection-only ordering, the leaked test `MongoClient`, the frontend's bare status literals, and the
+`sprint-status.yaml` narrative duplication) — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-11 (Story 7.5) — **where `/` resolves to has exactly one implementation**, and an inert control
 means inert-but-PRESENT. Two frontend rules added: `useHomePath(mode)` in `src/lib/lists/homePath.ts` is the single home
 resolver (both `HomeRedirect` and `AppShell` consume it; no consumer re-derives the path), `mode` is a *permission* —
 `'resolve'` may fetch, `'observe'` is **`cache-only`** so the app bar never issues the membership-gated `lists` request —

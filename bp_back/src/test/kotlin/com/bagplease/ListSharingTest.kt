@@ -4,7 +4,14 @@ import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.mongodb.ConnectionString
+import com.mongodb.MongoClientSettings
+import com.mongodb.MongoCredential
+import com.mongodb.client.model.Filters
+import com.mongodb.kotlin.client.coroutine.MongoClient
+import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -16,6 +23,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.toList
+import org.bson.Document
+import org.bson.UuidRepresentation
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
@@ -83,6 +94,40 @@ class ListSharingTest : FunSpec({
             setBody("""{"query":"mutation { acceptInvite(listId: \"$listId\") { id members { userId username status } } }"}""")
         }
         return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.rejectInvite(token: String, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { rejectInvite(listId: \"$listId\") }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.deleteList(token: String, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { deleteList(id: \"$listId\") { deletedItemCount deletedCategoryCount } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    // Read-only direct MongoDB access, used purely for assertions the GraphQL API cannot make:
+    // the persisted BSON type of `list_members.status`, and the presence of an orphaned membership row
+    // (`ListService.getLists` null-maps orphans away, so they are invisible through the API).
+    // Shape copied from `ItemLifecycleTest.connectToDb()`.
+    fun connectToDb(): MongoDatabase {
+        val credential = MongoCredential.createScramSha1Credential(
+            "test_user", "admin", "test_pass".toCharArray()
+        )
+        val settings = MongoClientSettings.builder()
+            .credential(credential)
+            .uuidRepresentation(UuidRepresentation.STANDARD)
+            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
+            .build()
+        return MongoClient.create(settings).getDatabase("test")
     }
 
     // AC1 — shareList happy path
@@ -539,6 +584,87 @@ class ListSharingTest : FunSpec({
                 bearerAuth(adminToken)
                 setBody("""{"query":"mutation { leaveList(listId: \"$fakeListId\") }"}""")
             }.bodyAsText() shouldContain "errors"
+        }
+    }
+
+    // AC-7.6-persist — Story 7.6: the domain `status` is a `MemberStatus` enum, but the persisted value must stay
+    // the BSON *string* "PENDING"/"ACCEPTED"/"DECLINED", so no data migration is needed.
+    // What this pins is that MemberStatus's CONSTANT NAMES are byte-identical to the persisted strings — rename a
+    // constant and this goes red. It does NOT pin `ListMemberRepository.save` passing `.name`: measured 2026-08-12,
+    // reverting that to `member.status` leaves this green, because `org.bson.codecs.EnumCodecProvider` is in the
+    // driver's default registry and encodes the enum to the same string. `.name` is kept for explicitness (matching
+    // `ItemRepository.kt:60`) and to stop the wire format depending on a driver default — not as a corruption fix.
+    test("AC-7.6-persist MemberStatus constant names round-trip as the stored list_members.status strings") {
+        val owner = "persistOwner_${UUID.randomUUID().toString().take(8)}"
+        val invitee = "persistInvitee_${UUID.randomUUID().toString().take(8)}"
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val (ownerToken, inviteeToken) = registerManyAndLogin(owner, invitee)
+            val listId = createList(ownerToken)
+
+            val shareBody = shareList(ownerToken, listId, invitee)
+            shareBody shouldNotContain "errors"
+            // The invitee's userId comes from the shareList response, not from a second lookup.
+            val inviteeUserId = mapper.readTree(shareBody)["data"]["shareList"]["members"]
+                .first { it["username"].asText() == invitee }["userId"].asText()
+
+            val col = connectToDb().getCollection<Document>("list_members")
+
+            val pendingDoc = col.find(Filters.eq("_id", "${listId}_$inviteeUserId")).firstOrNull()
+            pendingDoc.shouldNotBeNull()
+            pendingDoc["status"] shouldBe "PENDING"
+
+            val acceptBody = acceptInvite(inviteeToken, listId)
+            acceptBody shouldNotContain "errors"
+
+            val acceptedDoc = col.find(Filters.eq("_id", "${listId}_$inviteeUserId")).firstOrNull()
+            acceptedDoc.shouldNotBeNull()
+            acceptedDoc["status"] shouldBe "ACCEPTED"
+        }
+    }
+
+    // AC-7.6-cascade — Story 7.6: `ListService.deleteList` must remove the list's `list_members` rows.
+    // Counts are taken on the raw collection rather than through `findActiveByListId`, which filters on status.
+    // The deleted list therefore deliberately carries an ACCEPTED row and a **DECLINED** one: DECLINED is the status
+    // `findActiveByListId` cannot see, so it is the row a status-filtered `deleteMany` would strand while every
+    // API-level assertion stayed green. (Three users is the ceiling here — 1 admin + 3 logins = 4 auth calls, and the
+    // limiter allows 5/min — so the third status, PENDING, is placed on the surviving list rather than on this one.)
+    // The list-B assertions are the non-vacuity guard, twice over: without them the test would also pass on a
+    // `deleteMany` carrying no `listId` clause, and they prove a pending invite on an unrelated list is not collateral.
+    test("AC-7.6-cascade deleteList removes the list's list_members rows and leaves another list's rows untouched") {
+        val owner = "cascadeOwner_${UUID.randomUUID().toString().take(8)}"
+        val invitee1 = "cascadeInvitee1_${UUID.randomUUID().toString().take(8)}"
+        val invitee2 = "cascadeInvitee2_${UUID.randomUUID().toString().take(8)}"
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val (ownerToken, invitee1Token, invitee2Token) = registerManyAndLogin(owner, invitee1, invitee2)
+            val listAId = createList(ownerToken, "CascadeListA")
+            val listBId = createList(ownerToken, "CascadeListB")
+
+            // List A (to be deleted): one ACCEPTED row and one DECLINED row.
+            shareList(ownerToken, listAId, invitee1) shouldNotContain "errors"
+            acceptInvite(invitee1Token, listAId) shouldNotContain "errors"
+            shareList(ownerToken, listAId, invitee2) shouldNotContain "errors"
+            rejectInvite(invitee2Token, listAId) shouldNotContain "errors"
+            // List B (must survive): one PENDING row.
+            shareList(ownerToken, listBId, invitee2) shouldNotContain "errors"
+
+            val col = connectToDb().getCollection<Document>("list_members")
+            // Assert the statuses, not just the count — otherwise a setup drift that made both rows ACCEPTED would
+            // silently remove the DECLINED coverage this test exists to provide.
+            col.find(Filters.eq("listId", listAId)).toList()
+                .map { it["status"] }.toSet() shouldBe setOf("ACCEPTED", "DECLINED")
+            col.find(Filters.eq("listId", listBId)).toList()
+                .map { it["status"] }.toSet() shouldBe setOf("PENDING")
+
+            deleteList(ownerToken, listAId) shouldNotContain "errors"
+
+            col.countDocuments(Filters.eq("listId", listAId)) shouldBe 0L
+            col.countDocuments(Filters.eq("listId", listBId)) shouldBe 1L
         }
     }
 })

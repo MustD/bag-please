@@ -601,6 +601,200 @@ rollup and once from the Story-6.2 review). What follows is what it uncovered or
   Suspected but unverified: JVM/Mongo cold start under 118 concurrent tests. Not attributable to this story's change —
   `AppShell` fires no new request in observe mode, and `admin.spec.ts` does not touch the title link.
 
+## Deferred from: Story 7.6 — backend safety fixes riding the same unfreeze (2026-08-12)
+
+Story 7.6 closed four Epic-4 review entries under the epic's scoped backend unfreeze (`829` + its `971-972` ancestor,
+`811`, `813` — all struck through in their own sections below). What follows is the residue it deliberately did **not**
+take on, plus one epic premise that was measured wrong. Recorded here rather than in `project-context.md` (NFR-E7-1:
+that file is a rules file, this one is the ledger).
+
+- **`@Volatile` fixes the visibility half of the lazy-sync race and leaves the check-then-act window open.** All three
+  `sync()` guards are still `if (synced.not()) { <suspending repository.getAll()> ; synced = true }`, so two coroutines
+  arriving before either finishes can both read `false` and both run the startup load. What the fix buys is that once
+  one of them writes `true`, every other thread reliably *sees* `true` — previously it might not, indefinitely.
+  **The double load is NOT merely wasted I/O — corrected at the Story 7.6 review, 2026-08-12.** An earlier draft of this
+  entry claimed the two passes are idempotent "so the consequence is wasted startup I/O, not corruption". They are only
+  idempotent if no write interleaves, and one can: `sync()` takes its snapshot at the suspending `repository.getAll()`
+  and writes it into the map *afterwards*, so if coroutine A finishes its own sync and then `save()`s a row while
+  coroutine B is still suspended inside `getAll()`, B's resume replays the stale snapshot over A's row. Nothing ever
+  resets `synced`, so the in-memory value stays stale for the process lifetime while Mongo holds the new one. The
+  `delete`/`evictList` variant is worse: an in-flight stale sync can re-insert a row already hard-deleted from Mongo.
+  This is reachable on every cold boot, not only in theory — `configureScheduler` (`plugins/GQL.kt:89`) runs
+  `runSchedulerCycle()` immediately and it calls `storage.save`/`storage.delete`, so the scheduler races the first HTTP
+  request on `synced`. The severity of the deferral is therefore higher than first recorded; what does **not** change is
+  that the fix is out of AC1's scope. **Proposed fix:** a `kotlinx.coroutines.sync.Mutex` held across the load
+  (`synchronized` is not an option — the body suspends), or an `AtomicBoolean.compareAndSet` gate with a
+  `CompletableDeferred` the losers await. **Why deferred:** Story 7.6's AC1 requires the guard body otherwise unchanged,
+  and the spec explicitly forbade substituting a `Mutex`/double-checked lock/`AtomicBoolean` as "a different, larger
+  fix". That larger fix wants its own story and its own red observation.
+
+- **`findByListIdAndUserId` will throw on a `list_members` row carrying an unknown `status`.** After Story 7.6 the
+  mapper does `MemberStatus.valueOf(mongo.status)` (`MongoListMemberMapper.kt:13`). **Note the precedent is weaker than
+  it looks** (corrected at review): `MongoItemMapper.kt:33` is `item.recurring?.let { Recurring.valueOf(it) }` over a
+  **nullable** field, so absence is tolerated; `status` is non-nullable and has no equivalent tolerance. And this is a
+  behaviour *change*, not just an unfixed gap — before Story 7.6 an unrecognised status simply failed the
+  `!= "DECLINED"` / `== "PENDING"` string comparisons and the request completed, whereas now the mapper throws before
+  the service sees anything. The two hot paths are safe by construction — `findActiveByListId` and `findPendingByUserId`
+  filter status **at the database**, so neither can hand the mapper a value outside the enum — but
+  `findByListIdAndUserId` filters on `_id` alone and is called from `shareList`, `acceptInvite` and `rejectInvite`,
+  which would surface an `IllegalArgumentException` as an untyped `ExceptionWhileDataFetching`. **Why not fixed:** every
+  candidate fallback invents a semantic that needs a ruling — unknown → `DECLINED` silently hides a member, unknown →
+  `PENDING` invents an invite, and skipping the row makes a re-share overwrite it. **Proposed fix (needs `md`'s
+  ruling):** decide the semantic, then either add a nullable `MemberStatus.parse()` and treat `null` as "no membership
+  row", or filter `findByListIdAndUserId` on the same status whitelist the other two already use. Unreachable today:
+  nothing writes a status outside the three enum names and there is no surface that hand-edits the collection.
+
+- **STANDING ASSUMPTION (`md`'s ruling, 2026-07-29), not debt: production is assumed to hold no already-orphaned
+  `list_members` rows, and Story 7.6 shipped no migration, backfill or cleanup script.** The cascade fix
+  (`ListService.deleteList` → `listMemberRepository.deleteAllInList(id)`) prevents *new* orphans only. The consequence
+  to hold onto: **if an orphaned `list_members` row is ever observed in production it is a NEW finding and must not be
+  triaged as a regression of this story.** Orphans are invisible through the API (`ListService.getLists:86-87`
+  `mapNotNull`s them away), so detection needs a direct query — the cheap version is to compare
+  `db.list_members.distinct("listId")` against `_id` on `lists`. Not scheduled; recorded so the assumption is
+  falsifiable rather than forgotten.
+  **Corrected at the Story 7.6 review, 2026-08-12: "a fresh leak path" was the wrong framing, because a second leak
+  path is still open and known.** `UserService.adminDeleteUser` (`entity/user/UserService.kt:84`) deletes the user row
+  and never touches `list_members` — it holds no `ListMemberRepository` at all — so deleting a user still strands every
+  membership row they held. Those orphans are keyed by a live `listId`, so the detection query above **cannot see
+  them**; catching them needs `db.list_members.distinct("userId")` compared against `_id` on `users` instead. Out of
+  Story 7.6's scope (`UserService.kt` is not on the epic's `Files:` line for this story) and filed as its own entry
+  below. The honest form of the assumption is therefore: *list deletion* no longer leaks; *user deletion* still does.
+
+- **MEASURED WRONG, recorded so it is not re-raised: writing a Kotlin enum through `Updates.set` was never going to
+  corrupt the stored bytes.** Story 7.6's spec called `ListMemberRepository.kt:40` "the single highest-risk site in the
+  story", on the premise that without `.name` "the driver receives a Kotlin enum". It does receive one — and encodes it
+  to the identical BSON string, because `org.bson.codecs.EnumCodecProvider` is in the driver's **default** codec
+  registry (verified present in `bson-5.5.1.jar`; `MongoConnection.kt:29-33` installs no custom registry). Measured:
+  with `:40` reverted to `member.status`, the story's own persistence test — which reads the raw document and asserts
+  the stored value is the String `"ACCEPTED"` — stayed **green at 18/18**. The `.name` form was kept anyway: it matches
+  `ItemRepository.kt:60` (`item.recurring?.name`) and it makes the wire format independent of a driver default instead
+  of dependent on one. But it is an explicitness change, not a data-corruption fix, and **no test distinguished the two
+  forms in this configuration** — driver `mongodb 5.5.1`, one enum with no `@SerialName` overrides. That scope matters:
+  the measurement isolated the *outcome*, not which codec produced it (the collection is `getCollection<MongoListMember>`
+  with a kotlinx-serialization codec also in the registry), so treat it as "measured true here, on this driver", not as
+  a law. Story 7.7 is a dependency sweep; re-measure rather than re-quote. Consequence for a future author: the invariant
+  actually worth protecting is that `MemberStatus`'s constant names stay byte-identical to the persisted strings, and
+  *that* is pinned — `ListSharingTest.kt:617,624` (stored bytes) plus `:147,152,266` (wire) all turn red if one constant
+  is renamed, which is how the persistence test was proven non-vacuous. The test was renamed at review to say what it
+  pins (`AC-7.6-persist MemberStatus constant names round-trip as the stored list_members.status strings`); its original
+  name asserted the very premise this entry records as false.
+
+- **`ListMemberRepository.findActiveByListId` and `GqlListMapper` express "active member" with two non-equivalent
+  predicates.** The repository uses a positive whitelist (`Filters.in("status", PENDING, ACCEPTED)`); the mapper uses a
+  negative one (`!= MemberStatus.DECLINED`). They agree on today's three-value enum and would disagree the moment a
+  fourth status exists — the repository would exclude it, the mapper would include it. Story 7.6 typed both sites and
+  deliberately did **not** reconcile them (its spec says so in as many words), because picking one decides where a
+  future status is visible, which is a product call. **Proposed fix:** when a fourth status is introduced, define the
+  active set once on `MemberStatus` (e.g. `val ACTIVE: Set<MemberStatus>`) and have both sites read it. Zero
+  consequence today.
+
+**Still open, restated here because Story 7.6 worked in their neighbourhood without closing them** (each stays live in
+its own section below — this is a pointer, not a second copy):
+
+- `831` / `822` — **`ListStorage.getByIdCached` bypasses `sync()`**, so `isMember` can deny a legitimate member on a
+  cold cache and can keep admitting a revoked one. This is the **read** side of the same lazy-sync bug whose write side
+  Story 7.6 just made visibility-safe, and `@Volatile` does nothing for it: the method never consults `synced` at all.
+- `771-776` — `ListStorage.rename` is still not atomic (in-memory updated before the Mongo write), and the concurrent
+  delete+rename race still throws `IllegalStateException` past the GQL error model. Untouched.
+- `836` — `ListStorage.delete()` is still dead code; `ListService.deleteList` still calls `listRepository.delete` +
+  `evictFromCache` directly. Story 7.6 added a fourth Mongo call to that same block and still did not route through it.
+- `812` — the `acceptInvite` TOCTOU double-accept race is **still live; only its wording is now stale.** The entry
+  describes "the `PENDING` check" against a bare string; that comparison now reads
+  `member.status != MemberStatus.PENDING`. Typing it changed nothing about the race — the check and the
+  `listStorage.save` of `members + callerUser.id` are still two steps with a suspending write between them.
+- `814` — a re-invite after a DECLINE still overwrites the original `createdAt`; `shareList` still constructs
+  `ListMember(..., Instant.now())` and upserts over the existing `_id`.
+- `832` — **`deleteList`'s partial-failure window is now one Mongo call LONGER because of this story, and that must be
+  said out loud.** The block is now `deleteAllInList(items)` → `deleteAllInList(categories)` →
+  `deleteAllInList(members)` → `listRepository.delete(id)` → three `evict*` calls. A throw anywhere before the evictions
+  still leaves in-memory data stale for the process lifetime, and there is now one more statement that can throw.
+  **The ordering is NOT a mitigation, and an earlier draft of this entry had the argument backwards — corrected at the
+  Story 7.6 review, 2026-08-12.** It claimed memberships are deleted before the list "so a failure cannot leave a live
+  list with its memberships gone". That ordering is precisely what *makes* that outcome possible: if
+  `listRepository.delete(id)` throws, the list survives and its membership rows are already gone. Worse, the "a restart
+  re-syncs from Mongo" consolation does not apply to `list_members` at all — there is no in-memory membership cache, so
+  those rows are gone permanently, not merely stale. The concrete user-visible result: previously-ACCEPTED members keep
+  access (authorization reads `List.members`/`memberUsernames`, not the collection) while vanishing from the Share
+  dialog, and re-inviting them raises `AlreadyMember`. The ordering is what AC4 mandates and it is kept; what is now
+  recorded is that **neither order is failure-safe** — only a single Mongo session/transaction across the four deletes
+  would be. Filed as its own entry below. Unchanged in kind, worse by one call in degree.
+
+**On coverage, stated explicitly because AC6 requires it: the `@Volatile` fix ships with no test, and that is a
+decision, not an omission.** `@Volatile` is a Java-Memory-Model *visibility* guarantee. A test that "covered" it would
+have to observe a stale read — something the JMM permits but never requires, and that no JVM reproduces deterministically
+on demand. Such a test would be precisely the Epic-6 anti-pattern the retro named (6 of that epic's 17 review patches
+were assertions that could not fail for the reason they were written). The three-line diff is verifiable by inspection
+instead: `grep -rn '@Volatile' bp_back/src/main/` returns exactly 3 hits, one per Storage class, with the guard bodies,
+their callers and `evictList`/`evictFromCache` byte-unchanged. The residual it does not fix is the first entry in this
+section rather than a silent absorption.
+
+## Deferred from: code review of 7-6-backend-safety-fixes (2026-08-12)
+
+Seven findings deferred. Four corrections the review found in the Story 7.6 section above (the idempotence claim, the
+inverted cascade-ordering rationale, the "fresh leak path" framing, and the over-general codec rule) were **patched in
+place** rather than deferred, and two test defects were fixed in the same pass (the overclaiming test name, and a
+cascade test whose stated DECLINED rationale it did not actually exercise).
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: `UserService.adminDeleteUser` deletes a user without removing their `list_members` rows, so user deletion is a
+  still-open second orphan-leak path that Story 7.6's list-side cascade does not touch.
+  evidence: `entity/user/UserService.kt:84` `adminDeleteUser` contains no reference to `ListMemberRepository` — the class
+  is not injected at all (verified by grep). The rows it strands carry a **live** `listId`, so the detection query
+  recorded with Story 7.6's no-backfill assumption (`list_members.distinct("listId")` vs `lists._id`) cannot see them;
+  they need `distinct("userId")` vs `users._id`. Consequence: a phantom member row that still renders in the Share
+  dialog and cannot be cleared through `removeMember`, because that path resolves the username to a user that is gone.
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: `ListService.deleteList`'s four-step cascade is not transactional, so any throw mid-block leaves a live list
+  whose children are already deleted — and no ordering of the four statements can fix it.
+  evidence: `ListService.kt:117-120` runs four independent Mongo deletes with no session. If `listRepository.delete(id)`
+  throws, the list row survives while items, categories and membership rows are gone; moving the membership delete after
+  it just swaps which pair is inconsistent. Membership is the worst case because there is no in-memory cache to re-sync
+  it from, unlike items/categories. Proposed fix: wrap the block in a single `ClientSession` with a transaction (Mongo 8
+  standalone in dev would need a replica set, which is why this is not a drive-by change).
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: a `shareList`/`acceptInvite` landing concurrently with `deleteList` can write a membership row after the
+  cascade has run, re-creating exactly the orphan Story 7.6 set out to prevent.
+  evidence: `ListService.deleteList` evicts the list from `listStorage` only at `:123` — *after* all four deletes — so a
+  concurrent `shareList` still resolves `listStorage.getById(listId)` successfully and upserts into `list_members` in
+  the window between `deleteAllInList(members)` and `evictFromCache`. Narrow but real, and it falsifies the unqualified
+  form of "the cascade prevents new orphans". Proposed fix: evict from cache *before* the child deletes so concurrent
+  callers raise `NotMember` mid-cascade, or take the transaction above.
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: AC4's ordering clause ("after the category delete, before the list delete") is pinned by inspection only —
+  moving the membership delete after `listRepository.delete` leaves the whole suite green.
+  evidence: neither new test observes ordering; `AC-7.6-cascade` asserts only the post-delete row counts, which are
+  identical under either order in the success path. Ordering is only observable under a partial failure, which is not
+  reproducible without the transaction/fault-injection work above. Recorded so the clause is not mistaken for covered.
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: `ListSharingTest.connectToDb()` opens a `MongoClient` per call and never closes it, and is now the third copy
+  of the hard-coded `test_user`/`test_pass`/`test` credentials.
+  evidence: `ListSharingTest.kt:111-121` mirrors `ItemLifecycleTest.kt:158-168`; neither closes the client, so the two
+  new tests leak one connection pool each. The repo already contains the correct shape — `utils/TestContainers.kt`
+  `setUpRegistration` wraps its client in `try { … } finally { client.close() }`. Proposed fix: promote a single closing
+  helper into `utils/TestContainers.kt` and delete both copies. Test-infrastructure only; no production impact.
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: the new invariant "`MemberStatus` constant names are byte-identical to the persisted/wire strings" is
+  cross-repo, but the frontend half compares bare literals with no compile-time check and no test.
+  evidence: `bp_front/src/components/ShareMembersDialog.tsx:174` compares `member.status === 'PENDING'`; the backend
+  enum is what produces that string. Story 7.6's closure of Epic-4 entry `811` rests on
+  `grep '"PENDING"\|"ACCEPTED"\|"DECLINED"' bp_back/src/main/` returning zero hits, which is true and which the original
+  entry's wording ("typos silently produce broken state") is satisfied by *on the backend side only*. `bp_front/` was
+  untouchable in this story by epic rule, so this is correctly out of scope — recorded so the invariant's other half is
+  not assumed covered.
+
+- source_spec: `spec-7-6-backend-safety-fixes.md`
+  summary: `sprint-status.yaml`'s per-story record is a single ~10,000-character YAML comment line, and the same
+  narrative now lives in three documents that have already drifted from each other.
+  evidence: the 7.6 entry restates content also held in this ledger's Story 7.6 section and summarised again in
+  `project-context.md`. The review found the copies disagreeing on cited line numbers within hours of being written.
+  A single unwrapped line is also not reviewable by diff — any edit rewrites the whole line. This is the established
+  house convention across Epics 5-7, so changing it is a process decision, not a story fix; recorded for the retro.
+
 ## Deferred from: code review of 7-5-home-resolution-and-inert-home-link (2026-08-11)
 
 Nine findings from this review were **patched in place** (the cold-start test race, the modified-click guard, the
@@ -808,9 +1002,35 @@ and harmless halves the wrong way round. Both corrections are marked `CORRECTED 
 
 ## Deferred from: code review of 4-3-list-sharing-backend-pending-invites-member-management (2026-05-22)
 
-- Untyped status strings `"PENDING"/"ACCEPTED"/"DECLINED"` — no sealed enum or constants; typos silently produce broken state; pre-existing design choice not introduced by this story
+- ~~Untyped status strings `"PENDING"/"ACCEPTED"/"DECLINED"` — no sealed enum or constants; typos silently produce broken state; pre-existing design choice not introduced by this story~~
+  **RESOLVED 2026-08-12 by Story 7.6 — `MemberStatus` is now the domain type; the persisted value stays a `String`.**
+  `entity/list/MemberStatus.kt` (`enum class MemberStatus { PENDING, ACCEPTED, DECLINED }`) is `ListMember.status`'s
+  type, so all six former literal comparisons — `ListService.kt:152,153,163,164,180,181` — plus
+  `GqlListMapper.kt:18` and the two BSON filters at `ListMemberRepository.kt:50,63` are compile-time checked.
+  `grep -rn '"PENDING"\|"ACCEPTED"\|"DECLINED"' bp_back/src/main/` returns **zero** hits. The enum stops at the mapper
+  boundary, exactly as `Recurring` does: `MongoListMember.status` and `GqlListMember.status` are both still `String`
+  (unchanged in the diff, so the GraphQL SDL did not move), converted with `MemberStatus.valueOf` on read
+  (`MongoListMemberMapper.kt:13`) and `.name` on write (`ListMemberRepository.kt:40`, `GqlListMapper.kt:19`). An enum at
+  the persistence layer was rejected: `kotlinx-serialization` throws on an unknown enum value and `findActiveByListId`
+  feeds six `ListApi` call sites, so one unexpected row would fail the whole `lists` query for every member of that
+  list. Two residuals from this change are filed in the Story 7.6 section: the `findByListIdAndUserId` unknown-status
+  throw, and the two non-equivalent "active member" predicates.
 - `acceptInvite` TOCTOU double-accept race — two concurrent accepts can both pass the `PENDING` check and insert the user's UUID into `List.members` twice; spec-acknowledged acceptable at this scale
-- `deleteList` doesn't clean up `list_members` rows — orphaned `list_members` rows accumulate for deleted lists; `getLists` silently drops them via null-map; `deleteList` predates this story
+- ~~`deleteList` doesn't clean up `list_members` rows — orphaned `list_members` rows accumulate for deleted lists; `getLists` silently drops them via null-map; `deleteList` predates this story~~
+  **RESOLVED 2026-08-12 by Story 7.6 — the cascade now removes membership rows, between the category delete and the list
+  delete.** `ListMemberRepository.deleteAllInList(listId)` (`deleteMany(Filters.eq("listId", listId.toString()))` — the
+  `.toString()` is mandatory, a raw `UUID` filter matches zero documents) is called from `ListService.deleteList`, and
+  the cascade comment now reads `items → categories → members → list`. The returned count is discarded on purpose:
+  surfacing it on `DeleteListResult` would be a schema change, which Epic 7 forbids. Evidence: the new Kotest test
+  `AC-7.6-cascade` (`ListSharingTest.kt:636`) sets up list A with one ACCEPTED and one **DECLINED** row and list B with
+  one PENDING row, deletes A through the `deleteList` mutation, and asserts on the **raw** collection that A has 0 rows
+  and B still has 1. The DECLINED row is deliberate and was strengthened at review: it is the status
+  `findActiveByListId` cannot see, so it is the row a status-filtered `deleteMany` would strand while every API-level
+  assertion stayed green. Both breaks were observed red at `:666`: removing the cascade call gives
+  `expected:<0L> but was:<2L>`, and narrowing `deleteAllInList` to `status in (PENDING, ACCEPTED)` gives
+  `expected:<0L> but was:<1L>` — the stranded DECLINED row, which is the measurement proving that coverage is
+  load-bearing rather than decorative. Already-orphaned rows are **not** backfilled, by `md`'s
+  2026-07-29 ruling; that assumption and how to detect a future orphan are filed in the Story 7.6 section.
 - Re-invite after DECLINE overwrites original `createdAt` — `shareList` constructs a new `ListMember(..., Instant.now())` on re-invite, upsert overwrites original invite timestamp; acceptable for current audit requirements
 - Username recycling UUID/username desync — `removeMember`/`leaveList` filter `List.members` by resolved UUID but `memberUsernames` by string; if a username is re-registered to a different UUID the two arrays diverge; pre-existing design gap not introduced by this story
 - Non-auth validation errors wrapped in `GraphQLForbiddenException` — `UserNotFound`, `AlreadyMember`, `AlreadyPending`, `SelfShare` are semantic validation errors but use the same exception type as auth failures; pre-existing GQL error taxonomy (noted in 2-1 deferred items)
@@ -826,7 +1046,21 @@ and harmless halves the wrong way round. Both corrections are marked `CORRECTED 
 
 ## Deferred from: code review of 4-1-list-entity-backend-crud-authorization-migration (2026-05-22)
 
-- TOCTOU `synced` flag — `private var synced = false` is non-volatile; two coroutines can double-sync on startup; pre-existing pattern in `UserStorage` from story 1.2; affects `ItemStorage`, `CategoryStorage`, and new `ListStorage`
+- ~~TOCTOU `synced` flag — `private var synced = false` is non-volatile; two coroutines can double-sync on startup; pre-existing pattern in `UserStorage` from story 1.2; affects `ItemStorage`, `CategoryStorage`, and new `ListStorage`~~
+  **PARTIALLY RESOLVED 2026-08-12 by Story 7.6 — the visibility half is fixed in all three named classes; the
+  check-then-act half is re-filed, not absorbed.** `ItemStorage.kt:13`, `CategoryStorage.kt:13` and `ListStorage.kt:13`
+  each now carry `@Volatile` on the flag (with `import kotlin.concurrent.Volatile`, the platform-agnostic form —
+  `@Volatile` also resolves without an import on the JVM); these are the first three uses of the annotation in
+  `bp_back`, and `grep -rn '@Volatile' bp_back/src/main/` returns exactly 3 hits. Nothing else changed: the
+  `if (synced.not()) { … synced = true }` bodies, every `sync()` caller, and `evictList`/`evictFromCache` (which
+  deliberately do not reset the flag) are byte-unchanged. **What remains open is the double-sync itself** — the guard
+  brackets a *suspending* `repository.getAll()` and sets the flag after the I/O, so two coroutines can still both see
+  `false` and both load; `@Volatile` only guarantees that once one writes `true` the others reliably see it. **That
+  residual is not benign** — the review established that a stale snapshot can overwrite a newer cached row, so it is a
+  correctness gap, not just duplicated startup I/O; it and the `Mutex`-shaped fix are the first entry in the Story 7.6
+  section. The `UserStorage`
+  ancestor named in `1-2` is gone with the class. **No test:** a JMM visibility guarantee has no deterministic Kotest
+  expression — see the coverage note at the end of the Story 7.6 section.
 - `runBlocking` in repository init + duplicate instantiation — repository constructors call `runBlocking { createIndexes }` (pre-existing pattern); `Application.kt` and `GQL.kt` now create separate repository instances, doubling startup index-creation calls; idempotent but wasteful
 - `isMember` cold-cache false-denial — `ListStorage.getByIdCached` bypasses `sync()`; if called before any sync, returns `false` for legitimate members; `isMember` is currently unused in production paths but is a latent trap
 - `deleteList` partial-failure stale in-memory data — if `listRepository.delete()` throws after `itemRepository.deleteAllInList` + `categoryRepository.deleteAllInList` succeed, the `evictList` calls are never reached; in-memory data stays stale for the process lifetime; process restart recovers from MongoDB; design-acknowledged via spec cascade ordering
@@ -968,8 +1202,13 @@ and harmless halves the wrong way round. Both corrections are marked `CORRECTED 
   inherent in plain-text design choice
 - No `iat` (issued-at) claim in JWT — prevents "invalidate tokens issued before T" without a blocklist; security
   hardening
-- `UserStorage.sync()` check-then-act race — `synced` flag is not atomically guarded; double-sync possible under
-  coroutine concurrency; pre-existing in storage layer
+- ~~`UserStorage.sync()` check-then-act race — `synced` flag is not atomically guarded; double-sync possible under
+  coroutine concurrency; pre-existing in storage layer~~
+  **CLOSED 2026-08-12 by Story 7.6 — the named class is gone, and the surviving instances of the pattern are fixed
+  here.** `UserStorage` was deleted by Story 2.0, so this entry has had no subject for four epics; it is closed rather
+  than left as a phantom. The three classes that inherited the pattern (`ItemStorage`, `CategoryStorage`, `ListStorage`)
+  now carry `@Volatile` on the flag — see the `4-1` entry above, which also records the half that is **not** fixed (the
+  check-then-act window itself, re-filed in the Story 7.6 section with a `Mutex`-shaped proposal).
 - CORS plugin does not allow credentials or expose Authorization header — frontend is same-origin via nginx;
   cross-origin clients (API playground, mobile) will fail; pre-existing config
 - MongoDB error handling absent in repositories — `insertOne`/`deleteOne` throw MongoWriteException as 500; pre-existing

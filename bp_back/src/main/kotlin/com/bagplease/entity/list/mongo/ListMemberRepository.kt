@@ -1,6 +1,7 @@
 package com.bagplease.entity.list.mongo
 
 import com.bagplease.entity.list.ListMember
+import com.bagplease.entity.list.MemberStatus
 import com.mongodb.client.model.Filters
 import com.mongodb.client.model.IndexModel
 import com.mongodb.client.model.IndexOptions
@@ -36,7 +37,7 @@ class ListMemberRepository(db: MongoDatabase) {
             Updates.set(MongoListMember::listId.name, member.listId.toString()),
             Updates.set(MongoListMember::userId.name, member.userId.toString()),
             Updates.set(MongoListMember::username.name, member.username),
-            Updates.set(MongoListMember::status.name, member.status),
+            Updates.set(MongoListMember::status.name, member.status.name),
             Updates.set(MongoListMember::createdAt.name, member.createdAt),
         )
         col.updateOne(filter, update, options)
@@ -46,7 +47,7 @@ class ListMemberRepository(db: MongoDatabase) {
         col.find(
             Filters.and(
                 Filters.eq("listId", listId.toString()),
-                Filters.`in`("status", "PENDING", "ACCEPTED"),
+                Filters.`in`("status", MemberStatus.PENDING.name, MemberStatus.ACCEPTED.name),
             )
         ).map(MongoListMemberMapper::mapFromMongo).toList()
 
@@ -59,11 +60,16 @@ class ListMemberRepository(db: MongoDatabase) {
         col.find(
             Filters.and(
                 Filters.eq("userId", userId.toString()),
-                Filters.eq("status", "PENDING"),
+                Filters.eq("status", MemberStatus.PENDING.name),
             )
         ).map(MongoListMemberMapper::mapFromMongo).toList()
 
     suspend fun deleteByListIdAndUserId(listId: UUID, userId: UUID) {
         col.deleteOne(Filters.eq("_id", "${listId}_${userId}"))
+    }
+
+    suspend fun deleteAllInList(listId: UUID): Int {
+        val result = col.deleteMany(Filters.eq("listId", listId.toString()))
+        return result.deletedCount.toInt()
     }
 }
