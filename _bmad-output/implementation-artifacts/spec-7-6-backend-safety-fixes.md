@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-08-12'
 status: 'done'
 baseline_revision: '3421eb1'
-final_revision: 'PENDING'
+final_revision: '6e4c38e'
 review_loop_iteration: 0
 followup_review_recommended: true # 7 patches, 4 of them medium, spanning both permanent rules documents (three
 # factually-wrong claims corrected in place) plus two test defects, one of which required a new red observation.
