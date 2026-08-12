@@ -728,6 +728,188 @@ instead: `grep -rn '@Volatile' bp_back/src/main/` returns exactly 3 hits, one pe
 their callers and `evictList`/`evictFromCache` byte-unchanged. The residual it does not fix is the first entry in this
 section rather than a silent absorption.
 
+## Deferred from: Story 7.7 — minor and patch dependency sweep (2026-08-12)
+
+**No version was reverted under S-AC3.** Every target in the story's §1/§3 tables landed green, including
+`graphql-kotlin 9.3.0`, which the spec pre-declared as the most likely revert. The entries below are the deliberate
+holds, the pre-existing drift the sweep surfaced, and one flake the baseline run exposed — none of them is a bump that
+failed.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: the Gradle wrapper is held at 9.6.1 while 9.7.0 is released. **Named blocking symptom (NFR-E7-1 requires
+  one, and "outside the story's `Files:` line" is not it — the same story bumped `settings.gradle.kts`, which is also
+  outside that line):** `bp_back/Dockerfile:1` is `FROM gradle:9.6.1-jdk25`, so the shipped image builds with the
+  **image's** Gradle; a wrapper-only bump puts local builds and the shipped artifact on different Gradle versions,
+  which is a build-path divergence, not a preference.
+  evidence: `./gradlew dependencyUpdates` reports `Gradle release-candidate updates: - Gradle: [9.6.1 -> 9.7.0]`.
+  AC1's claim that the wrapper is "already current" is now false and is recorded as such. Moving
+  `gradle/wrapper/gradle-wrapper.properties` alone would put local builds and the shipped image on different Gradle
+  versions — the same build-path divergence that let a broken `images-build-push.sh` survive two epics undetected.
+  Proposed fix: its own story, as a two-file change (wrapper properties + Dockerfile base tag) with its own
+  `docker compose up --build` + E2E verification.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `typescript-eslint` 8.67.0 declares `typescript >=4.8.4 <6.1.0`, so the TypeScript 7 major (Story 7.10) and
+  the TS-lint bridge can deadlock across two stories if a TS-7-capable `typescript-eslint` does not exist when 7.10
+  starts.
+  evidence: measured from the installed package at 8.67.0 (`peerDependencies.typescript`), satisfied today by the
+  pinned `typescript 6.0.3`. Proposed fix: **before** 7.10 begins, confirm a published `typescript-eslint` whose
+  `typescript` peer range admits 7.x; if none exists, 7.10 and 7.11 must be planned as one combined story or 7.10 held
+  with that as its blocking symptom.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `bp_front/package.json`'s `allowScripts` key names `esbuild@0.27.7` while the lockfile carries
+  `esbuild@0.28.1`; the drift is pre-existing, was not fixed here, and now produces a warning on every `npm install`.
+  evidence: verbatim from this story's `npm install` — `npm warn allow-scripts 1 package has install scripts not yet
+  covered by allowScripts: esbuild@0.28.1 (postinstall: node install.js)`. Exit code was still **0**, so it never
+  blocked the sweep. `esbuild` is a transitive dependency of `vite`, so the pinned key goes stale on every vite bump.
+  **It is a build-path issue as well as a local one:** `bp_front/Dockerfile:10` runs `npm ci` against the same
+  manifest, so esbuild's postinstall is skipped in the shipped image build too. The image builds and the E2E gate is
+  green, so there is no present impact — but the entry should not read as "a warning on your laptop".
+  Proposed fix: either track the key to the locked version as part of each vite bump, or drop the version qualifier.
+  Out of scope here — S-AC4 restricts the diff to version numbers and what an upgrade strictly requires.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `kotest-property` is declared in `bp_back/build.gradle.kts` and used nowhere; the sweep bumped it to 6.2.4
+  rather than dropping it.
+  evidence: `grep -rn 'Arb\.\|checkAll\|forAll' bp_back/src/test/` returns nothing. Removing a dependency is scope
+  bleed under S-AC4, so it moves with the rest of the `kotest` ref. Proposed fix: delete the line in a dedicated
+  cleanup, or write the property tests it was added for.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `admin.spec.ts`'s `createUserViaUi` helper is flaky under full-suite parallel load — it failed on the
+  **baseline** run before any dependency moved, and again on the first post-sweep run, always at the same assertion.
+  evidence: baseline full run (clean tree, `e58065b`): `2 failed / 2 did not run / 116 passed`, both
+  `[mobile] › e2e/admin.spec.ts:87` and `:110`, both `Error: expect(locator).toHaveCount(expected) failed / Locator:
+  getByTestId('create-user-dialog') / Expected: 0 / Received: 1 / Timeout: 5000ms` at `admin.spec.ts:49`. First
+  post-sweep run: `1 failed / 2 did not run / 117 passed`, `[chromium] › e2e/admin.spec.ts:219`, identical error text
+  and identical line. Re-running `npx playwright test e2e/admin.spec.ts --project=mobile --no-deps` in isolation
+  passed `4 passed (12.3s)`. Immediate re-runs of the full suite were green in both cases (`120 passed`, exit 0). The
+  failure snapshot shows the dialog still open with **empty** username/password fields, no error alert, and the users
+  table still rendering a `progressbar` — i.e. the dialog's fields were cleared/remounted by a parent re-render between
+  the `fill` calls and the `submit` click, not a rejected mutation. So it is a test-side race in the helper, not a
+  product regression and not an upgrade regression. It is also why the E2E gate needed two invocations at both the
+  baseline and the close. Proposed fix: make `createUserViaUi` wait for the users query to settle before opening the
+  dialog (or assert the field values immediately before submitting), and observe it failing first per the standing
+  convention. **Do not paper over it with a retry loop** — that is the shape Story 7.3 deleted.
+  **This falsifies an epic-level invariant and needs an owner before epic close.** Epic 7 requires *"The E2E suite is
+  green at zero retries and stays green — two consecutive full runs at `retries: 0` pass on both desktop and mobile,
+  measured twice: when the race-fix story claims it, and again at epic close."* Measured here, that is currently
+  **false**: this story's gate went red-then-green at *both* ends, which is the opposite of two consecutive passes.
+  Story 7.3's completion claim (`104 passed`, 0 flaky, two consecutive `retries: 0` runs, 2026-08-08) is not
+  contradicted — it was true of the suite as it then stood, and this flake is in `admin.spec.ts`'s helper, not in the
+  `registrationEnabled` mechanism 7.3 fixed — but it is no longer sufficient evidence for the epic-close criterion.
+  Consequence for sequencing: Stories 7.8-7.13 all inherit S-AC1 ("the full Playwright suite passes") against a gate
+  that is known to be non-deterministic, so each of them may need a second invocation, and none of them can read a
+  single red run as an upgrade regression without checking this helper first. Fix it before epic close, or the close
+  criterion cannot be honestly claimed.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: the lists index renders in a non-deterministic order, because `ListStorage.getAll()` returns
+  `storage.values.toList()` off a `ConcurrentHashMap`.
+  evidence: found while comparing S-AC2 screenshots. Two users who each created `Groceries` then `Hardware` render as
+  `Groceries, Hardware` and `Hardware, Groceries` respectively, on the **same** build — so the order is hash-order of
+  the UUID keys, not creation order. Pre-existing and unrelated to this sweep (the same-user before/after pair is
+  byte-identical). It does not affect FR38 home resolution, which sorts numerically via `byCreatedAtAsc`. Proposed
+  fix: sort in `ListService.getLists` (or the page) by `createdAt` using the same numeric comparison, so the index
+  agrees with the resolved home. Not done here — it is a product change, forbidden by S-AC4.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `dependencyUpdates` will keep reporting Kotlin `2.4.20-RC` and Arrow `2.3.0-alpha.4` as "later release"
+  after this story; that is the plugin's `revision = "release"` filter failing to exclude prereleases, not a missed
+  bump.
+  evidence: the post-sweep report lists 10 `org.jetbrains.kotlin:*` artifacts at `[2.3.21 -> 2.4.20-RC]` and both
+  Arrow artifacts at `[2.2.3 -> 2.3.0-alpha.4]`, alongside `com.expediagroup:graphql-kotlin-ktor-server [9.3.0 ->
+  10.2.1]` (Story 7.12's major) and the Gradle wrapper hold above. Everything else in the report is under "The
+  following dependencies are using the latest release version". Recorded so a future reader does not read the
+  prerelease noise as remaining sweep work.
+
+## Deferred from: code review of 7-7-minor-and-patch-dependency-sweep (2026-08-12)
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: the sweep split the Kotlin runtime — `kotlin-stdlib` now resolves to **2.4.0** while the compiler and
+  `kotlin-reflect` stay at **2.3.21** — because `arrow-core` 2.2.3 declares `kotlin-stdlib:2.4.0`.
+  evidence: `./gradlew :bp_back:dependencies --configuration runtimeClasspath` shows
+  `org.jetbrains.kotlin:kotlin-stdlib:2.3.21 -> 2.4.0` alongside `kotlin-reflect:2.3.21`; the running container carries
+  `/app/lib/kotlin-stdlib-2.4.0.jar` and `/app/lib/kotlin-reflect-2.3.21.jar`. The POMs confirm the cause:
+  `arrow-core-2.2.3.pom` declares `kotlin-stdlib` **2.4.0**, `arrow-core-2.1.2.pom` declared 2.1.21, and
+  `ktor-server-core-jvm-3.5.2.pom` declares only 2.3.21 — so Arrow is the sole source. Before the sweep the highest
+  request was 2.3.21 and resolution matched the compiler exactly. **AC2 as written still holds** (the declared
+  `kotlin` version did not move), but the story's original claim that "no Kotlin artifact moved" did not, and has been
+  corrected in the record. Not fixed here: AC1 names Arrow 2.2.3 explicitly so holding it would fail AC1, and a
+  `constraints { }` pin is a new build mechanism rather than a version number (S-AC4). The skew is in the supported
+  direction and the full backend suite and E2E gate are green under it. Proposed fix: either add
+  `dependencies { constraints { implementation("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}") } }`
+  to `bp_back/build.gradle.kts` in a dedicated change, or simply let **Story 7.12** dissolve it — that story moves
+  `kotlin` with `graphql-kotlin`, and any Kotlin at or above 2.4.0 removes the skew. Whoever does 7.12 should check
+  this first: it is the reason a `kotlin` bump there may look like a no-op at the classpath level.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: two more runtime libraries moved silently under the Ktor bump and were not named anywhere in the original
+  record — `kotlinx-serialization-core` 1.9.0 → **1.11.0** and `kotlinx-coroutines-core` 1.10.2 → **1.11.0**.
+  evidence: same `:bp_back:dependencies` resolution; `ktor-server-core-jvm-3.5.2.pom` declares
+  `kotlinx-coroutines-core-jvm:1.11.0`. This matters because the spec's Design Notes §6 explicitly watched for a silent
+  serialization change under the **driver** bump, and the hand-written `BsonEncoder`/`BsonDecoder` codecs in
+  `mongo/model/serialization/` sit on `kotlinx-serialization` — which moved under **Ktor** instead. Both are covered in
+  practice by `ListSharingTest`'s raw-BSON assertion and the full suite, which are green. Proposed fix: declare
+  `kotlinx-serialization` and `kotlinx-coroutines` as explicit `[versions]` refs so they stop moving invisibly, or add
+  a resolved-version assertion to the backend gate.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: the shipped lockfile carries **4 npm advisories (1 moderate, 3 high)** and no closing document mentioned
+  them.
+  evidence: `npm audit` in `bp_front/` reports `brace-expansion` (high, two DoS advisories),
+  `js-yaml 4.0.0 - 4.3.0` (high), `nanoid <3.3.17` (high) and `postcss <=8.5.22` (moderate), with
+  `fix available via npm audit fix`. All four are transitive build-time dependencies (`vite`/`postcss` and
+  `graphql-config`), none is in the browser bundle's runtime path. The sweep **reduced** the count — `npm install`
+  logged `6 (1 moderate, 5 high)` mid-pass and the final state is 4 — but a dependency-currency story should say so
+  rather than truncate the audit lines out of its quoted command output. Not fixed here: `npm audit fix` moves
+  transitives beyond what any named upgrade requires (S-AC4). Proposed fix: run `npm audit fix` as its own change with
+  the full gate behind it, or let Story 7.9's Vite 8 bump clear the `postcss`/`nanoid` chain and re-audit after it.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `graphql-ws` 6.0.8 → 6.2.1 was verified only over `ws://` on plain `http://localhost:2080`; the `wss://`
+  path through the TLS edge was not exercised after the bump.
+  evidence: the E2E gate ran at the default `baseURL`; `E2E_BASE_URL=https://bag-please.localhost npm run test:e2e`
+  was not run in this pass. The subscription transport is exactly what moved, and the TLS run is also the only path
+  that exercises the `Secure` + `SameSite=Strict` refresh cookie. Nothing in S-AC1 requires it, so this is not a gate
+  miss — but it is the one mode the changed package is least covered in. Proposed fix: run the TLS suite once before
+  epic close, when the edge is up.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: the `mobile` project's viewport comes from `devices['Pixel 7']`, which ships **inside** `playwright-core`
+  and therefore moved with the 1.61.1 → 1.62.1 bump; nothing pins it.
+  evidence: `playwright.config.ts` spreads `devices['Pixel 7']` with no explicit `viewport` override. A descriptor
+  change would silently alter what "the mandatory mobile gate" actually tests, and the whole suite would stay green
+  either way — the same failure shape as the `browser.newContext()` trap already recorded in `project-context.md`.
+  Proposed fix: spread the descriptor and then pin `viewport` explicitly, or assert the resolved viewport once in a
+  spec.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: nothing installs Playwright browser binaries automatically, so a future lockfile refresh can re-create the
+  runner-versus-binary skew this story had to fix by hand.
+  evidence: `@playwright/test` is caret-ranged (`^1.60.0`), there is no `postinstall` script, no CI step and no `mise`
+  task that runs `playwright install`; this pass needed a manual `npx playwright install chromium` after the runner
+  moved, and the failure mode is `Executable doesn't exist`, which reads as an environment fault rather than a
+  dependency change. Proposed fix: add a `postinstall` running `playwright install chromium`, or pin
+  `@playwright/test` exactly so the move is always a deliberate manifest edit.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: `graphql-kotlin` 9.3.0 declares `ktor-server-core` 3.2.3 and is force-upgraded to 3.5.2 by the catalog, so
+  the shipped pairing is not the one the vendor tested.
+  evidence: read from the 9.3.0 POM against the resolved classpath. It is green across `:bp_back:build`, the 115-test
+  backend suite and the full E2E gate, and `graphql-java` stayed at 23.1 across 9.2.0 → 9.3.0 (so the four
+  `GraphQLError` Java classes were never at risk). Recorded because Story 7.12 takes graphql-kotlin to 10.x and should
+  know that the 9.x pairing shipped was already ahead of the vendor's declared Ktor.
+
+- source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
+  summary: nothing mechanically ties `gradle/wrapper/gradle-wrapper.properties` to the `gradle:<version>-jdk25` base
+  image in `bp_back/Dockerfile:1`, which is the coupling the wrapper hold depends on; and no `engines` field ties
+  `@types/node` 25.x to the `node:26-alpine` image that builds and runs the frontend.
+  evidence: both couplings are conventions held in prose only. Proposed fix: a one-line grep check in the build for
+  the Gradle pair, and an `engines.node` field in `bp_front/package.json` for the Node pair — each cheap, each
+  currently absent.
+
 ## Deferred from: code review of 7-6-backend-safety-fixes (2026-08-12)
 
 Seven findings deferred. Four corrections the review found in the Story 7.6 section above (the idempotence claim, the

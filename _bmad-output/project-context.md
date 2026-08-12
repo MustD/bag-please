@@ -17,28 +17,42 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 ### Backend
-- Kotlin 2.3.21, JVM toolchain 25 (JDK 25)
-- Ktor 3.4.3 (Netty engine, App Router style plugins)
-- graphql-kotlin 9.2.0 (ExpediaGroup)
-- MongoDB Kotlin Coroutine Driver 5.5.1 + bson-kotlinx 5.5.1
-- Arrow-kt 2.1.2 (arrow-core, arrow-fx-coroutines)
+- Kotlin 2.3.21, JVM toolchain 25 (JDK 25) — deliberately **not** bumped by Story 7.7's sweep; it moves in Story 7.12
+  with `graphql-kotlin` 10. **The declared version is not the resolved one:** since Story 7.7, `arrow-core` 2.2.3
+  declares `kotlin-stdlib:2.4.0`, so the runtime classpath carries **stdlib 2.4.0 with reflect 2.3.21** — a split
+  Kotlin runtime, green across the whole suite, filed in the ledger. Read the resolved versions from
+  `./gradlew :bp_back:dependencies --configuration runtimeClasspath`, never from `libs.versions.toml` alone
+- Ktor 3.5.2 (Netty engine, App Router style plugins)
+- graphql-kotlin 9.3.0 (ExpediaGroup)
+- MongoDB Kotlin Coroutine Driver 5.9.2 + bson-kotlinx 5.9.2
+- Arrow-kt 2.2.3 (arrow-core, arrow-fx-coroutines)
+- Logback 1.6.2; Kotest 6.2.4 (runner-junit5, property, assertions-ktor, extensions-testcontainers);
+  Testcontainers 2.0.5; bcrypt 0.10.2
+- Gradle wrapper 9.6.1, **held** while 9.7.0 exists: `bp_back/Dockerfile:1` is `FROM gradle:9.6.1-jdk25` and the shipped
+  image builds with the image's Gradle, so the wrapper cannot move alone (ledger entry, Story 7.7)
 - Kotlin Serialization (plugin 2.3.21) — used only for MongoDB BSON, not HTTP
 - Jackson — used for HTTP content negotiation and WebSocket frames
 - Gradle with shared version catalog at `gradle/libs.versions.toml`
 
 ### Frontend (rebuilt from scratch in Epic 5 — Vite SPA, no Next.js)
 
-- Vite 7.3.x + `@vitejs/plugin-react` 5.x (plugin v6 requires Vite 8 — do not bump one without the other)
-- React 19.2.5 / react-dom 19.2.5
-- react-router-dom 7.9.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
+- Vite 7.3.6 + `@vitejs/plugin-react` 5.2.0 (plugin v6 requires Vite 8 — do not bump one without the other)
+- React 19.2.8 / react-dom 19.2.8
+- react-router-dom 7.18.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
 - TypeScript 6.0.3 (strict mode, `moduleResolution: bundler`; `baseUrl` is deprecated in TS 6 — `paths` resolves without
-  it)
-- Apollo Client 4.1.9 (+ rxjs 7.8.1 peer) — plain React, no SSR integration package
-- MUI (Material UI) 9.0.0 + @mui/icons-material 9.0.0
+  it). **`typescript-eslint` 8.67.0 peers on `typescript >=4.8.4 <6.1.0`** — a forward hazard for the TS 7 story
+  (ledger entry, Story 7.7)
+- Apollo Client 4.2.11 (+ rxjs 7.8.2 peer) — plain React, no SSR integration package
+- MUI (Material UI) 9.3.1 + @mui/icons-material 9.3.1
 - Emotion 11.14.x (MUI peer dependency)
-- graphql 16.14.0 + graphql-ws 6.0.8
-- graphql-codegen CLI 7.0.0 + client-preset 6.0.0
-- @playwright/test 1.60.x (E2E; no unit/component framework exists)
+- graphql 16.14.2 + graphql-ws 6.2.1
+- graphql-codegen CLI 7.2.0 + client-preset 6.1.3
+- @playwright/test 1.62.x (E2E; no unit/component framework exists) — a runner bump needs
+  `npx playwright install chromium` or the suite fails with "Executable doesn't exist"
+- eslint 9.39.5 / @eslint/js 9.39.5 / typescript-eslint 8.67.0 / eslint-plugin-react-hooks 7.1.1 /
+  eslint-plugin-react-refresh 0.5.4 / globals 17.11.0
+- **`package.json` mixes pinned and caret entries and `bp_front/Dockerfile` runs `npm ci`, so the LOCKFILE is what
+  ships.** Read installed versions from `package-lock.json`, never from `package.json`
 
 ### Infrastructure
 - MongoDB 8 (all environments — dev, prod, and Testcontainers)
@@ -131,11 +145,17 @@ _This file contains critical rules and patterns that AI agents must follow when 
   fail an entire common query — for `list_members` that is `findActiveByListId`, feeding six `ListApi` call sites, i.e.
   the whole `lists` query for every member of that list. **Watch the write paths that have no mapper.** A repository
   `Updates.set(...)` is a domain→Mongo write with no mapper in it and must pass `.name` explicitly
-  (`ItemRepository.kt:60`, `ListMemberRepository.kt:40`). Measured once, so nobody re-litigates it *and nobody
-  over-generalises it*: on driver `mongodb 5.5.1`, with an enum carrying no `@SerialName` overrides, passing the *enum*
-  there was **not** a corruption bug — `org.bson.codecs.EnumCodecProvider` is in the default registry and encoded it to
-  the same BSON string, and Story 7.6's persistence test stayed green under that revert. Read that as a dated
-  measurement of one configuration, not a law: re-measure after any driver bump (Story 7.7 is a dependency sweep).
+  (`ItemRepository.kt:60`, `ListMemberRepository.kt:40`). Measured **twice**, so nobody re-litigates it *and nobody
+  over-generalises it*: with an enum carrying no `@SerialName` overrides, passing the *enum* there was **not** a
+  corruption bug — `org.bson.codecs.EnumCodecProvider` is in the default registry and encoded it to the same BSON
+  string, and Story 7.6's persistence test stayed green under that revert. Story 7.6 measured it on driver
+  `mongodb 5.5.1`; **Story 7.7 re-measured it on `mongodb 5.9.2` and the result is unchanged** —
+  `ListMemberRepository.kt:40` reverted to bare `member.status`, `./gradlew :bp_back:cleanTest :bp_back:test --tests
+  "com.bagplease.ListSharingTest"` → exit 0, `ListSharingTest 18 0 0 0`, including the raw-BSON assertion
+  `acceptedDoc["status"] shouldBe "ACCEPTED"`; `EnumCodec`/`EnumCodecProvider` are still present in `bson-5.9.2.jar`
+  and `MongoConnection.kt:29-38` still installs no custom `CodecRegistry`. Read it as a two-point measurement, not a
+  law — and note **both data points sit inside driver major 5**, so the trigger stays **any driver bump**, not
+  "the next major".
   `.name` is therefore mandatory as an explicitness/independence choice — it is what keeps the stored bytes from
   depending on a driver default — while the thing a test can actually pin is the constant-name identity in (2).
   A BSON filter on such a field must also use `MemberStatus.PENDING.name`, never a bare literal
@@ -556,7 +576,32 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-12 (Story 7.6) — **an enumerated field is an enum in the domain model only; persistence and the
+_Last Updated: 2026-08-12 (Story 7.7) — **dependency versions, plus three operational directives that follow from
+them.** No behavioural convention changed. The
+Technology Stack section now records what actually shipped after the minor/patch sweep: backend Ktor 3.5.2,
+graphql-kotlin 9.3.0, MongoDB driver + bson-kotlinx 5.9.2, Arrow 2.2.3, Logback 1.6.2, Kotest 6.2.4 (Kotlin stays
+**2.3.21** by AC2, Testcontainers 2.0.5 and bcrypt 0.10.2 re-confirmed latest, Gradle wrapper **held** at 9.6.1 because
+`bp_back/Dockerfile:1` pins the build image); frontend Apollo 4.2.11 + rxjs 7.8.2, MUI/icons 9.3.1, graphql 16.14.2,
+graphql-ws 6.2.1, React/react-dom 19.2.8, codegen 7.2.0/6.1.3, `@types/*` refreshed, react-router-dom 7.18.x,
+Playwright 1.62.x, eslint 9.39.5 + typescript-eslint 8.67.0 (TypeScript held at 6.0.3, Vite at 7.3.6,
+`@vitejs/plugin-react` at 5.2.0 — each the newest release inside the major a later story owns). Three notes added
+alongside the numbers, and they are directives rather than facts, which is why the "versions only" framing was
+corrected at review: read installed frontend versions from the **lockfile**, not `package.json`, because
+`bp_front/Dockerfile` runs `npm ci`; a Playwright runner bump needs `npx playwright install chromium`; and read the
+**resolved** Kotlin classpath rather than the catalog, because Arrow 2.2.3 now drags `kotlin-stdlib` to 2.4.0 above the
+2.3.21 compiler. `rule_count` stays 89 because no convention was added or changed. The standing instruction to **re-measure the enum-encoding finding after a driver bump was discharged**: on
+`mongodb 5.9.2` the bare-enum revert of `ListMemberRepository.kt:39` still leaves `ListSharingTest` 18/0/0/0 green
+(raw-BSON assertion included), `EnumCodecProvider` is still in `bson-5.9.2.jar`, and `MongoConnection.kt` still
+installs no custom registry — so that bullet now reads as a two-point measurement, with the re-measure trigger moved to
+the next driver **major**. New debt from this story — the Gradle-wrapper hold, the `typescript-eslint`/TS 7 deadlock
+risk, the pre-existing `allowScripts` `esbuild` drift, the unused `kotest-property`, a **pre-existing**
+`admin.spec.ts` `createUserViaUi` flake that failed the baseline run before any bump moved (which also **falsifies the
+epic's "green at zero retries, stays green" close criterion** until it is fixed), the non-deterministic lists-index
+ordering from `ListStorage.getAll()`, and the review's own findings — the split Kotlin runtime, the silent
+`kotlinx-serialization`/`kotlinx-coroutines` moves under Ktor, four npm advisories, the unverified `wss://` path, the
+unpinned `devices['Pixel 7']` viewport and the un-automated Playwright-browser install — lives in `deferred-work.md`,
+not here (NFR-E7-1). Prior entry:
+2026-08-12 (Story 7.6) — **an enumerated field is an enum in the domain model only; persistence and the
 GraphQL model each keep their own `String`.** Two backend rules added: the mapper-boundary convention generalised from
 `Recurring` to `MemberStatus` (own one-line enum file, constant names byte-identical to the persisted strings, `valueOf`
 on read and `.name` on write, `Mongo*`/`Gql*` both still `String` so the SDL never moves and no migration is needed),

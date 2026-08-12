@@ -1,11 +1,11 @@
 [versions]
 kotlin = "2.3.21"
-arrow = "2.1.2"
-logback = "1.5.18"
-ktor = "3.4.3"
-graphql-kotlin = "9.2.0"
-mongodb = "5.5.1"
-kotest = "6.1.11"
+arrow = "2.2.3"
+logback = "1.6.2"
+ktor = "3.5.2"
+graphql-kotlin = "9.3.0"
+mongodb = "5.9.2"
+kotest = "6.2.4"
 testcontainers = "2.0.5"
 bcrypt = "0.10.2"
 
