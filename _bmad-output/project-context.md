@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 89
+rule_count: 93
 optimized_for_llm: true
 ---
 
@@ -36,7 +36,26 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ### Frontend (rebuilt from scratch in Epic 5 — Vite SPA, no Next.js)
 
-- Vite 7.3.6 + `@vitejs/plugin-react` 5.2.0 (plugin v6 requires Vite 8 — do not bump one without the other)
+- Vite 8.2.1 + `@vitejs/plugin-react` 6.0.5 (Story 7.9; plugin 6 peers on `vite ^8.0.0` — do not bump one without the
+  other). **Vite 8 is Rolldown-based, not esbuild/rollup-based:** `rolldown` 1.2.4 + `lightningcss` 1.33.0 + `postcss`
+  8.5.26 replace them, and **`esbuild` and `rollup` are gone from the lockfile entirely** — `esbuild` is now only an
+  optional peer. The native bindings are platform-optional packages, so the `node:26-alpine` image resolves the
+  **-musl** variants and a glibc host build proves nothing about it; `docker compose build bp_front` is the real check.
+  `vite.config.ts` carries no `build`/`rollupOptions`/`optimizeDeps`/`esbuild`/`css` block and must not gain one to
+  steer Rolldown. The build still emits **no CSS file** (all styling is emotion CSS-in-JS)
+- **Vite 8 raised the shipped browser floor, and no gate in this project can see it.** Measured from both packages,
+  not recalled: Vite 7.3.6's `ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET` is
+  `["chrome107","edge107","firefox104","safari16"]`; Vite 8.2.1 resolves this project's actual config to
+  `["chrome111","edge111","firefox114","safari16.4","ios16.4"]` (`vite.resolveConfig(…, 'build').build.target`), with
+  `build.minify` now `"oxc"`. **Safari/iOS 16.0–16.3, Chrome/Edge 107–110 and Firefox 104–113 were dropped by the
+  upgrade**, silently: Playwright runs Chromium only, and identical screenshots on a current browser cannot detect a
+  narrowed support floor. Accepted as a normal consequence of a build-tool major rather than pinned back — but it is a
+  *decision*, and it matters more than usual here because Story 7.14 makes this an installable mobile app. Re-check the
+  resolved `build.target` on every future Vite major and record the delta
+- `@types/node` 26.2.0 — kept on the **same major as the Node that builds the project** (`mise.toml:6` = `26.4.0`,
+  `bp_front/Dockerfile:7` = `node:26-alpine`). A types major behind the runtime type-checks against APIs the build no
+  longer has. `tsc -b` is build-mode and caches per project under `node_modules/.tmp/`, so a types bump must be gated
+  on `npx tsc -b --force` or it proves nothing
 - React 19.2.8 / react-dom 19.2.8
 - react-router-dom 7.18.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
 - TypeScript 6.0.3 (strict mode, `moduleResolution: bundler`; `baseUrl` is deprecated in TS 6 — `paths` resolves without
@@ -576,7 +595,33 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-12 (Story 7.7) — **dependency versions, plus three operational directives that follow from
+_Last Updated: 2026-08-13 (Stories 7.8 + 7.9) — **frontend build-tool versions, plus four operational directives that
+follow from them.** No behavioural convention changed, but the "versions only" framing was **corrected at review**: the
+entries below carry directives, and `rule_count` rises 89 → **93** for the four — a types major tracks the Node major
+that builds the project; a types bump is gated on `npx tsc -b --force`; `vite.config.ts` must not gain a
+`build`/`optimizeDeps`/`esbuild`/`css` block to steer Rolldown; and the resolved `build.target` is re-checked and its
+delta recorded on every future Vite major. The Technology Stack section now records `@types/node` **26.2.0** (Story 7.8, one
+commit alone — the types major must track the Node major that builds the project, and a `tsc -b` gate must be
+`--force`d because build mode caches per project under `node_modules/.tmp/`) and Vite **8.2.1** with
+`@vitejs/plugin-react` **6.0.5** (Story 7.9, both in one commit — plugin 6 peers on `vite ^8.0.0`). The one genuinely
+new fact for an agent is that **Vite 8 is Rolldown-based**: `rolldown` 1.2.4 + `lightningcss` 1.33.0 + `postcss` 8.5.26
+are in, `esbuild` and `rollup` are out of the lockfile entirely, the native bindings are platform-optional packages so
+the musl image build is the only real check, and `vite.config.ts` must not gain a `build`/`optimizeDeps`/`esbuild`/`css`
+block to steer the new bundler. `bp_front/package.json`'s `allowScripts` block was deleted rather than re-pinned,
+because Vite 8 removed the `esbuild` it named from the tree — which closes Story 7.7's ledger entry on that drift. The
+fourth directive is the browser-floor bullet above, which is the one user-visible consequence of this pass and the one
+no gate here can catch. New debt from this pass — chiefly that the `createUserViaUi` "flake" is **size-driven, not
+random**: the admin users query is unpaginated, so the create-user dialog's close time grows with the users table
+(probed at 5015 ms against a 5000 ms assertion at ~5.5k rows) until the suite fails under parallel load. **Corrected at
+review — do not restore the earlier wording:** it is *not* "deterministic", *not* "monotonic", and re-running does
+*not* "always fail to converge" (two full green runs happened at larger row counts than a preceding red one in the same
+pass); and the Vite 7 control run that the first draft credited with settling attribution ran at the largest DB of the
+pass with both sides saturated at 8/8 failures, so it proved nothing. What actually settled it: `md` cleared the
+database and the **unchanged** Vite 8 tree passed twice in a row at `retries: 0`. Also note the E2E rule below still
+says `./db/data`; `md` switched the mongo mount to a named Docker volume (`bag-please_db_data`) on 2026-08-13, so the
+persistence claim holds but the path is stale — filed rather than swept, because that compose change is uncommitted and
+not this story's. All of it lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-12 (Story 7.7) — **dependency versions, plus three operational directives that follow from
 them.** No behavioural convention changed. The
 Technology Stack section now records what actually shipped after the minor/patch sweep: backend Ktor 3.5.2,
 graphql-kotlin 9.3.0, MongoDB driver + bson-kotlinx 5.9.2, Arrow 2.2.3, Logback 1.6.2, Kotest 6.2.4 (Kotlin stays

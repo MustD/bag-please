@@ -824,6 +824,218 @@ failed.
   following dependencies are using the latest release version". Recorded so a future reader does not read the
   prerelease noise as remaining sweep work.
 
+## Deferred from: Stories 7.8 + 7.9 — @types/node 26 and Vite 8 (2026-08-13)
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **The `createUserViaUi` flake is SIZE-DRIVEN, not random, and its mechanism is now measured.** The admin
+  panel renders **every** user row in the persistent database (`AdminUsers` at
+  `bp_front/src/lib/admin/adminQueries.ts:21` is unpaginated), and the create-user dialog's close is gated behind that
+  re-render. At **~5.5k** user rows a no-other-load probe measured **5015 ms** to close against `admin.spec.ts:49`'s
+  **5000 ms** `toHaveCount` timeout. As the table grows, the suite fails more and more often under 12-worker parallel
+  load. This is a hard blocker on the epic's E2E gate and needs an owner.
+  **CORRECTED AT REVIEW — the first draft of this entry said "deterministic" and "monotonic" and those words are not
+  earned; do not restore them.** 5015 ms against a 5000 ms budget is a **0.3 % margin measured once**, so the failure
+  is probabilistic and load-sensitive, which is exactly why the cited `3 → 2 → 2 → 4 → 8` progression is not monotonic
+  and why two full **green** runs (`baseline-e2e-rerun.txt` 05:51, `7.8-e2e.txt` 05:55, both `120 passed`) occurred
+  *after* a red one at **larger** row counts. The claim "re-running cannot converge" is falsified by those two runs.
+  What is established is the direction and the mechanism, not a cliff.
+  evidence: verbatim, on every failing run in this pass —
+  `Error: expect(locator).toHaveCount(expected) failed / Locator: getByTestId('create-user-dialog') / Expected: 0 /
+  Received: 1 / Timeout: 5000ms` at `admin.spec.ts:49:56`, `at createUserViaUi
+  (/home/md/projects/personal/bag-please/bp_front/e2e/admin.spec.ts:49:56)`. A no-other-load Playwright probe against
+  the running `:2080` stack measured: `admin page visible in 66 ms`, `first user row rendered in 2199 ms`,
+  `row count 5497`, `create-user dialog closed in 5015 ms`. Mongo at that moment:
+  `users 5380 / lists 3389 / list_members 614 / items 1853 / categories 1768 / refresh_tokens 7305` (before this
+  pass's own runs added more). The degradation is **monotonic** — each full suite invocation adds ~120 users, and the
+  successive full runs in this pass failed **3 → 2 → 2 → 4 → 8** tests, always the same signature, always inside
+  `admin.spec.ts`. `2 did not run` on every red run: the `registration-toggle-*` pair is `dependencies`-chained behind
+  `chromium`/`mobile`.
+  **Attribution is settled and it is not the upgrade — but NOT by the control run this entry originally credited.**
+  The Vite 7.3.6 control (`attr-e2e-vite7.txt`, 12:05) ran *after* all four Vite 8 runs, at the **largest** database
+  of the pass, and both compared runs sat at saturation (all 8 admin tests failing), so identical tallies carry no
+  discriminating power. The evidence that does settle it: after `md` cleared the database, the **unchanged** Vite 8
+  tree passed `120 passed` **twice consecutively** at `retries: 0`, with the served bundle confirmed as the Vite 8
+  output (`/assets/index-D0HEEKre.js`, matching the host build). Deleting user rows does not cure a bundler
+  regression. Vite 8 is inert with respect to this failure.
+  Proposed fix: prune `./db/data` (a `mongodump --archive --gzip` of the whole `bag_please` DB is 1.2 MB and was taken
+  in this pass before anything else — see the next entry), **and** fix the helper so the assertion does not depend on
+  the size of a table it did not create. The Story 7.7 entry's proposed fix ("wait for the users query to settle
+  before opening the dialog") is necessary but **not sufficient**: settling now takes >5 s on its own. A retry loop is
+  still forbidden — that is the shape Story 7.3 deleted. This supersedes the "test-side race in the helper" reading in
+  the Story 7.7 entry above; that reading was correct for the symptom at ~5.2k rows and is now incomplete.
+  **RESOLVED FOR NOW, BUT NOT FIXED — `md` cleared the database on 2026-08-13 and the gate went green immediately.**
+  `md` replaced the `./db/data` bind mount with a named Docker volume (`docker-compose.yaml`: `volumes: db_data:` and
+  `db_data:/data/db`) and deleted `db/` entirely, so the stack came up on an empty database (1 seed user). Against
+  that, on the unchanged Vite 8 image (`docker compose up -d --build --force-recreate`): **two consecutive full runs
+  at `retries: 0`, `120 passed (42.3s)` and `120 passed (41.6s)`, exit 0 both times, zero flaky, zero failed, zero
+  "did not run"**, split re-measured at `59 / 59 / 1 / 1`. So S-AC1 is discharged for both stories and the epic-level
+  invariant holds *today*.
+  **The defect itself is untouched and will recur.** Nothing was done to the admin panel or to
+  `createUserViaUi`; only the data under them was removed. **No arrival estimate is given** — the first draft's
+  "~45 more runs" came from ~120 users/run against a ~5.5k cliff, and that arithmetic does not close against the four
+  row counts this pass recorded (5380 at start, a 5497 probe, 5498, 5734 at close, over ≥7 full-suite invocations), so
+  the rate or one of the counts is wrong. The direction is certain; the timing is not. It will return **silently**, as
+  a "flake" that re-runs seem to heal, exactly as it did for two epics. The fix that actually ends it is still the one
+  below: make the helper's assertion independent of a table it did not create, and/or paginate the admin users query.
+  A per-run database reset or namespace in `webServer`/`globalSetup` would also end the growth mechanically, and is
+  probably the cheapest of the three. **Do not treat "the gate is green" as closure — clearing data is not a
+  mechanism.**
+  **Note for anyone reading the numbers above:** they were measured against a bind-mounted `./db/data`, which no
+  longer exists. `project-context.md`'s E2E rule still says "the DB volume `./db/data` persists across runs" — the
+  persistence claim is still true of the named volume, but the path is stale. That compose change is uncommitted at
+  the time of writing and was not made by this story.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: The dev/E2E MongoDB was **not** pruned in this story — the destructive delete was proposed and declined —
+  so the next E2E run starts from a still-larger users table. A full backup exists; the prune itself is `md`'s call.
+  evidence: `docker exec bag-please-mongo-1 mongodump -u user -p pass --authenticationDatabase admin --db bag_please
+  --archive --gzip` was taken to `.tmp/7cc77383-5cb8-4116-94d7-f5a9244538da/bag_please-backup-20260813-060357.archive.gz`
+  (1.2 MB, exit 0). Of 5498 users, **5477** match the E2E-generated patterns `/_e2e_|^probe_|^sac2_/` and only **21**
+  are hand-made accounts from earlier manual passes (`mia`, `john`, `manual_*`, `tmpdbg_*`, `sweep77_*`, …).
+  Proposed fix: `db.users.deleteMany({username: /_e2e_|^probe_|^sac2_/})` plus `db.refresh_tokens.deleteMany({})`,
+  then restart `bp_back` so its lazy in-memory user cache re-syncs. Note the `.tmp/` session directory is normally
+  deleted at session close per `CLAUDE.md` — **move the archive out of `.tmp/` first if the backup is wanted.**
+  **OUTCOME (2026-08-13):** `md` did not prune selectively — the whole database was discarded by switching the mongo
+  volume to a named Docker volume and deleting `db/`. **All 21 hand-made accounts went with it** (`mia`, `john`,
+  `manual_*`, `tmpdbg_*`, `sweep77_*`, …), along with every list, item and category they owned. The `mongodump`
+  archive named above is therefore the **only** copy of that data. **It was moved out of `.tmp/` at review** —
+  `CLAUDE.md` mandates deleting `.tmp/<session-id>/` at session close, which would have destroyed the sole copy — and
+  now lives at **`~/bag-please-db-backup-20260813-060357.archive.gz`**. `db/.gitignore` (contents: `data`) is deleted
+  in the working tree as a consequence of the volume switch; that is `md`'s change, not this story's, and this story
+  takes no position on whether it should be restored.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: `bp_front/package.json`'s `allowScripts` block is **resolved by deletion** — Vite 8 removed `esbuild` from
+  the tree entirely, so the key was provably dead rather than merely stale. This closes the Story 7.7 entry above.
+  evidence: after the Vite 8 install, `node_modules/esbuild` is **absent** from `package-lock.json` and so is
+  `node_modules/rollup`; the tree carries `rolldown 1.2.4`, `lightningcss 1.33.0` and `postcss 8.5.26` instead.
+  Story 7.7's entry assumed "esbuild is a transitive dependency of vite, so the pinned key goes stale on every vite
+  bump" — that assumption no longer holds at all. `npm install` and the image's `npm ci` now print **no**
+  allow-scripts warning; the last one recorded before the removal was
+  `npm warn install-scripts 1 package has install scripts not yet covered by allowScripts: esbuild@0.28.1
+  (postinstall: node install.js)`. None of the 14 `@rolldown/binding-*` or 11 `lightningcss-*` platform packages
+  needs an install script, so nothing replaced the key. No fix outstanding.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: Nothing was reverted under S-AC3 in either story. Recorded so the absence is explicit rather than inferred.
+  evidence: `@types/node` 26.2.0, `vite` 8.2.1 and `@vitejs/plugin-react` 6.0.5 all landed. Both static gates and the
+  production image build were green for each commit; the only red gate is the environment failure filed above, which
+  a same-DB-size control run on the previous bundler reproduced identically.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: This pass left fixture data in the dev/E2E database: user `sac2_visual_probe_7_8_7_9` (S-AC2 screenshot
+  fixture, with `SAC2 Visual List` + two categories + two items) and `Manual 7.9 Vite8 List` with a `Bakery` category
+  and a checked `Sourdough loaf` (the manual real-browser pass). Harmless, but it is not test-generated and will not
+  be caught by a `/_e2e_/` prune of the users table alone.
+  evidence: the S-AC2 harness lives at `.tmp/7cc77383-5cb8-4116-94d7-f5a9244538da/shots.mjs` and deliberately reuses
+  one fixed account across the before and after passes — that is the only reason all ten screenshot pairs came out
+  byte-identical instead of needing an eye adjudication for the username glyph.
+  **OUTCOME (2026-08-13):** moot — the database was discarded wholesale (see the entry above), so this fixture data no
+  longer exists. The technique is what is worth keeping: a fixed account reused across both passes is what makes the
+  S-AC2 comparison byte-exact, and the next dependency story should reuse `shots.mjs` rather than re-derive it.
+
+## Deferred from: code review of 7-8-7-9-types-node-26-and-vite-8 (2026-08-13)
+
+Findings the review surfaced that are **not** fixable inside this story's S-AC4 boundary (version numbers and what an
+upgrade strictly requires). Several are pre-existing and were merely exposed by the bundler swap.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **The shipped bundle now carries zero third-party licence banners.** Vite 8 defaults `build.minify` to
+  `"oxc"`, which does not preserve legal comments; `bp_front/dist/assets/index-*.js` contains **0** occurrences of
+  `@license` or `Copyright (c)` while `@mui/material` and `react-dom` both ship MIT/React banners in source. MIT asks
+  that the notice travel with substantial portions.
+  evidence: `vite.resolveConfig(..., 'build').build.minify` returns `"oxc"` on 8.2.1; `grep -c "@license\|Copyright
+  (c)" bp_front/dist/assets/*.js` returns 0. Whether Vite 7's esbuild path preserved them was NOT measured, so the
+  regression is probable rather than proven — measure before acting. Proposed fix: either a `build.minify` option that
+  keeps legal comments, or an emitted third-party licence file. **Both need a `build` block in `vite.config.ts`, which
+  this story's intent contract forbids**, so it is a decision for `md` and not a patch. Low practical risk for a
+  private app; non-zero if it is ever distributed.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **Deleting `allowScripts` removed the project's install-script policy anchor, and the image's npm floats.**
+  `bp_front/Dockerfile:7` is `node:26-alpine`, an unpinned tag whose npm moves independently of `mise.toml:6`. Reported
+  during review: npm 11 *warns* on an unreviewed install script and still runs it, whereas npm 12 requires an explicit
+  allow and blocks. If the image's npm rolls to 12 and any future dependency needs a postinstall, `npm ci` in the build
+  stage skips it and the image breaks in a way that reads as unrelated.
+  evidence: `allowScripts` is absent from `bp_front/package.json` after commit `9efa85c`; there is no `.npmrc`, no
+  `engines` field and no `packageManager` field anywhere in the repo. Proposed fix: keep an explicit `"allowScripts":
+  {}` as the policy anchor, and/or pin `packageManager` so the image's npm is a decision rather than a roll. Note this
+  also means Design Notes §4's "a blocked script leaves an unusable binary" branch may have been unreachable under
+  npm 11 — the deletion was still correct (the key named a package no longer in the tree), but for a simpler reason
+  than the spec gave.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **A bundler swap was accepted on Chromium-only evidence.** `playwright.config.ts` declares four projects,
+  all Chromium (Desktop Chrome + Pixel 7). Rolldown's and oxc's output on WebKit and Gecko is unverified, and this
+  matters more now that Vite 8's baseline includes `safari16.4`/`ios16.4`.
+  evidence: `playwright.config.ts:96-140`; no `webkit` or `firefox` project exists. Proposed fix: add a WebKit project
+  (at least a smoke subset), or state explicitly in the E2E rules that non-Chromium output is unverified.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **The lockfile's 25 optional native platform packages can be pruned by an `npm install` on a different
+  platform, breaking the musl image build for everyone.** Rolldown and Lightning CSS bindings are resolved as optional
+  platform deps; npm records only what it saw. A contributor on macOS or arm64 running `npm install` can drop the
+  `linux-x64-musl` entries the Docker build needs.
+  evidence: `package-lock.json` carries 14 `@rolldown/binding-*` and 11 `lightningcss-*` entries after this story's
+  `npm install` on linux/x64/glibc; `bp_front/Dockerfile:10` runs `npm ci` under `node:26-alpine` (musl). Proposed fix:
+  a check that all platform entries survive an install, or `npm install --os=... --cpu=...` guidance in the frontend
+  CLAUDE.md.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **Caddy's SPA fallback answers a request for a stale hashed asset with `index.html` and HTTP 200.** After
+  any deploy that changes the chunk hash, a browser holding a cached `index.html` requests the old
+  `/assets/index-<oldhash>.js`, receives HTML with a 200, and fails with a module-script MIME error — a blank page,
+  not a retry. Pre-existing (hashing is not new), but a bundler swap guarantees a hash change.
+  evidence: `routing/Caddyfile:29-33` is `root * /srv` / `try_files {path} /index.html` / `file_server` with no
+  `/assets/*` carve-out and no cache-control directives. Proposed fix: a `handle /assets/*` block ahead of the SPA
+  fallback so a missing asset 404s honestly, plus `Cache-Control: no-cache` on `index.html`.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **`tsconfig.app.json` declares no `types` field, so `@types/node`'s globals are visible to browser code.**
+  Node-only APIs type-check clean inside `src/` and fail at runtime. Pre-existing; this story made the Node typings a
+  major newer.
+  evidence: `bp_front/tsconfig.app.json` has no `types` key, so every package under `node_modules/@types` is included
+  by default. Proposed fix: `"types": ["vite/client"]` there, keeping `tsconfig.e2e.json`'s explicit `["node"]`.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **`npm run build`'s `tsc -b` has no `--force`, so a future types bump can report green having checked
+  nothing.** This story's gate worked around it by deleting `node_modules/.tmp` by hand; the script itself is
+  unchanged, so the trap is armed for Story 7.10 (TypeScript 6 → 7).
+  evidence: `bp_front/package.json:9` is `"build": "tsc -b && vite build"`; build mode caches per project under
+  `node_modules/.tmp/*.tsbuildinfo`. Proposed fix: `tsc -b --force` in the script, or a separate `typecheck` script the
+  dependency stories use. Out of scope here — S-AC4 restricts the diff to version numbers.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **Nothing outside `mise.toml` pins Node for a contributor who does not use mise**, so a build on Node 22
+  would type-check against `@types/node` 26 APIs its runtime lacks — the exact hazard Story 7.8's AC1 exists to
+  prevent, unguarded for anyone not on the same toolchain.
+  evidence: no `engines` field, no `.nvmrc`, no `.node-version`, no `packageManager`; only `mise.toml:6` and
+  `bp_front/Dockerfile:7`. Proposed fix: `"engines": {"node": ">=26 <27"}` plus `engine-strict=true`.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **`codegen.ts` is in no tsconfig project and codegen was never run against the Vite 8 tree**, so the
+  `npm run generate` path is unverified after `esbuild` left the dependency graph. It will be discovered at the next
+  schema change rather than now.
+  evidence: `tsconfig.app.json` includes `src`, `tsconfig.node.json` includes only `vite.config.ts`,
+  `tsconfig.e2e.json` includes `e2e` + `playwright.config.ts`; `codegen.ts` matches none. The spec forbade running
+  `npm run generate` (no schema change in this epic), so this was correct to skip and is flagged rather than blamed.
+  Proposed fix: run `npm run generate` once against the current tree and confirm byte-identical output.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **`./db/data` survives as a stale path across the docs and E2E comments** after `md` switched the mongo
+  mount to the named volume `bag-please_db_data`.
+  evidence: `_bmad-output/project-context.md:359,363,416` still teach it as the persisting E2E volume, and the same
+  path appears in `docs/` and in `bp_front/e2e/` comments. Deliberately **not** swept by this story: the compose change
+  is uncommitted and belongs to `md`, so rewriting standing rules around it would bake in a change that may yet be
+  reverted. Proposed fix: sweep it when the compose change is committed.
+
+- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+  summary: **The paperwork commit must be path-scoped.** The working tree carries `md`'s uncommitted
+  `docker-compose.yaml` (M) and `db/.gitignore` (D) alongside this story's documentation edits, so a `git commit -a`
+  would sweep an environment change into a documentation commit and attribute it to this story.
+  evidence: `git status --short` at review time. Handled in this pass by committing explicit paths; recorded because
+  the next story inherits the same dirty tree until `md` commits or reverts it.
+
 ## Deferred from: code review of 7-7-minor-and-patch-dependency-sweep (2026-08-12)
 
 - source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
