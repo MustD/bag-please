@@ -756,6 +756,12 @@ failed.
   pinned `typescript 6.0.3`. Proposed fix: **before** 7.10 begins, confirm a published `typescript-eslint` whose
   `typescript` peer range admits 7.x; if none exists, 7.10 and 7.11 must be planned as one combined story or 7.10 held
   with that as its blocking symptom.
+  **RESOLVED (2026-08-15) by Story 7.10.** The prediction was correct and the second of its two sanctioned outcomes was
+  taken: no published `typescript-eslint` admits TypeScript 7, so 7.10 held `typescript` at 6.0.3 with that as its
+  measured blocking symptom and closed `done`. The combined-story branch was **not** needed — `typescript-eslint@8.67.0`
+  peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`, so Story 7.11 (ESLint 9 → 10) is unblocked by the hold. See
+  "Deferred from: Story 7.10 — TypeScript 6 → 7 (2026-08-15)" below for the reproduced symptoms and the re-check
+  trigger; this entry is superseded by it and needs no further action.
 
 - source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
   summary: `bp_front/package.json`'s `allowScripts` key names `esbuild@0.27.7` while the lockfile carries
@@ -933,6 +939,116 @@ failed.
   **OUTCOME (2026-08-13):** moot — the database was discarded wholesale (see the entry above), so this fixture data no
   longer exists. The technique is what is worth keeping: a fixed account reused across both passes is what makes the
   S-AC2 comparison byte-exact, and the next dependency story should reuse `shots.mjs` rather than re-derive it.
+
+## Deferred from: Story 7.10 — TypeScript 6 → 7 (2026-08-15)
+
+One held-back major, with its blocking symptom reproduced in this repository rather than cited from a peer-range
+string. NFR-E7-1 requires a named blocking symptom for a hold; this section is that record. The story closed `done`
+(S-AC3): a held-back dependency closes its story rather than failing it.
+
+- source_spec: `spec-7-10-typescript-6-to-7.md`
+  summary: **`typescript` is held at `6.0.3` while `7.0.2` is `latest`.** The blocking symptom is
+  `typescript-eslint`: **no published version admits TypeScript 7**, and the whole static lint gate dies at module
+  load under it. **Version attempted: `7.0.2`** (registry `latest` on 2026-08-15; `next` is `7.1.0-dev.20260815.1`,
+  a prerelease and not a candidate). `6.0.3` is already the newest stable 6.x, so there is no patch to take inside
+  the held major — this is a clean hold at the top of 6, not a lag.
+  evidence, measurement 1 — **the registry, re-measured in this pass on 2026-08-15**:
+  `npm view typescript dist-tags --json` → `"latest": "7.0.2"`. `npm view typescript-eslint@latest peerDependencies
+  --json` → `{"eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.1.0"}`; `@typescript-eslint/parser@latest`
+  (8.67.0) declares the identical pair; `typescript-eslint@canary` (8.67.1-alpha.4) also declares `<6.1.0`. Swept
+  across **every** published `typescript-eslint >=8.0.0` — 83 versions — the `typescript` peer takes exactly four
+  distinct values and **none** of them admits 7.x: `>=4.8.4 <6.0.0` (31), `>=4.8.4 <5.9.0` (21),
+  `>=4.8.4 <6.1.0` (19), `>=4.8.4 <5.8.0` (12). There is no version to move to, not merely no *stable* one.
+  evidence, measurement 2 — **the install, reproduced in the real `bp_front/` tree**, verbatim from
+  `npm install typescript@7.0.2`:
+  ```
+  npm warn ERESOLVE overriding peer dependency
+  npm warn While resolving: bp_front@0.16.0
+  npm warn Found: typescript@6.0.3
+  npm warn node_modules/typescript
+  npm warn   peer typescript@">=4.8.4 <6.1.0" from @typescript-eslint/eslint-plugin@8.67.0
+  npm warn   node_modules/@typescript-eslint/eslint-plugin
+  npm warn     @typescript-eslint/eslint-plugin@"8.67.0" from typescript-eslint@8.67.0
+  npm warn     node_modules/typescript-eslint
+  npm warn   11 more (@typescript-eslint/parser, ...)
+  npm warn
+  npm warn Could not resolve dependency:
+  npm warn peer typescript@">=4.8.4 <6.1.0" from typescript-eslint@8.67.0
+  npm warn node_modules/typescript-eslint
+  npm warn   dev typescript-eslint@"^8.50.0" from the root project
+  ```
+  **Divergence worth knowing, measured not assumed:** this install **succeeded, exit 0** (`added 13 packages, removed
+  12 packages, changed 1 package`) — npm treats an explicitly-versioned install target as authoritative and *overrides*
+  the peer with a `warn` instead of failing `ERESOLVE`. **`--legacy-peer-deps` was therefore never needed and was never
+  used**, and no `.npmrc` exists in `bp_front/` or `~` (`npm config get legacy-peer-deps` → `false`). Do not plan a
+  future attempt around a hard install failure: **the peer conflict does not stop you, the runtime does.** Twelve
+  packages named the peer (`typescript-eslint` plus eight `@typescript-eslint/*`, and three more).
+  evidence, measurement 3 — **the lint gate, verbatim from `npm run lint` with TS 7.0.2 installed, exit code 2**:
+  ```
+  typescript-eslint does not support TS 7.0.
+  Please see https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0 to run typescript-eslint using the TS 6 API.
+  See also https://github.com/typescript-eslint/typescript-eslint/issues/10940 for tracking typescript-eslint's support for TS >=7.1
+
+  Oops! Something went wrong! :(
+
+  ESLint: 9.39.5
+
+  Error: typescript-eslint does not support TS 7.0.
+      at Object.<anonymous> (/home/md/projects/personal/bag-please/bp_front/node_modules/typescript-eslint/dist/index.js:52:11)
+      at Module._compile (node:internal/modules/cjs/loader:1944:14)
+  ```
+  It throws at **module load**, in the config's own import — so `eslint .` lints **zero files** and reports no rule
+  results at all. That is the entire static lint gate, including the `react-hooks/set-state-in-effect` rule the epic
+  calls load-bearing for the render-phase-adjustment convention. Note the upstream issue's own wording: it tracks
+  support for TS **>=7.1**, not 7.0 — 7.0 is not going to be supported.
+  root cause, measured in-tree: TS 7 is the native (Go) port and **ships no JavaScript compiler API**. With 7.0.2
+  installed, `node -e "console.log(Object.keys(require('typescript')))"` → `[ 'version', 'versionMajorMinor' ]` and
+  `typeof ts.createProgram` → `undefined`; `node_modules/typescript/bin/` contains **only `tsc`** — **`tsserver` is
+  gone** (6.0.3 shipped both). `@typescript-eslint/typescript-estree` `require`s that API and calls
+  `ts.createSourceFile` / `ts.ScriptTarget`, none of which exist. So this is not a cosmetic peer warning and cannot be
+  waved through with a range override.
+  **The finding worth keeping — this codebase is already TS-7-clean.** Measured with TS 7.0.2 actually installed in
+  `bp_front/`, after `rm -rf node_modules/.tmp`: `npx tsc -b tsconfig.json --force` → **exit 0, zero diagnostics**, and
+  each project individually (`tsc -p tsconfig.app.json|tsconfig.node.json|tsconfig.e2e.json --noEmit`) → **exit 0**.
+  Unchanged `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `moduleResolution: bundler`;
+  no `@ts-ignore`, `@ts-expect-error` or weakened compiler option was added anywhere, and no tsconfig was touched. That
+  separates **"our linter is not ready"** from "our code is not ready" — only the former is true. When a TS-7-capable
+  `typescript-eslint` ships, **this story is expected to be a one-line version bump**, not a migration.
+  **Rejected escape hatch: the sanctioned side-by-side / dual-TypeScript install.** Both the TS 7 error message above
+  and the TypeScript 7.0 announcement offer it — alias TS 6 in so `typescript` still resolves to a compiler API, e.g.
+  `"typescript": "npm:@typescript/typescript6@^6.0.2"` alongside `"@typescript/native": "npm:typescript@^7.0.2"`.
+  Refused on three concrete costs, recorded here so a future story inherits the analysis instead of rediscovering it:
+  (1) **S-AC3 forbids it in words** — "a failed bump is reverted and recorded, never worked around" — and S-AC4 forbids
+  the scope it needs (a second package plus a rewritten `build` script); (2) **it would downgrade the linting
+  compiler** — `@typescript/typescript6` is published at `6.0.2` while this project is on `6.0.3`, so the workaround
+  makes one gate *older* than today; (3) **it splits the codebase across two type systems** — `tsc` checking with 7.0
+  semantics while typescript-eslint parses with 6.0, so any divergence surfaces as an unattributable lint/build
+  disagreement, precisely the failure mode the epic's one-major-at-a-time sequencing exists to prevent.
+  **What the hold does NOT block:** `typescript-eslint@8.67.0` peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`, so
+  **Story 7.11 (ESLint 9 → 10) is unaffected.** The epic's "7.11 depends on 7.10" is satisfied by 7.10 *closing*, not
+  by it landing a bump. Do not read this hold as a stalled chain.
+  **Re-check trigger, concrete:** watch
+  <https://github.com/typescript-eslint/typescript-eslint/issues/10940> (open on 2026-08-15, labelled *blocked by
+  external API*; maintainers describe tsgo as "many months away from being stable"). The mechanical test is
+  `npm view typescript-eslint@latest peerDependencies.typescript` returning a range whose upper bound admits **7.1 or
+  later** — 7.0 will never qualify, since TypeScript 7.0 ships no API at all and 7.1 is slated to ship "a new and
+  different one". When that lands, re-run this story: bump `bp_front/package.json`'s pinned `"typescript"` entry,
+  bump `typescript-eslint` to the enabling version, then `npm run lint` + `npm run build` + the full four-project
+  Playwright suite. Expect the tsconfigs to need nothing.
+  Proposed fix: none needed beyond the version bump above; the hold is correct until upstream moves.
+
+- source_spec: `spec-7-10-typescript-6-to-7.md`
+  summary: **TypeScript 7 drops `tsserver` from the npm package**, which no gate in this project can see and which will
+  matter to editor tooling on the day the bump finally lands.
+  evidence: measured in-tree with 7.0.2 installed — `node_modules/typescript/bin/` contains only `tsc`, where 6.0.3
+  ships `tsc` **and** `tsserver`. Every editor/LSP integration in this repo's workflow resolves the workspace
+  `typescript` for its language server, and the project's global directive is to use an LSP server where one is
+  available. Nothing in `npm run lint`, `npm run build`, `docker compose up --build` or the Playwright suite touches
+  `tsserver`, so **all four gates would stay green while in-editor type intelligence silently stopped working** — the
+  same shape as Story 7.9's invisible browser-floor change.
+  Proposed fix: when the TS 7 bump is re-attempted, verify the editor path explicitly (a native-preview LSP server, or
+  whatever the ecosystem has settled on by then) as a named acceptance step, rather than inferring editor health from
+  four green gates that cannot observe it. Out of scope here — nothing was bumped.
 
 ## Deferred from: code review of 7-8-7-9-types-node-26-and-vite-8 (2026-08-13)
 
