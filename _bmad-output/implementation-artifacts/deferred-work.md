@@ -749,17 +749,19 @@ failed.
   `docker compose up --build` + E2E verification.
 
 - source_spec: `spec-7-7-minor-and-patch-dependency-sweep.md`
-  summary: `typescript-eslint` 8.67.0 declares `typescript >=4.8.4 <6.1.0`, so the TypeScript 7 major (Story 7.10) and
-  the TS-lint bridge can deadlock across two stories if a TS-7-capable `typescript-eslint` does not exist when 7.10
-  starts.
-  evidence: measured from the installed package at 8.67.0 (`peerDependencies.typescript`), satisfied today by the
+  **RESOLVED (2026-08-15) by Story 7.10 — no action remains; the `Proposed fix:` below is discharged, not pending.**
+  ~~summary: `typescript-eslint` 8.67.0 declares `typescript >=4.8.4 <6.1.0`, so the TypeScript 7 major (Story 7.10)
+  and the TS-lint bridge can deadlock across two stories if a TS-7-capable `typescript-eslint` does not exist when
+  7.10 starts.~~
+  ~~evidence: measured from the installed package at 8.67.0 (`peerDependencies.typescript`), satisfied today by the
   pinned `typescript 6.0.3`. Proposed fix: **before** 7.10 begins, confirm a published `typescript-eslint` whose
   `typescript` peer range admits 7.x; if none exists, 7.10 and 7.11 must be planned as one combined story or 7.10 held
-  with that as its blocking symptom.
+  with that as its blocking symptom.~~
   **RESOLVED (2026-08-15) by Story 7.10.** The prediction was correct and the second of its two sanctioned outcomes was
   taken: no published `typescript-eslint` admits TypeScript 7, so 7.10 held `typescript` at 6.0.3 with that as its
   measured blocking symptom and closed `done`. The combined-story branch was **not** needed — `typescript-eslint@8.67.0`
-  peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`, so Story 7.11 (ESLint 9 → 10) is unblocked by the hold. See
+  peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`, so the TypeScript hold does not block Story 7.11 (ESLint 9 → 10) on
+  that axis; 7.11 still owes its own peer pre-check for the other plugins. See
   "Deferred from: Story 7.10 — TypeScript 6 → 7 (2026-08-15)" below for the reproduced symptoms and the re-check
   trigger; this entry is superseded by it and needs no further action.
 
@@ -956,9 +958,18 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   `npm view typescript dist-tags --json` → `"latest": "7.0.2"`. `npm view typescript-eslint@latest peerDependencies
   --json` → `{"eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.1.0"}`; `@typescript-eslint/parser@latest`
   (8.67.0) declares the identical pair; `typescript-eslint@canary` (8.67.1-alpha.4) also declares `<6.1.0`. Swept
-  across **every** published `typescript-eslint >=8.0.0` — 83 versions — the `typescript` peer takes exactly four
-  distinct values and **none** of them admits 7.x: `>=4.8.4 <6.0.0` (31), `>=4.8.4 <5.9.0` (21),
-  `>=4.8.4 <6.1.0` (19), `>=4.8.4 <5.8.0` (12). There is no version to move to, not merely no *stable* one.
+  across the published `typescript-eslint >=8.0.0` line, the `typescript` peer takes exactly four distinct values and
+  **none** of them admits 7.x: `>=4.8.4 <6.0.0` (31), `>=4.8.4 <5.9.0` (21), `>=4.8.4 <6.1.0` (19),
+  `>=4.8.4 <5.8.0` (12).
+  **Corrected at review — the denominator was overstated and the claim was too strong.** Those four counts sum to 83,
+  which is the number of releases that *returned a `typescript` peer*, **not** the number swept: there are **105**
+  published stable 8.x releases, and the remaining 22 declare no `typescript` peer at all (`npm view` silently omits
+  an absent field). A `>=8.0.0` range also excludes prereleases by definition, so **none of the 1066 published 8.x
+  prereleases was swept** — only `canary` was spot-checked. The defensible claim is therefore: **no stable release,
+  and neither published prerelease channel (`canary`, `rc-v8`), admits TS 7.** Do not restore "every published
+  release" or "not merely no *stable* one". The *conclusion* is unaffected and does not rest on the sweep at all —
+  see measurement 3: `typescript-eslint` refuses TS 7 in a **runtime check of its own**, so a release declaring no
+  peer, or a widened peer, would still throw.
   evidence, measurement 2 — **the install, reproduced in the real `bp_front/` tree**, verbatim from
   `npm install typescript@7.0.2`:
   ```
@@ -981,8 +992,13 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   12 packages, changed 1 package`) — npm treats an explicitly-versioned install target as authoritative and *overrides*
   the peer with a `warn` instead of failing `ERESOLVE`. **`--legacy-peer-deps` was therefore never needed and was never
   used**, and no `.npmrc` exists in `bp_front/` or `~` (`npm config get legacy-peer-deps` → `false`). Do not plan a
-  future attempt around a hard install failure: **the peer conflict does not stop you, the runtime does.** Twelve
-  packages named the peer (`typescript-eslint` plus eight `@typescript-eslint/*`, and three more).
+  future attempt around a hard install failure: **the peer conflict does not stop you, the runtime does.**
+  **Corrected at review — the blocking peer is declared by exactly 8 packages, not twelve.** Measured from
+  `bp_front/package-lock.json`: `typescript-eslint` plus **seven** `@typescript-eslint/*` (`eslint-plugin`, `parser`,
+  `project-service`, `tsconfig-utils`, `type-utils`, `typescript-estree`, `utils`) declare `>=4.8.4 <6.1.0`. The
+  "twelve" was arithmetic off npm's own elision line (`11 more (@typescript-eslint/parser, ...)`), which counts peer
+  *edges*, not packages. The three other `typescript` peers in the lockfile — `ts-api-utils` (`>=4.8.4`) and two
+  `cosmiconfig` copies (`>=4.9.5`, optional) — are **open-ended and do not block TS 7**.
   evidence, measurement 3 — **the lint gate, verbatim from `npm run lint` with TS 7.0.2 installed, exit code 2**:
   ```
   typescript-eslint does not support TS 7.0.
@@ -1014,6 +1030,14 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   no `@ts-ignore`, `@ts-expect-error` or weakened compiler option was added anywhere, and no tsconfig was touched. That
   separates **"our linter is not ready"** from "our code is not ready" — only the former is true. When a TS-7-capable
   `typescript-eslint` ships, **this story is expected to be a one-line version bump**, not a migration.
+  **Scope this expectation honestly (added at review):** the exit-0 was measured under **7.0.2**, against the tree at
+  `853b599`, on **glibc linux-x64 only**. The compiler that eventually lands will by construction *not* be 7.0.2
+  (support starts at ≥7.1), and the tree will have absorbed Stories 7.11–7.15 by then. Re-run `tsc -b --force` under
+  the actual 7.x at retry time before scoping the retry as one line. Note also that **the Alpine/musl image was never
+  built under TS 7** — the LAND branch never ran, so `docker compose build bp_front` is an unexercised path. The
+  reason to expect it to work is narrow and inferential, not measured in-image: `@typescript/typescript-linux-x64`
+  ships a **statically linked** Go binary and declares no `libc` field, so npm will not filter it out on musl. Only
+  1 of the 20 platform packages was ever resolved.
   **Rejected escape hatch: the sanctioned side-by-side / dual-TypeScript install.** Both the TS 7 error message above
   and the TypeScript 7.0 announcement offer it — alias TS 6 in so `typescript` still resolves to a compiler API, e.g.
   `"typescript": "npm:@typescript/typescript6@^6.0.2"` alongside `"@typescript/native": "npm:typescript@^7.0.2"`.
@@ -1024,18 +1048,43 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   makes one gate *older* than today; (3) **it splits the codebase across two type systems** — `tsc` checking with 7.0
   semantics while typescript-eslint parses with 6.0, so any divergence surfaces as an unattributable lint/build
   disagreement, precisely the failure mode the epic's one-major-at-a-time sequencing exists to prevent.
+  **Weight these correctly (adjusted at review).** Only (1) is a rule and it is by itself sufficient. (2) rests on
+  `@typescript/typescript6`'s published `latest` being `6.0.2` — verified against the registry at review, but it is a
+  version that can move. (3) is a *prediction*, and this story's own evidence points the other way: TS 7.0.2 and TS
+  6.0.3 were both measured clean on this codebase (exit 0 type-check, exit 0 lint), i.e. the two compilers agreed
+  completely. So the refusal stands on S-AC3, not on three co-equal measured grounds — do not re-present it as such.
   **What the hold does NOT block:** `typescript-eslint@8.67.0` peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`, so
-  **Story 7.11 (ESLint 9 → 10) is unaffected.** The epic's "7.11 depends on 7.10" is satisfied by 7.10 *closing*, not
-  by it landing a bump. Do not read this hold as a stalled chain.
-  **Re-check trigger, concrete:** watch
-  <https://github.com/typescript-eslint/typescript-eslint/issues/10940> (open on 2026-08-15, labelled *blocked by
-  external API*; maintainers describe tsgo as "many months away from being stable"). The mechanical test is
-  `npm view typescript-eslint@latest peerDependencies.typescript` returning a range whose upper bound admits **7.1 or
-  later** — 7.0 will never qualify, since TypeScript 7.0 ships no API at all and 7.1 is slated to ship "a new and
-  different one". When that lands, re-run this story: bump `bp_front/package.json`'s pinned `"typescript"` entry,
-  bump `typescript-eslint` to the enabling version, then `npm run lint` + `npm run build` + the full four-project
-  Playwright suite. Expect the tsconfigs to need nothing.
-  Proposed fix: none needed beyond the version bump above; the hold is correct until upstream moves.
+  **the TypeScript hold does not block Story 7.11 (ESLint 9 → 10).** The epic's "7.11 depends on 7.10" is satisfied by
+  7.10 *closing*, not by it landing a bump. Do not read this hold as a stalled chain.
+  **Bounded at review — that is the only 7.11 peer measured.** 7.11's AC1 requires *every* plugin to resolve against
+  ESLint 10; `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `@eslint/js` and `globals` were **not**
+  queried here, so 7.11 must still run its own peer pre-check and must not inherit an unqualified "not blocked".
+  **And the hold imposes an inverse constraint on 7.11:** whatever `typescript-eslint` version it lands must still
+  declare a `typescript` peer admitting the held **6.0.3** — i.e. the `<6.1.0` line. 31 of the swept releases declare
+  `>=4.8.4 <6.0.0`, which does *not* admit 6.0.3, so an ESLint-driven move of `typescript-eslint` could re-open the
+  same conflict from the other side.
+  **Re-check trigger, concrete.** Watch
+  <https://github.com/typescript-eslint/typescript-eslint/issues/10940>. (Read on 2026-08-15 during this story's
+  planning pass: open, labelled *blocked by external API*, with maintainers describing tsgo as "many months away from
+  being stable". That reading was **not** captured to an evidence file — treat the issue's state as needing a fresh
+  look rather than as a measurement of record. What *is* evidenced, from the lint failure itself, is that support
+  tracks TS **>=7.1**.)
+  **The test must be a disjunction, not a single `@latest` peer-range check (widened at review).** A peer-range check
+  alone will miss the likely shape of the fix: support will arrive through the native/tsgo API, which upstream may
+  express as a *new* peer on the native compiler, or by dropping/optionalising the `typescript` peer, rather than by
+  widening the existing range. And `typescript-eslint` ships `canary` and `rc-v8` ahead of `latest`, so `@latest`
+  alone lags. **Any** of these qualifies: the `typescript` peer's upper bound admits 7.1+; the `typescript` peer is
+  dropped or made optional; a new peer on the native compiler appears; or a `canary`/`rc-v9` release or the release
+  notes announce TS 7 support. Check `npm view typescript-eslint dist-tags` and the release notes, not `@latest`
+  alone. **Whatever the signal, the decisive confirmation is behavioural:** install the candidate pair and confirm
+  `npm run lint` lints a non-zero number of files, since the refusal is a runtime check, not a peer range.
+  When it lands, re-run this story: bump `bp_front/package.json`'s pinned `"typescript"` entry, bump
+  `typescript-eslint` to the enabling version, then `npm run lint` + `npm run build` + the full four-project
+  Playwright suite + `docker compose build bp_front` (the musl path, never exercised under TS 7). Expect the tsconfigs
+  to need nothing.
+  Proposed fix: **OPEN — this is a live obligation, not a closed item.** No code change is owed today, but the
+  re-check above must actually be performed before any future TypeScript attempt, and nothing in the story workflow
+  will resurface it now that 7.10 is `done`. Tracked as an open `action_items` entry in `sprint-status.yaml`.
 
 - source_spec: `spec-7-10-typescript-6-to-7.md`
   summary: **TypeScript 7 drops `tsserver` from the npm package**, which no gate in this project can see and which will
@@ -1049,6 +1098,22 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   Proposed fix: when the TS 7 bump is re-attempted, verify the editor path explicitly (a native-preview LSP server, or
   whatever the ecosystem has settled on by then) as a named acceptance step, rather than inferring editor health from
   four green gates that cannot observe it. Out of scope here — nothing was bumped.
+
+## Deferred from: code review of 7-10-typescript-6-to-7 (2026-08-15)
+
+- source_spec: `spec-7-10-typescript-6-to-7.md`
+  summary: `sprint-status.yaml` records a **held-back** dependency story with the same `done` value as a story that
+  actually landed its bump, so the epic-close dependency-currency audit cannot tell the two apart without parsing a
+  multi-thousand-character prose comment.
+  evidence: `7-10-typescript-6-to-7: done` is byte-identical in form to `7-8-…: done` and `7-9-…: done`, which landed
+  real version moves; the only distinguishing signal is the trailing comment. This is *sanctioned* — S-AC3 says a
+  held-back dependency closes its story — and it is mitigated outside this file, since `project-context.md`'s
+  Technology Stack now says the major is held. But the epic's "every direct dependency is at latest stable **or
+  deliberately held back**" close criterion is a machine-checkable question being answered by prose. Story 7.12 may
+  produce a second hold (`graphql-kotlin`/Kotlin) and 7.13 a third (`graphql` 16 → 17), so this compounds.
+  Proposed fix: add a structured marker — a `held_dependencies:` block, or a `status: done-held` value — so the
+  epic-close audit reads YAML rather than narrative. Deliberately **not** done inside Story 7.10: changing the sprint
+  board's schema is outside a held story's S-AC4 scope and would affect every consumer of the file.
 
 ## Deferred from: code review of 7-8-7-9-types-node-26-and-vite-8 (2026-08-13)
 

@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 93
+rule_count: 94
 optimized_for_llm: true
 ---
 
@@ -59,25 +59,26 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - React 19.2.8 / react-dom 19.2.8
 - react-router-dom 7.18.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
 - TypeScript 6.0.3 (strict mode, `moduleResolution: bundler`; `baseUrl` is deprecated in TS 6 — `paths` resolves without
-  it), and **`6.0.3` is already the newest stable 6.x**, so there is no patch to take inside the major. **HELD at 6
-  while `7.0.2` is `latest` (Story 7.10, 2026-08-15) — do not bump it, and do not re-derive why.** The blocker is
-  `typescript-eslint`: **no published version admits TypeScript 7.** Swept across all 83 published
-  `typescript-eslint >=8.0.0` releases the `typescript` peer takes four values, the highest bound being
-  `>=4.8.4 <6.1.0` (8.67.0 `latest` *and* 8.67.1-alpha.4 `canary`); upstream issue #10940 tracks support for TS
-  **>=7.1**, never 7.0. Three facts an agent would otherwise burn a pass rediscovering: (1) **TS 7 is the native (Go)
-  port and ships no JavaScript compiler API** — `require('typescript')` yields exactly
-  `['version','versionMajorMinor']`, `ts.createProgram` is `undefined`, and **`tsserver` is gone from `bin/`** (6.0.3
-  ships both), so editor tooling is affected too and no gate here can see that; (2) **`npm install typescript@7.0.2`
-  SUCCEEDS, exit 0** — npm only `warn`s `ERESOLVE overriding peer dependency` for an explicitly-versioned target, so
-  the peer conflict does not stop you; `npm run lint` then dies at **module load** with
+  it). **The MAJOR is held at 6 while `7.0.2` is `latest` (Story 7.10, 2026-08-15): do not bump to 7.** Patches *inside*
+  6.x remain in scope — `6.0.3` was the newest stable 6.x when measured, but re-measure `npm view typescript versions`
+  rather than assuming that still holds. The blocker is `typescript-eslint`, which **hard-refuses TS 7 in its own
+  runtime check** — not merely in a peer range, so no `overrides` or `--legacy-peer-deps` trick reaches it. Three facts
+  an agent would otherwise burn a pass rediscovering: (1) **TS 7 is the native (Go) port and ships no JavaScript
+  compiler API** — `require('typescript')` yields exactly `['version','versionMajorMinor']`, `ts.createProgram` is
+  `undefined`, and **`tsserver` is gone from `bin/`** (6.0.3 ships both), so **editor tooling breaks too and no gate in
+  this project can see that**; (2) **`npm install typescript@7.0.2` SUCCEEDS, exit 0** — npm only `warn`s
+  `ERESOLVE overriding peer dependency` for an explicitly-versioned target, so **the peer conflict is not what stops
+  you, the runtime is**; `npm run lint` then dies at **module load** with
   `Error: typescript-eslint does not support TS 7.0.` (exit 2, **zero files linted** — the whole static lint gate,
   including the load-bearing `react-hooks/set-state-in-effect` rule); (3) **the codebase itself is already TS-7-clean**
   — `tsc -b tsconfig.json --force` under 7.0.2 exits 0 with zero diagnostics across all three projects, under unchanged
-  `strict`/`noUnusedLocals`/`noUnusedParameters`, so the hold is about the linter, not the code, and the eventual bump
-  is expected to be one line. The documented side-by-side/dual-TypeScript workaround is **refused** — it would
-  *downgrade* the linting compiler to `@typescript/typescript6@6.0.2`. Full record and the re-check trigger:
-  `deferred-work.md`, "Deferred from: Story 7.10". **The hold does not block Story 7.11** — `typescript-eslint@8.67.0`
-  peers `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`
+  `strict`/`noUnusedLocals`/`noUnusedParameters`, so the hold is about the linter, not the code. Upstream issue #10940
+  tracks support for TS **>=7.1**, never 7.0. The blocking symptom, the refused side-by-side workaround, the re-check
+  trigger and every measurement live in `deferred-work.md`, "Deferred from: Story 7.10" — not here (NFR-E7-1).
+  **This hold does not block Story 7.11 on the TypeScript axis** — `typescript-eslint@8.67.0` peers
+  `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`. That is the only 7.11 peer measured; 7.11 must still check
+  `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `@eslint/js` and `globals` against ESLint 10 itself, and
+  must keep a `typescript-eslint` whose `typescript` peer still admits the held 6.0.3
 - Apollo Client 4.2.11 (+ rxjs 7.8.2 peer) — plain React, no SSR integration package
 - MUI (Material UI) 9.3.1 + @mui/icons-material 9.3.1
 - Emotion 11.14.x (MUI peer dependency)
@@ -612,7 +613,24 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-13 (Stories 7.8 + 7.9) — **frontend build-tool versions, plus four operational directives that
+_Last Updated: 2026-08-15 (Story 7.10) — **TypeScript's MAJOR is held at 6, and that hold is a directive, not a
+version fact.** `rule_count` rises 93 → **94** for the one rule added: do not bump `typescript` to 7 (patches inside
+6.x stay in scope). The blocker is not a peer range but a **runtime refusal** — `typescript-eslint` throws
+`does not support TS 7.0.` at module load, so `npm install typescript@7.0.2` *succeeds* (npm merely warns
+`ERESOLVE overriding peer dependency` for an explicitly-versioned target) and `npm run lint` then exits 2 having
+linted **zero files**. That inversion is the single most useful thing here: the peer conflict is not what stops you.
+Two further facts recorded because no gate in this project can observe them — **TS 7 ships no JavaScript compiler API
+at all** (`require('typescript')` yields only `version`/`versionMajorMinor`) **and no `tsserver`**, so in-editor type
+intelligence would die silently on the day the bump lands; and **the codebase is already TS-7-clean**
+(`tsc -b --force` under 7.0.2 → exit 0, zero diagnostics, three projects), so the hold is about the linter, not the
+code. **Corrected at review — do not restore the earlier wording:** the sweep behind the hold covered **83 of the 105
+published stable `typescript-eslint` 8.x releases** (the other 22 declare no `typescript` peer) and **none of the 1066
+prereleases**, so the honest claim is "no stable release and neither published prerelease channel admits TS 7", not
+"all 83 releases"; the blocking peer is declared by **8** packages, not nine or twelve (`ts-api-utils` and two
+`cosmiconfig` copies carry open-ended ranges that do *not* block); and the "7.11 is not blocked" assurance is measured
+for `typescript-eslint`'s `eslint` peer **only**. The blocking symptom, the refused side-by-side workaround and the
+re-check trigger live in `deferred-work.md` (NFR-E7-1), not here. Prior entry:
+2026-08-13 (Stories 7.8 + 7.9) — **frontend build-tool versions, plus four operational directives that
 follow from them.** No behavioural convention changed, but the "versions only" framing was **corrected at review**: the
 entries below carry directives, and `rule_count` rises 89 → **93** for the four — a types major tracks the Node major
 that builds the project; a types bump is gated on `npx tsc -b --force`; `vite.config.ts` must not gain a

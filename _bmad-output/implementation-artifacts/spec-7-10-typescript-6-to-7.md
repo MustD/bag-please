@@ -2,10 +2,10 @@
 title: 'Story 7.10 — TypeScript 6 → 7'
 type: 'chore'
 created: '2026-08-15'
-status: 'in-progress'
+status: 'in-review'
 baseline_revision: '853b599'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/project-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/epic-7-context.md'
@@ -103,8 +103,11 @@ All versions measured 2026-08-15 against the npm registry, on a clean tree at `8
 - `bp_front/tsconfig.json` + `tsconfig.app.json` / `tsconfig.node.json` / `tsconfig.e2e.json` — the solution config and
   its three referenced projects. All four are untouched by this story; all three type-check clean under TS 7 already.
 - `bp_front/eslint.config.mjs` — consumes `typescript-eslint`; it is what dies at module load under TS 7.
-- `bp_front/Dockerfile:7,14` — `node:26-alpine` (musl) running `npm run build`. TS 7's binary is a **statically linked**
-  Go executable, so musl is not an obstacle — this is the one Vite-8-shaped risk that does *not* apply here.
+- `bp_front/Dockerfile:7,12` — `node:26-alpine` (musl) running `npm run build`. TS 7's binary is a **statically linked**
+  Go executable that declares no `libc` field, so musl is *expected* not to be an obstacle — the one Vite-8-shaped risk
+  that likely does not apply here. **Scoped at review: measured on glibc linux-x64, out of image, for 1 of the 20
+  platform packages. The image was never built under TS 7** (the LAND branch never ran), so treat it as a supported
+  inference, not a measurement, and make `docker compose build bp_front` a named step of any future attempt.
 
 ## Tasks & Acceptance
 
@@ -121,6 +124,9 @@ All versions measured 2026-08-15 against the npm registry, on a clean tree at `8
 - [x] **Reproduce the blocking symptom in the real tree** (HOLD branch). From `bp_front/`: `npm install typescript@7.0.2`
       → capture the `ERESOLVE` output verbatim. Then `npm install typescript@7.0.2 --legacy-peer-deps` and
       `npm run lint` → capture the module-load failure verbatim. Both belong in the record and the ledger.
+      **Amended at review — the `--legacy-peer-deps` step proved moot and was never run:** the plain install already
+      placed 7.0.2 (it only warns), so `npm run lint` was invoked directly against it. The tick certifies the captured
+      lint failure, not the unrun flag. See Implementation Record §3.
 - [x] **Prove the codebase is TS-7-clean, independently of the lint toolchain.** With TS 7.0.2 present, run
       `npx tsc -b tsconfig.json --force` and record the exit code and any diagnostics. This is the finding that makes
       the hold precise: it separates "our code is not ready" from "our linter is not ready".
@@ -164,6 +170,44 @@ All versions measured 2026-08-15 against the npm registry, on a clean tree at `8
 
 ## Review Triage Log
 
+### 2026-08-15 — Review pass
+
+- intent_gap: 0
+- bad_spec: 0
+- patch: 23: (high 0, medium 13, low 10)
+- defer: 1: (high 0, medium 0, low 1)
+- reject: 3
+- addressed_findings:
+  - `[medium]` `[patch]` **The version sweep was not exhaustive and the claim was too strong.** The four peer counts sum to 83, which is the number of releases *returning* a `typescript` peer — there are **105** published stable 8.x releases (22 declare none) and **1066** prereleases, none swept. Re-measured at review; corrected in the ledger, `project-context.md`, `sprint-status.yaml` and three places in the record, with "every published release" and "not merely no *stable* one" marked do-not-restore. The conclusion is unaffected: the refusal is a **runtime check**, not a peer gate.
+  - `[medium]` `[patch]` **The blocking peer is declared by 8 packages, not nine or twelve.** Measured from the lockfile: `typescript-eslint` + seven `@typescript-eslint/*`. "Twelve" was arithmetic off npm's `11 more (…)` elision line, which counts peer *edges*; the spec body separately said "nine" while listing seven names. `ts-api-utils` and two `cosmiconfig` copies carry open-ended ranges that do **not** block. Fixed in both files.
+  - `[medium]` `[patch]` **`project-context.md` carried the debt narrative that NFR-E7-1 and S-AC3 put in the ledger.** The 17-line block restated the blocking symptom, the workaround refusal and its costs. Trimmed to versions + the directive + a ledger pointer; the self-assessment "no new debt was written here" was not supported by the diff and is corrected.
+  - `[medium]` `[patch]` **`project-context.md`'s `_Last Updated` chain and `rule_count` were not maintained**, so the file carried Story 7.10 content while claiming a 2026-08-13 update for 7.8+7.9. Prepended a Story 7.10 entry in the established `Prior entry:` chain and adjudicated the count: **93 → 94** for the one rule added (do not bump `typescript` to 7).
+  - `[medium]` `[patch]` **"Do not bump it" would have blocked a legitimate in-major patch.** Scoped the prohibition to the **major** and carried the re-measure caveat (which existed only in the spec's residual risks) into the rules file agents actually read first.
+  - `[medium]` `[patch]` **"Story 7.11 is NOT blocked" was asserted unconditionally in four documents from a one-package measurement.** 7.11's AC1 requires *every* plugin to resolve against ESLint 10; `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `@eslint/js` and `globals` were never queried. Narrowed everywhere to "not blocked **on the TypeScript axis**", with 7.11's own pre-check named.
+  - `[medium]` `[patch]` **The hold's inverse constraint on 7.11 was never stated:** whatever `typescript-eslint` 7.11 lands must still declare a `typescript` peer admitting the held **6.0.3** — 31 of the swept releases declare `<6.0.0`, which does not. Added, so an ESLint-driven move cannot re-open the conflict from the other side.
+  - `[medium]` `[patch]` **The re-check trigger was too narrow to fire.** It tested only `@latest`'s `typescript` peer range, but support will arrive via the native/tsgo API — plausibly as a *new* peer or a dropped/optionalised one — and `canary`/`rc-v8` lead `latest`. Broadened to a disjunction, with the decisive test made **behavioural** (`npm run lint` must lint a non-zero number of files), since the refusal is a runtime check.
+  - `[medium]` `[patch]` **Nothing would ever have resurfaced the re-check.** The story is `done`, and the ledger entry closed with "Proposed fix: none needed", which triage reads as no-action. Filed an **open** `action_items` entry in `sprint-status.yaml` (the project's own mechanism for cross-story follow-ups) and reworded the ledger line to name a live obligation.
+  - `[medium]` `[patch]` **The musl/Alpine safety claim was stated as measured but the image was never built under TS 7.** Re-scoped in both the Code Map and the ledger: measured on glibc linux-x64, out of image, for 1 of 20 platform packages; a supported inference from a statically linked Go binary with no `libc` field, not a measurement. `docker compose build bp_front` named as a required step of any future attempt.
+  - `[medium]` `[patch]` **The "one-line bump" expectation rests on a compiler the retry can never install.** The exit-0 was measured under 7.0.2, which will never be supported (support starts at ≥7.1), against a tree that will have absorbed Stories 7.11–7.15. Attached the re-measure caveat to the expectation itself, not just to the version number.
+  - `[medium]` `[patch]` **The side-by-side refusal was presented as "three measured grounds"** when only one is a rule, one was an uncaptured version comparison, and the third is a *prediction* that this story's own evidence undercuts — TS 7.0.2 and TS 6.0.3 both measured clean here, i.e. the two compilers agreed completely. Reweighted: the refusal stands on S-AC3 alone, which is sufficient and honest.
+  - `[medium]` `[patch]` **The falsified `ERESOLVE` prediction survived in two earlier sections** that a reader hits *before* the correction, including a Verification bullet reading "expected: non-zero exit … Captured." Both annotated in place with `SUPERSEDED` pointers to Implementation Record §3, so the isolated-probe transcript can no longer install the mental model the record exists to correct.
+  - `[low]` `[patch]` `6.0.3` being the newest stable 6.x was asserted three times and never captured. Re-measured at review (stable 6.x is `6.0.2`, `6.0.3`) — the claim is **true**; marked as measured-at-review rather than left unevidenced.
+  - `[low]` `[patch]` `@typescript/typescript6` being published at `6.0.2` was likewise uncaptured. Re-measured at review — **true** (versions end at 6.0.2); labelled as verified-at-review and as a number that can move.
+  - `[low]` `[patch]` The upstream issue's open state, its *blocked by external API* label and the quoted maintainer sentence had **no capture at all** — the highest-risk form of recalled-as-measured content. Attributed explicitly to the planning pass's uncaptured reading, with the re-check told to look fresh; the evidenced part (support tracks TS >=7.1, from the lint output) kept as measured.
+  - `[low]` `[patch]` A ticked task certified a step never run — `npm install typescript@7.0.2 --legacy-peer-deps`. Amended inline: the plain install already placed 7.0.2, so the tick certifies the captured lint failure, not the unrun flag.
+  - `[low]` `[patch]` **S-AC2 was never mentioned**, though it is standing for Stories 7.7–7.13 and the record explicitly discharges S-AC1's backend clause. Added its disposition: vacuously satisfied (nothing moved; identical bundle hash at both ends), no screenshot pass required, and the 7.8+7.9 `shots.mjs` handoff closed out as not-applicable.
+  - `[low]` `[patch]` **`npm audit` was captured twice in this pass's own evidence and reported nowhere**, in a dependency-currency epic. Recorded: 2 high (`js-yaml`, `brace-expansion`), both transitive under `@graphql-codegen/cli`, unchanged from Story 7.9, `npm audit fix` not run (outside S-AC4). Not re-filed as new debt — 7.9 already filed it.
+  - `[low]` `[patch]` A fenced block under a literal `npm view typescript dist-tags --json:` heading had three legacy tags silently trimmed. Elision marked, so the block is not read as byte-verbatim in a record whose premise is "nothing quoted".
+  - `[low]` `[patch]` `bp_front/Dockerfile:14` is the Stage-2 comment; the `npm run build` step is `:12`. Citation corrected.
+  - `[low]` `[patch]` The Story 7.7 ledger entry kept a live-reading `Proposed fix: **before** 7.10 begins…` after its RESOLVED paragraph. Struck through per the ledger's dominant closure convention and marked discharged, so an open-item scan no longer returns it.
+  - `[low]` `[patch]` The ledger-integrity task said "verify lines 1–936 byte-unchanged" while the same task also edited line 751 — mutually unsatisfiable as worded. Reworded to the **three-region** split that was actually verified.
+- deferred_findings:
+  - `[low]` `sprint-status.yaml` marks a held story with the same `done` value as a landed one, so an epic-close currency audit cannot distinguish them without parsing prose. Sanctioned by S-AC3 and mitigated in `project-context.md`, but a structural board change is outside this story.
+- rejected_findings:
+  - The spec's `status: in-review` "contradicting" `sprint-status.yaml: done` — expected workflow ordering; the spec reaches `done` at finalize.
+  - The `rm -rf node_modules/.tmp` step being unevidenced before the TS-7 type-check — `--force` makes it moot.
+  - A vacuous md5 comparison inside a scratch evidence file — a working artifact, not a deliverable, and it was redone correctly.
+
 ## Design Notes
 
 ### 1 — What TypeScript 7 actually is, measured
@@ -182,12 +226,22 @@ TS 7 is the native (Go) port, and the npm package is a thin launcher around a pl
 
 ### 2 — Why this blocks the lint gate specifically
 
-Nine packages in the current lockfile declare `peerDependencies.typescript: ">=4.8.4 <6.1.0"`, non-optional:
-`typescript-eslint` and eight `@typescript-eslint/*` (`parser`, `eslint-plugin`, `typescript-estree`, `utils`,
-`type-utils`, `project-service`, `tsconfig-utils`). `typescript-estree` does `require("typescript")` in a dozen
-modules and calls `ts.createSourceFile`, `ts.ScriptTarget` and friends — none of which TS 7 exports.
+**Eight** packages in the current lockfile declare `peerDependencies.typescript: ">=4.8.4 <6.1.0"`, non-optional:
+`typescript-eslint` and **seven** `@typescript-eslint/*` (`parser`, `eslint-plugin`, `typescript-estree`, `utils`,
+`type-utils`, `project-service`, `tsconfig-utils`). *(Corrected at review — this paragraph said "Nine … and eight"
+while listing seven names; the lockfile says eight total. The three other `typescript` peers in the tree,
+`ts-api-utils` `>=4.8.4` and two optional `cosmiconfig` copies `>=4.9.5`, are open-ended and do **not** block.)*
+`typescript-estree` does `require("typescript")` in a dozen modules and calls `ts.createSourceFile`,
+`ts.ScriptTarget` and friends — none of which TS 7 exports.
 
-So the failure is **not** a cosmetic peer warning. Measured in an isolated probe on 2026-08-15:
+So the failure is **not** a cosmetic peer warning. Measured in an **isolated probe** on 2026-08-15 — note this is a
+*fresh multi-package install into an empty directory*, which is why it shows a hard `ERESOLVE`:
+
+> **SUPERSEDED — read Implementation Record §3 before forming a mental model from this block.** In the real
+> `bp_front/` tree the equivalent install **succeeded, exit 0**, with npm merely *warning* `ERESOLVE overriding peer
+> dependency`, because an explicitly-versioned install target is treated as authoritative. `--legacy-peer-deps` was
+> therefore never needed and never used. The transcript below is not false, but it is not the behaviour a future
+> attempt will meet: **the peer conflict does not stop you, the runtime does.**
 
 ```
 npm install eslint@9.39.5 typescript-eslint@8.67.0 typescript@7.0.2
@@ -203,19 +257,22 @@ npm install eslint@9.39.5 typescript-eslint@8.67.0 typescript@7.0.2
 It throws at **module load**, so `eslint .` reports zero files linted. That is the whole static lint gate, including
 the `react-hooks/set-state-in-effect` rule the epic calls load-bearing.
 
-Upstream state on 2026-08-15: issue #10940 is open and labelled *blocked by external API*; maintainers describe tsgo
-as "many months away from being stable"; `typescript-eslint@latest` (8.67.0) **and** `canary` (8.67.1-alpha.4) both
+Upstream state, read during this story's **planning** pass on 2026-08-15: issue #10940 is open and labelled
+*blocked by external API*, with maintainers describing tsgo as "many months away from being stable". **Provenance
+flagged at review — that reading was not captured to an evidence file**, unlike every other claim in this record, so
+treat the issue's state as needing a fresh look at retry time rather than as a measurement of record. What the
+captured evidence *does* prove, from the lint failure's own output, is that support tracks TS **>=7.1**. `typescript-eslint@latest` (8.67.0) **and** `canary` (8.67.1-alpha.4) both
 declare the same `<6.1.0` peer. There is no version to move to.
 
 ### 3 — Why the sanctioned side-by-side install is still refused
 
 Both the error message and the announcement offer an escape: alias TS 6 in so `typescript` still resolves to a
 compiler API, e.g. `"typescript": "npm:@typescript/typescript6@^6.0.2"` alongside
-`"@typescript/native": "npm:typescript@^7.0.2"`. It is rejected here on three measured grounds, not on taste:
+`"@typescript/native": "npm:typescript@^7.0.2"`. It is rejected here on one rule plus two supporting considerations — **not**, as an earlier draft put it, on "three measured grounds":
 
 1. **S-AC3 forbids it in words:** "a failed bump is reverted and recorded, **never worked around**". S-AC4 forbids the
    scope it needs — a second package and a rewritten `build` script.
-2. **It would downgrade the linting compiler.** `@typescript/typescript6` is published at `6.0.2`; this project is on
+2. **It would downgrade the linting compiler** (verified against the registry at review; a version that can still move). `@typescript/typescript6` is published at `6.0.2`; this project is on
    `6.0.3`. The workaround makes one gate *older* than today.
 3. **It splits the codebase across two type systems** — `tsc` checking with 7.0 semantics while typescript-eslint
    parses with 6.0. Any divergence between them surfaces as an unattributable lint/build disagreement, which is
@@ -247,9 +304,11 @@ a bump. Say so explicitly in `sprint-status.yaml`, or the next run will read the
 - `git status --short` — expected: empty before the reproduction, after the revert, and after the paperwork commit.
 - `npm view typescript dist-tags --json` / `npm view typescript-eslint@latest peerDependencies --json` — expected: the
   routing measurement, recorded verbatim with the date.
-- `npm install typescript@7.0.2` — expected: non-zero exit, `ERESOLVE` naming the `<6.1.0` peer. Captured.
-- `npm run lint` (with TS 7 forced in) — expected: non-zero exit, `typescript-eslint does not support TS 7.0.`
-  Captured.
+- `npm install typescript@7.0.2` — expected at planning time: non-zero exit, `ERESOLVE` naming the `<6.1.0` peer.
+  **Refuted in the real tree (see Implementation Record §3): it exits 0 and only *warns* `ERESOLVE overriding peer
+  dependency`.** Captured either way; the install is not the gate that fails.
+- `npm run lint` (with TS 7 installed — no `--legacy-peer-deps` needed) — expected: non-zero exit,
+  `typescript-eslint does not support TS 7.0.` Captured. **This is the gate that actually fails.**
 - `npx tsc -b tsconfig.json --force` (with TS 7 present) — expected: exit 0, zero diagnostics.
 - `git checkout -- package.json package-lock.json && npm ci && npx tsc --version` — expected: `Version 6.0.3`.
 - `npm run lint` and `rm -rf node_modules/.tmp && npm run build` on the restored tree — expected: exit 0 for both.
@@ -295,7 +354,9 @@ under `.tmp/e96fe2e6-f9bf-4f14-b763-6fbe2fa7d7ae/` and are named at each step.
 
 Taken 2026-08-15 at 19:52 local (`05-registry-measurement.txt`, `05c-te-all-peers.json`, `05d-te-peer-uniq.txt`).
 
-`npm view typescript dist-tags --json`:
+`npm view typescript dist-tags --json` (decision-relevant tags; three legacy tags — `dev` 3.9.4, `insiders`
+4.6.2-insiders.20220225, `tag-for-publishing-older-releases` 4.1.6 — **elided**, marked at review so the block is not
+read as byte-verbatim output):
 
 ```
 {
@@ -327,7 +388,7 @@ candidate.
 
 The spec asks whether *any* published `typescript-eslint` admits `typescript >=7`, so the question was answered
 exhaustively rather than from the three tags. `npm view 'typescript-eslint@>=8.0.0' peerDependencies.typescript --json`
-returns **83** values, taking exactly four distinct forms:
+returns **83** values, taking exactly four distinct forms (**corrected at review: 83 is the number of releases that *returned a peer*, not the number that exist — there are 105 published stable 8.x releases, the other 22 declare no `typescript` peer, and none of the 1066 prereleases was swept**):
 
 | `typescript` peer range | Releases declaring it |
 |---|---|
@@ -541,7 +602,7 @@ the **currently installed** bridge with no TypeScript movement, and the epic's "
    evidence was obtained with *no* forcing mechanism at all, which is a stronger record than the spec asked for. Fully
    recorded in §3 and in the ledger entry.
 2. **The registry check was made exhaustive rather than tag-based.** The spec's task names three `npm view` calls; all
-   three were run, plus a sweep of all 83 published `typescript-eslint >=8.0.0` releases, because "no published version
+   three were run, plus a sweep of the published `typescript-eslint >=8.0.0` stable line (83 of 105 releases returned a peer; prereleases not covered), because "no published version
    admits TS 7" is the claim the hold rests on and two dist-tags cannot establish it.
 3. **A second ledger entry was filed** (the missing `tsserver`), beyond the one the task list enumerates.
 
@@ -551,10 +612,31 @@ the **currently installed** bridge with no TypeScript movement, and the epic's "
 **Status: `done`** — closed as a **held-back major under S-AC3**, which closes the story rather than failing or
 blocking it. `typescript` stays pinned at `6.0.3`. The run never halted; no Block-If triggered.
 
+### Review outcome (2026-08-15)
+
+One review pass, two reviewers in parallel. **0 intent gaps, 0 bad-spec loopbacks, 23 patches applied
+(13 medium / 10 low), 1 deferred, 3 rejected.** No finding challenged the HOLD decision, the gate results or the
+paperwork-only diff — all three were independently re-verified as sound. What the review did find, and what makes it
+worth reading, is a consistent failure mode in the *record* rather than the work: **claims stated more strongly than
+their evidence supported.** The sweep behind the hold was called exhaustive when it covered 83 of 105 stable releases
+and none of the 1066 prereleases; the blocking-peer package count was given as nine in one place and twelve in
+another when the lockfile says eight; four claims labelled "measured" had no capture (two were true on re-measurement
+at review, one was true-but-uncaptured, one was a quoted maintainer sentence with no source); the side-by-side
+refusal was presented as three measured grounds when it rests on one rule; and "Story 7.11 is not blocked" was
+asserted unconditionally in four documents from a single package's peer range. Each is corrected in place with the
+superseded wording explicitly marked do-not-restore.
+
+Three findings were substantive rather than editorial and changed what the artifact *does*: the **re-check trigger
+could not have fired** (it tested only `@latest`'s peer range, while support will arrive through the native API and
+`canary` leads `latest`) — now a disjunction confirmed **behaviourally**, since the refusal is a runtime check; the
+re-check had **no owner and no surface** — now an open `action_items` entry, because a `done` story is never revisited;
+and `project-context.md` had absorbed the debt narrative that **NFR-E7-1 puts in the ledger**, alongside an unmaintained
+`_Last Updated` chain and `rule_count` — trimmed, chained, and counted 93 → 94.
+
 ### Branch taken, and why
 
 **HOLD**, routed from a measurement taken in this pass, not from the spec's recalled numbers. `typescript@latest` is
-`7.0.2`, and **no published `typescript-eslint` admits TypeScript 7** — across all **83** releases `>=8.0.0` the
+`7.0.2`, and **no published `typescript-eslint` admits TypeScript 7** — across the **83** peer-declaring stable releases `>=8.0.0` the
 `typescript` peer takes four values whose highest upper bound is `<6.1.0`, and `latest` (8.67.0) and `canary`
 (8.67.1-alpha.4) both sit at that bound. There is no version to migrate to, so the LAND branch was unreachable rather
 than declined.
@@ -619,24 +701,39 @@ untracked spec; `package.json`/`package-lock.json` carry no `legacy-peer-deps`, 
 `@typescript/` residue; no `.npmrc` exists. Backend not run — no Gradle or backend file changed, so S-AC1's backend
 clause does not apply.
 
+**S-AC2 (added at review — it was never addressed, and silence is indistinguishable from an oversight).** S-AC2 is
+standing for Stories 7.7–7.13 and requires a real-browser pass proving identical rendering. It is **vacuously
+satisfied** here: no dependency moved, no `bp_front/` file is in the commit, and the built bundle is byte-identical at
+both ends of the pass (`index-D0HEEKre.js`, same 801.60 kB, same hash). **No screenshot pass was taken and none was
+required** — there is nothing that could have rendered differently. This also closes out the 7.8+7.9 ledger handoff
+asking the next dependency story to reuse `shots.mjs`: not applicable to a hold, and the fixture data it depended on
+no longer exists.
+
+**`npm audit` (added at review).** The restored tree — the one Story 7.11 inherits — reports **2 high, 0 critical**:
+`js-yaml` and a `brace-expansion` path, both transitive under `@graphql-codegen/cli`. Identical to what Story 7.9
+recorded on the Vite 8 tree; **neither is introduced or changed by this story**, and `npm audit fix` was not run
+because that is a dependency change outside S-AC4. Recorded rather than re-filed, since the finding already sits in
+the ledger from 7.9.
+
 ### Deviations
 
 1. `npm install typescript@7.0.2` **succeeded** where the spec predicted an `ERESOLVE` failure; the prescribed
    `--legacy-peer-deps` step was consequently moot and skipped. Recorded rather than absorbed — the correct mental
    model for the next attempt is "the peer conflict does not stop you, the runtime does".
-2. The registry check was made **exhaustive** (all 83 published 8.x releases) rather than resting on two dist-tags,
+2. The registry check was **widened** (83 peer-declaring stable 8.x releases, not exhaustive — see the review correction above) rather than resting on two dist-tags,
    because "no published version admits TS 7" is the claim the entire hold rests on.
 3. A **second** ledger entry was filed beyond the enumerated one: the loss of `tsserver`.
 
 ### Residual risks
 
-1. **The hold is open-ended.** Upstream issue #10940 is open, labelled *blocked by external API*, and tracks TS
+1. **The hold is open-ended.** Upstream issue #10940 was (per the uncaptured planning-pass reading noted above) open,
+   labelled *blocked by external API*, and tracks TS
    **>=7.1** — so this is not a "wait for the next patch" hold. If it has not moved by the epic's close, the
    dependency-currency criterion is satisfied by the recorded blocking symptom, not by currency.
 2. **`tsserver` is gone in TS 7 and no gate here can see it.** On the day the bump lands, all four gates can stay
    green while in-editor type intelligence stops working. Filed; verify the editor path explicitly then.
 3. **The `createUserViaUi` defect remains unfixed** — it simply did not fire in this pass. The unpaginated
    `AdminUsers` query still degrades as the users table regrows, and it fronts Stories 7.11–7.13.
-4. `typescript` 6.0.3 will begin to age. It is currently the newest stable 6.x, so there is nothing to take inside the
+4. `typescript` 6.0.3 will begin to age. It was the newest stable 6.x when measured at review, so there is nothing to take inside the
    held major, but that will not stay true indefinitely — re-measure `npm view typescript dist-tags` at each future
    attempt rather than assuming 6.0.3 is still the top of the 6 line.
