@@ -2,8 +2,9 @@
 title: 'Story 7.10 — TypeScript 6 → 7'
 type: 'chore'
 created: '2026-08-15'
-status: 'in-review'
+status: 'done'
 baseline_revision: '853b599'
+final_revision: 'ddf4aa7'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
