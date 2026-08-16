@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 94
+rule_count: 95
 optimized_for_llm: true
 ---
 
@@ -75,10 +75,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `strict`/`noUnusedLocals`/`noUnusedParameters`, so the hold is about the linter, not the code. Upstream issue #10940
   tracks support for TS **>=7.1**, never 7.0. The blocking symptom, the refused side-by-side workaround, the re-check
   trigger and every measurement live in `deferred-work.md`, "Deferred from: Story 7.10" — not here (NFR-E7-1).
-  **This hold does not block Story 7.11 on the TypeScript axis** — `typescript-eslint@8.67.0` peers
-  `eslint: "^8.57.0 || ^9.0.0 || ^10.0.0"`. That is the only 7.11 peer measured; 7.11 must still check
-  `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `@eslint/js` and `globals` against ESLint 10 itself, and
-  must keep a `typescript-eslint` whose `typescript` peer still admits the held 6.0.3
+  **The hold did not block Story 7.11, and that is now measured rather than predicted (2026-08-16):** ESLint went 9 → 10
+  with `typescript-eslint` unmoved at 8.67.0, whose `eslint` peer is `"^8.57.0 || ^9.0.0 || ^10.0.0"` and whose
+  `typescript` peer is still `>=4.8.4 <6.1.0` — so the held 6.0.3 is still admitted and the TS hold is undisturbed.
+  The standing obligation survives the story: **whatever `typescript-eslint` any future pass lands must still declare a
+  `typescript` peer admitting the held 6.x**, or the linter and the TypeScript hold collide
 - Apollo Client 4.2.11 (+ rxjs 7.8.2 peer) — plain React, no SSR integration package
 - MUI (Material UI) 9.3.1 + @mui/icons-material 9.3.1
 - Emotion 11.14.x (MUI peer dependency)
@@ -86,8 +87,18 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - graphql-codegen CLI 7.2.0 + client-preset 6.1.3
 - @playwright/test 1.62.x (E2E; no unit/component framework exists) — a runner bump needs
   `npx playwright install chromium` or the suite fails with "Executable doesn't exist"
-- eslint 9.39.5 / @eslint/js 9.39.5 / typescript-eslint 8.67.0 / eslint-plugin-react-hooks 7.1.1 /
-  eslint-plugin-react-refresh 0.5.4 / globals 17.11.0
+- eslint **10.8.1** / @eslint/js **10.0.1** (Story 7.11, 2026-08-16) / typescript-eslint 8.67.0 /
+  eslint-plugin-react-hooks 7.1.1 / eslint-plugin-react-refresh 0.5.4 / globals 17.11.0. **`eslint` and `@eslint/js`
+  are two independent version lines in v10 — bump each to *its own* latest and never "align" them to one number.**
+  Measured in-lockfile, not inferred: `eslint@9.39.5` depended on `@eslint/js@9.39.5` pinned exactly, whereas
+  `eslint@10.8.1` has **no `@eslint/js` dependency at all**, and `@eslint/js@10.0.1` declares `eslint: ^10.0.0` as an
+  *optional peer*. The v9 habit of moving both to the same number would pin a version that does not exist —
+  `@eslint/js`'s own latest had only reached 10.0.1 when `eslint` was at 10.8.1. Two consequences of the v10 move an
+  agent may otherwise trip over: `@eslint/eslintrc` (and the `globals@14` it bundled) is **gone from the tree**, so
+  nothing `.eslintrc`-shaped can be revived; and `js.configs.recommended` gained three rules —
+  `no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error` — which are `error` here via
+  `eslint.config.mjs:24` and currently report nothing, so a future edit that trips one is a real finding, not
+  config noise
 - **`package.json` mixes pinned and caret entries and `bp_front/Dockerfile` runs `npm ci`, so the LOCKFILE is what
   ships.** Read installed versions from `package-lock.json`, never from `package.json`
 
@@ -613,7 +624,48 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-15 (Story 7.10) — **TypeScript's MAJOR is held at 6, and that hold is a directive, not a
+_Last Updated: 2026-08-16 (Story 7.11) — **ESLint moved 9 → 10 and, unlike the two stories before it, this one
+LANDED rather than held.** `eslint` 9.39.5 → **10.8.1** and `@eslint/js` 9.39.5 → **10.0.1**, one commit, with every
+plugin unmoved. `rule_count` rises 94 → **95** for the one directive worth an agent's time: **`eslint` and `@eslint/js`
+are two independent version lines in v10 — bump each to its own latest, never align them to one number.** That is not a
+style preference; it is measured in the lockfile. `eslint@9.39.5` pinned `@eslint/js@9.39.5` as a hard dependency,
+`eslint@10.8.1` has no `@eslint/js` dependency at all, and `@eslint/js@10.0.1` declares `eslint: ^10.0.0` as an
+*optional peer*. An agent applying the v9 habit would try to install `@eslint/js@10.8.1`, which does not exist. Two
+further v10 facts are recorded beside the numbers so nobody re-derives them: `@eslint/eslintrc` and its bundled
+`globals@14` are **gone from the tree** (the `.eslintrc` compatibility layer is removed), and
+`js.configs.recommended` gained `no-unassigned-vars`, `no-useless-assignment` and `preserve-caught-error`, all three
+resolving to `error` here and all three currently reporting nothing — so a future edit that trips one is a real finding.
+Story 7.10's forward note ("this hold does not block 7.11") is rewritten from a prediction into a measurement, and its
+surviving half named: any future `typescript-eslint` must still declare a `typescript` peer admitting the held 6.x.
+**No behavioural convention changed and no rule was weakened** — which is the load-bearing claim here, because the
+linter is this project's only static gate over `react-hooks/set-state-in-effect`, the rule that forbids `useEffect`
+state-sync and forces the render-phase-adjustment pattern in all seven dialogs. It was proven **by falsification under
+ESLint 10, not by reading a config**: an injected `useEffect` state-sync in `AuthPage.tsx` made `npm run lint` exit 1
+naming the rule, and an exported non-component **function** in `ConfirmDialog.tsx` made
+`react-refresh/only-export-components` fire. The `const`-shaped probe was re-measured under v10 and is **silent**
+(`allowConstantExport: true`), so it is the vacuous-assertion trap for that check; use the `function` shape. Both
+probes were reverted and the commit contains no `bp_front/src/` or `bp_front/e2e/` path. **Corrected at review — do
+not restore the earlier wording, which read "while the identical shape in `e2e/support/ui.ts` (six exported helpers)
+stayed silent — Story 7.1's split intact".** That inference is invalid:
+`react-refresh/only-export-components` **does not scan `.ts` files at all**
+(`eslint-plugin-react-refresh/index.js:36-40` — early return for `.spec.`, then
+`shouldScan = .jsx || .tsx || checkJS && .js`), and all 14 files matched by the `bp/e2e-playwright` override are
+`.ts`. Measured with a control: a component plus a non-component function appended to the `.ts` file
+`src/lib/lists/homePath.ts`, where the rule resolves to `[2]`, reports **nothing**, while the same shape in the `.tsx`
+file `src/components/StoreField.tsx` reports. So `ui.ts`'s silence proves nothing about the override, and
+`eslint.config.mjs:47` has been **unreachable configuration since Story 7.1** — filed in `deferred-work.md`. The
+`src/` half of that split is genuinely proven; the `e2e/` half rests on `--print-config` alone.
+Also measured at review, because "no rule was weakened" needs the symmetric check and green-lint cannot supply it:
+`@eslint/js`'s `recommended` set goes **61 → 64 rules from 9.39.5 to 10.0.1 with nothing removed and nothing
+downgraded**, the three additions being `no-unassigned-vars`, `no-useless-assignment` and `preserve-caught-error` —
+each then observed *firing* on a purpose-built violation under v10, not merely read out of `--print-config`.
+The linted-file set is byte-identical before and after (52 files), so the `ignores` array still holds — though only
+`dist` and `src/__generated__` of its seven entries carry lintable content, so the other five are untested by that
+comparison. The built chunk is identical by name and size, so nothing reached the shipped artifact. One incidental measurement is filed nowhere but the
+sprint status, deliberately: the bump took `bp_front` from 2 high npm advisories to 1 (eslint 10's transitives carried
+`brace-expansion` past its vulnerable range), leaving only the pre-existing `js-yaml` high that arrives via
+`@graphql-codegen/cli`. Prior entry:
+2026-08-15 (Story 7.10) — **TypeScript's MAJOR is held at 6, and that hold is a directive, not a
 version fact.** `rule_count` rises 93 → **94** for the one rule added: do not bump `typescript` to 7 (patches inside
 6.x stay in scope). The blocker is not a peer range but a **runtime refusal** — `typescript-eslint` throws
 `does not support TS 7.0.` at module load, so `npm install typescript@7.0.2` *succeeds* (npm merely warns

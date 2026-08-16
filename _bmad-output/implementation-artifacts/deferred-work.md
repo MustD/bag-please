@@ -1099,6 +1099,79 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   whatever the ecosystem has settled on by then) as a named acceptance step, rather than inferring editor health from
   four green gates that cannot observe it. Out of scope here — nothing was bumped.
 
+## Deferred from: Story 7.11 — ESLint 9 → 10 (2026-08-16)
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: `bp_front/eslint.config.mjs:47`'s `'react-refresh/only-export-components': 'off'` override for `e2e/**`
+  is **unreachable configuration**, and has been since Story 7.1 introduced it.
+  evidence: `eslint-plugin-react-refresh/index.js:36-40` returns `{}` for any filename containing `.spec.`, then
+  gates on `shouldScan = filename.endsWith(".jsx") || filename.endsWith(".tsx") || checkJS && filename.endsWith(".js")`.
+  All 14 files matched by the `bp/e2e-playwright` block are `.ts` (10 of them `.spec.ts`), so the rule never runs there
+  regardless of the override. Measured with a control on the bumped tree: a component plus a non-component function
+  appended to the `.ts` file `src/lib/lists/homePath.ts`, where the rule resolves to `[2]`, reports nothing (exit 0),
+  while the same shape in the `.tsx` file `src/components/StoreField.tsx` reports 1 error. Consequence beyond the dead
+  line itself: the epic's AC3 premise (`epics.md:3505`, "Story 7.1 excluded the rule from `e2e/` so the shared support
+  module is legal") is **mistaken** — the module was always legal — and Story 7.11's first draft recorded the e2e
+  silence as a falsification, which is the assertion-that-cannot-fail defect class the Epic 6 retro named. Corrected in
+  the spec, `project-context.md` and `sprint-status.yaml` at review.
+  Proposed fix: either delete the override and assert `npm run lint` still exits 0 (cheapest, and honest), or keep it
+  and make it load-bearing with a component-shaped `.tsx` fixture under `e2e/`. Do **not** leave it carried forward as a
+  verified invariant across the next ESLint major.
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: `bp_front/package.json` declares **no `engines` field**, while ESLint 10 narrowed the Node floor further than
+  anything else in the toolchain — so a Node that builds, type-checks and E2E-tests this project can silently fail to
+  lint it.
+  evidence: `eslint@9.39.5` engines were `^18.18.0 || ^20.9.0 || >=21.1.0`; `eslint@10.8.1` is
+  `^20.19.0 || ^22.13.0 || >=24` (both read from the lockfiles). `vite@8` admits `^20.19.0 || >=22.12.0`. So Node
+  22.12.x and 23.x pass every other gate and cannot run `npm run lint`, and `npm` only emits an `EBADENGINE` **warning**.
+  The two paths actually in use are fine (`mise.toml:6` = `26.4.0`; `bp_front/Dockerfile:7` = `node:26-alpine`,
+  measured `v26.7.0` inside the build stage), so nothing is broken today — this is an unpinned floor, not a live defect.
+  Proposed fix: add `"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"}` to `bp_front/package.json`. Deliberately not
+  done in Story 7.11: S-AC4 scopes that story to version numbers and changes strictly required by the upgrade.
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: The `ignores`-integrity proof exercises only 2 of the array's 7 entries, and `npm run lint` cannot go red on
+  a warning-only ignores regression anyway.
+  evidence: `eslint.config.mjs:11-19` lists `dist`, `src/__generated__`, `test-results`, `playwright-report`,
+  `blob-report`, `playwright/.cache`, `e2e/.auth`. Three of those do not exist on disk and two contain no lintable
+  file, so the before/after linted-file-set comparison genuinely tests only `dist` and `src/__generated__`. Compounding:
+  `package.json:12` is `eslint .` with no `--max-warnings 0`, and `src/__generated__` under `--no-ignore` yields exit 0
+  with a *warning*, so a regression there would not redden the gate — the manual sorted-list diff is the only detector
+  and no gate re-runs it.
+  Proposed fix: `--max-warnings 0` on the lint script, and if the ignores array is to be treated as verified, a
+  throwaway `.ts` under each output directory before capturing the set.
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: `eslint.config.mjs` lints itself with an empty rule set — it is one of the 52 files in the linted set but
+  matches neither `files` block.
+  evidence: the config's two rule-bearing objects are `files: ['**/*.{ts,tsx}']` (`:22`) and
+  `files: ['e2e/**/*.ts', 'playwright.config.ts']` (`:36`). The measured set is 26 `.tsx`, 25 `.ts` and 1 `.mjs`; the
+  `.mjs` is the config itself, walked and reported as linted while carrying no rules. Pre-existing, not caused by the
+  bump.
+  Proposed fix: add `'**/*.mjs'` to the first block's `files`, or accept it knowingly — but stop counting it as a
+  linted file in evidence about gate coverage.
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: `eslint` and `@eslint/js` are now independently versioned behind caret ranges with an **optional** peer, so
+  nothing mechanical keeps them coherent.
+  evidence: `eslint@10.8.1` no longer depends on `@eslint/js` at all (9.39.5 pinned it exactly), and `@eslint/js@10.0.1`
+  declares `eslint: ^10.0.0` with `peerDependenciesMeta.optional: true`. `package.json` carries `^10.8.1` and `^10.0.1`.
+  npm will therefore accept any `^10` combination silently, and `js.configs.recommended` is where new rules arrive — so
+  a future `@eslint/js` minor can redden lint with no `eslint` bump and no signal that anything moved.
+  Proposed fix: pin both exactly, which is already the convention for 13 other entries in this `package.json`.
+
+- source_spec: `spec-7-11-eslint-9-to-10.md`
+  summary: `project-context.md`'s `rule_count` is adjudicated by judgement each story, and this pass shows the judgement
+  is not reproducible.
+  evidence: Story 7.11 counted **94 → 95** for one bullet that states three independently trippable facts (the two
+  packages have separate version lines; `@eslint/eslintrc` and its bundled `globals@14` are gone from the tree;
+  `js.configs.recommended` gained three rules), on the reasoning that the latter two are "consequences" of the first.
+  They are not consequences in any sense an agent can derive. Either the count is short by two, or the counter is not a
+  meaningful metric. The same adjudication recurs every story.
+  Proposed fix: `md` to rule on what `rule_count` counts — bullets, or independently actionable directives — or retire
+  it.
+
 ## Deferred from: code review of 7-10-typescript-6-to-7 (2026-08-15)
 
 - source_spec: `spec-7-10-typescript-6-to-7.md`
