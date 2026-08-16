@@ -1172,6 +1172,216 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   Proposed fix: `md` to rule on what `rule_count` counts — bullets, or independently actionable directives — or retire
   it.
 
+## Deferred from: Story 7.12 — `graphql-kotlin` 9 → 10, with Kotlin (2026-08-16)
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **the split Kotlin runtime survived this story and is now one patch wider** — `kotlin-stdlib` **2.4.10**
+  against `kotlin-reflect` **2.3.21**. The Story 7.7 ledger entry's proposal ("let Story 7.12 dissolve it — that story
+  moves `kotlin` with `graphql-kotlin`, and any Kotlin at or above 2.4.0 removes the skew") is **measured false**, and
+  the cause it named is only half the story.
+  evidence: `./gradlew :bp_back:dependencies --configuration runtimeClasspath` on the bumped tree resolves
+  `org.jetbrains.kotlin:kotlin-stdlib:2.4.10` alongside `org.jetbrains.kotlin:kotlin-reflect:2.3.21`, with the compiler
+  at 2.4.10 (`kotlin-compiler-embeddable-2.4.10.jar` on the compile classpath). Every `kotlin-reflect` request in the
+  graph, counted:
+  `2 × 1.8.10 -> 2.3.21`, `2 × 2.1.21 -> 2.3.21`, `7 × 2.3.0 -> 2.3.21`, `1 × 2.3.21` (unmoved). The single
+  un-upgraded request is `io.ktor:ktor-server-core-jvm:3.5.2 → org.jetbrains.kotlin:kotlin-reflect:2.3.21`, traced by
+  walking the tree indentation. **So `kotlin-reflect` tracks Ktor, not the `kotlin` catalog entry**: the Kotlin Gradle
+  Plugin injects `kotlin-stdlib` at the compiler version but never injects `kotlin-reflect`, and nothing else in the
+  graph asks for more than Ktor's 2.3.21. Consequence for anyone reading the older entry: **no `kotlin` bump can ever
+  close this**, so the re-check trigger moves from "Story 7.12" to **the next Ktor bump** (whose `ktor-server-core` POM
+  is the thing to read). Not fixed here: a `constraints { }` pin is a new build mechanism rather than a version number,
+  which S-AC4 forbids, and the skew is in the supported direction (newer stdlib, older reflect) and green across all
+  four instruments — 115/0/0/0 backend, 120-passed E2E at `retries: 0`, byte-identical SDL, byte-identical codegen.
+  Proposed fix: unchanged in shape from the 7.7 entry —
+  `dependencies { constraints { implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}") } }`
+  in `bp_back/build.gradle.kts` as a dedicated change (note it is now **`kotlin-reflect`** that needs the pin, not
+  `kotlin-stdlib` as the 7.7 entry proposed) — or simply wait for a Ktor version compiled against 2.4.x.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **Jackson 2 and Jackson 3 now coexist on the backend runtime classpath**, with two live
+  `ContentNegotiation` converter implementations available and no measurement of which one actually serialises
+  `data`/`errors`.
+  evidence: the `runtimeClasspath` diff adds `tools.jackson.core:jackson-core:3.1.3`,
+  `tools.jackson.core:jackson-databind:3.1.3`, `tools.jackson.module:jackson-module-kotlin:3.1.3` and
+  `tools.jackson:jackson-bom:3.1.3` while `com.fasterxml.jackson.*` stays at 2.22.1, unmoved; `io.ktor:
+  ktor-serialization-jackson3(-jvm):3.5.2` joins `ktor-serialization-jackson(-jvm):3.5.2`. graphql-kotlin 10's release
+  notes name the mechanism — "feat(ktor-server): skip internal ContentNegotiation install when already configured"
+  (PR #2174) — and this project installs `ContentNegotiation { jackson() }` (Jackson **2**) on the *root* route inside
+  `routing { }` at `Routing.kt:14-16`, one level above the GraphQL routes. **The observable contract is intact and that
+  is measured**: the failing-mutation and `FORBIDDEN` response bodies are byte-identical before and after
+  (md5 `0f14f39530c686ecc53218f28f1b79f4` and `e8f4a49ba280f66c1510a6bfbb0f21ea`), and the auth REST surface was never
+  touched. What is *not* established is which mapper produced them — no distinguishing signal was available without a
+  code change (the response carries a bare `Content-Type: application/json`, and both mappers serialise these shapes
+  identically). Related, from the spec's Design Note §2: `install(WebSockets) { contentConverter =
+  JacksonWebsocketContentConverter() }` at `GQL.kt:130` is Jackson **2**, while graphql-kotlin's subscription server
+  now carries its own Jackson 3 mapper, so that converter may be vestigial for GraphQL frames. **Noted, deliberately
+  not deleted** — out of scope, and `SubscriptionScopingTest`/`WebSocketAuthTest`/`sharing.spec.ts` FR52 are all green
+  over it. Proposed fix: a one-off probe that logs or asserts the active converter on the GraphQL route (cheapest: a
+  temporary `pluginOrNull(ContentNegotiation)` read in a throwaway build), then either drop the dead Jackson 2
+  websocket converter or record it as intentionally load-bearing. Do this before the next Ktor or graphql-kotlin major,
+  not after.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: Kotlin 2.4.10 emits a compiler warning on unchanged source that 2.3.21 did not —
+  `bp_back/src/main/kotlin/com/bagplease/entity/user/UserService.kt:65:9 Expression is unused.`
+  evidence: established with a control rather than assumed, because the baseline run's `compileKotlin` was
+  `UP-TO-DATE` and produced no output at all to compare against. The catalog was stashed back to `9.3.0`/`2.3.21` and
+  `./gradlew :bp_back:compileKotlin --rerun-tasks` run over the identical source: exit 0, **0** lines matching `^w: `.
+  On 2.4.10 the same forced compile emits exactly that one warning, and it also appears in the image build
+  (`docker compose build bp_back`, `#16 68.74 w: file:///home/gradle/src/…/UserService.kt:65:9`). The line is the
+  trailing `Unit` of `changePassword`'s `either { }` block. Warning only — the build is green and **nothing was
+  suppressed**; no `@Suppress` and no compiler flag were added, per S-AC4. Proposed fix: drop the redundant trailing
+  `Unit` (the block's type is already inferred), in a change that is not a dependency bump. Left alone here because
+  AR-E7-0 scopes this story's backend unfreeze to files a *captured error* forces, and a warning is not that.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: the project's only documented backend-readiness check — "`http://localhost:2080/api/graphiql` loading" —
+  **cannot be performed by a plain browser navigation**, because the route is behind Bearer auth.
+  evidence: `GQL.kt:135-140` puts `graphiQLRoute()` inside `authenticate(authMethod)` alongside `graphQLPostRoute()`
+  and `graphQLSDLRoute()`. Measured on the running stack: `curl` with no token → **401**; with an admin Bearer token →
+  **200**, 2511 bytes. A browser navigation carries no `Authorization` header, so the documented check returns 401 for
+  a perfectly healthy backend. Pre-existing, **not caused by this bump** — but `project-context.md`'s "Backend
+  readiness — no health endpoint yet" bullet is inaccurate as written and an agent following it will read a healthy
+  stack as down. One further trap measured while working around it, worth writing down because it costs a full
+  debugging cycle: driving the page with Playwright's `context.setExtraHTTPHeaders({Authorization: …})` attaches the
+  header to the jsdelivr CDN requests too, and Chromium then rejects the preflight
+  (`Request header field authorization is not allowed by Access-Control-Allow-Headers`), leaving the page stuck on
+  `Loading...` with `ReferenceError: GraphiQL is not defined` — a false negative indistinguishable from a broken
+  playground. The working form scopes the header to same-origin API requests with
+  `context.route("http://localhost:2080/api/**", …)`. Proposed fix: either add the real `/health` endpoint this bullet
+  has been deferring since Epic 1 (which is the actual gap), or at minimum correct the bullet to say the check needs a
+  token and give the `curl -H "Authorization: Bearer …"` form. Not done here: `project-context.md` edits are scoped by
+  this story's spec to the Technology Stack section, and NFR-E7-1 puts findings in this ledger rather than in the rules
+  file.
+
+## Deferred from: code review of 7-12-graphql-kotlin-9-to-10-with-kotlin (2026-08-16)
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The `Exception while fetching data (/field) : ` wrapper and `extensions.code` are a load-bearing frontend
+  contract that NO gate in this project can assert** — every E2E check of a backend error message is a `toContainText`
+  substring match, which passes just as happily with the wrapper left un-stripped, and no backend test asserts
+  `errors[0].message` or `extensions.code` at all.
+  evidence: `bp_front/src/lib/admin/adminErrors.ts:7`'s `RESOLVER_WRAPPER` regex is what strips graphql-java's prefix
+  before a user sees "User 'x' not found". `sharing.spec.ts:109` asserts ``toContainText(`User '${ghost}' not found`)``
+  — and `Exception while fetching data (/shareList) : User 'x' not found` **contains** that string, so the assertion
+  cannot fail for the reason it exists. Same shape at `sharing.spec.ts:61,68,114,124,161,265`. A `grep` over
+  `bp_back/src/test` finds no assertion on a GraphQL error message body. Consequence: Story 7.12 had to discharge AC3
+  by hand — mint a token, POST a deliberately-failing mutation, byte-diff the raw JSON — and **every future
+  graphql-java or graphql-kotlin bump repeats that ritual or ships blind**. Proposed fix, cheap: change
+  `sharing.spec.ts:109` to `toHaveText` (exact), and/or add one Kotest assertion that a failing mutation's
+  `errors[0].message` starts with `Exception while fetching data (` and that a forbidden read carries
+  `extensions.code == "FORBIDDEN"`. Not done here: editing E2E specs or adding backend tests is outside a two-line
+  version bump (S-AC4).
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **Which of the two live Jackson mappers serialises GraphQL `data`/`errors` is still unknown, and the story's
+  claim that "no distinguishing signal was available without a code change" was asserted rather than demonstrated.**
+  evidence: `graphql-kotlin` 10's `graphQLPostRoute` installs `io.ktor.serialization.jackson3.jackson()` only when
+  `pluginOrNull(ContentNegotiation)` on its Route is null; this project installs Jackson **2**
+  `ContentNegotiation { jackson() }` one level up at the routing root (`Routing.kt:14-16`). The response bodies are
+  byte-identical either way, so the story closed the question with a negative it never tested. At least four black-box
+  discriminators exist and none was tried: non-ASCII / astral-plane escaping via the schema's `emoji` field;
+  `Accept`-header negotiation and 406 behaviour, which differs by which converter owns the route; the `charset` suffix
+  on `Content-Type`; and field-ordering / pretty-print defaults. Consequence: relocating or removing the
+  `ContentNegotiation` install would silently flip GraphQL body serialization with no gate detecting it. Proposed fix:
+  run one of the four probes, then record the answer as a rule; or add a backend test asserting the child route's
+  active converter.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The story's `probe.py` harness enabled `registrationEnabled` on the shared dev stack and never restored
+  it** — a write to the exact piece of global state the suite's two `registration-toggle-*` projects exist to own.
+  evidence: the probe's setup phase issues `mutation { setRegistrationEnabled(enabled: true) }` against the running
+  `:2080` stack and has no teardown. It ran at 18:05:47; the baseline E2E started ~18:07. Story 7.3 deleted a real
+  cross-project race over this one `ApplicationConfig` document, and `global-setup.ts` re-enables the flag
+  idempotently precisely because a stranded value is recoverable-but-invisible. The story's blanket "no product
+  behaviour change" claim reads past a state write. Proposed fix: any future probe script restores the flag in a
+  `finally`, or reuses `global-setup.ts`'s idempotent path instead of writing directly.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The same probe deposited a permanent user, list, category and item into the persistent Mongo volume,
+  feeding the size-driven `createUserViaUi` defect this epic has already filed twice.**
+  evidence: `gk12probe` plus its list, category and item now live in `bag-please_db_data`, and setup ran once per
+  capture cycle (twice in the pass). The known failure is documented as **size-driven, not random**: the admin users
+  query is unpaginated, so the create-user dialog's close time grows with the users table (probed at 5015 ms against a
+  5000 ms assertion at ~5.5k rows) until the suite fails under parallel load. `md` cleared the database once already
+  to recover from it. Green-first-try today does not make the deposit free. Proposed fix: probe scripts delete what
+  they create, or run against a throwaway database rather than the dev volume.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **No advisory sweep was run over the backend classpath**, in a story that added four new jars and moved a
+  dozen modules — where the immediately preceding story treated an `npm audit` delta as a finding worth recording.
+  evidence: Story 7.11 recorded a measured 2-high → 1-high `npm audit --package-lock-only` delta on both sides of its
+  bump. Story 7.12 added `tools.jackson.core:jackson-core`, `tools.jackson.core:jackson-databind`,
+  `tools.jackson:jackson-bom` and `tools.jackson.module:jackson-module-kotlin` at 3.1.3, and moved `graphql-java`
+  23.1 → 25.0, `java-dataloader` 4.0.0 → 6.0.0, `federation-graphql-java-support` 5.5.0 → 6.0.0 and
+  `com.alibaba:fastjson2` 2.0.56 → 2.0.61 — the last a library with a notable CVE history, and a **third** JSON
+  implementation resident on a classpath the record discusses as carrying "two". Proposed fix: add a dependency-check
+  step (e.g. OWASP dependency-check or `gradle dependencyCheckAnalyze`) to the Gradle build, or at minimum record a
+  before/after advisory count for backend bumps the way the frontend ones do.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **Two transitive MAJOR bumps were cleared on a `grep`, not on behaviour** — `java-dataloader` 4.0.0 → 6.0.0
+  (two majors) and `federation-graphql-java-support` 5.5.0 → 6.0.0.
+  evidence: the record dismisses both as "neither is named anywhere in this codebase". True — but the codebase names
+  `graphql-java` nowhere either, and that one received a POM citation, a decompiled format-string comparison and a
+  byte-level after-check. `graphql-kotlin-dataloader-instrumentation` sits on the runtime classpath and is active
+  regardless of whether project source mentions it. The SDL and response captures do cover the observable surface, so
+  the conclusion is probably safe; the *reasoning* is not the standard the rest of that record holds itself to.
+  Proposed fix: for a transitive major, cite the upstream changelog for breaking changes the way graphql-java was
+  handled, or state explicitly that the observable-surface captures are being relied on instead.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The serialization compiler plugin moved 2.3.21 → 2.4.10 against an unmoved `kotlinx-serialization-core`
+  1.11.0, and that pairing — the story's own named risk — was closed by a green build rather than by a cited
+  compatibility source.**
+  evidence: the spec's Design Note §4 names this pair as "the bump's own risk … what every `@Serializable` Mongo model
+  compiles through", and the spec's Always clause requires "the compatibility source is cited, not assumed" — honoured
+  for `graphql-kotlin` with POM quotes, not for this. The record confirms the two versions and stops. Real evidence
+  does exist and went unstated: the Testcontainers suite and the E2E run both read documents written by the 2.3
+  toolchain out of a pre-existing database, which exercises the serializers end to end. Proposed fix: state that
+  argument, or cite the plugin's declared minimum core version.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The build has no `languageVersion`/`apiVersion` pin and no `allWarningsAsErrors`, so a compiler minor can
+  introduce new diagnostics that clear every gate unnoticed** — which is exactly what happened here.
+  evidence: `bp_back/build.gradle.kts:16-18` is `kotlin { jvmToolchain(25) }` and nothing else. Kotlin 2.3 → 2.4
+  introduced `UserService.kt:65:9 Expression is unused.`, which the story caught only because it ran a deliberate
+  stash-back control — the baseline `compileKotlin` was `UP-TO-DATE` and emitted nothing, so a normal pass would have
+  seen neither the warning nor its novelty. Consequence: future deprecations and language-level changes arrive silently
+  on every Kotlin bump. Proposed fix: `compilerOptions { allWarningsAsErrors }` (with existing warnings fixed first),
+  and/or an explicit `languageVersion` pin so a compiler bump and a language-level bump are separate decisions.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The split Kotlin runtime has a third, ordinary remedy the ledger did not enumerate**, and the story's
+  replacement absolute ("no `kotlin` bump can ever close it") rests on a single observation of current Kotlin Gradle
+  Plugin behaviour.
+  evidence: the Story 7.12 ledger entry names exactly two remedies — wait for a Ktor bump, or an explicit
+  `constraints { }` pin — and reasons that `constraints` is "a new build mechanism rather than a version number, which
+  S-AC4 forbids", while in the same breath proposing it as the fix. The spec's Never clause names `force`/`strictly`
+  only; `constraints` is not in it. The omitted remedy is `implementation(kotlin("reflect"))` in
+  `bp_back/build.gradle.kts`, a plain dependency declaration that KGP version-aligns to the compiler automatically and
+  would close the skew today. Corrected in the story record and `project-context.md` at review; the fix itself is still
+  not applied, deliberately, because it is a build change outside a two-line version bump.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The falsification controls — the part of the record doing the most argumentative work — left no retained
+  artifact**, so they are the one set of claims that cannot be re-checked.
+  evidence: `sdl-perturbed.graphql`, `error-perturbed.json` and `forbidden-perturbed.json` are quoted in the
+  Implementation Record but are absent from `.tmp/a9b13d21-…/`, while every un-perturbed capture survives with matching
+  md5s. Those controls are what converts "the diff was empty" into "the diff would have gone red", which is this
+  project's whole standard for a non-vacuous check (a green test is evidence of nothing until seen red for the right
+  reason). Proposed fix: retain perturbed artifacts alongside the clean ones, or record the perturbed md5 inline so the
+  claim is at least re-derivable.
+
+- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+  summary: **The compiler-warning control moved two variables and the finding is attributed to one.**
+  evidence: the control stashed `libs.versions.toml` back to `9.3.0`/`2.3.21` — both `graphql-kotlin` and `kotlin` —
+  then compiled, and the conclusion is labelled "a new **Kotlin 2.4** compiler warning". The inference is almost
+  certainly right (`Expression is unused.` is a language diagnostic a library cannot emit), but the isolating run —
+  revert `kotlin` only, leave `graphql-kotlin` at 10.2.1 — was one command away and not taken, and isolate-before-
+  attributing is the standard that record applies everywhere else.
+
+
 ## Deferred from: code review of 7-10-typescript-6-to-7 (2026-08-15)
 
 - source_spec: `spec-7-10-typescript-6-to-7.md`

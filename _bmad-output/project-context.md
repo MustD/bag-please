@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 95
+rule_count: 98
 optimized_for_llm: true
 ---
 
@@ -17,21 +17,51 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 ### Backend
-- Kotlin 2.3.21, JVM toolchain 25 (JDK 25) — deliberately **not** bumped by Story 7.7's sweep; it moves in Story 7.12
-  with `graphql-kotlin` 10. **The declared version is not the resolved one:** since Story 7.7, `arrow-core` 2.2.3
-  declares `kotlin-stdlib:2.4.0`, so the runtime classpath carries **stdlib 2.4.0 with reflect 2.3.21** — a split
-  Kotlin runtime, green across the whole suite, filed in the ledger. Read the resolved versions from
-  `./gradlew :bp_back:dependencies --configuration runtimeClasspath`, never from `libs.versions.toml` alone
+- Kotlin **2.4.10**, JVM toolchain 25 (JDK 25) — moved in Story 7.12 with `graphql-kotlin` 10, at the top rung of that
+  story's ladder (`2.4.10` was the newest *stable*; `2.4.20-RC` is a prerelease and never a candidate). **The declared
+  version is still not the resolved one, and the reason is no longer Arrow.** The split Kotlin runtime filed by Story
+  7.7 **did not heal** — it is now **stdlib 2.4.10 with reflect 2.3.21** — and the cause is
+  `io.ktor:ktor-server-core-jvm:3.5.2`, which declares `kotlin-reflect:2.3.21` and is the highest request for that
+  module in the whole graph. **`kotlin-stdlib` tracks the compiler (the Kotlin Gradle Plugin injects it);
+  `kotlin-reflect` tracks KTOR (nothing injects it), so no `kotlin` bump alone closes the skew** — it takes a Ktor bump
+  whose `ktor-server-core` POM asks for a newer reflect, an explicit `constraints { }` pin, or a plain
+  `implementation(kotlin("reflect"))` in `bp_back/build.gradle.kts`, which KGP version-aligns to the compiler. Do not
+  spend a pass re-deriving this, and do not read a `kotlin` bump that leaves reflect behind as a failed bump.
+  **The skew is measured safe, not assumed safe, and the measurement is the reason it is filed rather than fixed:**
+  the compiled GQL classes carry Kotlin metadata `mv=[2,4,0]` (`javap -v` on
+  `bp_back/build/classes/kotlin/main`), the shipped image's `/app/lib` carries `kotlin-reflect-2.3.21.jar` beside
+  `kotlin-stdlib-2.4.10.jar`, and graphql-kotlin's schema generation is **entirely** reflection over exactly those
+  classes — so reflect 2.3.21 demonstrably reads 2.4 metadata, or `install(GraphQL)` would throw at boot and every
+  test would be red. Story 7.12 measured 115/115 backend and 120/120 E2E green against that image. The residual is
+  only reflection paths no test walks; re-check it, not the version numbers, after any Kotlin **minor**. Read the
+  resolved versions from `./gradlew :bp_back:dependencies --configuration runtimeClasspath`, never from
+  `libs.versions.toml` alone
 - Ktor 3.5.2 (Netty engine, App Router style plugins)
-- graphql-kotlin 9.3.0 (ExpediaGroup)
+- graphql-kotlin **10.2.1** (ExpediaGroup) — Story 7.12. The 10.0.0 release changed three things at once and all three
+  are now on the classpath: Kotlin ≥ 2.3.0, **graphql-java 23.1 → 25.0**, and **Jackson 2 → Jackson 3**. The SDL, the
+  generated frontend types and the raw `errors[0].message`/`extensions.code` shapes were all measured **byte-identical**
+  across the move, and `GQL.kt`/`Routing.kt` compiled unedited
 - MongoDB Kotlin Coroutine Driver 5.9.2 + bson-kotlinx 5.9.2
 - Arrow-kt 2.2.3 (arrow-core, arrow-fx-coroutines)
 - Logback 1.6.2; Kotest 6.2.4 (runner-junit5, property, assertions-ktor, extensions-testcontainers);
   Testcontainers 2.0.5; bcrypt 0.10.2
 - Gradle wrapper 9.6.1, **held** while 9.7.0 exists: `bp_back/Dockerfile:1` is `FROM gradle:9.6.1-jdk25` and the shipped
   image builds with the image's Gradle, so the wrapper cannot move alone (ledger entry, Story 7.7)
-- Kotlin Serialization (plugin 2.3.21) — used only for MongoDB BSON, not HTTP
-- Jackson — used for HTTP content negotiation and WebSocket frames
+- Kotlin Serialization (plugin **2.4.10**, resolved `kotlinx-serialization-core` 1.11.0) — used only for MongoDB BSON,
+  not HTTP. Both `kotlin-jvm` and `kotlin-serialization` carry `version.ref = "kotlin"`, so they move in lockstep;
+  confirm that from `./gradlew :bp_back:buildEnvironment`, not from the catalog
+- **Jackson 2 and Jackson 3 now BOTH sit on the backend runtime classpath, by design, and must not be "unified".**
+  `com.fasterxml.jackson.*` **2.22.1** arrives via `ktor-serialization-jackson` and is what
+  `Routing.kt:14-16`'s `ContentNegotiation { jackson() }` uses to serve the auth REST surface (`/api/auth/*`).
+  `tools.jackson.*` **3.1.3** arrives with graphql-kotlin 10 via `ktor-serialization-jackson3` (resolved at the
+  project's Ktor **3.5.2**, above the 3.4.1 its POM asks for). The two package namespaces coexist without class-load
+  conflict. **Two things here are NOT established and must not be quoted as if they were:** which mapper actually
+  serialises GraphQL `data`/`errors` (the bodies are byte-identical either way, so nothing observable distinguishes
+  them yet), and whether `GQL.kt:130`'s Jackson 2 `JacksonWebsocketContentConverter()` still serves GraphQL WebSocket
+  frames at all — graphql-kotlin 10's subscription server carries its own Jackson 3 mapper, so that converter **may be
+  vestigial**. Both are filed in the ledger with proposed probes. **Re-check trigger for this whole bullet:** any Ktor
+  or graphql-kotlin bump, or the day `ktor-serialization-jackson` stops being a direct dependency — at which point
+  "must not be unified" may have become wrong rather than protective
 - Gradle with shared version catalog at `gradle/libs.versions.toml`
 
 ### Frontend (rebuilt from scratch in Epic 5 — Vite SPA, no Next.js)
@@ -544,7 +574,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `setRegistrationEnabled(enabled: true)` GraphQL mutation as admin (this is what `e2e/global-setup.ts` does
   idempotently)
 - **Backend readiness — no health endpoint yet** — there is currently no `/health` or `/ping` endpoint; this is a known
-  gap / tech debt; for now, `http://localhost:2080/api/graphiql` loading is the manual readiness check
+  gap / tech debt. The readiness check is
+  `curl -o /dev/null -w '%{http_code}' -H "Authorization: Bearer <admin token>" http://localhost:2080/api/graphiql`
+  → `200`. **A plain browser navigation to `/api/graphiql` returns 401 on a perfectly healthy backend** —
+  `graphiQLRoute()` sits inside `authenticate(authMethod)` (`GQL.kt:136-140`) — so do not read that 401 as "the
+  backend is down". Measured in Story 7.12; corrected here because the earlier wording ("`/api/graphiql` loading is
+  the manual readiness check") sends an agent debugging a working stack
 - **Backend hot reload** — `../gradlew run -t` (from `bp_back/`) enables continuous compilation; `application.yaml` changes require a manual restart — resource files are not hot-reloaded
 - **`KTOR_RATE_LIMIT_ATTEMPTS: 6000` in `docker-compose.yaml` is dev/E2E-only and is overridden in production.**
   The repo default in `application.yaml` is `5` per 60s; the compose value exists purely so the E2E suite's many
@@ -624,7 +659,55 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-08-16 (Story 7.11) — **ESLint moved 9 → 10 and, unlike the two stories before it, this one
+_Last Updated: 2026-08-16 (Story 7.12) — **the epic's highest-risk bump LANDED, at the top ladder rung, with no
+backend source change at all.** `graphql-kotlin` 9.3.0 → **10.2.1** and `kotlin` 2.3.21 → **2.4.10**, one commit,
+whose entire content is two lines of `gradle/libs.versions.toml`. `graphql-kotlin` 10.0.0 moved three things at once —
+Kotlin ≥ 2.3.0, `graphql-java` 23.1 → **25.0**, Jackson 2 → **Jackson 3** — and all three landed: the classpath now
+carries `graphql-java` 25.0, `java-dataloader` 6.0.0, and `tools.jackson.*` **3.1.3** beside the unmoved
+`com.fasterxml.jackson.*` 2.22.1. **Nothing observable moved with them**, and that is measured four independent ways
+rather than inferred from a green compile: the `/api/sdl` capture is **md5-identical** before and after
+(`24f694bc89063ba52c753fc7e1b4615c`), `npm run generate` leaves all four files in `bp_front/src/__generated__/`
+**byte-identical**, the raw `errors[0].message` wrapper prefix and `extensions.code == "FORBIDDEN"` are
+**byte-identical**, and the backend suite (115/0/0/0 from the JUnit XML) plus the four-project Playwright suite
+(**120 passed at `retries: 0`**, split 59/59/1/1) are green. `GQL.kt`, `Routing.kt` and `bp_back/build.gradle.kts`
+compiled **unedited**; `jvmToolchain(25)` is unchanged; `docker compose build bp_back` is exit 0 under
+`gradle:9.6.1-jdk25`. Each of those instruments was **falsified before being trusted** — a one-character nullability
+flip reddens the SDL diff, a perturbed generated file reddens `git status` and is then overwritten back to its exact
+md5 by codegen, and stripping the wrapper or swapping the error code reddens both response diffs. The error-shape check
+exists because the suite structurally cannot make it: `sharing.spec.ts:109` uses `toContainText`, a **substring** match
+that would still pass with the wrapper left un-stripped. `rule_count` rises 95 → **98**, and the count is stated with
+its arithmetic because this file's own counter is under dispute (`deferred-work.md` carries an open item asking `md`
+to rule on what it counts): **three** directives were added, not one — (1) `kotlin-stdlib` tracks the compiler but
+**`kotlin-reflect` tracks KTOR**, so no `kotlin` bump alone heals the split runtime; (2) **Jackson 2 and Jackson 3
+must not be "unified"**, with its own re-check trigger; (3) confirm the serialization-plugin lockstep from
+`./gradlew :bp_back:buildEnvironment`, never from `version.ref` in the catalog. The first is a *correction* of a belief
+this file previously carried: `io.ktor:ktor-server-core-jvm:3.5.2` is the highest request for reflect in the graph and
+nothing injects it the way the Kotlin Gradle Plugin injects stdlib. Story 7.7's ledger entry predicted this story would
+dissolve the skew; that prediction is now measured false (stdlib went 2.4.0 → 2.4.10, reflect stayed 2.3.21), the
+re-check trigger moves to the next **Ktor** bump, and the proposed pin changes target from `kotlin-stdlib` to
+`kotlin-reflect`. **Corrected at review — do not restore the earlier wording, which said "no `kotlin` bump can *ever*
+close the skew" and named only two remedies.** A plain `implementation(kotlin("reflect"))` in
+`bp_back/build.gradle.kts` is a third, and KGP version-aligns it to the compiler automatically; the absolute was one
+observation of current KGP behaviour dressed as a law. **Also added at review, because the original entry filed the
+skew without ever saying whether it was dangerous:** it is measured safe — compiled GQL classes carry metadata
+`mv=[2,4,0]`, the shipped image's `/app/lib` carries `kotlin-reflect-2.3.21.jar` beside `kotlin-stdlib-2.4.10.jar`,
+and graphql-kotlin's schema generation is entirely reflection over exactly those classes, so `install(GraphQL)` would
+throw at boot if reflect 2.3.21 could not read 2.4 metadata. It does not, and the 120-test E2E ran against that image.
+**Nothing was weakened to get here** — no `@Suppress`, no compiler flag, no `force`/`strictly`/`constraints` rule, no
+edited assertion, and the conditional `ktor-serialization-jackson3` catalog entry the spec authorised was **not** added
+because its condition was tested and not met (Gradle lifted that module to the project's own Ktor 3.5.2 on its own).
+Two things this pass did *not* establish, stated rather than glossed: which Jackson mapper actually serialises
+`data`/`errors`, and whether `GQL.kt:130`'s Jackson 2 websocket converter is now vestigial — noted, not deleted.
+**Corrected at review:** the original entry said there was "no distinguishing signal without a code change"; that was
+asserted, not demonstrated, and at least four black-box probes were never tried (non-ASCII/`emoji` escaping,
+`Accept`-header negotiation and 406 behaviour, `Content-Type` charset suffix, field ordering). Filed as a probe, not
+as a closed question. New debt — the un-healed split runtime with its corrected cause, the Jackson 2 + 3 coexistence,
+a new Kotlin 2.4 warning at `UserService.kt:65` (proven new with a stash-back control, because the baseline compile
+was `UP-TO-DATE` and emitted nothing), the measured `/api/graphiql` 401 (which this file's readiness bullet has now
+been corrected for rather than merely flagged), and the review's own findings — chiefly that the error-shape contract
+is **permanently unassertable by any gate in this project**, the untried Jackson probes, and two probe-script writes
+to shared dev state — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-16 (Story 7.11) — **ESLint moved 9 → 10 and, unlike the two stories before it, this one
 LANDED rather than held.** `eslint` 9.39.5 → **10.8.1** and `@eslint/js` 9.39.5 → **10.0.1**, one commit, with every
 plugin unmoved. `rule_count` rises 94 → **95** for the one directive worth an agent's time: **`eslint` and `@eslint/js`
 are two independent version lines in v10 — bump each to its own latest, never align them to one number.** That is not a
