@@ -2,8 +2,9 @@
 title: 'Story 7.13 — `graphql` 16 → 17'
 type: 'chore'
 created: '2026-08-19'
-status: 'in-review'
+status: 'done'
 baseline_revision: '26a441f'
+final_revision: '9190b65'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
