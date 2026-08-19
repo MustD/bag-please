@@ -1254,6 +1254,46 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   this story's spec to the Technology Stack section, and NFR-E7-1 puts findings in this ledger rather than in the rules
   file.
 
+## Deferred from: Story 7.13 — `graphql` 16 → 17 (2026-08-19)
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: **`graphql` 17.0.2 LANDED, but the tree now carries one permanently-unmet peer and `npm ls graphql` exits 1
+  where it exited 0 before.** `graphql-config@5.1.6` declares
+  `peer graphql: "^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0"` — no `^17` — and it is a **hard
+  dependency** of `@graphql-codegen/cli@7.2.0` (`"graphql-config": "^5.1.6"`), with `5.1.6` being `latest` on the
+  registry (measured 2026-08-19; the only newer things published are `5.1.6-alpha-*` prereleases and the abandoned
+  `3.0.0-rc.3`/`3.0.0-alpha.13` `next`/`guild` tags). There is no version to take that fixes it.
+  evidence: full sweep of `bp_front/package-lock.json` — **42 packages declare a `graphql` peer; 41 admit `^17.0.0`,
+  exactly one does not**, and it is `graphql-config`. All four peers AC1 names accept v17:
+  `@apollo/client@4.2.11` `^16.0.0 || ^17.0.0`; `graphql-ws@6.2.1` `^15.10.1 || ^16 || ^17`;
+  `@graphql-codegen/cli@7.2.0` and `@graphql-codegen/client-preset@6.1.3` both `… || ^16.0.0 || ^17.0.0`. So the CLI
+  advertises v17 in its own peer line while shipping a dependency that refuses it. Against the baseline lockfile the
+  same sweep returns **42 peers, 0 unsatisfied by 16.14.2**, so the invalid-peer state is new with this bump and not
+  pre-existing. `npm install graphql@17.0.2` with **no flags** exits **0** with
+  `npm warn ERESOLVE overriding peer dependency` (the Story 7.10 shape — npm treats an explicitly-versioned install
+  target as authoritative), and npm's resolution is to **nest** `graphql-config` under
+  `node_modules/@graphql-codegen/cli/` — which changes nothing about the conflict, since there is still exactly one
+  `graphql` in the tree and it is 17.0.2. `npm ls graphql` reports
+  `graphql@17.0.2 deduped invalid: "…^16.0.0" from node_modules/@graphql-codegen/cli/node_modules/graphql-config` and
+  **exits 1**. **No `--legacy-peer-deps`, no `--force`, no `overrides`, no `resolutions`, no `.npmrc` was used — not
+  even transiently.** The peer refusal is measured **stale rather than functional**: `npm run generate` against the
+  live `:2080` schema exits **0** under v17 and leaves all four files in `bp_front/src/__generated__/`
+  **byte-identical** (`27a530103ba703e857d91eaf55dcbf9d` for `graphql.ts`), and `graphql-config` is on that exact
+  path — it is what `@graphql-codegen/cli` uses to load `codegen.ts`. What is **not** established: that every
+  `graphql-config` code path this project does not walk is v17-safe. Only the config-load path was exercised.
+  Proposed fix: none available today. Re-check trigger — the first `graphql-config` release whose `graphql` peer
+  includes `^17`, or a `@graphql-codegen/cli` release that drops the `graphql-config` dependency; either turns
+  `npm ls graphql` green again. Until then, an agent seeing `npm ls` exit 1 or the ERESOLVE warn on a routine
+  `npm install` must read it as **this filed, known, deliberately-accepted state** and not as a broken tree, and must
+  not "fix" it with an override.
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: `@apollo/client` patch drift, deliberately **not** swept into this story.
+  evidence: `npm view @apollo/client dist-tags` gives `latest` **4.2.12** (2026-08-19) against the locked **4.2.11**.
+  S-AC4 confines this story to `graphql` version numbers only, and the epic's "each major is independently
+  attributable" rule forbids bundling. Not a defect; recorded so the next sweep does not treat it as newly discovered.
+  Proposed fix: pick it up in a later patch sweep, not here.
+
 ## Deferred from: code review of 7-12-graphql-kotlin-9-to-10-with-kotlin (2026-08-16)
 
 - source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`

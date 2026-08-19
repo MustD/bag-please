@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 98
+rule_count: 99
 optimized_for_llm: true
 ---
 
@@ -113,7 +113,21 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Apollo Client 4.2.11 (+ rxjs 7.8.2 peer) — plain React, no SSR integration package
 - MUI (Material UI) 9.3.1 + @mui/icons-material 9.3.1
 - Emotion 11.14.x (MUI peer dependency)
-- graphql 16.14.2 + graphql-ws 6.2.1
+- graphql **17.0.2** + graphql-ws 6.2.1 (Story 7.13, 2026-08-19) — the epic's last dependency major, and the only one
+  that is a **runtime** dependency: Apollo imports `Kind`, `visit`, `BREAK`, `print` and `OperationTypeNode` from it
+  across 23 modules, so v17 is in the shipped chunk. **The tree now carries one permanently-unmet peer, by design, and
+  `npm ls graphql` EXITS 1 — that is the filed steady state, not a broken install.** `graphql-config@5.1.6` declares
+  a `graphql` peer topping out at `^16.0.0` and is a **hard dependency** of `@graphql-codegen/cli@7.2.0`, with `5.1.6`
+  already `latest` on the registry — there is nothing newer to take. Measured, not inferred: of the **42** packages in
+  `package-lock.json` declaring a `graphql` peer, **41 admit `^17.0.0` and only `graphql-config` does not** (all four
+  peers the epic names — `@apollo/client` 4.2.11, `graphql-ws` 6.2.1, `@graphql-codegen/cli` 7.2.0,
+  `@graphql-codegen/client-preset` 6.1.3 — accept v17). `npm install graphql@17.0.2` with no flags exits **0** with
+  `npm warn ERESOLVE overriding peer dependency`, and `npm ci` under `node:26-alpine` does the same, so the image
+  builds. **Never "repair" this with `--legacy-peer-deps`, `--force`, an `overrides`/`resolutions` block or a
+  `.npmrc`** — none was used to land it and none is needed. The refusal is stale rather than functional: `npm run
+  generate` exits 0 under v17 and leaves all four `src/__generated__/` files byte-identical. Re-check trigger: the
+  first `graphql-config` release admitting `^17`, or a codegen CLI that drops the dependency. Detail lives in
+  `deferred-work.md`, "Deferred from: Story 7.13" (NFR-E7-1)
 - graphql-codegen CLI 7.2.0 + client-preset 6.1.3
 - @playwright/test 1.62.x (E2E; no unit/component framework exists) — a runner bump needs
   `npx playwright install chromium` or the suite fails with "Executable doesn't exist"
@@ -658,6 +672,49 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Keep this file lean and focused on unobvious agent needs; remove rules that become obvious over time
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
+
+_Last Updated: 2026-08-19 (Story 7.13) — **the epic's last dependency major LANDED, and the package that planning
+expected to block it turned out to refuse v17 on paper only.** `graphql` 16.14.2 → **17.0.2** (`latest`; `latest-16` is
+`16.14.2`, so 16 was already at its head), one commit whose `bp_front/` content is one pinned version in
+`package.json` plus the resolved `package-lock.json`. The peer question was settled at **resolution** level, not from
+four peer lines: **42 packages in the lockfile declare a `graphql` peer, 41 admit `^17.0.0`, and exactly one does
+not** — `graphql-config@5.1.6` (`^0.11.0 || … || ^16.0.0`), a **hard dependency** of `@graphql-codegen/cli@7.2.0`
+whose `5.1.6` is already registry `latest`. The same sweep over the baseline lockfile returns **42 peers, 0
+unsatisfied by 16.14.2**, so the unmet peer is new with this bump; `npm ls graphql` now **exits 1** and that is the
+filed steady state. It did **not** turn out to be a functional blocker, and the two facts are separate exactly as the
+spec insisted: `npm install graphql@17.0.2` with **no flags** exits **0** with `npm warn ERESOLVE overriding peer
+dependency` (the Story 7.10 shape), npm nests `graphql-config` under the CLI without changing anything (there is still
+one `graphql` in the tree and it is 17.0.2), and `npm run generate` — the *only* code path `graphql-config` is on
+here — exits 0 and leaves all four `src/__generated__/` files **byte-identical**
+(`graphql.ts` = `27a530103ba703e857d91eaf55dcbf9d`). **Nothing was forced:** no `--legacy-peer-deps`, no `--force`, no
+`overrides`/`resolutions`, no `.npmrc`, not even transiently, and no peer package moved (`@apollo/client` 4.2.11,
+`graphql-ws` 6.2.1, CLI 7.2.0, client-preset 6.1.3 all unchanged; the available `@apollo/client` 4.2.12 patch was
+deliberately **not** swept in). Gates, all measured this pass: `npm run lint` exit 0; `npm run build` exit 0 after
+`rm -rf node_modules/.tmp`, chunk `index-dd3zm4T-.js` **802.34 kB / 240.67 kB gzip** from **1297** modules against the
+baseline `index-D0HEEKre.js` **801.60 kB / 240.42 kB gzip** from **1255** (**+0.74 kB raw, +0.25 kB gzip, +42
+modules** — recorded, not treated as a failure); `docker compose build bp_front` exit 0, which is the load-bearing one
+because it proves `npm ci` survives the ERESOLVE warn on **musl** under `node:26-alpine` and satisfies v17's
+`engines` (`^22 || ^24 || ^25 || >=26`); and the full Playwright suite **120 passed at `retries: 0`**, split
+**59/59/1/1**, identical to the baseline run taken before anything moved. `:bp_back:test` was **not** run and is
+correctly out of gate — no `gradle/` or `bp_back/` path is touched; `graphql-java` is a separate line Story 7.12
+already moved. **S-AC2 was discharged by A/B, not by assertion**, because no green suite can see a rendering
+difference: the baseline `dist` was rebuilt from the stashed lockfile (reproducing `index-D0HEEKre.js` byte-for-byte),
+`docker cp`-ed into the running Caddy container, and the same `/auth` page captured at 1440×900 and 360×740 under both
+bundles — the screenshots are **md5-identical** (`00177dc…` desktop, `615a522…` at 360px) and a computed-style probe
+over `body`/`h4`/`p`/`button`/`input`/`.MuiPaper-root`/`.MuiTextField-root`/`.MuiButton-root` (colour, font-family,
+size, weight, line-height, letter-spacing, margin, padding, radius, shadow, bounding rect) diffs **clean** at both
+widths. Both instruments were **falsified before being trusted**: perturbing a generated file reddens `git status` and
+the next codegen run restores its exact md5, and a one-token background change (`#121212` → `#111213`) changes the
+screenshot md5. A hand pass on `:2080` exercised a query (list renders), a mutation (create list, create category,
+add item, all round-tripping) and a **live subscription** (a check in one tab appears in a second tab with no reload).
+`rule_count` rises 98 → **99**: **one** new independently-actionable directive — the unmet `graphql-config` peer and
+`npm ls graphql` exit 1 are the deliberate, filed steady state and must never be "repaired" with an override. The rest
+of the rewritten `graphql` bullet is version numbers and the evidence behind that one directive, not further rules.
+Stated rather than glossed, two things this pass did **not** establish: that `graphql-config` code paths other than
+config-loading are v17-safe (only the `codegen.ts` load path was walked), and that the +42 modules / +0.74 kB are
+attributable to v17's own module graph rather than to a Rolldown chunking difference — the delta was measured, not
+explained.
+
 
 _Last Updated: 2026-08-16 (Story 7.12) — **the epic's highest-risk bump LANDED, at the top ladder rung, with no
 backend source change at all.** `graphql-kotlin` 9.3.0 → **10.2.1** and `kotlin` 2.3.21 → **2.4.10**, one commit,
