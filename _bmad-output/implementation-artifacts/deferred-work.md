@@ -1257,14 +1257,20 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
 ## Deferred from: Story 7.13 — `graphql` 16 → 17 (2026-08-19)
 
 - source_spec: `spec-7-13-graphql-16-to-17.md`
-  summary: **`graphql` 17.0.2 LANDED, but the tree now carries one permanently-unmet peer and `npm ls graphql` exits 1
-  where it exited 0 before.** `graphql-config@5.1.6` declares
+  summary: **`graphql` 17.0.2 LANDED, but the tree now carries one permanently-unmet peer declaration — 25 flagged
+  tree positions — and `npm ls graphql` exits 1.** (Corrected at review: the first wording said "where it exited 0
+  before". The baseline `npm ls` was **never actually run** — `node_modules` had already been replaced. What is
+  measured is the *sweep*: the baseline lockfile has 42 peer-declaring entries and **0** unsatisfied by 16.14.2, so
+  the invalid state is new with this bump by inference from the ranges, not by an observed exit code. Say it that way.) `graphql-config@5.1.6` declares
   `peer graphql: "^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0"` — no `^17` — and it is a **hard
   dependency** of `@graphql-codegen/cli@7.2.0` (`"graphql-config": "^5.1.6"`), with `5.1.6` being `latest` on the
   registry (measured 2026-08-19; the only newer things published are `5.1.6-alpha-*` prereleases and the abandoned
   `3.0.0-rc.3`/`3.0.0-alpha.13` `next`/`guild` tags). There is no version to take that fixes it.
-  evidence: full sweep of `bp_front/package-lock.json` — **42 packages declare a `graphql` peer; 41 admit `^17.0.0`,
-  exactly one does not**, and it is `graphql-config`. All four peers AC1 names accept v17:
+  evidence: full sweep of `bp_front/package-lock.json` — **42 lockfile ENTRIES declare a `graphql` peer (41 distinct
+  package names; `@graphql-tools/utils` appears at two versions); 41 admit `^17.0.0`, exactly one does not**, and it is
+  `graphql-config`. Receipt: `.tmp/…/peer-sweep-both-lockfiles.txt`, run against both lockfiles at review. Note one of
+  the 41 is `@ardatan/relay-compiler@13.0.2` with peer `*`, which admits every version and is no evidence of v17
+  support. All four peers AC1 names accept v17:
   `@apollo/client@4.2.11` `^16.0.0 || ^17.0.0`; `graphql-ws@6.2.1` `^15.10.1 || ^16 || ^17`;
   `@graphql-codegen/cli@7.2.0` and `@graphql-codegen/client-preset@6.1.3` both `… || ^16.0.0 || ^17.0.0`. So the CLI
   advertises v17 in its own peer line while shipping a dependency that refuses it. Against the baseline lockfile the
@@ -1281,11 +1287,51 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   **byte-identical** (`27a530103ba703e857d91eaf55dcbf9d` for `graphql.ts`), and `graphql-config` is on that exact
   path — it is what `@graphql-codegen/cli` uses to load `codegen.ts`. What is **not** established: that every
   `graphql-config` code path this project does not walk is v17-safe. Only the config-load path was exercised.
-  Proposed fix: none available today. Re-check trigger — the first `graphql-config` release whose `graphql` peer
-  includes `^17`, or a `@graphql-codegen/cli` release that drops the `graphql-config` dependency; either turns
-  `npm ls graphql` green again. Until then, an agent seeing `npm ls` exit 1 or the ERESOLVE warn on a routine
+  Proposed fix: **no fix exists that keeps graphql 17.** Corrected at review, because the original "none available
+  today" quietly excluded the alternative the story's own AC named: **holding `graphql` at 16.14.2 was a real option**,
+  not a registry impossibility — the same sweep shows 42/42 satisfied there — and it was **declined** in favour of
+  landing the major, on the measurement that the refusal is stale rather than blocking. This is an accepted trade-off,
+  not a forced state. Re-check trigger — the first `graphql-config` release whose `graphql` peer includes `^17`, or a
+  `@graphql-codegen/cli` release that drops the `graphql-config` dependency; either turns `npm ls graphql` green again. Until then, an agent seeing `npm ls` exit 1 or the ERESOLVE warn on a routine
   `npm install` must read it as **this filed, known, deliberately-accepted state** and not as a broken tree, and must
   not "fix" it with an override.
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: The Docker image build's green `npm ci` is conditional on npm's `strict-peer-deps` default, which nothing in
+  this repo pins.
+  evidence: measured at review — `npm ci --dry-run --strict-peer-deps` and `npm install --dry-run --strict-peer-deps`
+  both fail `ERESOLVE ... Fix the upstream dependency conflict`, on the `graphql-config` peer above. `bp_front/Dockerfile`
+  runs a bare `npm ci` and there is no `.npmrc` anywhere in the repo, so the build passes only because the current npm
+  default is permissive. A future npm default flip, a CI runner exporting `npm_config_strict_peer_deps`, or an
+  organisation `.npmrc` would break the image build with no source change. Proposed fix: an explicit
+  `bp_front/.npmrc` with `strict-peer-deps=false`, pinning the assumption rather than inheriting it — deliberately NOT
+  done in this story, because adding an `.npmrc` is exactly the shape of workaround AC2 forbids and S-AC4 calls scope
+  bleed. Re-check trigger: any npm major, or the first CI pipeline added to this repo.
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: Codegen's failure branch is unexercised under graphql 17, and its config makes a silent partial success
+  possible.
+  evidence: `bp_front/codegen.ts:26-29` sets `ignoreNoDocuments: true` and `allowPartialOutputs: true`. Every codegen
+  run in this pass took the success path, so a v17 parse regression that dropped some documents could exit 0 with
+  partial output and a byte-identical-looking `git status` on the files it did not touch. Proposed fix: run
+  `npm run generate` once against a deliberately invalid document and confirm it fails loudly rather than partially.
+  Cheap, and it would make the byte-identity check mean what it is quoted as meaning.
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: Nothing fences graphql 17's narrowed Node floor — no `engines` field, no `.nvmrc`, no `.node-version`.
+  evidence: graphql 17.0.2 declares `engines.node: "^22.0.0 || ^24.0.0 || ^25.0.0 || >=26.0.0"`, where 16.14.2
+  accepted anything `>=`. The current paths are fine (`mise.toml` pins 26.4.0, `bp_front/Dockerfile` is
+  `node:26-alpine`), but `bp_front/package.json` has no `engines` block, so anyone outside mise — Node 23, or Node
+  <22 — gets an `EBADENGINE` **warning** and a build that proceeds. This compounds an item already filed from Story
+  7.11 about eslint 10's Node floor. Proposed fix: one `engines` field plus a `.nvmrc`.
+
+- source_spec: `spec-7-13-graphql-16-to-17.md`
+  summary: The known-invalid-peer state is recorded only under `_bmad-output/`, nowhere inside `bp_front/` where
+  someone hitting it would look.
+  evidence: an agent or contributor working in `bp_front/` who runs `npm ls`, or sees the `ERESOLVE` warn on a routine
+  `npm install`, finds no marker in `package.json`, `README` or an `.npmrc` comment explaining that this is deliberate.
+  The instruction not to "repair" it with an override lives two directories away in files they may never open — which
+  is precisely how an override gets added. Proposed fix: a short comment-bearing marker inside `bp_front/`.
 
 - source_spec: `spec-7-13-graphql-16-to-17.md`
   summary: `@apollo/client` patch drift, deliberately **not** swept into this story.
