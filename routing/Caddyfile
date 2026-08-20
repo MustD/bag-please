@@ -34,8 +34,12 @@
 		# moving target and a wrong manifest content type kills installability
 		# with NO error anywhere (AR-E7-15). Neither line changes today's bytes.
 		header /manifest.webmanifest Content-Type application/manifest+json
-		# The worker is the update channel; a cached sw.js pins the app to an old
-		# build. no-cache = revalidate every time, not "never store".
+		# Belt-and-braces only, and the honest reason matters: browsers ALREADY
+		# bypass the HTTP cache for the top-level worker script (updateViaCache
+		# defaults to 'imports') and cap its freshness at 24h regardless, so this
+		# is not what stops a stale worker. It pins the behaviour against a proxy
+		# or image default that ignores those rules. no-cache = revalidate every
+		# time, not "never store".
 		header /sw.js Cache-Control no-cache
 		try_files {path} /index.html
 		file_server

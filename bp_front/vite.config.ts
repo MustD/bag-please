@@ -14,8 +14,11 @@ export default defineConfig({
     // handler) must hold SIMULTANEOUSLY; missing any one silently downgrades
     // Chrome's offer to a bookmark shortcut, with no error anywhere.
     VitePWA({
-      // Silent updates on next launch. No update toast, reload prompt or
-      // version banner anywhere — UX-DR-E7-7.
+      // No update toast, reload prompt or version banner anywhere —
+      // UX-DR-E7-7. Note this does NOT mean "applied on next launch": the
+      // generated client reloads open tabs when a new worker activates. The
+      // measured behaviour and the reason it was not suppressed are in
+      // src/main.tsx and deferred-work.md.
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {

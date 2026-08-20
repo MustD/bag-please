@@ -1428,6 +1428,97 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   already dropped Safari/iOS 16.0–16.3 (Story 7.9), so the iOS floor is narrowed independently of this.
   Proposed fix: a separate story if iOS is ever in scope — one 180×180 `apple-touch-icon` plus the status-bar meta.
 
+## Deferred from: code review of 7-14-installable-pwa (2026-08-20)
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `registerType: 'autoUpdate'` RELOADS OPEN TABS when a new worker activates; it does not defer to the
+  next launch. Decide whether to suppress that with `onNeedReload() {}` or accept it.
+  evidence: measured in `node_modules/vite-plugin-pwa/dist/client/build/register.js` — the auto branch does
+  `wb.addEventListener('activated', e => { if (e.isUpdate || e.isExternal) { if (onNeedReload) onNeedReload(); else
+  window.location.reload() } })`, and `dist/sw.js` carries `self.skipWaiting(), e.clientsClaim()` at top level. No
+  `onNeedReload` is supplied. `isExternal` means a SECOND tab triggering the update reloads this one — and this app
+  is explicitly multi-tab (live subscriptions). A deploy therefore discards whatever the user had typed into the
+  item field, the list-name dialog or the change-password form. It is silent, so it satisfies UX-DR-E7-7's "no
+  toast, no prompt, no banner", but the requirement's own prose says "picked up silently on the NEXT LAUNCH", which
+  this is not. NOT patched at review because suppressing it deviates from the mechanism the epic mandates by name
+  (AR-E7-14) — that is a product decision, not a cleanup. The comments in `src/main.tsx` and `vite.config.ts` now
+  state the measured behaviour either way.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The `E2E_BASE_URL=https://bag-please.localhost` mode was never run against the service worker, and it is
+  the mode most likely to break.
+  evidence: the root `CLAUDE.md` advertises that mode as the way to exercise the real HTTPS + Secure-cookie path,
+  and `playwright.config.ts` sets `ignoreHTTPSErrors: true` with a comment conceding the local edge cert may be
+  self-signed. Chromium refuses `serviceWorker.register()` on an origin with certificate errors even when told to
+  ignore them for navigation — `ignoreHTTPSErrors` does not extend to worker registration. If that holds here,
+  `waitForController()` times out and four of the seven tests in `e2e/pwa.spec.ts` fail in a documented supported
+  configuration. Untested in either direction: the edge was not running during this pass. Re-check trigger: the
+  next time anyone runs the suite through the edge domain.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `/index.html` and `/manifest.webmanifest` are served with no `Cache-Control` at all, unlike `/sw.js`.
+  evidence: `curl -sI http://localhost:2080/index.html` returns an `Etag` and no `Cache-Control`, so a browser may
+  heuristically cache the shell. Pre-existing (index.html was served this way before this story) and largely
+  masked by the precache's revision hashes for CONTROLLED clients — but a first-time or uncontrolled visitor can
+  still be pinned to an old shell. Not this story's defect; surfaced by it.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: Nothing fences workbox's default 2 MiB precache size limit, and the app is a single 803 kB chunk with a
+  build-time warning already firing at 500 kB.
+  evidence: `npm run build` reports `precache 8 entries (790.94 KiB)` and separately warns "Some chunks are larger
+  than 500 kB". If the main chunk ever crosses `maximumFileSizeToCacheInBytes` (default 2 MiB), workbox DROPS it
+  from the precache with a build-time warning and no failure — and because `runtimeCaching` is empty, nothing
+  backfills it, so the worker keeps its fetch handler but stops serving the app shell. Consider failing the build
+  on a precache warning rather than setting a larger limit.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The Caddy content-type pin covers `/manifest.webmanifest` only; `/sw.js` and `/icons/*.png` rely on the
+  base image's MIME table.
+  evidence: the same AR-E7-15 argument that justified pinning the manifest type applies to the worker script (a
+  worker served as `text/plain` is refused) and to the icons (a wrong type is ignored for WebAPK purposes). Both
+  were measured correct on `caddy:2-alpine` v2.11.4 and the story deliberately pinned only what AC5 named. The new
+  `sw.js` test asserts the served content type, so a drift there is now at least caught by the suite; the icons are
+  not covered.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: AC9 as drafted can be satisfied by an instrument that cannot fail, and was.
+  evidence: the AC requires that "the substitute instrument and its limits are stated explicitly" and that the
+  `beforeinstallprompt` result is "recorded whichever way it goes". The record states up front that Playwright's
+  Chromium is not Chrome-branded and that install promotion is a branded-Chrome heuristic — i.e. the probe carries
+  no information in either direction, established BEFORE it was run. It then did not fire, and that was recorded.
+  Honest, but it is not verification. A future story writing a device-dependent AC should either gate on the device
+  or state plainly that the criterion is unverifiable in CI, rather than specifying a null instrument.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The manifest has no `description`, `screenshots`, `orientation` or `display_override`, so Chrome shows
+  the minimal install mini-infobar rather than the rich install dialog.
+  evidence: read from `dist/manifest.webmanifest` — ten keys, none of them these. Not a WebAPK blocker and not
+  required by any AC, but the story's stated intent is "Install Bag Please as a Real App" and this is the least
+  persuasive install surface Chrome offers. `screenshots` needs real captures, which is design work, not a patch.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `immediate: true` fires a ~790 KiB precache during first paint, and the mobile-data cost is recorded
+  nowhere.
+  evidence: `precache 8 entries (790.94 KiB)` from the build. `immediate: true` is deliberate and justified — the
+  worker must be registered for the WebAPK precondition and must not be gated behind app startup — but this project
+  treats the Pixel-7 mobile viewport as the mandatory gate, and a first visit on cellular now pays that download
+  before the app is interactive. Measure the first-paint impact on a throttled connection before assuming it is
+  free.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `dev-dist/` is not gitignored, which is a trap the first time anyone sets `devOptions.enabled`.
+  evidence: `npm run dev` was actually run in this pass and produced no `dev-dist/`, so the spec's condition
+  ("only if the plugin writes dev-dist") was correctly read as not met and neither `.gitignore` nor
+  `eslint.config.mjs` was touched. That is right on today's facts and leaves a one-line trap for tomorrow's:
+  enabling dev-mode PWA debugging will drop an untracked, unlinted build directory into the tree.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The AC1/AC9 device verification is FILED but not SCHEDULED — nothing gates the epic on it.
+  evidence: the residual above carries a good procedure, and `sprint-status.yaml` records the story `done`. There is
+  no backlog entry, no sprint item and no epic-retrospective gate that will surface it. FR59's user-visible promise
+  — "Chrome's menu offers Install app" — is the one thing no automated check in this repo can confirm, so if it is
+  never scheduled it is never verified. Raise it at the Epic 7 retrospective.
+
 ## Deferred from: code review of 7-12-graphql-kotlin-9-to-10-with-kotlin (2026-08-16)
 
 - source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`

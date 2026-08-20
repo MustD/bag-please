@@ -5,7 +5,7 @@ created: '2026-08-20'
 status: 'done'
 baseline_revision: '3391aa3'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/project-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/epic-7-context.md'
@@ -209,7 +209,9 @@ All facts measured 2026-08-20 on a clean tree at `3391aa3` (branch `epic7-mainte
       quietly reporting the browser number as the installed one.
 - [x] **The gates.** `npm run lint` exit 0; `rm -rf bp_front/node_modules/.tmp && npm run build` exit 0 with
       chunk name/size/module count compared against the baseline **and** `dist/manifest.webmanifest`,
-      `dist/sw.js`, `dist/registerSW.js` and `dist/icons/*.png` present; `docker compose build bp_front`
+      `dist/sw.js` and `dist/icons/*.png` present (**not** `dist/registerSW.js` — corrected at review; with the
+      virtual import in `main.tsx`, `injectRegister: 'auto'` correctly stands down and emitting that file would
+      mean a double registration); `docker compose build bp_front`
       exit 0 (the load-bearing one — `npm ci` under `node:26-alpine` on musl); then
       `docker compose up -d --build && npm run test:e2e`.
 - [x] **AC6 — two consecutive full runs at `retries: 0`.** Both green on all four projects, split
@@ -287,7 +289,70 @@ All facts measured 2026-08-20 on a clean tree at `3391aa3` (branch `epic7-mainte
 
 ## Spec Change Log
 
+### 2026-08-20 — Verification corrected: `dist/registerSW.js` must be ABSENT, not present
+
+**Triggering finding (review pass 1, Blind Hunter):** the spec's Task list and Verification section both named
+`dist/registerSW.js` among the artefacts to confirm present after a build. Implementation measured that it does not
+exist and correctly did not manufacture it, but recorded the correction only in `deferred-work.md` and
+`project-context.md` — leaving the spec itself stating the false version for the next reader.
+
+**Amended:** both occurrences now require the file to be **absent**, with the reason inline.
+
+**Known-bad state avoided:** a future pass reading this spec and "fixing" the missing file by setting
+`injectRegister: 'script'` or adding a manual `<script src="/registerSW.js">`, which would register the worker twice —
+once from the injected script and once from the `virtual:pwa-register` import in `src/main.tsx`.
+
+**KEEP:** the rest of the Verification list is accurate and was confirmed by measurement in this pass — in
+particular `dist/index.html` carrying exactly one `<link rel="manifest">` and exactly one `serviceWorker.register`
+in the shipped bundle. Do not relax either to a "at least one" form.
+
 ## Review Triage Log
+
+### 2026-08-20 — Review pass
+- intent_gap: 0
+- bad_spec: 0
+- patch: 12: (high 0, medium 6, low 6)
+- defer: 10: (high 0, medium 2, low 8)
+- reject: 7
+- addressed_findings:
+  - `[medium]` `[patch]` `registerType: 'autoUpdate'` was documented as "updates apply silently on next launch" in
+    `src/main.tsx` and "no reload prompt" in `vite.config.ts`, while the generated client calls
+    `window.location.reload()` on `activated` when `event.isUpdate || event.isExternal` and no `onNeedReload` is
+    supplied. Both comments rewritten to state the measured behaviour, including the `isExternal` cross-tab case.
+    The behaviour itself was NOT changed — see the matching defer.
+  - `[medium]` `[patch]` No `<meta name="theme-color">` anywhere: the manifest's `theme_color` applies only once
+    installed, so every pre-install Chrome-on-Android session painted a default light address bar above an all-black
+    app. Added to `bp_front/index.html` at `#000000` and confirmed injected into `dist/index.html`.
+  - `[medium]` `[patch]` AC5 mandates two Caddy behaviours and only the manifest half had a regression guard. Added
+    `AR-E7-15 — sw.js is served from the root scope as JavaScript and is not long-term cached` to `e2e/pwa.spec.ts`,
+    asserting status, content type, `Cache-Control: no-cache` and the root path on the SERVED response.
+  - `[medium]` `[patch]` The maskable safe-zone checker — the instrument the record credits with discharging AC2 —
+    existed only in a `.tmp/<session-id>/` script deleted by the cleanup convention, so the property gated nothing.
+    Reimplemented as `e2e/support/png.ts` (8-bit RGB/RGBA PNG decode + safe-zone violation count) and asserted from
+    the served bytes inside the existing icon test.
+  - `[medium]` `[patch]` The icon generation recipe was likewise uncommitted. Added `bp_front/scripts/generate-icons.sh`
+    and `npm run icons`. Making it a source of truth exposed a second defect: ImageMagick writes `tIME` plus three
+    `tEXt` timestamp chunks, so two runs produced different bytes. `-strip` fixes it; the maskable icon was
+    regenerated (md5 `307dfc73…` → `6fa9c998…`, 6715 → 6484 bytes, pixels unchanged) and the script is now measurably
+    idempotent against the committed tree.
+  - `[medium]` `[patch]` None of the three checked-in `CLAUDE.md` files mentioned that a service worker now exists —
+    the root file still described the frontend as a plain "built static bundle served by Caddy". Added the PWA
+    section to `bp_front/CLAUDE.md`, the two header pins and the navigation-fallback denylist to `routing/CLAUDE.md`,
+    and the installability note plus `npm run icons` to the root `CLAUDE.md`.
+  - `[low]` `[patch]` `registerSW()` supplied no `onRegisterError`, so the one WebAPK precondition that can fail at
+    runtime failed into a no-op. Wired a `console.error`.
+  - `[low]` `[patch]` The `/sw.js` `Cache-Control` comment claimed it stops a stale worker; browsers already bypass
+    the HTTP cache for the top-level worker script. Rationale corrected to belt-and-braces.
+  - `[low]` `[patch]` The manifest assertions checked the nine authored keys by value but nothing else, so a future
+    plugin minor injecting or renaming a default would ship silently — `lang: "en"` is already injected and
+    unauthored. Added an exact key-set assertion naming all ten.
+  - `[low]` `[patch]` The icon loop iterated `manifest.icons` with no length guard and passed vacuously on a manifest
+    shipping no icons. Added `expect(icons.length).toBe(3)`.
+  - `[low]` `[patch]` `expect(cached.length).toBeGreaterThan(0)` also passes for a worker that precached only
+    `favicon.svg` — the exact case its comment claimed to exclude. Replaced with a shape assertion requiring
+    `index.html`, the manifest and all three icons.
+  - `[low]` `[patch]` The spec's own Verification section still expected `dist/registerSW.js` to exist. Corrected in
+    both places; see the Spec Change Log entry above.
 
 ## Design Notes
 
@@ -358,7 +423,8 @@ rediscover it later as a defect.
   maskable variant, zero non-`#1C1C1E` pixels outside the central 80%-diameter circle.
 - `npm run lint` — expected: exit 0, `ignores` unwidened (except a genuinely-produced `dev-dist`).
 - `rm -rf bp_front/node_modules/.tmp && npm run build` — expected: exit 0; `dist/manifest.webmanifest`,
-  `dist/sw.js`, `dist/registerSW.js`, `dist/icons/*.png` present; `dist/index.html` carrying exactly one
+  `dist/sw.js`, `dist/icons/*.png` present and `dist/registerSW.js` ABSENT (corrected at review — see the
+  Spec Change Log); `dist/index.html` carrying exactly one
   `<link rel="manifest">` and exactly one registration script; chunk name/size/module count vs. baseline.
 - `docker compose build bp_front` — expected: exit 0 (`npm ci` under `node:26-alpine`, musl).
 - `curl -sI http://localhost:2080/manifest.webmanifest` — expected: `200` and
@@ -440,7 +506,12 @@ AR-E7-14 names the generator as a *means* and AC2 constrains only the artefacts.
 - `icon-192.png` — `rsvg-convert -w 192 -h 192`, md5 `8701db05312bd0a9f26a5ba94c2292b0`
 - `icon-512.png` — `rsvg-convert -w 512 -h 512`, md5 `1d977630fc487f6e79e883412690350a`
 - `icon-512-maskable.png` — artwork at **307 px** (≈60%) composited centre on an opaque `#1C1C1E` 512 canvas,
-  flattened to 8-bit RGB, md5 `307dfc732e3b9ec975fb073cd66e821c`
+  flattened to 8-bit RGB. **Regenerated at review**, md5 `307dfc732e3b9ec975fb073cd66e821c` →
+  `6fa9c9987750578a225cdcc414c18402` (6715 → 6484 bytes): the original carried ImageMagick's `tIME` and three
+  `tEXt` metadata chunks, so re-running the recipe produced different bytes every time. `-strip` removes them and
+  the generator is now measurably idempotent — two consecutive runs and a run against the committed tree all
+  produce identical bytes. Pixels are unchanged (`magick compare -metric AE` = 0.29 against the pre-strip file,
+  i.e. metadata only) and the safe-zone check still reports **0** violations.
 
 A pure-stdlib Python check (PNG signature, IHDR, zlib-inflate + de-filter) reports: signature OK and IHDR
 **192×192 / 512×512 / 512×512**, and for the maskable variant **0 pixels outside the central 80%-diameter circle that
@@ -620,3 +691,83 @@ Acknowledged rather than rediscovered: Story 7.9 moved the resolved `build.targe
 `chrome111 / edge111 / firefox114 / safari16.4 / ios16.4`, dropping Safari/iOS 16.0–16.3 and Chrome/Edge 107–110.
 Installability lands **on top of** that already-narrowed floor. No action taken here; the decision was made and
 accepted in 7.9.
+
+## Auto Run Result
+
+Status: **done**. One implementation commit plus one review commit on `epic7-maintenance`, baseline `3391aa3`.
+
+**Note on figures:** the `## Implementation Record` above is a faithful account of the *implementation* pass and
+its numbers (132 tests, 6 new specs) are left as measured then. The figures below are the **final** state after the
+review pass added a seventh test and regenerated one icon.
+
+### Implemented change
+
+Bag Please is now an installable PWA. `vite-plugin-pwa` 1.3.0 emits a dark-only web app manifest and a Workbox
+service worker; `src/main.tsx` registers it immediately; three PNG launcher icons are generated from the existing
+`favicon.svg` and committed; Caddy pins the manifest content type and the worker's cache header. The service
+worker's navigation fallback and runtime caching both exclude `/api`, so GraphQL, the auth REST endpoints, the
+subscription WebSocket and the `GET /api/graphiql` readiness check are untouched. No offline mode was added.
+
+### Files changed
+
+- `bp_front/package.json` / `package-lock.json` — `vite-plugin-pwa@1.3.0` pinned exact; +260 packages; no direct
+  dependency moved. Also adds the `icons` script.
+- `bp_front/vite.config.ts` — the `VitePWA` plugin: manifest, `registerType: 'autoUpdate'`,
+  `navigateFallbackDenylist: [/^\/api/]`, empty `runtimeCaching`.
+- `bp_front/src/main.tsx` — `registerSW({immediate: true, onRegisterError})`.
+- `bp_front/src/vite-env.d.ts` — the `vite-plugin-pwa/client` type reference.
+- `bp_front/index.html` — `<meta name="theme-color" content="#000000">` for the uninstalled browsing session.
+- `bp_front/public/icons/*.png` — 192, 512 and 512-maskable, generated and committed.
+- `bp_front/scripts/generate-icons.sh` — the committed, deterministic icon recipe (`npm run icons`).
+- `bp_front/e2e/pwa.spec.ts` — seven installability tests.
+- `bp_front/e2e/support/png.ts` — an 8-bit PNG decoder and the maskable safe-zone checker, so that property is
+  gated by the suite rather than by a deleted script.
+- `routing/Caddyfile` — two `header` pins inside the existing SPA `handle` block; route order untouched.
+- `CLAUDE.md`, `bp_front/CLAUDE.md`, `routing/CLAUDE.md` — the service worker now exists in the docs that load
+  when someone edits these trees.
+- Paperwork: this spec, `deferred-work.md`, `project-context.md`, `sprint-status.yaml`.
+
+### Review findings breakdown
+
+12 patches applied (6 medium, 6 low), 10 items deferred (2 medium, 8 low), 7 rejected, 0 intent gaps, 0 bad-spec
+loopbacks. Both reviewers independently found the same top defect — the `autoUpdate` reload semantics being
+documented as the opposite of what they are. Full detail in the Review Triage Log above.
+
+### Verification performed
+
+- `npm run lint` exit 0; eslint `ignores` unwidened.
+- `npm run build` exit 0 after `rm -rf node_modules/.tmp` — 1299 modules, `index-DPZFex3D.js` 803.49 kB /
+  241.20 kB gzip, plus a 5.65 kB `workbox-window` chunk; `precache 8 entries (790.94 KiB)`.
+  `dist/registerSW.js` confirmed **absent**; `dist/index.html` carries exactly one `<link rel="manifest">` and the
+  bundle exactly one `serviceWorker.register`.
+- `docker compose build bp_front` exit 0 (`npm ci` under `node:26-alpine`, musl).
+- **AC6 re-established on the final tree: two consecutive `npm run test:e2e` runs at `retries: 0` with `CI` unset —
+  134 passed (51.9 s) and 134 passed (52.7 s).** Split re-measured `66 / 66 / 1 / 1`; the arithmetic is
+  120 baseline + 7 new untagged tests × 2 viewport projects = 134, and the "exactly 1 per `registration-toggle-*`
+  project" invariant holds.
+- Served on `:2080`: `/manifest.webmanifest` 200 `application/manifest+json`; `/sw.js` 200 `text/javascript` with
+  `Cache-Control: no-cache`; `/api/graphiql` reaches the backend (auth-gated) rather than the SPA shell.
+- Maskable safe zone re-derived independently from the committed bytes: **0** non-`#1C1C1E` and **0** non-opaque
+  pixels outside the central 80%-diameter circle.
+- `bash scripts/generate-icons.sh` is idempotent — two consecutive runs and a run against the committed tree all
+  produce identical bytes, and the two full-bleed rasters reproduce the committed files exactly.
+- **Three review-added assertions falsified before being trusted**, one rebuild, all reddening on `chromium`:
+  deleting the Caddy `Cache-Control` line → `expect(cache-control).toBe('no-cache')` received `undefined`;
+  adding `orientation: 'portrait'` to the manifest → the exact-key-set assertion failed; re-rasterising the
+  maskable icon full-bleed → **11,649** pixels outside the safe circle. All three restored and the suite re-run
+  twice green.
+
+### Residual risks
+
+1. **The device half of AC1 and AC9 was not performed and is not claimed.** No Android device is attached
+   (`adb devices` empty) and no Chrome is installed on this host, so no WebAPK was installed, no Chrome menu was
+   read, and the DevTools Installability panel was never opened. Every precondition was measured independently
+   instead, and `beforeinstallprompt` did not fire in Playwright's unbranded Chromium — recorded as-is. Filed with
+   the exact `chrome://inspect` procedure, and separately filed as **not scheduled**, which is the sharper risk.
+2. **`autoUpdate` reloads open tabs on deploy**, including from another tab's update. Now documented accurately;
+   whether to suppress it is a product decision left to a human.
+3. **The TLS edge mode was never exercised with a service worker**, and Chromium may refuse registration on an
+   untrusted cert regardless of `ignoreHTTPSErrors` — potentially four failing tests in a documented supported
+   configuration.
+4. The manifest ships the minimal install surface (no `description`/`screenshots`), and the ~790 KiB precache now
+   downloads during first paint on mobile.

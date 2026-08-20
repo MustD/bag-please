@@ -24,6 +24,26 @@ by `graphql-codegen` — do not edit manually.
 UI components are built with **Material UI (MUI)**. When working on frontend UI, use the `mcp__mui-mcp__fetchDocs` /
 `mcp__mui-mcp__useMuiDocs` MCP tools to look up MUI component APIs and usage before writing or editing components.
 
+## PWA / service worker (Story 7.14)
+
+`vite-plugin-pwa` runs in `generateSW` mode from `vite.config.ts`, emitting `dist/manifest.webmanifest` and
+`dist/sw.js`; `src/main.tsx` calls `registerSW({immediate: true})` from `virtual:pwa-register` (typed via the
+`vite-plugin-pwa/client` reference in `src/vite-env.d.ts`). Three rules that are easy to break silently:
+
+- **Nothing under `/api` may ever be cached or fallen back to.** `navigateFallbackDenylist: [/^\/api/]` plus an
+  empty `runtimeCaching`. `GET /api/graphiql` is a *navigation*, so without the denylist the worker answers it
+  with the SPA shell and the project's only backend-readiness check starts silently lying. There is no offline
+  mode and none is wanted.
+- **`registerType: 'autoUpdate'` reloads open tabs** when a new worker activates — it is not deferred to the
+  next launch. See the measured note in `src/main.tsx` before changing update behaviour.
+- **The launcher icons are generated, not hand-drawn.** `npm run icons` rebuilds `public/icons/*.png` from
+  `public/favicon.svg`; the 512 maskable variant carries ~20% safe-area padding, re-derived from the served
+  bytes by `e2e/pwa.spec.ts`. Editing the SVG without re-running the script drifts the installed app's icon.
+
+Manifest colours are both `#000000` on purpose: `background_color` is Android's cold-launch splash colour and
+the theme is dark-only. `index.html` also carries a matching `<meta name="theme-color">` for the *uninstalled*
+browsing session, which the manifest does not cover.
+
 ## GraphQL schema management
 
 `codegen.ts` points at `http://localhost:2080/api/graphql` and reads the admin Bearer token from `CODEGEN_TOKEN`

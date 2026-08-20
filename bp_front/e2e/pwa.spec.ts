@@ -1,6 +1,7 @@
 import {expect, test} from '@playwright/test'
 
 import {loginApi} from './support/api'
+import {decodePng, maskableSafeZoneViolations} from './support/png'
 import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // Installability E2E (Story 7.14, FR59 + NFR-E7-7). Chrome builds a WebAPK only
@@ -54,6 +55,16 @@ test('FR59 — the served manifest is application/manifest+json and declares eve
   // background.default '#000000' and no light variant).
   expect(manifest.background_color).toBe('#000000')
 
+  // The exact key SET, not just the keys we authored. `lang` is here because
+  // the plugin injects it and nobody wrote it — which is the point: a future
+  // vite-plugin-pwa minor that injects or renames another default would
+  // otherwise ship silently, and the whole premise of this story is that
+  // manifest defects fail with no error anywhere.
+  expect(Object.keys(manifest).sort()).toEqual([
+    'background_color', 'display', 'icons', 'id', 'lang',
+    'name', 'scope', 'short_name', 'start_url', 'theme_color',
+  ])
+
   // Chrome needs a 192 and a 512 PNG; the maskable variant is what stops the
   // adaptive-icon mask from letterboxing the artwork.
   expect(manifest.icons).toEqual([
@@ -66,7 +77,12 @@ test('FR59 — the served manifest is application/manifest+json and declares eve
 test('FR59 — every manifest icon is served as a real PNG at the size it declares', async ({page}) => {
   const manifest = JSON.parse(await (await page.request.get('/manifest.webmanifest')).text())
 
-  for (const icon of manifest.icons as {src: string; sizes: string}[]) {
+  // Without this the loop below passes VACUOUSLY on a manifest that ships no
+  // icons at all — the failure mode this test exists to catch.
+  const icons = (manifest.icons ?? []) as {src: string; sizes: string; purpose?: string}[]
+  expect(icons.length, 'icon count').toBe(3)
+
+  for (const icon of icons) {
     const response = await page.request.get(icon.src)
     expect(response.status(), `${icon.src} status`).toBe(200)
     const bytes = await response.body()
@@ -76,7 +92,33 @@ test('FR59 — every manifest icon is served as a real PNG at the size it declar
     expect(bytes.subarray(0, 8).toString('hex'), `${icon.src} signature`).toBe('89504e470d0a1a0a')
     const [width, height] = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)]
     expect(`${width}x${height}`, `${icon.src} IHDR`).toBe(icon.sizes)
+
+    // The maskable variant carries the only property that is not visible in a
+    // dimension check: ~20% safe-area padding. Android's adaptive masks all
+    // contain the central 80%-diameter circle, so proving every pixel outside
+    // that circle is the flat #1C1C1E field proves NO mask clips the artwork —
+    // for a circle, a squircle, or anything between. A full-bleed re-raster of
+    // favicon.svg puts artwork ~235px out against a 204.8px safe radius and
+    // fails this outright.
+    if (icon.purpose === 'maskable') {
+      const violations = maskableSafeZoneViolations(decodePng(bytes), [0x1c, 0x1c, 0x1e])
+      expect(violations, `${icon.src} pixels outside the 80% safe circle`).toBe(0)
+    }
   }
+})
+
+test('AR-E7-15 — sw.js is served from the root scope as JavaScript and is not long-term cached', async ({page}) => {
+  // AC5 names TWO Caddy behaviours and only the manifest half had a regression
+  // guard (Story 7.14 review). A worker served as text/plain is refused by the
+  // browser, and one served with a long max-age pins the app to an old build —
+  // both silent. Asserted on the SERVED response, not on the file's presence.
+  const response = await page.request.get('/sw.js')
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('javascript')
+  expect(response.headers()['cache-control']).toBe('no-cache')
+  // Root path, so the registration's scope can be '/'. A worker under /assets/
+  // cannot control /.
+  expect(new URL(response.url()).pathname).toBe('/sw.js')
 })
 
 test('FR59 — the built page carries exactly one injected manifest link', async ({page}) => {
@@ -160,8 +202,14 @@ test('NFR-E7-7 — an authenticated session leaves no /api entry in Cache Storag
   })
 
   // runtimeCaching is empty, so nothing under /api may ever be written — not the
-  // GraphQL endpoint, not auth REST. The precache is asserted non-empty so a
-  // worker that cached NOTHING cannot pass this by accident.
-  expect(cached.length).toBeGreaterThan(0)
+  // GraphQL endpoint, not auth REST.
+  //
+  // The non-vacuity guard asserts the precache SHAPE rather than a bare count:
+  // `length > 0` also passes for a worker that precached only favicon.svg, which
+  // is exactly the "cached nothing meaningful" case it was meant to exclude.
+  const paths = cached.map(url => new URL(url).pathname)
+  for (const required of ['/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-512-maskable.png']) {
+    expect(paths, `precache is missing ${required}`).toContain(required)
+  }
   expect(cached.filter(url => new URL(url).pathname.startsWith('/api'))).toEqual([])
 })

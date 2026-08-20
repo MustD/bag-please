@@ -16,7 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Bag Please** is a full-stack shopping list / store management app consisting of:
 
 - `bp_back/` — Kotlin/Ktor backend exposing a GraphQL API (port 4000)
-- `bp_front/` — Vite + React 19 SPA (Apollo Client, Material UI); built static bundle served by Caddy
+- `bp_front/` — Vite + React 19 SPA (Apollo Client, Material UI); built static bundle served by Caddy.
+  Since Story 7.14 it is an **installable PWA**: the build emits a web app manifest and a service worker
+  (`vite-plugin-pwa`), so the served origin registers a worker that intercepts every navigation
 - `routing/` — `Caddyfile` for the frontend image: serves the built SPA and proxies `/api` to the backend (entry point port 2080)
 - `db/` — MongoDB 8 data directory (mounted as a volume)
 
@@ -71,6 +73,9 @@ npm run build        # tsc -b && vite build
 
 # Lint
 npm run lint
+
+# Regenerate the PWA launcher icons after changing public/favicon.svg
+npm run icons       # rsvg-convert + magick -> public/icons/*.png (deterministic; a clean re-run is a no-op)
 
 # Regenerate GraphQL types from the live schema (requires backend on :2080 + a fresh admin token)
 CODEGEN_TOKEN="$(curl -s -X POST http://localhost:2080/api/auth/login \

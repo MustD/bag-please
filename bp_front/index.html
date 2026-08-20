@@ -4,6 +4,11 @@
   <meta charset="UTF-8"/>
   <link href="/favicon.svg" rel="icon" type="image/svg+xml"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <!-- Story 7.14: the manifest's theme_color only applies once INSTALLED. This
+       is the browsing-session equivalent — without it Chrome on Android paints a
+       default light address bar above an all-black, dark-only app. Same value as
+       the manifest and as src/theme.ts background.default. -->
+  <meta content="#000000" name="theme-color"/>
   <title>Bag Please</title>
 </head>
 <body>
