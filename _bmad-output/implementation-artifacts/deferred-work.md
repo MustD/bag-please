@@ -1340,6 +1340,94 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   attributable" rule forbids bundling. Not a defect; recorded so the next sweep does not treat it as newly discovered.
   Proposed fix: pick it up in a later patch sweep, not here.
 
+## Deferred from: Story 7.14 — installable PWA (2026-08-20)
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: **The device half of AC1/AC9 was NOT performed and is not claimed.** No WebAPK was installed, no Chrome
+  menu was read, and the DevTools → Application → Manifest → Installability panel was never opened.
+  evidence: measured on this host 2026-08-20 — `adb devices` prints `List of devices attached` with no device rows,
+  and `which google-chrome chromium chrome` finds none of the three (only `/usr/bin/adb` exists). Playwright's
+  bundled Chromium is not Chrome-branded and has no Installability panel to read. What WAS measured is every WebAPK
+  precondition, independently: `isSecureContext true` on `http://localhost:2080`, `<link rel="manifest">` read off
+  the served page, PNG icons at 192×192 and 512×512 verified from their IHDR bytes, and a worker at scope
+  `http://localhost:2080/` observed `activated` and controlling, with the fetch handler proven by an offline reload
+  the worker answered.
+  Proposed fix (the exact procedure a human should run): `docker compose up -d`; attach an Android phone over USB
+  with developer mode + USB debugging; `adb devices` shows it; `adb reverse tcp:2080 tcp:2080`; open
+  `http://localhost:2080` in Chrome ON THE PHONE (localhost is a trustworthy origin, so it is a secure context —
+  the TLS edge domain `bag-please.localhost` neither resolves nor validates on a phone and must not be used);
+  from desktop Chrome open `chrome://inspect#devices`, inspect the phone tab, and capture Application → Manifest →
+  Installability. **The panel output, not the presence of an "Install app" menu item, is the evidence** — the menu
+  wording is a heuristic surface and can read "Install app" for a bookmark shortcut too.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The `Caddyfile` `header` lines for `/manifest.webmanifest` and `/sw.js` are a **pin against base-image
+  drift, not a repair** — they changed nothing about what is served today.
+  evidence: measured before the directives landed, against the running container — `caddy version` → `v2.11.4`,
+  image `caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648` — which already served
+  `/manifest.webmanifest` as `application/manifest+json` and `sw.js` as `text/javascript; charset=utf-8` with no
+  `Cache-Control`. AR-E7-15's hazard is real in principle and was **absent in fact**. `:2-alpine` is a moving tag,
+  which is what makes the pin worth carrying.
+  Proposed fix: none. Recorded so a future reader does not infer a broken MIME table was found and fixed. The only
+  byte this actually changed is `Cache-Control: no-cache` on `/sw.js`, which Caddy did not send before.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `vite-plugin-pwa` costs **+260 packages** in the dev tree for a 6.7 kB shipped payload.
+  evidence: `npm i -D vite-plugin-pwa@1.3.0` → exit 0, "added 260 packages, changed 10 packages, and audited 681
+  packages" (from 421). `workbox-build@7.4.1` and `workbox-window@7.4.1` arrive as the plugin's own hard
+  dependencies. Shipped cost measured from `dist/`: the entry chunk 802.34 → 803.39 kB and a new lazily-imported
+  `workbox-window.prod.es5` chunk of 5.65 kB, plus a 0.41 kB manifest. `npm audit --package-lock-only` reports **1
+  high** both before and after — the pre-existing `js-yaml` CVE-2026-59870 advisory, unchanged by this story.
+  Proposed fix: none; recorded so the footprint is a known accepted cost rather than a later surprise.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: **`dist/registerSW.js` is NOT produced, and that is correct** — the spec's Verification list expected it.
+  evidence: `injectRegister` defaults to `'auto'`, which stands down when it detects the `virtual:pwa-register`
+  import that `src/main.tsx` now carries. Measured in `dist/index.html`: zero `registerSW` script tags, exactly one
+  `<link rel="manifest">`, and exactly one `serviceWorker.register` call in the whole bundle (in the
+  `workbox-window.prod.es5` chunk). A `registerSW.js` present ALONGSIDE the virtual import is the double-registration
+  the task warned about — its absence is the check passing, not a missing artefact.
+  Proposed fix: none. Correct the expectation, not the build.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: One of the six new E2E assertions could only be falsified at the **instrument** level, not by breaking the
+  guarded behaviour through the worker.
+  evidence: the other five were reddened on both projects by real config breaks (white `background_color`; a 191 px
+  icon; `manifest: false`; registration removed; precache emptied so the offline reload died with
+  `ERR_INTERNET_DISCONNECTED`; and the load-bearing one — deleting `navigateFallbackDenylist` made `/api/graphiql`
+  return the SPA shell, `toHaveTitle` receiving `"Bag Please"` instead of `"GraphiQL"`). The "no `/api` entry in
+  Cache Storage" test resisted: Workbox refuses to cache `POST`, which is every GraphQL and auth call the app makes,
+  and forcing `/api/graphiql` into the precache instead made the worker's **install** fail (401 without a Bearer
+  token), so the test reddened on the controller wait rather than on the cache assertion. It was falsified instead by
+  planting a real `/api/graphql` entry in Cache Storage from the page and confirming the identical enumeration and
+  filter reported it — proving the instrument sees what it claims to see.
+  Proposed fix: if runtime caching is ever added, revisit with a real GET route under `/api` so the behaviour itself
+  can be broken.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: `beforeinstallprompt` **did not fire** in the substitute probe, and this proves nothing either way.
+  evidence: Pixel 7 emulation against `http://localhost:2080` in Playwright's Chromium with the worker controlling
+  and every precondition satisfied — `window.__bip` was `[]` after a 4 s wait. Playwright's Chromium is not
+  Chrome-branded, runs headless, and install promotion is a branded-Chrome heuristic. Recorded because it went the
+  unflattering way; the per-criterion checks are the primary evidence and this was only ever corroboration.
+  Proposed fix: subsumed by the device verification above.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: The served manifest carries a **tenth** key, `lang: "en"`, that nobody authored.
+  evidence: `vite-plugin-pwa` injects it by default; the nine keys AC3 names are all present and correct. Harmless
+  (it matches `<html lang="en">`), but it means "the manifest has exactly the nine keys" is false as stated — it has
+  the nine plus `lang`.
+  Proposed fix: none; the assertion in `e2e/pwa.spec.ts` checks the nine keys by value rather than the key count, for
+  exactly this reason.
+
+- source_spec: `spec-7-14-installable-pwa.md`
+  summary: iOS/Safari installability is untouched and out of scope, and now it is the only mobile platform without a
+  home-screen story.
+  evidence: FR59 scopes this to Android/WebAPK; no `apple-touch-icon` and no `apple-mobile-web-app-*` meta were
+  added, so an iOS "Add to Home Screen" gets Safari's screenshot-derived icon. Vite 8's resolved `build.target`
+  already dropped Safari/iOS 16.0–16.3 (Story 7.9), so the iOS floor is narrowed independently of this.
+  Proposed fix: a separate story if iOS is ever in scope — one 180×180 `apple-touch-icon` plus the status-bar meta.
+
 ## Deferred from: code review of 7-12-graphql-kotlin-9-to-10-with-kotlin (2026-08-16)
 
 - source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`

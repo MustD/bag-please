@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 101
+rule_count: 105
 optimized_for_llm: true
 ---
 
@@ -147,6 +147,26 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error` — which are `error` here via
   `eslint.config.mjs:24` and currently report nothing, so a future edit that trips one is a real finding, not
   config noise
+- **`vite-plugin-pwa` 1.3.0** (Story 7.14, 2026-08-20) — the app is an installable PWA. Four directives; the
+  measurements and the unperformed device verification live in `deferred-work.md`, "Deferred from: Story 7.14"
+  (NFR-E7-1) rather than here.
+  (1) **Every PWA artefact is injected at BUILD time, so `vite.config.ts` proves nothing** — verify the
+  `<link rel="manifest">`, the precache manifest and the registration from `bp_front/dist/` and from the response
+  **served** on `:2080`. In particular **`dist/registerSW.js` must NOT exist**: `src/main.tsx` calls
+  `registerSW({immediate: true})` from `virtual:pwa-register`, and `injectRegister: 'auto'` stands down when it sees
+  that import. A `registerSW.js` appearing is a SECOND registration path, not a missing file.
+  (2) **The worker must never touch `/api`.** `navigateFallbackDenylist: [/^\/api/]` **and** `runtimeCaching: []`.
+  Measured, not theorised: deleting the denylist makes `GET /api/graphiql` — a *navigation* — answer with the
+  precached SPA shell (`<title>` reads `Bag Please`), which silently breaks this project's only backend-readiness
+  check. GraphQL and auth are `POST`, which Workbox refuses to cache, so the denylist is what actually carries this.
+  (3) **Both manifest colours are `#000000`.** `background_color` is Android's cold-launch splash colour and the app
+  is dark-only (`src/theme.ts`), so the usual `#ffffff` flashes white before an all-black app.
+  (4) **The three icons in `bp_front/public/icons/` are COMMITTED PNGs derived from `public/favicon.svg`** — Chrome
+  builds no WebAPK icon from SVG. Regenerate with `rsvg-convert` (present on this machine, deterministic) rather than
+  `npx pwa-asset-generator`, which network-fetches a headless Chromium. `icon-192`/`icon-512` are direct
+  rasterisations; **`icon-512-maskable` is the artwork at ~60% (307 px) centred on an opaque `#1C1C1E` 512 canvas**,
+  because every Android adaptive mask keeps only the central 80%-diameter circle and a transparent edge letterboxes
+  the icon. A full-bleed 512 rasterisation puts artwork 235 px from centre against a 204.8 px safe radius — it fails.
 - **`package.json` mixes pinned and caret entries and `bp_front/Dockerfile` runs `npm ci`, so the LOCKFILE is what
   ships.** Read installed versions from `package-lock.json`, never from `package.json`
 
@@ -676,6 +696,46 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Keep this file lean and focused on unobvious agent needs; remove rules that become obvious over time
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
+
+_Last Updated: 2026-08-20 (Story 7.14) — **Bag Please is now an installable PWA, and the two acceptance criteria that
+need a physical Android phone were NOT met and are not claimed.** `vite-plugin-pwa` **1.3.0** installed unflagged
+(exit 0, `+260 packages`, `changed 10` transitive — `@babel/*` 7.29.7→7.29.8, `browserslist`, `caniuse-lite`,
+`electron-to-chromium`, `node-releases`, `update-browserslist-db`, `baseline-browser-mapping`; **no direct dependency
+moved**, verified by diffing every direct entry's resolved version between the stashed and the new lockfile).
+`workbox-build`/`workbox-window` 7.4.1 arrive as the plugin's own dependencies, not as peers to add. Landed: three
+committed PNGs generated from `public/favicon.svg` with `rsvg-convert`; a dark-only manifest; `registerSW({immediate:
+true})` in `src/main.tsx` with the `vite-plugin-pwa/client` triple-slash reference in `src/vite-env.d.ts`; and two
+`header` pins in `routing/Caddyfile`. Gates, all measured this pass: `npm run lint` exit 0 with the `ignores` array
+**unwidened** (no `dev-dist` is produced — `npm run dev` was run and none appeared); `npm run build` exit 0 after
+`rm -rf node_modules/.tmp`, **1299** modules (baseline 1297) with `index-BySjKFSJ.js` **803.39 kB / 241.14 kB gzip**
+against the baseline `index-dd3zm4T-.js` **802.34 / 240.67**, plus a lazily-imported `workbox-window.prod.es5` chunk
+of 5.65 kB and a 0.41 kB manifest — **+6.7 kB shipped**; `docker compose build bp_front` exit 0 (the load-bearing one:
+`npm ci` on musl under `node:26-alpine`); and **two consecutive full Playwright runs at `retries: 0`, 132 passed both
+times** (49.8 s, 50.1 s) with `CI` unset. Split **132 = 65 / 65 / 1 / 1**, re-measured before each run: the six new
+untagged tests in `e2e/pwa.spec.ts` run in both viewport projects, so 120 + 6×2 = 132 and 59 + 6 = 65 per viewport.
+Served surface measured with `curl` on `:2080`: `/manifest.webmanifest` → 200
+`Content-Type: application/manifest+json`, `/sw.js` → 200 `text/javascript; charset=utf-8` with `Cache-Control:
+no-cache` at root scope, `/api/graphiql` → the backend, not the shell. **The Caddy directives are a pin, not a
+repair** — `caddy:2-alpine` v2.11.4 (`sha256:5f5c8640aae0…`) was measured already serving both correctly before they
+landed. **Five of the six new assertions were falsified by breaking the real behaviour** (white `background_color`; a
+191 px icon; `manifest: false`; registration removed; precache emptied so the offline reload died with
+`ERR_INTERNET_DISCONNECTED`), each reddening on **both** projects; the sixth — "no `/api` entry in Cache Storage" —
+could only be falsified at the instrument level and that is filed, not glossed. **AC1/AC9's device half was not
+performed:** `adb devices` prints no device rows and no `google-chrome`/`chromium` binary exists on this host, so no
+WebAPK was installed, no Chrome menu was read and the DevTools Installability panel was never opened. The substitute
+measured every precondition independently (`isSecureContext true` on `http://localhost:2080`, manifest link read off
+the served page, PNG 192 + 512 verified from IHDR bytes, worker `activated` at scope `/` and controlling, fetch
+handler proven by an offline reload it answered) and probed `beforeinstallprompt`, which **did not fire** — recorded
+because it went the unflattering way; it is Chrome-branded heuristics, not a criterion. The device procedure is filed
+in `deferred-work.md`. AC7 was **confirmed, not rebuilt**: `navigation.spec.ts:654` re-run green on both projects, and
+its `:698` launch-history assertion of **2** is a browser artefact (a fresh Playwright page starts on `about:blank`,
+the `goto` is the second entry, and `HomeRedirect`'s `replace` adds none) — an installed launch at `start_url: '/'`
+is **one** deep, so the Android system back gesture exits from home. That is accepted, and on `/admin` for an admin
+the inert title link is by design with the user menu as the live exit. `rule_count` rises 101 → **105**, stated with
+its arithmetic: **four** independently-actionable directives were added, all under the frontend `vite-plugin-pwa`
+entry — verify PWA artefacts from the build output and never let `dist/registerSW.js` appear; keep the worker off
+`/api` with the denylist plus empty `runtimeCaching`; keep both manifest colours `#000000`; and regenerate the icons
+with `rsvg-convert`, the maskable one at ~60% on an opaque `#1C1C1E` field.
 
 _Last Updated: 2026-08-19 (Story 7.13) — **the epic's last dependency major LANDED, and the package that planning
 expected to block it turned out to refuse v17 on paper only.** `graphql` 16.14.2 → **17.0.2** (`latest`; `latest-16` is
