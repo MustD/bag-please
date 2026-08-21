@@ -82,8 +82,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
   narrowed support floor. Accepted as a normal consequence of a build-tool major rather than pinned back — but it is a
   *decision*, and it matters more than usual here because Story 7.14 makes this an installable mobile app. Re-check the
   resolved `build.target` on every future Vite major and record the delta
-- `@types/node` 26.2.0 — kept on the **same major as the Node that builds the project** (`mise.toml:6` = `26.4.0`,
-  `bp_front/Dockerfile:7` = `node:26-alpine`). A types major behind the runtime type-checks against APIs the build no
+- `@types/node` 26.2.0 — kept on the **same major as the Node that builds the project** (`mise.toml:6` = `26`
+  — a floating MAJOR since 2026-08-21, no longer the exact `26.4.0` earlier revisions of this file cited;
+  `bp_front/Dockerfile:7` = `node:26-alpine`). Because both are now major-only, the "same major" rule is what the
+  toolchain actually enforces and the exact minor is not pinned anywhere. A types major behind the runtime type-checks
+  against APIs the build no
   longer has. `tsc -b` is build-mode and caches per project under `node_modules/.tmp/`, so a types bump must be gated
   on `npx tsc -b --force` or it proves nothing
 - React 19.2.8 / react-dom 19.2.8
@@ -462,11 +465,14 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `uniqueUsername(prefix, label, projectName)` in `e2e/support/ui.ts`, one distinct prefix per spec. (`auth.spec.ts:12`
   predates the helper and inlines an eighth shape, `mia_e2e_${project.name}_${Date.now()}`, with **no label segment** —
   do not "unify" it.) Use `browser.newContext()` when a second actor is needed so the first session is untouched.
-- **The DB volume `./db/data` persists across runs and the two projects run concurrently** — assert only on data your
+- **The DB volume persists across runs and the two projects run concurrently** — since 2026-08-13 this is the named
+  Docker volume `bag-please_db_data`, not the old `./db/data` bind mount (that path no longer exists) — assert only on
+  data your
   test created, and never on total row counts.
 - **`registrationEnabled` is ON for the whole run, and that is now an invariant, not a hope (Story 7.3 — the race is
   deleted).** It is one shared Mongo `ApplicationConfig` document. `global-setup.ts` sets it to `true` idempotently
-  before the run (which is also what recovers a flag stranded OFF by a crashed prior run — `./db/data` persists). The
+  before the run (which is also what recovers a flag stranded OFF by a crashed prior run — the `bag-please_db_data`
+  volume persists). The
   only test that writes it is the FR20/FR21 toggle case in `admin.spec.ts`, tagged `@registration-toggle` and routed by
   the four-project topology above so its OFF window opens **only after both viewport projects have finished** — nothing
   anywhere is registering while it is open. Consequences for anyone writing E2E here:
@@ -518,8 +524,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
   run with zero tests. `.tsx` falls outside the `bp/e2e-playwright` override glob (`e2e/**/*.ts`) and would get
   `react-refresh/only-export-components: error` — the rule that exists to permit a module of named exports here.
 - **`uniqueUsername` takes the caller's prefix first**: `uniqueUsername('shopping', label, project.name)`. The **eight**
-  prefixes (`acct`, `admin`, `attrib`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing —
-  `./db/data` persists and both projects run concurrently, so collapsing the namespaces would make specs collide on
+  prefixes (`acct`, `admin`, `attrib`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing — the
+  `bag-please_db_data` volume persists and both projects run concurrently, so collapsing the namespaces would make specs
+  collide on
   foreign data. `attrib` is `item-attribution.spec.ts` (Story 7.4, FR45/FR58). **A new spec claims a new prefix and
   adds it to the registry comment at `support/ui.ts:14-18`** — that comment is the only inventory there is.
 - **It is a support module, not a login fixture** (AR-E7-5). No `storageState`, no `test.extend`, no session reuse:
@@ -927,7 +934,8 @@ review — do not restore the earlier wording:** it is *not* "deterministic", *n
 pass); and the Vite 7 control run that the first draft credited with settling attribution ran at the largest DB of the
 pass with both sides saturated at 8/8 failures, so it proved nothing. What actually settled it: `md` cleared the
 database and the **unchanged** Vite 8 tree passed twice in a row at `retries: 0`. Also note the E2E rule below still
-says `./db/data`; `md` switched the mongo mount to a named Docker volume (`bag-please_db_data`) on 2026-08-13, so the
+said `./db/data`; `md` switched the mongo mount to a named Docker volume (`bag-please_db_data`) on 2026-08-13 and that
+change is now COMMITTED on `epic7-maintenance` (the wording below calling it uncommitted is superseded), so the
 persistence claim holds but the path is stale — filed rather than swept, because that compose change is uncommitted and
 not this story's. All of it lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
 2026-08-12 (Story 7.7) — **dependency versions, plus three operational directives that follow from

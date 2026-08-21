@@ -12,7 +12,7 @@ import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.mongo.UserRepository
 import com.bagplease.features.auth.CallerUsername
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 sealed class ListAuthError {
     data object NotMember : ListAuthError()
@@ -113,7 +113,12 @@ class ListService(
         val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
         ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
 
-        // cascade: items → categories → members → list (order enables lazy-sync recovery on partial failure)
+        // cascade: items → categories → members → list. The ordering is a CONVENTION, not a safety
+        // property — these are four independent Mongo deletes with no session, so a throw at
+        // listRepository.delete leaves a live list whose children are already gone, and list_members
+        // has no in-memory cache to re-sync from. Neither ordering is failure-safe; only a single
+        // ClientSession transaction would be (filed in deferred-work.md). Do not restore the earlier
+        // "order enables lazy-sync recovery on partial failure" rationale — it had this backwards.
         val deletedItems = itemRepository.deleteAllInList(id)
         val deletedCategories = categoryRepository.deleteAllInList(id)
         listMemberRepository.deleteAllInList(id)

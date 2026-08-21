@@ -5,6 +5,55 @@
 > when the epic switched from the story-file dev workflow to the dev-auto spec flow. This file is the ledger both
 > workflows read.
 
+## Epic 7 close-out (2026-08-21)
+
+Full context: `epic-7-retro-2026-08-21.md`. **Epic 6's action items came back 6 / 6** — every one had been converted
+from a retro table row into a named Epic 7 story slot, and every one landed. Epic 5's rows, left as rows, came back 0 /
+7. The mechanism is now tested in both directions and is not up for re-litigation.
+
+**Decided by `md` at the retrospective — do not re-file these:**
+
+- ✅ **Story 7.14 AC1/AC9 — physical-device install VERIFIED by `md`.** The story recorded the device half as not met and
+  *not scheduled*, because no Android device was attached to the run and `beforeinstallprompt` does not fire in
+  Playwright's unbranded Chromium. `md` has since installed and exercised it on a real phone. Discharged by
+  hand-verification, exactly as Epic 6 discharged the real-device HTTPS auth item. This is the second time a
+  device-class check was closed by `md` doing it rather than by a scheduled task — that is the route that works here.
+- ❌ **`registerType: 'autoUpdate'` reloading open tabs — ACCEPTED AS SHIPPED, not a defect to fix.** The measured
+  behaviour stands: on worker activation the client calls `window.location.reload()`, and `isExternal` means a second
+  tab triggering the update reloads this one. In a multi-tab app with live subscriptions a deploy therefore discards
+  text typed into the item field, the list-name dialog or the change-password form. `md` accepts that window. It is
+  silent, so UX-DR-E7-7 holds; the requirement prose that said "picked up silently on the **next launch**" is the half
+  that was wrong, and `src/main.tsx` / `vite.config.ts` already state the real behaviour. **Do not add
+  `onNeedReload() {}`** without a new decision.
+- ⏸ **`AdminUsers` is unpaginated — routed to BACKLOG as a product feature request.** Not scheduled, not blocking. The
+  defect is real for any admin with a large user table, not merely a test-harness annoyance. **The gate half is NOT
+  covered by this decision** and is tracked separately as Epic 7 action **D4**: the users table grows ~120 rows per full
+  suite run, the create-user dialog measured **5015 ms against a 5000 ms assertion at 5497 rows**, and clearing the
+  database only restarted the clock. Per-run data hygiene is owed regardless of when pagination happens.
+
+**New from the Epic 7 close:**
+
+- **Production is ahead of `main`.** Version `0.17.0` is deployed, from the `epic7-maintenance` branch; `main` is still
+  at the Epic 6 close-out commit `4bfcc90`, 44 commits behind. `main` is therefore a stale record of what is live, and
+  any branch cut from it starts 44 commits behind reality. Tracked as Epic 7 action **D1** — do it before any Epic 8
+  story is created.
+- **Gates cover code. Nothing covers the authoritative prose the next agent reads as binding.** This is the epic's
+  dominant finding. All **15** specs closed `followup_review_recommended: true`, and the reasons recorded in their own
+  frontmatter are consistent: Story 7.1 — *"8 patches, all landed in the documentation/bookkeeping ~80% of the diff that
+  no gate checks — including two factually false ledger prescriptions"*; Story 7.3 — *"11 patches, 8 of them in newly
+  written authoritative prose: a false mobile-gate claim, a recovery command that could not work, a ledger action item
+  aimed at a CI pipeline that does not exist"*; Story 7.14 — both reviewers independently found the same top defect and
+  it was a **documentation inversion**, not a code one. This ledger, `project-context.md` and the spec bodies are all in
+  that unchecked category.
+- **A flag that fires 15/15 carries no information — the same defect Story 7.15 proved against `oversized`.**
+  `oversized` fired 6/6 and trimmed 0/6 (Spearman rho 0.000 against total findings; the *smallest* spec produced the
+  *most*). `followup_review_recommended` has now fired 15/15. Tracked as Epic 7 action **D2**: run them, or recalibrate
+  the flag the way 7.15 recalibrated its own.
+- **This ledger gained 144 entries during Epic 7 and no story drained it.** Filing is working; draining is not
+  demonstrated. Worth a triage pass before the count stops being readable.
+
+---
+
 ## Epic 6 close-out (2026-07-29)
 
 Full context: `epic-6-retro-2026-07-29.md`. **Epic 6 shipped to production** (version `0.16.0`) — the project's first
@@ -1136,7 +1185,8 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
   evidence: `eslint@9.39.5` engines were `^18.18.0 || ^20.9.0 || >=21.1.0`; `eslint@10.8.1` is
   `^20.19.0 || ^22.13.0 || >=24` (both read from the lockfiles). `vite@8` admits `^20.19.0 || >=22.12.0`. So Node
   22.12.x and 23.x pass every other gate and cannot run `npm run lint`, and `npm` only emits an `EBADENGINE` **warning**.
-  The two paths actually in use are fine (`mise.toml:6` = `26.4.0`; `bp_front/Dockerfile:7` = `node:26-alpine`,
+  The two paths actually in use are fine (`mise.toml:6` = `26` — a floating major since 2026-08-21, was `26.4.0`
+  when this was written; `bp_front/Dockerfile:7` = `node:26-alpine`,
   measured `v26.7.0` inside the build stage), so nothing is broken today — this is an unpinned floor, not a live defect.
   Proposed fix: add `"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"}` to `bp_front/package.json`. Deliberately not
   done in Story 7.11: S-AC4 scopes that story to version numbers and changes strictly required by the upgrade.
@@ -1330,8 +1380,9 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
 
 - source_spec: `spec-7-13-graphql-16-to-17.md`
   summary: Nothing fences graphql 17's narrowed Node floor — no `engines` field, no `.nvmrc`, no `.node-version`.
-  evidence: graphql 17.0.2 declares `engines.node: "^22.0.0 || ^24.0.0 || ^25.0.0 || >=26.0.0"`, where 16.14.2
-  accepted anything `>=`. The current paths are fine (`mise.toml` pins 26.4.0, `bp_front/Dockerfile` is
+  evidence: graphql 17.0.2 declares `engines.node: "^22.0.0 || ^24.0.0 || ^25.0.0 || >=26.0.0"`, where 16.14.2 accepted
+  anything `>=`. The current paths are fine (`mise.toml` pins the major `26` — it pinned the exact `26.4.0`
+  when this was written; `bp_front/Dockerfile` is
   `node:26-alpine`), but `bp_front/package.json` has no `engines` block, so anyone outside mise — Node 23, or Node
   <22 — gets an `EBADENGINE` **warning** and a build that proceeds. This compounds an item already filed from Story
   7.11 about eslint 10's Node floor. Proposed fix: one `engines` field plus a `.nvmrc`.
@@ -1441,9 +1492,12 @@ string. NFR-E7-1 requires a named blocking symptom for a hold; this section is t
 
 ## Deferred from: code review of 7-14-installable-pwa (2026-08-20)
 
-- source_spec: `spec-7-14-installable-pwa.md`
-  summary: `registerType: 'autoUpdate'` RELOADS OPEN TABS when a new worker activates; it does not defer to the
-  next launch. Decide whether to suppress that with `onNeedReload() {}` or accept it.
+- ~~source_spec: `spec-7-14-installable-pwa.md`~~ **CLOSED 2026-08-21 at the Epic 7 post-factum code review.**
+  `md` ratified the standing already recorded at the top of this file: the reload is ACCEPTED AS SHIPPED, and
+  `onNeedReload() {}` must not be added without a new decision. This row was the duplicate open half of a question the
+  Epic 7 close-out had already answered; the two are now one. Original text kept below for the measurement.
+  summary: `registerType: 'autoUpdate'` RELOADS OPEN TABS when a new worker activates; it does not defer to the next
+  launch. Decided: accept it, do not suppress with `onNeedReload() {}`.
   evidence: measured in `node_modules/vite-plugin-pwa/dist/client/build/register.js` — the auto branch does
   `wb.addEventListener('activated', e => { if (e.isUpdate || e.isExternal) { if (onNeedReload) onNeedReload(); else
   window.location.reload() } })`, and `dist/sw.js` carries `self.skipWaiting(), e.clientsClaim()` at top level. No
@@ -1748,8 +1802,9 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
 - source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
   summary: **Nothing outside `mise.toml` pins Node for a contributor who does not use mise**, so a build on Node 22
   would type-check against `@types/node` 26 APIs its runtime lacks — the exact hazard Story 7.8's AC1 exists to
-  prevent, unguarded for anyone not on the same toolchain.
-  evidence: no `engines` field, no `.nvmrc`, no `.node-version`, no `packageManager`; only `mise.toml:6` and
+  prevent, unguarded for anyone not on the same toolchain. evidence: no `engines` field, no `.nvmrc`, no
+  `.node-version`, no `packageManager`; only `mise.toml:6` (now the floating major `26`, loosened from `26.4.0` on
+  2026-08-21, so it no longer pins a minor at all) and
   `bp_front/Dockerfile:7`. Proposed fix: `"engines": {"node": ">=26 <27"}` plus `engine-strict=true`.
 
 - source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
@@ -2758,3 +2813,83 @@ against `:2080`, not merely reasoned about.
   evidence: the verdict was deliberately encoded outside `.claude/skills/`, which is correct, but that leaves two live
   and conflicting statements of the budget with nothing cross-referencing them. `project-context.md` — which every
   agent in this repo loads — received no directive, by design, because no *code* convention changed.
+
+## Deferred from: code review of epic-7-context (2026-08-21)
+
+Post-factum adversarial review of Epic 7 (`main...epic7-maintenance`, 44 commits), chunk A+B only — backend (`bp_back/`)
+plus frontend app source and build config. The E2E suite (`bp_front/e2e/`, `playwright.config.ts`, 2119 diff lines) and
+the docs/`_bmad` chunk were NOT reviewed and are outstanding. Three layers ran: adversarial, edge-case,
+acceptance-vs-spec. Items below are real but not actionable now; several were already filed and are cross-referenced
+rather than re-filed.
+
+- **`saveItem` can still produce `checked=false` with a non-null `checkedAt`.** Already filed above (Story 7.4 section,
+  "No UI path does this today"). Re-confirmed by two independent review layers this pass: `ItemService.kt:55`
+  copies `checked` from the input while `checkedAt`/`deleted`/`deletedAt` stay server-owned, so the merge can
+  manufacture states neither `checkItem` nor `uncheckItem` produces. Reachable via the API and via a stale client, not
+  via the shipped UI. Cross-reference only — no new information.
+
+- **`@Volatile synced` does not close the check-then-act half of the lazy-sync race.** Already filed (Story 7.6 section,
+  with the `Mutex`-shaped proposal). Re-confirmed: two coroutines on a cold cache both read `false` and both run a full
+  `repository.getAll()`. Memory visibility was the smaller half of the problem.
+
+- **`MongoListMemberMapper.mapFromMongo`'s `MemberStatus.valueOf` throws on an unknown status.** Already filed
+  (`findByListIdAndUserId` unknown-status entry). Re-confirmed: the status-filtered queries keep the throw unreachable,
+  the `_id`-only lookup stays exposed.
+
+- **The app-bar home link is live for the cold-cache window on the home route.** Already filed. Re-confirmed by two
+  layers; `AppShell.tsx:40-47` documents it in place.
+
+- **`ListService.deleteList`'s cascade is not transactional.** Already filed with the `ClientSession` proposal.
+
+- **`useHomePath`'s `if (error)` precedes `if (!data)` in `observe` mode too.** `homePath.ts:68-69`. Not a live defect:
+  Apollo 4 `cache-only` reports a miss as `data: undefined, error: undefined`, so the branch does not fire today. Both
+  the adversarial and edge-case layers independently flagged it as a latent hazard riding the Apollo 4.1→4.2 bump. If a
+  future Apollo ever surfaces a cache miss as `error`, the app bar resolves home to `/lists` and the link goes inert ON
+  `/lists` — a dead control on the one screen the code says must never have one. Cheap hardening: gate the error branch
+  on `mode === 'resolve'`. Filed rather than patched because it is speculative about upstream behaviour.
+
+- **`byCreatedAtAsc` and `useHomePath` share a module, so a pure sort helper drags in `useQuery` + `useAuth`.**
+  `homePath.ts` is imported by `ListShoppingPage.tsx:36` for the comparator alone. Design nit; the single-source
+  requirement (AR-E7-8) is about the *home path*, not the comparator, so a `lib/lists/order.ts` split would not violate
+  it. No runtime cost today.
+
+- **The new backend tests are calibrated against the rate limiter's exact 5-per-60s budget.** `ItemLifecycleTest.kt`
+  and `ListSharingTest.kt` carry comments naming their auth-call ceilings ("A third here would return 429";
+  "Three users is the ceiling here"). Correct today, but the coupling is documented rather than removed: tighten the
+  limiter for a security story and several tests fail with a 429 that reads as an auth defect. A test-profile override
+  or per-test limiter reset would state the real precondition.
+
+- **`eslint .` now lints `vite.config.ts` and `codegen.ts` under browser globals and the React presets.** Already filed.
+  The `bp/e2e-playwright` override covers `e2e/**` and `playwright.config.ts` only.
+
+- **`generate-icons.sh` claims byte-reproducibility but enforces only tool presence.** `scripts/generate-icons.sh:13-17,
+  25-27` — the header names librsvg 2.62.3 + ImageMagick 7 as the versions the claim holds for; the script checks
+  `command -v` and nothing more. A contributor on a different librsvg commits three PNGs differing in every byte.
+  Mitigated by `e2e/pwa.spec.ts` re-deriving the maskable safe-zone from the served bytes, so correctness is gated even
+  when reproducibility is not. A version check or a checked-in checksum would make the stated claim real.
+
+- **Concurrent `saveItem` for the same new id: both calls take the create branch.** `ItemService.kt:44-66` is
+  check-then-act across `getByIdCached` and `repository.findById`; neither is atomic with `storage.save`. Two devices
+  queueing the same add both create, second write wins, `addedBy` overwritten. Low reachability on a two-member shopping
+  list. A conditional upsert filter (`Filters.and(eq(_id), eq(listId))`) is the shape of the fix.
+
+- **The epic constraint on the category guard is unqualified; the implementation is update-branch-only.**
+  `epic-7-context.md` says "A category not belonging to the target list is rejected rather than written as a dangling
+  reference" with no branch qualifier; `spec-7-4` legitimises the narrowing via `md`'s ruling A, and
+  `ItemService.kt:48` implements it with a tripwire test pinning the open create hole. The hole itself is already filed.
+  What is NOT recorded anywhere is that the *epic context document* was never amended to carry ruling A, so the two
+  planning artefacts disagree in the permanent record.
+
+- **The epic's resurrection premise is wrong for the soft-deleted one-timer, and the code is right.**
+  `epic-7-context.md` states: *"Item delete is a hard delete, so a save against a deleted id takes the create branch."*
+  That holds for `deleteItem` — `ItemStorage.delete` removes the row from the map and
+  `ItemRepository.delete` removes the document — but NOT for a checked-off `ONE_TIME` item: `checkItem` sets
+  `deleted = true` and leaves the row in place, and `ItemStorage.getByIdCached` does not filter `deleted`, so a later
+  save lands on the **update** branch, where the merge preserves `deleted = true`. That preservation is deliberate and
+  tested — `ItemLifecycleTest.kt:690`, *"7.4 AC1 an edit preserves a soft delete and the item stays invisible"*, asserts
+  `"deleted":true` survives the edit and the item stays out of `getItems`. **Decided by `md`
+  at the 2026-08-21 review: the shipped behaviour and its test stand; only the epic prose was wrong.** Recorded because
+  the false premise actively misled this review — an adversarial layer read it, concluded the preservation was an
+  untested accidental regression, and proposed reverting it. The residual (a stale tab can edit an invisible row that
+  the scheduler hard-deletes within the hour) is the soft-delete-tombstone work the epic already scoped out, not a
+  defect in the merge.

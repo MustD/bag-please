@@ -20,7 +20,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Since Story 7.14 it is an **installable PWA**: the build emits a web app manifest and a service worker
   (`vite-plugin-pwa`), so the served origin registers a worker that intercepts every navigation
 - `routing/` — `Caddyfile` for the frontend image: serves the built SPA and proxies `/api` to the backend (entry point port 2080)
-- `db/` — MongoDB 8 data directory (mounted as a volume)
+- MongoDB 8 data lives in the named Docker volume `db_data` (`docker-compose.yaml`). The old `./db/data` bind mount was
+  removed on 2026-08-13; a stack that previously ran with it will come up on an EMPTY database. The old data is still on
+  disk at `./db/data` — copy it in with
+  `docker run --rm -v ./db/data:/from -v bag-please_db_data:/to alpine cp -a /from/. /to/` before first start if you
+  want it back.
 
 All services are orchestrated via Docker Compose. For day-to-day frontend work, run the Vite dev server locally
 (`npm run dev` on :5173, proxying `/api` to the backend on :4000); the full production stack (built SPA served by

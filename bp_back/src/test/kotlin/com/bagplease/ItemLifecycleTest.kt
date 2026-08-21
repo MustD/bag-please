@@ -4,7 +4,6 @@ import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.Recurring
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.ListStorage
@@ -22,11 +21,8 @@ import com.mongodb.client.model.Filters
 import com.mongodb.client.model.Updates
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import com.mongodb.kotlin.client.coroutine.MongoDatabase
-import java.util.Date
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -43,7 +39,7 @@ import org.bson.Document
 import org.bson.UuidRepresentation
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.UUID
+import java.util.*
 
 private val mapper = jacksonObjectMapper()
 
@@ -727,7 +723,11 @@ class ItemLifecycleTest : FunSpec({
 
             // getByIdCached is list-scoped, so this misses and lands on the create branch; the global
             // findById is what stops ItemRepository.save's _id-only upsert from moving the row.
-            saveItem(token, itemId, catId, listY, name = "MovedToY") shouldContain "errors"
+            // Assert the REASON, not merely that some error came back: a bare `shouldContain "errors"`
+            // is equally satisfied by a 401, a rate-limit 429 or a schema error, so it cannot tell
+            // "rejected for the right reason" from "never reached the code under test" (review, 2026-08-21).
+            saveItem(token, itemId, catId, listY, name = "MovedToY") shouldContain
+                    "Item $itemId belongs to a different list"
 
             val xBody = getItems(token, listX)
             xBody shouldContain itemId.toString()
@@ -758,7 +758,8 @@ class ItemLifecycleTest : FunSpec({
             // "Butter" the re-read below could not tell "nothing was written" from "the name was
             // written and only the category rejected". The spec's Kotest recipe requires a re-read
             // that proves the stored row is unchanged, not merely that an error came back.
-            saveItem(token, itemId, catElsewhere, listHere, name = "Margarine") shouldContain "errors"
+            saveItem(token, itemId, catElsewhere, listHere, name = "Margarine") shouldContain
+                    "Category $catElsewhere does not belong to list $listHere"
 
             val body = getItems(token, listHere)
             body shouldContain catHere.toString()
@@ -786,7 +787,8 @@ class ItemLifecycleTest : FunSpec({
 
             // Name changed too — see the sibling test above: same name on both saves would make the
             // re-read blind to a partial write.
-            saveItem(token, itemId, catGhost, listId, name = "Gouda") shouldContain "errors"
+            saveItem(token, itemId, catGhost, listId, name = "Gouda") shouldContain
+                    "Category $catGhost does not belong to list $listId"
 
             val body = getItems(token, listId)
             body shouldContain catHere.toString()

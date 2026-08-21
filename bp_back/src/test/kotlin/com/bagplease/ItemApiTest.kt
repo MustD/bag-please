@@ -143,7 +143,11 @@ class ItemApiTest : FunSpec({
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
                     setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Oat milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
-                }
+                }.bodyAsText() shouldNotContain "errors"
+                // Asserted for the same reason as the saveCategory above, and it matters MORE here: if this create
+                // silently fails, the next saveItem lands on the CREATE branch instead of the UPDATE branch this
+                // test exists to cover, and every assertion below still passes green. The test would be vacuous
+                // while looking healthy (review finding, 2026-08-21).
 
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
