@@ -3,6 +3,7 @@ title: 'Story 7.15 — Give the dev-auto Warnings a Measured Verdict'
 type: 'chore'
 created: '2026-08-21'
 baseline_revision: 'f3111c1'
+final_revision: '2950fa8'
 status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: true
