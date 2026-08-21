@@ -118,11 +118,22 @@ close-out above before acting on anything here.**
   not that Ktor is warm inside the container (first tests can see 502), and no `stdout`/`stderr` filtering, so a compose
   startup failure silently burns the full timeout before surfacing.
 
-- **`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)** was never investigated. Understand the
-  threshold and whether it degraded anything before the next dev-auto run. **STILL OPEN — 3rd consecutive slip, and
-  escalating.** Both Epic 6 specs carry `oversized` too, and Story 6.1 added a **new** warning type:
-  `warnings: [multiple-goals, oversized]`. `bmad-dev-auto` had independently flagged the multiple-goals risk in its own
-  blocked report before Epic 6 ran. Now an Epic 7 story (Epic 6 retro action B8).
+- ~~**`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)**~~ **CLOSED 2026-08-21 — Story 7.15 gave both
+  warnings a measured verdict, and it is encoded in `_bmad/custom/bmad-dev-auto.toml`** (`workflow.persistent_facts`,
+  consumed by `.claude/skills/bmad-dev-auto/SKILL.md` activation Step 3, before step-02 stamps the warning; the
+  resolver was re-run to prove the value arrives). **Measured** (planning-authored bodies, `o200k_base` via tiktoken
+  0.14.0 — a proxy, not Claude's tokenizer, which does not exist on this host): 6.2 = 2726, 5.5 = 3085, 5.6 = 4468,
+  7.15 = 4530, 5.7 = 4832, 6.1 = 5959 — every one over the 1600 ceiling (1.70×–3.72×), replacing the ≈2×/≈2×/≈4×
+  estimates in AR-E7-13. **Verdict, mixed.** `oversized` is *mis-calibrated for this repo*: it fired on 6 of 6 specs
+  ever written here and none was ever trimmed, and spec size does **not** predict review findings (Spearman ρ = 0.000
+  against total findings, −0.051 actionable, −0.103 medium+) — the *smallest* spec, 6.2, produced the *most* findings
+  (23) and five of the six "assertions that could not fail" from the Epic 6 retro. It is superseded here at 6000
+  tokens, above the largest spec observed. `multiple-goals` is **not** recalibrated: it fired once, on 6.1, it was
+  correct (FR40 edit verb + FR44 store write path, two shippable goals), it was raised in
+  `bmad-dev-auto-result-epic-6.md` §3 *before* Epic 6 ran, and it was ignored — the run was split per story while the
+  scope it flagged was left intact. The workflow is now instructed to name both goals in its terminal result when it
+  carries that flag. Full measurements, correlations and limits (n=5 refutes the assumed direction; it establishes no
+  converse) are in `spec-7-15-dev-auto-warnings-verdict.md`'s Implementation Record.
 
 - ~~**`bp_front/e2e/` is outside both frontend quality gates**~~ **CLOSED 2026-08-07 — Story 7.1 brought the suite
   inside both gates.** `bp_front/tsconfig.e2e.json` (a third project covering `e2e` + `playwright.config.ts`) is now

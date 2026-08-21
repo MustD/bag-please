@@ -1,0 +1,20 @@
+# Team overrides for bmad-dev-auto in bag-please.
+#
+# Base defaults live in {skill-root}/customize.toml, which is marked
+# "DO NOT EDIT -- overwritten on every update"; this file is the sanctioned override point.
+# Merge rules (_bmad/scripts/resolve_customization.py): scalars override, tables deep-merge,
+# all other arrays append. So the entries below are ADDED to the base persistent_facts list,
+# they do not replace the base "file:{project-root}/**/project-context.md" entry.
+#
+# Consumed by: .claude/skills/bmad-dev-auto/SKILL.md, "On Activation -> Step 3: Load Persistent Facts"
+# ("All other entries are facts verbatim"), which runs before step-01 and therefore before
+# step-02-plan.md instruction 6 decides whether to stamp `oversized`.
+
+[workflow]
+
+persistent_facts = [
+  "SPEC SIZE BUDGET, bag-please (Story 7.15 verdict, 2026-08-21, measured not estimated). The stock budget in spec-template.md (900-1600 tokens) and the hardcoded 1600-token `oversized` trigger in step-02-plan.md instruction 6 are MIS-CALIBRATED for this repository and are superseded here. Measured planning-authored bodies of the six dev-auto specs written for this repo, o200k_base via tiktoken 0.14.0: 6.2 = 2726, 5.5 = 3085, 5.6 = 4468, 7.15 = 4530, 5.7 = 4832, 6.1 = 5959. Every one exceeded 1600 (1.70x to 3.72x) and every one was accepted as written, so the flag fired on 6 of 6 specs and carried no information. In this repo, stamp `oversized` only when the spec exceeds 6000 tokens -- above the largest spec observed here -- so the flag marks a genuine outlier rather than the norm. Every bag-please spec must restate a large body of standing convention (project-context.md alone runs over 1000 lines), which is why the stock budget does not fit.",
+  "SPEC SIZE MEASUREMENT, bag-please (Story 7.15). When applying the size threshold, measure the PLANNING-AUTHORED BODY -- the file from the top through the last line before `## Auto Run Result`, with the contents (not the headers) of `## Spec Change Log` and `## Review Triage Log` excluded -- because steps 03 and 04 append those sections after the warning is emitted; whole-file counts inflate non-uniformly (measured gap: 1.32x to 1.65x). State the tokenizer by name and encoding when recording a count: a token threshold with no named tokenizer cannot be complied with precisely by anyone.",
+  "SPEC SIZE IS NOT A QUALITY PROXY, bag-please (Story 7.15). Across the five reviewed specs, spec size does not predict review-finding count: Spearman rho = 0.000 against total findings, -0.051 against actionable (patch+defer), -0.103 against medium-or-higher severity. The SMALLEST spec (6.2, 2726 tokens) produced the MOST findings (23) and five of the six 'assertions that could not fail' named in the Epic 6 retro. Do not trim a spec toward a token budget in the belief that it will reduce review findings; n=5, so this refutes the assumed direction rather than establishing the opposite one.",
+  "MULTIPLE-GOALS IS NOT NOISE, bag-please (Story 7.15). The `multiple-goals` flag fired once, on Story 6.1, and was CORRECT: that story shipped the FR40 edit verb and the FR44 store write path, two independently shippable goals. bmad-dev-auto reported the risk in `bmad-dev-auto-result-epic-6.md` section 3 BEFORE Epic 6 ran and it was ignored. Unlike `oversized`, this flag is not recalibrated. When `multiple-goals` is carried forward, say so explicitly in the terminal result and name both goals, so the next reader cannot carry it unread.",
+]
