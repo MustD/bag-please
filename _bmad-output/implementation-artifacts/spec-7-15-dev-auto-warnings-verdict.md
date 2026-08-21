@@ -5,15 +5,22 @@ created: '2026-08-21'
 baseline_revision: 'f3111c1'
 status: 'done'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-7-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/deferred-work.md'
 warnings: [oversized]
 ---
 
-<!-- oversized: 4291 tokens (o200k_base), 2.7x the 1600 ceiling — measured with the very instrument this story
-     builds, on its first use. Recorded rather than trimmed: the bulk is the Code Map's line-level evidence
+<!-- oversized: stamped at planning time from a 4291-token count; SUPERSEDED — the committed instrument
+     (implementation-artifacts/tools/spec-token-count.py, o200k_base) measured this spec's planning body at
+     4540 before review and 4693 at review close (review patches edited the body), i.e. 2.83x-2.93x the
+     1600 ceiling. The 4291 is retained here only as the figure the stamp was actually
+     made from; the intermediate draft is unrecoverable (the file was untracked), so the ~250-token gap is
+     recorded rather than explained. NOTE the stamp is now self-inconsistent with this story's own verdict:
+     at 4540 the spec sits BELOW the 6000 threshold it establishes, so under the new rule it would not be
+     flagged. It is deliberately left in place as historical evidence of the old threshold firing, not
+     re-evaluated under a rule that did not exist when it was stamped. Recorded rather than trimmed: the bulk is the Code Map's line-level evidence
      index and four Design Notes that each pre-empt a wrong turn (editing a DO-NOT-EDIT file, measuring whole
      files, faking a Claude tokenizer, closing on the flattering half of the evidence). Cutting them to hit a
      budget this story exists to adjudicate would be the ruling made by omission. This spec is a sixth data
@@ -153,6 +160,70 @@ into `epic-7-retro-*.md`. Do not add a config key that nothing reads and call th
 
 ## Review Triage Log
 
+### 2026-08-21 — Review pass
+
+- intent_gap: 0
+- bad_spec: 0
+- patch: 14: (high 2, medium 6, low 6)
+- defer: 5: (high 0, medium 3, low 2)
+- reject: 6
+- addressed_findings:
+  - `[high]` `[patch]` **The encoded extraction rule was inert at the one moment it is applied, and wrong when it was
+    not.** Fact 2 defined the body as "top through the last line before `## Auto Run Result`". `spec-template.md`
+    emits no such heading — it is appended by step-03/04 — so at *stamp* time the anchor matches nothing; and applied
+    retrospectively to a completed spec it swallows `## Implementation Record` (this spec: 10108 tokens instead of
+    4540, 2.2x, and over the very 6000 ceiling it sets). The spec's own I/O matrix carried an "extract to EOF"
+    fallback that never reached the encoding. Fact 2 rewritten with an explicit plan-time case (measure the whole
+    file) and a retrospective case (cut at the *first* of `## Implementation Record` / `## Auto Run Result`).
+  - `[high]` `[patch]` **The story closed the deferred-work ledger but left the retro ledger row open** —
+    `sprint-status.yaml` `action_items` still carried *"Inspect the dev-auto 'warnings: [oversized]' signal … status:
+    open"*, the row that actually drove the slip count AC5 exists to end. Closed with the verdict. This was the
+    story's own thesis failing one level up.
+  - `[medium]` `[patch]` No instrument and no fallback reached the stamping agent, leaving the new threshold as
+    unmeasurable as the 1600 the record calls a defect. Fact 2 now names the committed script and a chars/4 fallback
+    (measured within 4.3% of `o200k_base` across all six specs).
+  - `[medium]` `[patch]` The 900-token floor was silently voided by "superseded here". Fact 1 now states it is
+    retained and that only the upper trigger moved.
+  - `[medium]` `[patch]` **The instrument was discarded.** `extract.py` lived in a session-scoped `.tmp/` directory
+    and was deleted; the spec cited that dead path as "the extraction rule actually used". Committed as
+    `implementation-artifacts/tools/spec-token-count.py` and re-run: it reproduces all five historical counts
+    exactly (3085 / 4468 / 4832 / 5959 / 2726).
+  - `[medium]` `[patch]` "five of the six 'assertions that could not fail'" was propagated into the toml fact, the
+    ledger and the sprint comment — but AC2 had already established the retro table has **seven** rows and flagged
+    the retro's own "6 of the 17" prose as inconsistent. All three now read "five of the seven rows", with the
+    inconsistency attributed to the retro rather than silently inherited.
+  - `[medium]` `[patch]` The frontmatter comment still carried the superseded 4291 / 2.7x. Corrected to the committed
+    instrument's 4540 / 2.84x, with the unrecoverable-draft gap stated rather than explained away.
+  - `[medium]` `[patch]` The recorded `git show --stat` output (493 / 531 insertions) did not match the commit
+    (517 / 555) — invalidated by the amend that folded the Implementation Record in. Corrected.
+  - `[low]` `[patch]` The revisit condition the record claims was never encoded. Fact 1 now carries it (~10 specs, or
+    any spec within 10% of the ceiling).
+  - `[low]` `[patch]` Fact 1 stated 6000 as an unqualified absolute. It now states the margin (41 tokens / 0.7% above
+    an observed max that is itself an upper bound) and that it is a population calibration, not a validated boundary.
+  - `[low]` `[patch]` Precedence was undefined — `persistent_facts` arrays append with no removal mechanism, so a
+    future skill update shipping its own size fact would coexist with this one. Fact 1 now carries a supersession
+    clause.
+  - `[low]` `[patch]` The `multiple-goals` "name both goals in the terminal result" instruction relied on recall from
+    a persistent fact. Moved to `workflow.on_complete`, the HALT hook designed for it (base value is empty; scalars
+    override).
+  - `[low]` `[patch]` Line-reference drift in a document whose authority rests on line-level precision:
+    `project-context.md` 1048 → **1047**, spec 6.1 419 → **417** lines.
+  - `[low]` `[patch]` The closed ledger headline still scoped the item to "all three dev-auto specs (5.5, 5.6, 5.7)"
+    while its body covers six specs and both warning types. Scope note added at the strike-through.
+  - `[low]` `[patch]` This spec's `warnings: [oversized]` now contradicts the rule it establishes — at 4540 it sits
+    below 6000. Left in place deliberately, as historical evidence of the old threshold firing, with the reasoning
+    recorded rather than the field quietly edited.
+
+**Rejected (noteworthy).** *The 6/6 fire rate counts this spec, and "accepted as written" is unverifiable for the
+five historical specs* — the outcome (all shipped `done` carrying the stamp) is observable in the artifacts regardless
+of the squashed history, and the record already states the reconstruction limit. *The retained HTML comment violates
+`spec-template.md:13`'s "remove all HTML comments"* — that instruction targets the template's own scaffolding
+comments; an explanatory frontmatter comment is this project's established practice (Story 7.14 does the same).
+*Spearman reported to three decimals at n=5 over-reads the sample* — the prose disclaims causation explicitly and
+repeatedly, and the amended fact 3 carries the disclaimer into the encoding. *This spec was never itself reviewed* —
+it is being reviewed in this pass. *AR-E7-13's superseded estimates persist unmarked in `epics.md`* — that file is
+frozen planning history and is not amended after the fact.
+
 ## Design Notes
 
 ### 1 — The threshold is not in the toml, and AR-E7-13's "raise it in `_bmad/custom/bmad-dev-auto.toml`" cannot be taken literally
@@ -175,7 +246,7 @@ it by observing the resolver, not by reasoning about it.
 
 The warning is written by `step-02-plan.md` about the spec **as planned**. Everything under `## Auto Run Result`, the
 Implementation Record, and the filled-in triage/change logs are appended by steps 03 and 04, after the fact. Story
-6.1's file is 419 lines; its planning body ends at 343. Story 5.5's file is ~170; its body ends at 128. Measuring
+6.1's file is 417 lines; its planning body ends at 343. Story 5.5's file is ~170; its body ends at 128. Measuring
 whole files would inflate every count non-uniformly and would make the "how far over budget" number meaningless.
 
 The planning-time snapshots are **not recoverable from git**: all five specs entered history in the single squashed
@@ -196,7 +267,7 @@ than on any single absolute number.
 ### 4 — "The threshold is wrong for this codebase" is a real finding, and the counter-evidence is already on the table
 
 AR-E7-13 explicitly accepts a "we looked and the threshold is wrong" close, and the plausible mechanism is that every
-bag-please spec must carry a large body of standing convention (`project-context.md` alone runs 1048 lines). But 6.1
+bag-please spec must carry a large body of standing convention (`project-context.md` alone runs 1047 lines). But 6.1
 is a genuine counterweight: it was the biggest, the only `multiple-goals`, and the highest-finding story of Epic 6 —
 including six assertions that could not fail for the reason they were written. The verdict must survive both facts
 rather than pick the one that closes faster, and a mixed verdict (the size threshold is mis-calibrated **and**
@@ -238,7 +309,9 @@ build, lint, test or E2E gate run, per the spec's Never clause.
 
 ### The extraction rule actually used
 
-`.tmp/…/extract.py`, applied per the I/O matrix: **body = line 1 through the last line before `## Auto Run Result`,
+`implementation-artifacts/tools/spec-token-count.py` (committed at review — the original lived in a
+session-scoped `.tmp/` directory and was discarded, leaving a "measured, not estimated" story with nothing
+anyone could re-run), applied per the I/O matrix: **body = line 1 through the last line before `## Auto Run Result`,
 with the *contents* of `## Spec Change Log` and `## Review Triage Log` removed while their headers are kept.** All
 five specs contain `## Auto Run Result`, so no deviation branch was taken. The extracted bodies match the Code Map's
 predicted end lines exactly (5.5→128, 5.6→134, 5.7→137, 6.1→343, 6.2→200).
@@ -500,10 +573,10 @@ One commit (see `git log -1` on `epic7-maintenance`; this section was folded int
 
 ```
  .../implementation-artifacts/deferred-work.md              |  21 +-
- .../spec-7-15-dev-auto-warnings-verdict.md                 | 493 +++++++++++++++
+ .../spec-7-15-dev-auto-warnings-verdict.md                 | 517 +++++++++++++++
  .../implementation-artifacts/sprint-status.yaml            |   4 +-
  _bmad/custom/bmad-dev-auto.toml                            |  20 +
- 4 files changed, 531 insertions(+), 7 deletions(-)
+ 4 files changed, 555 insertions(+), 7 deletions(-)
 ```
 
 No `bp_front/`, `bp_back/` or `routing/` path appears; no build, lint, test or E2E gate was run, and none was
@@ -515,3 +588,49 @@ as evidence only.
 `multiple-goals` earned its keep (1/1 correct, raised before Epic 6 ran, ignored) and is strengthened rather than
 relaxed. Both are encoded in `_bmad/custom/bmad-dev-auto.toml` as `workflow.persistent_facts`, proved to resolve and
 proved to have a consumer, and the four-slip ledger entry is closed.
+
+---
+
+### Review pass — 2026-08-21
+
+Two adversarial reviewers ran in parallel against `git diff f3111c1..6cbd004`, without prior conversation context.
+Both independently reproduced the load-bearing numbers from scratch — all five token counts exactly, every `chars/4`
+figure within 1, all six correlation coefficients, the five triage totals (14 / 16 / 17 / 22 / 23), the resolver
+output, and the squashed-history claim. **The evidentiary core survived review unchanged. Every defect was in the
+encoding and the record.**
+
+**Findings: 0 intent gaps, 0 spec defects, 14 patches applied, 5 deferred, 6 rejected.** No repair loopback ran. The
+two high-severity findings are the ones worth remembering, because both are the story's own thesis failing one level
+up:
+
+1. **The encoded extraction rule did not implement the Design Note that justified it.** It anchored on
+   `## Auto Run Result` — a heading `spec-template.md` never emits — so at the only moment the threshold is actually
+   applied (step-02, stamping a freshly written spec), the rule matched nothing. Applied the other way, to a finished
+   spec, it swallowed the Implementation Record and reported this spec at 10108 tokens rather than 4540 (4693 at review close). A story whose
+   product is a measurement rule shipped a measurement rule that was inert in the live case and wrong in the archival
+   one.
+2. **The retro ledger row stayed open.** AC5 named `deferred-work.md` and the implementation closed exactly that,
+   while `sprint-status.yaml`'s `action_items` still carried *"Inspect the dev-auto 'warnings: [oversized]' signal …
+   status: open"* — the row whose four consecutive slips are the reason this story exists. A verdict that closes the
+   ledger it was pointed at and leaves the ledger that was actually counting is the failure mode AC4 warns about,
+   reproduced inside the fix.
+
+Also corrected: the instrument had been discarded to a session-scoped `.tmp/` path that the spec then cited as its
+provenance (now committed as `tools/spec-token-count.py`, and re-run to reproduce all five historical counts exactly);
+"five of the six 'assertions that could not fail'" was propagated into three durable artifacts after AC2 had already
+established the table has seven rows; the frontmatter's 4291 and the recorded `--stat` output were both stale.
+
+**Deferred, five items** (`deferred-work.md`, "Deferred from: code review of 7-15-…"): nothing mechanically enforces
+6000 — `step-02-plan.md:19` still hardcodes 1600 and precedence against a persistent fact is undefined, but the only
+real fixes require editing or forking the skill, which the story's Block If reserves for `md`; the "first
+falsification opportunity" is named but untracked; ~1000 tokens now load on every future run with no expiry; the 6000
+calibration rests on n=6 and a max the record itself calls an upper bound; and the override is invisible to any spec
+author that is not `bmad-dev-auto`.
+
+**Residual risks, stated plainly.** The encoding is proved **resolvable and consumed, not proved effective** — the
+next dev-auto run is the first thing that can falsify it, and nothing is assigned to watch it. No Claude token count
+exists anywhere in this work; `o200k_base` is an OpenAI proxy, and the original warnings were themselves agent
+estimates, since the workflow names no tokenizer at all. The five historical bodies were **reconstructed, not
+recovered** (all entered git in the squashed `d4d94fa`), and 6.1's and 6.2's are upper bounds. ρ ≈ 0 removes the basis
+for the old threshold; at n=5, with review depth confounded with epoch and one row inverting the result when dropped,
+it licenses no converse claim.

@@ -118,7 +118,7 @@ close-out above before acting on anything here.**
   not that Ktor is warm inside the container (first tests can see 502), and no `stdout`/`stderr` filtering, so a compose
   startup failure silently burns the full timeout before surfacing.
 
-- ~~**`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)**~~ **CLOSED 2026-08-21 — Story 7.15 gave both
+- ~~**`warnings: [oversized]` on all three dev-auto specs (5.5, 5.6, 5.7)**~~ *(scope at closure: six specs — 5.5, 5.6, 5.7, 6.1, 6.2, 7.15 — and both warning types)* **CLOSED 2026-08-21 — Story 7.15 gave both
   warnings a measured verdict, and it is encoded in `_bmad/custom/bmad-dev-auto.toml`** (`workflow.persistent_facts`,
   consumed by `.claude/skills/bmad-dev-auto/SKILL.md` activation Step 3, before step-02 stamps the warning; the
   resolver was re-run to prove the value arrives). **Measured** (planning-authored bodies, `o200k_base` via tiktoken
@@ -127,7 +127,7 @@ close-out above before acting on anything here.**
   estimates in AR-E7-13. **Verdict, mixed.** `oversized` is *mis-calibrated for this repo*: it fired on 6 of 6 specs
   ever written here and none was ever trimmed, and spec size does **not** predict review findings (Spearman ρ = 0.000
   against total findings, −0.051 actionable, −0.103 medium+) — the *smallest* spec, 6.2, produced the *most* findings
-  (23) and five of the six "assertions that could not fail" from the Epic 6 retro. It is superseded here at 6000
+  (23) and five of the seven rows in the Epic 6 retro's "assertions that could not fail" table (:149-157; that retro's prose says six, its table lists seven). It is superseded here at 6000
   tokens, above the largest spec observed. `multiple-goals` is **not** recalibrated: it fired once, on 6.1, it was
   correct (FR40 edit verb + FR44 store write path, two shippable goals), it was raised in
   `bmad-dev-auto-result-epic-6.md` §3 *before* Epic 6 ran, and it was ignored — the run was split per story while the
@@ -2716,3 +2716,45 @@ against `:2080`, not merely reasoned about.
   foreign namespace — exactly the collision the prefix exists to prevent — and the change spread a repeated string
   literal across ~40 call sites. A per-spec factory (`const userFor = namespace('shopping')`) or a
   `type SpecPrefix` union removes both the repetition and the transposition hazard.
+
+## Deferred from: code review of 7-15-dev-auto-warnings-verdict (2026-08-21)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-15-dev-auto-warnings-verdict.md`
+  summary: Nothing mechanically enforces the recalibrated 6000-token threshold — `step-02-plan.md` instruction 6 still
+  hardcodes "exceeds 1600 tokens", and the verdict lives only as advisory prose in activation context.
+  evidence: the encoding was proved *resolvable and consumed* (resolver exit 0, five `persistent_facts` entries,
+  `SKILL.md` activation Step 3 named as consumer) but never proved *effective*. Precedence between a hardcoded step
+  instruction and a persistent fact is undefined, so a future run may honour either. The story's own Block If forbade
+  editing anything under `.claude/skills/` (`customize.toml` is marked `DO NOT EDIT -- overwritten on every update`),
+  so the only real fixes — forking the skill, or upstreaming a `spec_token_budget` config key the workflow actually
+  reads — are `md`'s call, not an unattended run's. Re-raise if the next dev-auto spec is stamped against 1600.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-15-dev-auto-warnings-verdict.md`
+  summary: The verdict names the next dev-auto run as its "first falsification opportunity", then closes every ledger
+  row that would have caused anyone to look.
+  evidence: this is the failure mode the story exists to correct, one level up — a signal carried unread across three
+  epics is replaced by an untracked expectation. The concrete observable is cheap: the next spec this workflow writes
+  either carries an `oversized` stamp measured against 6000 on its planning body, or it does not. Nothing currently
+  records that check as owed.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-15-dev-auto-warnings-verdict.md`
+  summary: ~1000 tokens of literal prose now load as foundational context on *every* future `bmad-dev-auto` run,
+  permanently, with no expiry and no summarised form; the context cost was never weighed against the benefit.
+  evidence: `persistent_facts` entries are loaded verbatim at activation Step 3 before step-01, so the full four-fact
+  block is paid on every invocation regardless of whether the story is about spec sizing. Arrays append with no removal
+  mechanism, so the cost is monotonic as further verdicts are encoded the same way.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-15-dev-auto-warnings-verdict.md`
+  summary: 6000 is a population calibration on n=6 set 0.7% above a figure the record itself calls an upper bound, and
+  it replaces a flag with a 6/6 fire rate with one projected to fire 0/6.
+  evidence: 6.1's 5959 is explicitly reported as inflated (review-loop Design Note extensions could not be separated
+  out), so the ceiling sits above a knowingly-high value. Nothing in the record supports 6000 over 5000 or 8000 — no
+  outlier-detection reasoning was performed. Identical information content to the old threshold, opposite sign. The
+  amended fact now states the margin and a re-measure trigger, but the underlying calibration question is open.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-15-dev-auto-warnings-verdict.md`
+  summary: The override is only visible to `bmad-dev-auto` activation; a human, or any other skill authoring a spec,
+  still reads the stock 900–1600 budget in `spec-template.md:12`.
+  evidence: the verdict was deliberately encoded outside `.claude/skills/`, which is correct, but that leaves two live
+  and conflicting statements of the budget with nothing cross-referencing them. `project-context.md` — which every
+  agent in this repo loads — received no directive, by design, because no *code* convention changed.
