@@ -4,21 +4,21 @@
 
 ## Goal
 
-Epic 8 fixes eight defects reported from actually using the running app on a phone, and closes the gap that let them
-ship. Narrow-viewport layouts clip silently, the shopping and management list screens have drifted apart (different
-ordering, filtering on only one of them), checking an item off means aiming at a small checkbox one-handed, and a
-mistyped category name can only be corrected by deleting the category and every item in it. The epic retargets the E2E
-mobile gate to the width real phones have, fixes the layouts it now catches, makes the two list surfaces share one
-implementation of ordering and filtering, makes the whole shopping row a check target, adds category rename, and closes
-by writing down the design the app actually has. It is a fixes epic, not a redesign: the visual language, dark theme and
-type scale are unchanged. Both UX specifications on file are stale — the shipped source is authoritative wherever a
-planning document disagrees, and Story 8.7 supersedes them.
+Eight defects reported from actually shopping with the running app, fixed in one epic, plus the two structural changes
+that stop them recurring and the design contract the project has been missing since the frontend was rebuilt. On the
+shopping screen the whole item row becomes the check target instead of a small checkbox, and the category filter stops
+being either/or. On the management screen a long item name wraps instead of vanishing behind an ellipsis, the list
+title stops shoving its own buttons off a narrow phone, a category filter and an item search arrive, and a mistyped
+category can be renamed instead of deleted — which today destroys every item inside it. Both screens stop disagreeing
+about what order the same list is in. Underneath: the project gains a supported narrow-viewport floor that the E2E gate
+actually enforces, and the two list surfaces get one filter unit and one ordering comparator so they cannot drift apart
+again. This is a fixes epic, not a redesign.
 
 ## Reports
 
 The eight defects `md` reported from using the running app, and the story that delivers each. "Report #N" is used as a
-cross-reference throughout `epics.md`; this is where the numbering is defined. Sourced from the UX-DRs and the
-`**Delivers:**` line of each story.
+cross-reference throughout `epics.md`, the story specs, the E2E specs and the source comments; this is where the
+numbering is defined. Sourced from the UX-DRs and each story's `**Delivers:**` line.
 
 1. Checking an item off means aiming at the small checkbox rather than tapping the row (FR60, UX-DR-E8-1) — Story 8.3.
 2. A long item name is truncated instead of wrapping on the management screen (UX-DR-E8-2) — Story 8.2.
@@ -30,9 +30,14 @@ cross-reference throughout `epics.md`; this is where the numbering is defined. S
 8. A mistyped category name can only be corrected by deleting the category and every item in it (FR63, UX-DR-E8-12) —
    Story 8.6.
 
-Seven stories cover eight reports: reports #2 and #3 are both delivered by Story 8.2, and reports #4, #5 and #6 are
-all delivered by Story 8.4. Two stories deliver no report — Story 8.1 delivers the gate that lets reports #2 and #3 be
-proven, and Story 8.7 writes down the design the app actually has.
+Seven stories cover eight reports: #2 and #3 are both Story 8.2, and #4, #5 and #6 are all Story 8.4. Two stories
+deliver no report — Story 8.1 delivers the gate that lets #2 and #3 be proven, and Story 8.7 writes down the design the
+app actually has.
+
+RESTORED 2026-09-05 (Story 8.2 review): this section was added at Story 8.1's review Pass 2 because "report #N" was the
+epic's most-used cross-reference and was defined nowhere. Story 8.2's step-01 recompiled this file from the planning
+artifacts and dropped it while ~26 references remained live. If you regenerate this file again, carry this section
+across — the compiler does not produce it.
 
 ## Stories
 
@@ -46,85 +51,116 @@ proven, and Story 8.7 writes down the design the app actually has.
 
 ## Requirements & Constraints
 
-- **320px viewport floor.** The app must be usable at a 320px CSS width: nothing overflows horizontally, no control is
-  clipped, no interactive element is pushed off-screen. The driver is a foldable cover display (~344px); 320px is chosen
-  so the requirement outlives one handset.
-- **The floor is gated, not inspected.** The E2E suite renders at 320px as part of a normal run, so a future fixed pixel
-  cap fails the gate instead of reaching a phone. Overflow is asserted mechanically, never by eye: two distinct measured
-  assertions — element-level clipping (`scrollWidth > clientWidth` on the text element) and document-level horizontal
-  overflow. Clipping is silent by design, so the document-level check alone gates nothing.
-- **Filtering and search stay client-side and instant.** No new query, refetch or round trip; no loading state while
-  typing. Both surfaces already hold the full item and category sets in the client cache.
-- **The two list surfaces cannot drift again.** The ordering comparator and the filter predicate each have exactly one
-  definition in `src/`, used twice. A second copy is a review failure.
-- **Verification bar (carried forward unchanged).** Every change is verified against the production artifact on both
-  desktop and the narrow floor, UI-driven, FR-mapped, manually exercised before the test is written, and observed
-  failing before it is accepted. Lint and build pass on every story.
-- **No notification layer.** No story adds a toast, snackbar or banner; state changes are confirmed by the UI changing.
+- **320px is a supported viewport.** Every screen is usable at a 320px CSS width: nothing overflows horizontally, no
+  interactive control is pushed off-screen, and no text is clipped **except where a story has measured the clipping and
+  recorded the decision to keep it** — the app-bar username chip is the standing example (Story 8.2 measured it at
+  `scrollWidth 369 > clientWidth 140` and filed it; the bar has no second row to give the name). The concrete driver is
+  a foldable cover display (~344px); 320px is the floor so the requirement outlives one handset. This supersedes any
+  per-component fixed pixel cap that has not been through that audit.
+- **The floor is gated, not inspected.** The E2E suite renders at the floor as part of a normal run, so a future fixed
+  pixel cap fails the gate instead of reaching a device.
+- **Overflow is asserted mechanically, never by eye.** Truncation is silent by design — an ellipsis is not an error —
+  so element-level clipping, document-level horizontal overflow, and per-element viewport containment are three
+  separate assertions with three different jobs, and the document-level one alone gates nothing.
+- **Filtering and search stay client-side and instant.** No query, no refetch, no round trip, no loading state; both
+  surfaces already hold the full item and category sets in the client cache.
+- **One definition, used twice.** The filter unit, the filter predicate and the ordering comparator each have exactly
+  one definition in `src/`. A second copy is a review failure.
+- **Verification discipline, on every story.** E2E against the production artifact, on desktop and at the narrow floor,
+  UI-driven, FR-mapped, manually exercised before the test is written, and **every new test observed failing before it
+  is accepted**. Test data is created through the API/UI only — never by writing directly into MongoDB. Never quote a
+  version, count or line number from a planning document; re-measure it in the pass. Deferrals go into
+  `deferred-work.md`; `sprint-status.yaml` is reconciled at story close.
+- **No toasts, snackbars or banners.** State changes are confirmed by the UI changing.
+- **The backend is frozen.** A scoped unfreeze is authorised but unspent — no story in this epic needs it, and every
+  story's gate asserts `git diff` shows no change under `bp_back/`. `npm run lint` and `npm run build` pass on each.
+- **Not a redesign.** The dark theme, type scale and visual language are unchanged. Light mode, a design-token
+  overhaul and a bottom-tab navigation are known gaps, recorded but not acted on.
 
 ## Technical Decisions
 
-- **The backend is frozen in practice.** A scoped unfreeze was authorised and is unspent — no story needs it. Every
-  story's gate includes: no change under `bp_back/`. Category rename works against the existing id-keyed `saveCategory`
-  upsert and the existing generated mutation document, so no schema change and no codegen run.
-- **Retarget the existing mobile E2E project to 320px; do not add a third project.** Keep the Pixel 7 device descriptor
-  (Chrome-on-Android UA and touch emulation are what it was for) and override only the viewport width. Staying at two
-  viewport projects keeps the registration-toggle mutual-exclusion chain complete and a previously fixed race closed.
-- **Measure before fixing.** Retargeting will surface defects beyond the two reported. The newly-failing set is measured
-  with retries off, recorded, and brought back as a scoping decision before any layout is touched.
-- **The clipping is caused by hard-coded pixel caps paired with `noWrap`** — three on the list management screen (list
-  title, category name, item name), plus an app-bar username chip that is in the audit but not automatically in scope.
-  Caps are removed, not retuned. The header defect is a *squeeze*, not an overflow: `noWrap` sets `overflow: hidden`,
-  which already resolves the title's automatic minimum size to zero, so adding `minWidth: 0` is a no-op and must not be
-  implemented as the fix, and a document-level assertion cannot see the defect. The fix is to make the buttons yield.
-- **Row-level check-off changes a handler signature.** The toggle handler derives the next state from the DOM event's
-  `target.checked`; a row activation has no such event, so the next state is passed explicitly and the checkbox stops
-  owning that decision. Existing failure behaviour (cache untouched on error, control reverts to server state, reason
-  surfaced in the existing inline alert) is preserved. The shopping item row becomes a deliberately closed extension
-  surface — no further nested controls.
-- **Shared units go where the precedent already is.** The ordering comparator lives beside the existing shared
-  `createdAt` comparator in the frontend list library; the filter is one shared component. Stale filter selections are
-  pruned by render-phase adjustment (set-state-in-effect is lint-forbidden), generalised from one id to a set.
-- **The management screen has no realtime subscription, by prior explicit design.** It is refetch-driven; no shared
-  component may assume a subscription exists, and none is added to it.
-- **Accepted-by-decision, pinned by tests rather than guarded:** saving a rename for a category another member deleted
-  recreates it empty (recovery is the existing remove control); category names are not unique and stay that way.
+- **Retarget the existing `mobile` Playwright project to 320px; do not add a third viewport project.** The device
+  descriptor (Chrome-on-Android UA, touch emulation) is retained and only the viewport width is overridden. Keeping
+  exactly two viewport projects is what keeps the registration-toggle dependency chain complete and the shared-config
+  race closed — a third project registering users during the toggle's OFF window would reopen it.
+- **Measure before fixing.** The retarget lands while the layouts are still broken, and the first act is to run the
+  suite once at `retries: 0` and record every newly-failing test. A substantially larger count than the two reported
+  defects is a scoping decision for the user, taken with the number in hand.
+- **Clipping and overflow are different defects.** `noWrap` sets `overflow: hidden`, and a clipped element does not
+  widen its ancestors, so a document-level overflow check stays green while the reported defects are on screen. The
+  detecting assertion is the same comparison one level down, on the text element. Both helpers ship in the shared E2E
+  support module, one definition each.
+- **Remove the fixed pixel caps, do not retune them.** Three `noWrap` + `maxWidth` Typography constructs on the
+  management screen (list title, item name, category name) are the cause; all three go in the same pass. The app-bar
+  username chip is the same family — audited, with the outcome recorded either way, not automatically in scope.
+- **The narrow-floor header fix is the buttons yielding, not the title shrinking.** Adding `minWidth: 0` to the title
+  is a no-op, because `overflow: hidden` has already resolved its automatic minimum size to zero.
+- **The item row becomes a single control.** One accessible name, one checked state, one tab stop, one mutation per
+  activation — not a checkbox nested in a clickable row. The toggle handler must take its next state explicitly rather
+  than reading it off a DOM event. Existing failure behaviour is unchanged: the cache is untouched on error and the
+  control reverts to server state, with the reason in the existing inline error alert. A gesture that starts on a row
+  and scrolls must not check the item, and that must be driven as a real pointer gesture, not a synthetic click.
+- **Consequence to respect:** with the whole row as one control, the store chip and the avatar inside it are a closed
+  extension surface — they cannot become affordances of their own without reopening this decision.
+- **The management screen stays refetch-driven.** It deliberately carries no realtime subscription; the shared filter
+  component is presentational and must not assume one exists.
+- **Stale-filter guards generalise to a set** (prune every selected id that no longer exists) and live once in the
+  shared unit. They stay render-phase adjustments — project lint forbids setting state in an effect.
+- **Category rename rides the existing id-keyed upsert mutation** — no backend change, no schema change, no codegen
+  run. The save must send the complete entity including the category's loaded `listId`: the repository sets `listId`
+  unconditionally, so a wrong value moves the category to another list and strands its items.
+- **Category resurrection is decided, not a bug.** Saving a rename for a category another member has deleted recreates
+  it, empty. That is accepted: it carries no false data, strands nothing, and the user's existing remove control is
+  the recovery. Do not add an existence check, and do not write coverage asserting the save fails.
+- **Orphaned items:** category deletion does not cascade on the backend, so the client deletes items in an awaited
+  loop with no transaction; a mid-loop failure orphans the survivors. This epic surfaces existing orphans (a synthetic
+  `Uncategorized` group on the management screen, where edit and remove both work) and records the cause without
+  fixing it.
 
 ## UX & Interaction Patterns
 
-- **Item names wrap to at most two lines** instead of truncating, with the horizontal gap to the row's controls reduced
-  to give the name back space.
-- **At the narrow floor the management header's "+ Category" / "+ Item" buttons wrap to their own row** beneath the
-  title, which takes the full width. Both keep their text labels; desktop is unchanged.
+- **Item names wrap to at most two lines** on the management screen instead of truncating, with the horizontal gap to
+  the row's controls reduced to give the name back space. Past two lines they ellipsise; that bound is deliberate, so a
+  pathological name cannot outgrow the controls beside it. (Shipped by Story 8.2.)
+- **At the narrow floor the management header's "+ Category" / "+ Item" buttons take their own row** beneath the title,
+  which takes the full width. Both keep their text labels. Shipped as a breakpoint rule (`xs`), not a fit test, so the
+  break point cannot vary with the longest word in the list name; above `sm` the header is one row as before.
+  (Shipped by Story 8.2.)
 - **The whole shopping item row is one control**: one accessible name, one checked state, one tab stop, one keyboard
   activation, one mutation per activation. A scroll gesture begun on a row must not check the item — driven as a real
-  pointer-down/move/up gesture, asserted on the mobile project.
-- **The category filter stays a `Select`, made multiple**, with checkboxes in the menu and a summary in the closed
-  control — not a chip row. Selecting nothing means all categories. Both list screens get that filter and the same
-  case-insensitive name search, combined by AND; the shopping view's checked-status toggle (All / To buy / Done) stays
-  shopping-only, and the shared component accommodates its absence rather than rendering it disabled.
+  pointer-down/move/up gesture, asserted on the mobile project. (Story 8.3.)
+- **The manage-vs-use boundary is deliberate:** `/lists/:id` manages a list, `/list/:id` shops it. The two screens
+  differ on purpose in places, and those differences stay.
 - **Empty categories:** shown on the management screen when no filter or search is active (its "No items yet." row is
-  where a first item gets added), hidden while filtering. The shopping view hides empty groups always.
-- **Orphaned items** (category deleted out from under them) appear in a synthetic `Uncategorized` group on the
-  management screen, where both edit (to re-categorise) and remove work. The group is absent when there are no orphans.
-- **Category rename** opens a dialog pre-filled with the current name from an edit control beside the row's existing
-  add-item and remove buttons, mirroring the item-edit idiom and the add-dialog's validation (required, 100-char max,
-  validated on submit, Enter submits via a native form). Saving an unchanged name is a permitted no-op. The save must
-  carry the full entity including the category's loaded `listId` — the backend sets `listId` unconditionally, so an
-  omitted or wrong one moves the category to another list.
+  where a first item gets added), hidden while filtering or searching. The shopping view hides empty groups always.
+  This is the one place the two surfaces intentionally differ, so both branches need asserting.
+- **The category filter stays a select made multiple**, with checkboxes in the menu and a summary in the closed
+  control — not a chip row. Selecting nothing means all categories, preserving today's default.
+- **The checked-status toggle (All / To buy / Done) stays shopping-only.** The shared component accommodates its
+  absence rather than rendering a disabled control.
+- **Canonical order is by name** — categories by name, items by name within a category — on both surfaces.
+- **The category rename control** sits beside the row's existing add-item and remove buttons, opening a dialog
+  pre-filled with the current name, mirroring the item-edit dialog's form conventions and validation (required name,
+  100-character maximum, validate on submit, inline errors, Enter submits via a native form). Saving an unchanged name
+  is a permitted no-op.
+- **Both list surfaces key rows by name in their test ids**, so any spec covering the rename must re-query after the
+  save rather than hold a locator across the mutation. Category names are not unique and this epic does not make them
+  so; a colliding rename is out of scope and recorded, not guarded.
 
 ## Cross-Story Dependencies
 
-- **8.1 → everything.** Story 8.1 delivers the retargeted viewport and both overflow helpers; 8.2 is its first consumer
-  and must observe the clipping helper failing against the pre-fix layout. Every later story's gate runs on the
-  retargeted project and reuses those helpers.
-- **8.2 → 8.6.** Rename adds a third control (~40px) to a category row whose name was already truncating, so 8.6 is
-  sequenced after the layout fix and must re-prove the row at 320px with both helpers.
-- **8.4 ↔ 8.5.** Both touch the same two route components under the one-definition rule; 8.5's preservation of
-  empty-category behaviour depends on 8.4's filter-active branch.
-- **8.7 last.** The design spine is written after the implementation stories so it describes verified reality, and it
-  cross-references anything 8.1's measurement filed rather than fixed. It also marks (not deletes) the two stale UX
-  specs with superseded banners. It ships no code, so the production-artifact E2E bar is deliberately not applicable;
-  its analogue is that every factual claim names the file it can be checked against.
-- **8.5 files, does not fix, the orphan cause** — the non-cascading category delete with its client-side per-item loop —
-  since making it atomic would need the unspent backend unfreeze and would not help existing orphans.
+- **8.1 must land first, while the layouts are still broken.** It delivers the 320px gate and the two assertion
+  helpers; an assertion written after 8.2 has fixed the defect can never be observed failing. 8.2 and 8.6 both consume
+  those helpers and the retargeted project, and add no test infrastructure of their own.
+- **8.2 before 8.6.** The rename adds a third control (~40px) to a category row whose name is already truncating on
+  the reported device; landing it first would deepen the reported defect on exactly that device.
+- **8.5 after 8.4.** Both rewrite the same grouping block on both pages, and 8.4 rewrites it first — doing 8.5 earlier
+  means editing it twice.
+- **8.4 and 8.5 stay separate stories** on scope-budget grounds, despite touching the same lines. 8.4 is already the
+  epic's largest story.
+- **8.3 is independent** of the chain and schedulable anywhere; it is placed early so real user value lands soon.
+- **8.7 is last and is scheduled, not conditional** — it describes the shipped design rather than prescribing one, so
+  it can only be honest after the implementation stories. It also collects anything 8.1's measurement filed rather
+  than fixed. The production-artifact E2E constraint is deliberately not applicable to it, since it ships no code.
+- Two existing UX specifications on file are stale; the shipped source is authoritative wherever a planning document
+  disagrees. 8.7 marks both superseded without deleting them.

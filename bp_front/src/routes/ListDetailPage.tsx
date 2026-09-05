@@ -89,11 +89,22 @@ export default function ListDetailPage() {
           Back to lists
         </Link>
 
+        {/* Header (Story 8.2, report #3). Below `sm` the title takes its own
+            full-width row and the action buttons take the row beneath it, on
+            every phone width — NOT on a fit test. The alternative, letting the
+            row wrap naturally, makes the break point a function of the list
+            name's longest word, and a single long word would then widen the row
+            past the viewport. From `sm` up the two share one row exactly as
+            before. The title carries no `noWrap` and no `maxWidth`: at 320px the
+            old cap was academic anyway, because `noWrap`'s `overflow: hidden`
+            resolved the title's min-width to zero and the two buttons squeezed
+            it to 68px — every title truncated, not just long ones. */}
         <Box
           sx={{
             display: 'flex',
+            flexDirection: {xs: 'column', sm: 'row'},
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: {xs: 'stretch', sm: 'center'},
             gap: 2,
             mb: 3,
           }}
@@ -101,13 +112,14 @@ export default function ListDetailPage() {
           <Typography
             variant="h4"
             color="text.primary"
-            noWrap
-            sx={{maxWidth: {xs: 200, sm: 460}}}
+            sx={{overflowWrap: 'anywhere'}}
             data-testid="list-detail-title"
           >
             {listName}
           </Typography>
-          <Stack direction="row" spacing={1}>
+          {/* `flexShrink: 0` so the buttons keep their text labels on the shared
+              `sm`+ row: the title wraps instead of squeezing them. */}
+          <Stack direction="row" spacing={1} sx={{flexShrink: 0}}>
             <Button
               variant="outlined"
               startIcon={<AddIcon/>}
@@ -161,16 +173,20 @@ export default function ListDetailPage() {
                       py: 1.5,
                     }}
                   >
+                    {/* Wraps rather than truncating (Story 8.2): the name takes
+                        the room this flex row actually has. Deliberately NOT
+                        line-clamped like the item name below — a category
+                        heading has no run of controls to outgrow, and a clamp
+                        here would trade an ellipsis for a vertical clip. */}
                     <Typography
                       variant="h6"
                       color="text.primary"
-                      noWrap
-                      sx={{maxWidth: {xs: 160, sm: 380}}}
+                      sx={{overflowWrap: 'anywhere'}}
                       data-testid="category-name"
                     >
                       {category.name}
                     </Typography>
-                    <Box>
+                    <Box sx={{display: 'flex', flexShrink: 0}}>
                       <Tooltip title="Add item to this category">
                         <IconButton
                           aria-label={`Add item to ${category.name}`}
@@ -200,44 +216,57 @@ export default function ListDetailPage() {
                   ) : (
                     <List disablePadding>
                       {categoryItems.map(item => (
-                        <ListItem
-                          key={item.id}
-                          data-testid={`item-row-${item.name}`}
-                          secondaryAction={
-                            <Stack direction="row">
-                              <Tooltip title="Edit item">
-                                <IconButton
-                                  aria-label={`Edit item ${item.name}`}
-                                  onClick={() => setEditItemTarget(item)}
-                                  data-testid="edit-item-button"
-                                >
-                                  <EditOutlinedIcon fontSize="small"/>
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Remove item">
-                                <IconButton
-                                  edge="end"
-                                  color="error"
-                                  aria-label={`Remove item ${item.name}`}
-                                  onClick={() => setRemoveItemTarget(item)}
-                                  data-testid="remove-item-button"
-                                >
-                                  <DeleteOutlinedIcon fontSize="small"/>
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
-                          }
-                        >
+                        // The controls are flex SIBLINGS of the name, not the
+                        // `secondaryAction` prop they used to be (Story 8.2).
+                        // `secondaryAction` positions them absolutely, so the
+                        // text box was set by the ListItem's reserved padding
+                        // rather than by the controls' real width — which is why
+                        // the name needed a hardcoded `maxWidth` to stay clear of
+                        // them. As siblings, `ListItemText` (flex: 1 1 auto,
+                        // minWidth: 0) takes exactly the room the row has left.
+                        <ListItem key={item.id} data-testid={`item-row-${item.name}`} sx={{gap: 1}}>
                           <ListItemText
                             primary={
-                              // Narrowed at xs so the name truncates instead of
-                              // running under the now-two-control secondary
-                              // action at ~360px (Story 6.1).
-                              <Typography noWrap sx={{maxWidth: {xs: 150, sm: 400}}} data-testid="item-name">
+                              // Wraps to AT MOST TWO LINES, then ellipsises. The
+                              // clamp sits on the element that holds the text, so
+                              // `expectNotClipped`'s height branch measures the
+                              // real text box: a third line makes scrollHeight
+                              // exceed clientHeight and the gate goes red.
+                              <Typography
+                                sx={{
+                                  display: '-webkit-box',
+                                  WebkitBoxOrient: 'vertical',
+                                  WebkitLineClamp: 2,
+                                  overflow: 'hidden',
+                                  overflowWrap: 'anywhere',
+                                }}
+                                data-testid="item-name"
+                              >
                                 {item.name}
                               </Typography>
                             }
                           />
+                          <Stack direction="row" sx={{flexShrink: 0}}>
+                            <Tooltip title="Edit item">
+                              <IconButton
+                                aria-label={`Edit item ${item.name}`}
+                                onClick={() => setEditItemTarget(item)}
+                                data-testid="edit-item-button"
+                              >
+                                <EditOutlinedIcon fontSize="small"/>
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Remove item">
+                              <IconButton
+                                color="error"
+                                aria-label={`Remove item ${item.name}`}
+                                onClick={() => setRemoveItemTarget(item)}
+                                data-testid="remove-item-button"
+                              >
+                                <DeleteOutlinedIcon fontSize="small"/>
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </ListItem>
                       ))}
                     </List>

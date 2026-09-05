@@ -133,6 +133,18 @@ export default defineConfig({
   //         execute. Record the skip count on every future row: Epic 8 adds more
   //         mobile-only specs, and without it the equal-counts invariant reads
   //         green as the meaning drains out.
+  //       2026-09-05 (Story 8.2): 168 = 83 / 83 / 1 / 1  (+3 untagged tests at +2
+  //         runs each = +6 runs, against that 162: a long-category-name case at
+  //         the floor, an unbreakable-single-word case at the floor, and the
+  //         header's above-the-breakpoint case), OF WHICH 16 ARE SKIPS — 15 in
+  //         chromium (the mobile-only narrow-viewport tests) and, for the first
+  //         time, 1 in MOBILE: the above-the-breakpoint header test is the file's
+  //         only assertion above `sm`, so it inverts the usual guard and skips on
+  //         `mobile` instead. The equal-counts invariant therefore no longer
+  //         implies the skips are all on one side; count them per project.
+  //         (An earlier draft of this row said "+4 untagged tests, +2 runs each",
+  //         which is 8 runs and was wrong in both terms — caught at review. The
+  //         arithmetic to check is tests x 2 = the delta in the total.)
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

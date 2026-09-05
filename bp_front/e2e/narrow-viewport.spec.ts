@@ -17,51 +17,46 @@ import {
 
 // Story 8.1 — Move the Mobile Gate to the Width People Actually Use.
 //
-// ═══ HOW THE DEFECTS ARE RECORDED (revised at review) ═══
+// ═══ HOW THE DEFECTS WERE RECORDED, AND WHAT THEY ARE NOW (Story 8.2) ═══
 //
-// Reports #2 and #3 are live defects in the shipped layout, and this spec is
-// their proof. They are asserted as INVERTED EXPECTATIONS —
+// Reports #2 and #3 were live defects in the shipped layout, and while they were
+// live this spec asserted them as INVERTED EXPECTATIONS —
 //
 //     await expect(expectNotClipped(loc)).rejects.toThrow(/clipped horizontally/)
 //
-// — not with `test.fail()`, which was the first draft and is wrong for this job:
-// `test.fail()` reports a test as PASSING when it fails for ANY reason, so a
-// broken `registerViaUi`, a backend 500 or a locator timeout is indistinguishable
-// from the clipping the test exists to document. The inverted form pins the
-// defect AND its cause, and still exits zero — which the run needs, because a
-// permanently-red `mobile` project would (a) make every future regression
-// indistinguishable from the planned reds and (b) strand the
-// `registration-toggle-*` projects at "did not run" (they declare
-// `dependencies: ['chromium','mobile']`), leaving FR20/FR21 unverified on every
-// single run.
+// — rather than with `test.fail()`, which reports a test as PASSING when it fails
+// for ANY reason, so a broken `registerViaUi`, a backend 500 or a locator timeout
+// would have been indistinguishable from the clipping the tests existed to
+// document.
 //
-// FOR STORY 8.2: when the layout is fixed these three assertions fail loudly —
-// "expected promise to reject" — naming the exact helper and element that has
-// started passing. That is the handoff signal; convert each back to a plain
-// `await expectNotClipped(...)` as it goes green. Note the third one
-// specifically: the 68px is a flex-distribution result of the two header buttons
-// taking the row, so relaxing the `maxWidth` caps will not discharge it.
+// Story 8.2 fixed the layout, and the three assertions duly failed with "expected
+// promise to reject" — the handoff signal Story 8.1 wrote them to produce. Each
+// is now a plain `await expectNotClipped(...)`: SAME test, SAME report number,
+// SAME element, opposite expectation. They are no longer evidence of a defect;
+// they are the regression gate that keeps the fix from being undone. Note the
+// third one specifically: its 68px title box was a flex-distribution result of
+// the two header buttons taking the row, which is why 8.2 gave the buttons their
+// own row below `sm` instead of retuning a `maxWidth`.
 //
 // The CONTROLS below pass today and must keep passing. They are labelled so
 // nobody mistakes a control for evidence that the fix worked (test-quality.md:
 // an assertion already true before the action is a hollow green). Both helpers,
 // and BOTH AXES of `expectNotClipped`, have a falsifiability control that does
-// not depend on the shipped layout — so none of them dies when Story 8.2 fixes
-// the layout out from under it.
+// not depend on the shipped layout — which is what keeps them honest now that
+// Story 8.2 has taken the layout reds away.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Locators for the three text elements under measurement.
 //
-// The three testids were ADDED to ListDetailPage.tsx in Story 8.1.
-// `expectNotClipped` must target the TEXT element, because measuring the row
-// would measure the wrong box. Reaching them structurally instead —
-// getByTestId('item-row-X').locator('p') — is what selector-resilience warns
-// against, and Story 8.2 rewrites these very elements, so a structural path
-// would break in the next story. Only the attributes were added: the `noWrap`
-// and the `maxWidth` caps stay, because they are AC4's evidence.
+// The three testids were ADDED to ListDetailPage.tsx in Story 8.1, and Story 8.2
+// rewrote all three elements around them — which is exactly why they are reached
+// by testid. `expectNotClipped` must target the TEXT element, because measuring
+// the row would measure the wrong box, and because the two-line clamp Story 8.2
+// applies is only meaningful on the box the text lives in. Reaching them
+// structurally instead — getByTestId('item-row-X').locator('p') — is what
+// selector-resilience warns against and would have broken in 8.2's rewrite.
 //
-// Cited by testid, not by line number: the numbers moved once inside this story
-// already, and Story 8.2 will move them again.
+// Cited by testid, not by line number: the numbers have moved in both stories.
 // ─────────────────────────────────────────────────────────────────────────────
 const listTitle = (page: Page): Locator => page.getByTestId('list-detail-title')
 const categoryName = (page: Page, name: string): Locator =>
@@ -74,6 +69,21 @@ const itemName = (page: Page, name: string): Locator =>
 const LONG_LIST_NAME = 'Weekly big shop for the whole household'
 const LONG_CATEGORY_NAME = 'Refrigerated dairy and chilled desserts'
 const LONG_ITEM_NAME = 'Semi-skimmed organic milk two litre bottle'
+
+// ONE UNBREAKABLE WORD — the only name in this file with no space to wrap on.
+// Every other name here is multi-word, so the `overflowWrap: 'anywhere'` Story
+// 8.2 put on the three names is exercised by NOTHING else: those wrap on their
+// spaces with or without it. Measured at the floor (2026-09-05): as shipped the
+// title reports `288 === 288` and the page `320 === 320`; with `overflowWrap`
+// back at `normal` the title is `scrollWidth 760 > clientWidth 288` and the page
+// `776 > 320` — a real NFR-E8-1 violation that would otherwise ship green.
+const UNBREAKABLE_LIST_NAME = 'Supercalifragilisticexpialidociousaurusrexinatorium'
+
+// MUI's default `sm`, which is the breakpoint ListDetailPage's header stacks
+// below (the theme declares no custom `breakpoints`, verified 2026-09-05). Named
+// because the boundary test asserts AT it and just below it, and two bare 600s
+// would read as coincidence rather than as the breakpoint under test.
+const SM_BREAKPOINT_PX = 600
 
 // Every scenario registers a FRESH unique user and asserts only on data it
 // created — the suite-wide rule in support/ui.ts. Namespace prefix: `narrow`.
@@ -196,49 +206,144 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
   })
 
   // ───────────────────────────────────────────────────────────────────────────
-  // AC4 — expectNotClipped is the load-bearing half. These three record the
-  // live defects, each pinned to the specific failure it is evidence of.
+  // AC4 — expectNotClipped is the load-bearing half. These three were the record
+  // of the live defects; since Story 8.2 fixed the layout they are the gate that
+  // keeps each of those three failures from coming back.
   // ───────────────────────────────────────────────────────────────────────────
 
-  test('[P0] DEFECT — a long item name is clipped at the floor (report #2)', async ({page}, testInfo) => {
-    // ListDetailPage.tsx renders the item name `noWrap` under `maxWidth: {xs:
-    // 150}`, so at 320px the user sees an ellipsis where the item's name should
-    // be. Do NOT "fix" this test — the clipping IS AC4's proof. Story 8.2 fixes
-    // the layout, at which point this assertion fails with "expected promise to
-    // reject" and must be converted to a plain `await expectNotClipped(...)`.
+  test('[P0] a long item name is fully readable at the floor (report #2)', async ({page}, testInfo) => {
+    // Report #2: ListDetailPage.tsx used to render the item name `noWrap` under
+    // `maxWidth: {xs: 150}`, so at 320px the user saw an ellipsis where the item's
+    // name should be. Story 8.2 removed the cap and wraps the name to at most two
+    // lines, so the HEIGHT branch of `expectNotClipped` is what carries this
+    // assertion now — a name needing a third line clips vertically.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await openListAtFloor(page, testInfo, 'longitem')
-    await expect(expectNotClipped(itemName(page, LONG_ITEM_NAME))).rejects.toThrow(
-      /text is clipped horizontally/,
-    )
+    await expectNotClipped(itemName(page, LONG_ITEM_NAME))
+
+    // NFR-E8-1's other two clauses, on the element this story widened. With the
+    // `maxWidth` cap gone the NAME is the box most able to escape the row, and
+    // neither `expectNotClipped` (which measures clipping, not position) nor the
+    // control checks elsewhere in this file can see that.
+    await expectInsideViewport(itemName(page, LONG_ITEM_NAME), 'the item name')
+    await expectNoHorizontalOverflow(page)
   })
 
-  test('[P0] DEFECT — a long list title is clipped at the floor (report #3)', async ({page}, testInfo) => {
-    // ListDetailPage.tsx renders the title `noWrap` under `maxWidth: {xs: 200}`
-    // beside two buttons. Report #3 is a SQUEEZE, not an overflow (AR-E8-3a):
-    // `noWrap`'s `overflow: hidden` already resolves the title's min-width to
-    // zero, so it shrinks to an ellipsis while the buttons take the width.
-    // `minWidth: 0` is a no-op here and is not the fix.
+  test('[P0] a long list title is fully readable at the floor (report #3)', async ({page}, testInfo) => {
+    // Report #3: the title was `noWrap` under `maxWidth: {xs: 200}` beside two
+    // buttons — a SQUEEZE, not an overflow (AR-E8-3a): `noWrap`'s `overflow:
+    // hidden` already resolved the title's min-width to zero, so it shrank to an
+    // ellipsis while the buttons took the width. `minWidth: 0` was therefore a
+    // no-op and was never the fix; below `sm` the buttons now take their own row.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await openListAtFloor(page, testInfo, 'longtitle')
-    await expect(expectNotClipped(listTitle(page))).rejects.toThrow(/text is clipped horizontally/)
+    await expectNotClipped(listTitle(page))
+
+    // GUARDS, not evidence: all four held BEFORE Story 8.2 too — the pre-fix
+    // defect was the title being squeezed, not the buttons being harmed. They
+    // are here because AC2 names them as part of the fixed state, and because
+    // the rejected alternatives to the row wrap were icon-only buttons (loses
+    // the labels) and a guaranteed title floor (compresses the buttons until
+    // their own labels wrap). Each of those would turn one of these red.
+    const addCategory = page.getByTestId('add-category-button')
+    const addItem = page.getByTestId('add-item-button')
+    await expect(addCategory, 'the buttons keep their text labels').toHaveText('Category')
+    await expect(addItem, 'the buttons keep their text labels').toHaveText('Item')
+    await expectInsideViewport(addCategory, 'the add-category control')
+    await expectInsideViewport(addItem, 'the add-item control')
+    await expectNoHorizontalOverflow(page)
+
+    // THE ASSERTION THAT ACTUALLY GATES THE FIX. Everything above is satisfied
+    // by the DEFECT: restore the pre-fix single-row header and merely leave
+    // `noWrap` off, and the title collapses back to report #3's 68px column —
+    // measured 2026-09-05 at 68px wide × 504px tall, so `scrollWidth 68 ===
+    // clientWidth 68`, `scrollHeight 504 === clientHeight 504`, page `320 ===
+    // 320`, both buttons inside with their labels. Every line above stays GREEN
+    // while the squeeze is on screen; without the geometry below these two tests
+    // gate the re-introduction of `noWrap` and nothing else.
+    const titleBox = (await listTitle(page).boundingBox())!
+    const addCategoryBox = (await addCategory.boundingBox())!
+    const addItemBox = (await addItem.boundingBox())!
+    expect(
+      addCategoryBox.y,
+      `the buttons must take their OWN ROW below the title (title bottom ${titleBox.y + titleBox.height}, button top ${addCategoryBox.y})`,
+    ).toBeGreaterThanOrEqual(titleBox.y + titleBox.height)
+    expect(addItemBox.y, 'both buttons share that row').toBeCloseTo(addCategoryBox.y, 0)
+
+    // …and the title takes the whole row it was given. Compared against its own
+    // container, so the Container's padding is not mistaken for a squeeze.
+    const spans = await listTitle(page).evaluate(el => ({
+      width: el.getBoundingClientRect().width,
+      container: el.parentElement!.getBoundingClientRect().width,
+    }))
+    expect(
+      spans.width,
+      `the title must span its row (width ${spans.width} of container ${spans.container})`,
+    ).toBeGreaterThanOrEqual(spans.container - 1)
   })
 
-  test('[P0] DEFECT — even a SHORT list title is clipped at the floor (report #3, severity)', async ({
+  test('[P0] an unbreakable list name neither escapes the floor nor scrolls the page', async ({
     page,
   }, testInfo) => {
-    // This story's own finding rather than something it inherited: at 320px the
-    // title box measures 68px while "Shop" needs 79, so report #3 is not "long
-    // titles truncate", it is EVERY title truncating. The squeeze is a
-    // flex-distribution result — the two header buttons take the row — so Story
-    // 8.2 cannot discharge it by relaxing the `maxWidth` caps, and this test is
-    // what tells it so.
+    // The case removing the caps CREATED. A capped, `noWrap` title could not
+    // widen anything; an uncapped one can, and a single word with no break
+    // opportunity is the shape that does it — which is exactly why the user's
+    // ruling was to wrap the header at `xs` rather than on a natural flex wrap.
+    // Nothing else in this suite exercises `overflowWrap: 'anywhere'`: every
+    // other name is multi-word (see UNBREAKABLE_LIST_NAME for the measurement).
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'unbreakable', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    await createListAndOpen(page, UNBREAKABLE_LIST_NAME)
+
+    await expectNotClipped(listTitle(page))
+    await expectInsideViewport(listTitle(page), 'the list title')
+    await expectNoHorizontalOverflow(page)
+  })
+
+  test('[P0] a long category name is fully readable at the floor (AR-E8-3, third instance)', async ({
+    page,
+  }, testInfo) => {
+    // The third `noWrap` + `maxWidth` construct on this screen, and the only one
+    // nobody reported — `category-name` was capped at `{xs: 160}` beside two
+    // IconButtons, so it clipped at the floor exactly as the item name did.
+    // Story 8.2 removed all three caps in one pass rather than leaving this one
+    // to be re-found later, and this is the assertion that says so. Observed RED
+    // against the pre-fix layout: scrollWidth 341 > clientWidth 160.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await openListAtFloor(page, testInfo, 'longcat')
+    await expectNotClipped(categoryName(page, LONG_CATEGORY_NAME))
+
+    // The row's own controls, which the removed cap used to reserve space for.
+    const row = page.getByTestId(`category-row-${LONG_CATEGORY_NAME}`)
+    await expectInsideViewport(row.getByTestId('add-item-in-category-button'), 'the add-item-in-category control')
+    await expectInsideViewport(row.getByTestId('remove-category-button'), 'the remove-category control')
+
+    // …and the name's own box, plus the page. Same reasoning as the item name:
+    // the widened element is the one that can now escape, and clipping checks
+    // cannot see position.
+    await expectInsideViewport(categoryName(page, LONG_CATEGORY_NAME), 'the category name')
+    await expectNoHorizontalOverflow(page)
+  })
+
+  test('[P0] even a SHORT list title is fully readable at the floor (report #3, severity)', async ({
+    page,
+  }, testInfo) => {
+    // Story 8.1's own finding rather than something it inherited: at 320px the
+    // title box measured 68px while "Shop" needs 79, so report #3 was not "long
+    // titles truncate", it was EVERY title truncating. The squeeze was a
+    // flex-distribution result — the two header buttons taking the row — which is
+    // why relaxing a `maxWidth` could not have discharged it, and why this case
+    // is kept separate from the long-title one above: it is the assertion that
+    // fails if the header ever goes back to sharing one row at `xs`.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await shortListAtFloor(page, testInfo, 'shorttitle')
-    await expect(expectNotClipped(listTitle(page))).rejects.toThrow(/text is clipped horizontally/)
+    await expectNotClipped(listTitle(page))
   })
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -251,10 +356,11 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // GREEN TODAY and the mirror of the three defects above: without this, those
     // prove nothing about the layout and everything about a broken helper.
     //
-    // Measurement (2026-09-05) showed the title is clipped at 320px even for a
-    // FOUR-character name, so it cannot join this control — a single test
-    // asserting title-then-category-then-item would abort on its first line and
-    // leave no committed proof that `expectNotClipped` can pass at all.
+    // Story 8.1's measurement (2026-09-05) showed the title clipped at 320px even
+    // for a FOUR-character name, so it could not join this control then. Story 8.2
+    // fixed that, and the short-title case above now asserts it directly — this
+    // control deliberately keeps to the category and item names so it stays a
+    // control for the HELPER rather than a second copy of that assertion.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await shortListAtFloor(page, testInfo, 'fits')
@@ -414,5 +520,87 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectInsideViewport(row.getByTestId('edit-item-button'), 'the item edit control')
     await expectInsideViewport(row.getByTestId('remove-item-button'), 'the item remove control')
     await expectInsideViewport(page.getByTestId('add-category-button'), 'the add-category control')
+
+    // The name must not run UNDER the controls either. Story 8.2 removed the
+    // `maxWidth` that used to keep it clear of them and made name and controls
+    // flex siblings instead, so this is the assertion that the flex row really
+    // does the job the hardcoded cap was doing. A guard, not evidence: it held
+    // pre-fix as well — by the cap.
+    const nameBox = (await itemName(page, LONG_ITEM_NAME).boundingBox())!
+    const editBox = (await row.getByTestId('edit-item-button').boundingBox())!
+    expect(
+      nameBox.x + nameBox.width,
+      'the item name must not run under its controls',
+    ).toBeLessThanOrEqual(editBox.x)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // The other side of Story 8.2's AC: the floor fix must not become a redesign
+  // of the screen. This is the only test in the file that asserts ABOVE the
+  // breakpoint, so it skips on `mobile` rather than on everything else.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] above the breakpoint the header keeps title and buttons on one row', async ({
+    page,
+  }, testInfo) => {
+    // `md`'s ruling was that the buttons take their own row BELOW `sm`. The cost
+    // accepted was one row of vertical space on phones — not on every screen, and
+    // the GEOMETRY half of this test is what holds the fix to that. It catches a
+    // `flexDirection: 'column'` written without a breakpoint, which is the
+    // cheapest wrong way to satisfy AC2 and is invisible to every other test in
+    // this file (they all run at the floor). That half is a control: it held
+    // before Story 8.2 too.
+    //
+    // The `expectNotClipped` line is NOT a control, and this was measured rather
+    // than assumed: against the pre-fix layout it failed at 1280px with
+    // `scrollWidth 619 > clientWidth 460` — the title's `sm: 460` cap clipped a
+    // long list name on a DESKTOP screen, with ~800px of empty row beside it.
+    // Report #3 was filed from a phone, but the same cap was truncating titles
+    // everywhere; removing it rather than retuning it is what fixes both, and
+    // this line is the only assertion in the suite that would notice a
+    // narrow-only fix that left the desktop cap in place.
+    //
+    // `openListAtFloor` is reused for its fixture, not its name: in the chromium
+    // project the same steps run at the Desktop Chrome viewport.
+    test.skip(testInfo.project.name === 'mobile', 'asserts the header ABOVE the sm breakpoint')
+
+    await openListAtFloor(page, testInfo, 'desktop')
+
+    // The width this test runs at, asserted rather than assumed. Without it the
+    // test claims "above the breakpoint" while only ever knowing the project's
+    // default viewport — and a project retarget (which is precisely what Story
+    // 8.1 did to `mobile`) could put it below `sm` with nothing to say so.
+    const viewport = page.viewportSize()
+    expect(viewport, 'this test needs an emulated viewport to reason about').not.toBeNull()
+    expect(viewport!.width, 'runs ABOVE the sm breakpoint').toBeGreaterThanOrEqual(SM_BREAKPOINT_PX)
+
+    // Shares one row: beside, and vertically overlapping.
+    const oneRow = async (label: string) => {
+      const title = (await listTitle(page).boundingBox())!
+      const addCategory = (await page.getByTestId('add-category-button').boundingBox())!
+      expect(addCategory.x, `${label}: the buttons sit beside the title, not beneath it`).toBeGreaterThanOrEqual(
+        title.x + title.width,
+      )
+      expect(addCategory.y, `${label}: title and buttons share one row`).toBeLessThan(title.y + title.height)
+      expect(title.y, `${label}: title and buttons share one row`).toBeLessThan(addCategory.y + addCategory.height)
+    }
+    await oneRow(`the project viewport (${viewport!.width}px)`)
+    await expectNotClipped(listTitle(page))
+
+    // THE BOUNDARY ITSELF, which neither the floor tests nor the line above can
+    // see: they measure 320px and ~1280px, and moving the header's
+    // `flexDirection` from `sm` to `md` leaves BOTH green while putting the
+    // two-row header on every tablet. Asserted from both sides of the one
+    // breakpoint the fix names.
+    await page.setViewportSize({width: SM_BREAKPOINT_PX - 1, height: 900})
+    const belowTitle = (await listTitle(page).boundingBox())!
+    const belowButton = (await page.getByTestId('add-category-button').boundingBox())!
+    expect(
+      belowButton.y,
+      `just below sm (${SM_BREAKPOINT_PX - 1}px) the buttons take their own row`,
+    ).toBeGreaterThanOrEqual(belowTitle.y + belowTitle.height)
+
+    await page.setViewportSize({width: SM_BREAKPOINT_PX, height: 900})
+    await oneRow(`at sm (${SM_BREAKPOINT_PX}px)`)
   })
 })

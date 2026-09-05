@@ -380,7 +380,7 @@ test('FR40 — a co-member (not the owner) can edit, and the change lands live o
   }
 })
 
-test('FR40 — at ~360px both item controls fit, the name truncates, and the page does not scroll sideways', async ({page}, testInfo) => {
+test('FR40 — at ~360px both item controls fit, the name wraps, and the page does not scroll sideways', async ({page}, testInfo) => {
   const username = uniqueUsername('item_editing', 'narrow', testInfo.project.name)
   const listName = `Narrow ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
@@ -427,21 +427,51 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(clientWidth)
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(editBox.x)
 
-  // The name truncates rather than wrapping.
+  // The name WRAPS rather than truncating on one line (Story 8.2, UX-DR-E8-2).
   //
-  // FOR STORY 8.2: these three lines encode the DEFECT as a requirement. Epic 8
-  // commits 8.2 to wrapping item names to at most two lines instead of
-  // truncating, which makes `whiteSpace` no longer `nowrap` and `truncated`
-  // false — so a CORRECT 8.2 fix turns this test red. That is a planned update,
-  // not a regression; see deferred-work.md.
-  const nameMetrics = await name.evaluate(el => ({
-    truncated: el.scrollWidth > el.clientWidth,
-    whiteSpace: getComputedStyle(el).whiteSpace,
-    textOverflow: getComputedStyle(el).textOverflow,
-  }))
-  expect(nameMetrics.truncated).toBe(true)
-  expect(nameMetrics.whiteSpace).toBe('nowrap')
-  expect(nameMetrics.textOverflow).toBe('ellipsis')
+  // Until 8.2 these lines asserted `truncated`/`nowrap`/`ellipsis` — report #2's
+  // defect encoded as a requirement, filed in deferred-work.md as owed by this
+  // story. The replacement is the same claim inverted.
+  //
+  // NOT `expectNotClipped` here, deliberately. `longName` is PATHOLOGICAL by
+  // construction (an "extra long" phrase plus a 13-digit uniqueness suffix), and
+  // at 360px it wants three lines — so it is the case the two-line bound exists
+  // FOR: the name may not grow without limit beside the controls. Measured
+  // 2026-09-05 against the fix: scrollHeight 66 vs clientHeight 44, i.e. the
+  // clamp holding a three-line name to two. `expectNotClipped` is asserted in
+  // narrow-viewport.spec.ts, at the 320px FLOOR, on a name that fits the bound —
+  // that is where AC1's "fully readable" claim lives, and duplicating it here on
+  // a name chosen to exceed the bound would only assert the bound away.
+  // Asserted as OUTCOMES, not as the CSS that produces them: `white-space` and
+  // `-webkit-line-clamp` are one implementation of the bound, and pinning them
+  // would fail a correct future change to another. Counting lines needs a numeric
+  // line-height, so that is checked rather than allowed to poison the arithmetic
+  // with NaN.
+  const nameMetrics = await name.evaluate(el => {
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight)
+    return {
+      lineHeight,
+      clippedHorizontally: el.scrollWidth > el.clientWidth,
+      boundedVertically: el.scrollHeight > el.clientHeight,
+      lines: el.clientHeight / lineHeight,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }
+  })
+  expect(
+    Number.isFinite(nameMetrics.lineHeight),
+    'line-height must resolve to a number for the line count to mean anything',
+  ).toBe(true)
+  // Not truncated on its line — the ellipsis report #2 described is gone.
+  expect(nameMetrics.clippedHorizontally, 'the name must not be clipped horizontally').toBe(false)
+  // Actually wrapped, not merely short enough to fit.
+  expect(Math.round(nameMetrics.lines), 'the name must wrap onto more than one line').toBeGreaterThan(1)
+  // Actually bounded: this name wants a third line and does not get one. Measured
+  // 2026-09-05 at scrollHeight 66 vs clientHeight 44.
+  expect(
+    nameMetrics.boundedVertically,
+    `this pathological name must be truncated by the bound (scrollHeight ${nameMetrics.scrollHeight}, clientHeight ${nameMetrics.clientHeight})`,
+  ).toBe(true)
 
   // The document does not scroll horizontally. Uses the shared helper rather than
   // a second inline copy of the same measurement (NFR-E8-5).
