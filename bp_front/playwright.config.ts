@@ -1,4 +1,36 @@
 import {defineConfig, devices} from '@playwright/test'
+import {NARROW_FLOOR_PX} from './e2e/support/layout'
+
+// NFR-E8-1's narrow floor has ONE definition, in e2e/support/layout.ts, and is
+// imported here rather than repeated as a literal (NFR-E8-5). Without the
+// import the AC2 test — `expect(viewport?.width).toBe(NARROW_FLOOR_PX)` — would
+// be comparing 320 against a coincidentally equal 320 instead of asserting the
+// config against the requirement.
+//
+// Shared by BOTH Pixel 7 projects. The `devices['Pixel 7']` spread is RETAINED
+// and only the WIDTHS are overridden — the Chrome-on-Android UA and the touch
+// emulation are what these projects exist for (Story 8.3's scroll guard depends
+// on the latter), and replacing the descriptor would drop both. Pixel 7's own
+// 412px width was never deliberately chosen (AR-E8-1); 320 is the width the
+// requirement names.
+//
+// `screen` is set alongside `viewport`: Pixel 7's screen is 412x915, so
+// overriding the viewport alone leaves `window.screen.width` and every
+// `max-device-width` query reporting 412 while `innerWidth` is 320 — a split the
+// app could branch on. It is pinned to the viewport box rather than to the real
+// 915 height because Playwright's `DeviceDescriptor` type does not expose the
+// descriptor's own screen, and no requirement depends on the screen HEIGHT.
+//
+// The HEIGHTS are left at Pixel 7's own on purpose. The resulting box is not a
+// real device and is not meant to be: NFR-E8-1 is a requirement about WIDTH, and
+// a taller-than-life viewport only means less scrolling in the tests. Do not
+// "correct" the aspect ratio — shrinking the height would change what every spec
+// in these projects sees above the fold, for no requirement.
+const PIXEL_7_AT_FLOOR = {
+  ...devices['Pixel 7'],
+  viewport: {...devices['Pixel 7'].viewport, width: NARROW_FLOOR_PX},
+  screen: {width: NARROW_FLOOR_PX, height: devices['Pixel 7'].viewport.height},
+}
 
 // E2E runs against the PRODUCTION image (built Vite SPA served by Caddy on
 // :2080), not the dev server — this closes the "green on dev, broken in the
@@ -93,8 +125,14 @@ export default defineConfig({
   //       2026-09-05 (Story 8.1, pre-story baseline): 134 = 66 / 66 / 1 / 1
   //         — i.e. the 2026-08-11 row above was already stale by 14 before this
   //         story changed anything; 7 untagged specs had landed unrecorded.
-  //       2026-09-05 (Story 8.1, post): 150 = 74 / 74 / 1 / 1  (+8 untagged
-  //         narrow-viewport tests, +2 runs each, against that 134 baseline)
+  //       2026-09-05 (Story 8.1, post-review): 162 = 80 / 80 / 1 / 1  (+14
+  //         untagged narrow-viewport tests, +2 runs each, against that 134
+  //         baseline), OF WHICH 13 ARE CHROMIUM SKIPS — every narrow-viewport
+  //         test but the config assertion is `test.skip(project !== 'mobile')`,
+  //         so the two columns stay equal while 13 of the chromium ones never
+  //         execute. Record the skip count on every future row: Epic 8 adds more
+  //         mobile-only specs, and without it the equal-counts invariant reads
+  //         green as the meaning drains out.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
@@ -105,20 +143,9 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      // NFR-E8-1's narrow floor: 320px. The `devices['Pixel 7']` spread is
-      // RETAINED and only `viewport.width` is overridden — the Chrome-on-Android
-      // UA and the touch emulation are what this project exists for (Story 8.3's
-      // scroll guard depends on the latter), and replacing the descriptor would
-      // drop both. Pixel 7's own 412px width was never chosen for a reason
-      // (AR-E8-1); 320 is the width the requirement names.
-      //
-      // The HEIGHT is left at Pixel 7's 839 on purpose. The resulting 320x839 box
-      // is not a real device and is not meant to be: NFR-E8-1 is a requirement
-      // about WIDTH, and a taller-than-life viewport only means less scrolling in
-      // the tests. Do not "correct" the aspect ratio — shrinking the height would
-      // change what every spec in this project sees above the fold, for no
-      // requirement.
-      use: {...devices['Pixel 7'], viewport: {...devices['Pixel 7'].viewport, width: 320}},
+      // Renders at NFR-E8-1's floor — see PIXEL_7_AT_FLOOR above for why the
+      // descriptor is kept and only the widths are overridden.
+      use: PIXEL_7_AT_FLOOR,
       grepInvert: /@registration-toggle/,
     },
     // Runs only after BOTH viewport projects finish → nothing is registering
@@ -149,7 +176,11 @@ export default defineConfig({
     // the requirement. Filed in the ledger.
     {
       name: 'registration-toggle-mobile',
-      use: {...devices['Pixel 7']},
+      // Retargeted to the floor with the `mobile` project (Story 8.1). Leaving it
+      // on the bare 412px descriptor would have made "the suite renders at the
+      // floor in a normal run" (NFR-E8-2) untrue of the admin-panel half, and put
+      // two Pixel 7 projects in this file at two different widths.
+      use: PIXEL_7_AT_FLOOR,
       grep: /@registration-toggle/,
       dependencies: ['registration-toggle-chromium'],
       fullyParallel: false,

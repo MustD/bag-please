@@ -12,7 +12,27 @@ mobile gate to the width real phones have, fixes the layouts it now catches, mak
 implementation of ordering and filtering, makes the whole shopping row a check target, adds category rename, and closes
 by writing down the design the app actually has. It is a fixes epic, not a redesign: the visual language, dark theme and
 type scale are unchanged. Both UX specifications on file are stale — the shipped source is authoritative wherever a
-planning document disagrees, and Story 8.7 exists to replace them.
+planning document disagrees, and Story 8.7 supersedes them.
+
+## Reports
+
+The eight defects `md` reported from using the running app, and the story that delivers each. "Report #N" is used as a
+cross-reference throughout `epics.md`; this is where the numbering is defined. Sourced from the UX-DRs and the
+`**Delivers:**` line of each story.
+
+1. Checking an item off means aiming at the small checkbox rather than tapping the row (FR60, UX-DR-E8-1) — Story 8.3.
+2. A long item name is truncated instead of wrapping on the management screen (UX-DR-E8-2) — Story 8.2.
+3. The list title is squeezed to an ellipsis by its two action buttons at narrow widths (UX-DR-E8-3) — Story 8.2.
+4. The category filter selects only one category at a time (FR61, UX-DR-E8-4) — Story 8.4.
+5. The management screen has no category filter (FR61, UX-DR-E8-5) — Story 8.4.
+6. The management screen has no item search (FR61, UX-DR-E8-6) — Story 8.4.
+7. The two list screens order categories and items differently (FR62, UX-DR-E8-8) — Story 8.5.
+8. A mistyped category name can only be corrected by deleting the category and every item in it (FR63, UX-DR-E8-12) —
+   Story 8.6.
+
+Seven stories cover eight reports: reports #2 and #3 are both delivered by Story 8.2, and reports #4, #5 and #6 are
+all delivered by Story 8.4. Two stories deliver no report — Story 8.1 delivers the gate that lets reports #2 and #3 be
+proven, and Story 8.7 writes down the design the app actually has.
 
 ## Stories
 

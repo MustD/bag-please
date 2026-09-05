@@ -2,8 +2,8 @@ import {expect, type Locator, type Page} from '@playwright/test'
 
 // Layout-geometry assertions for the NFR-E8-1 narrow floor (Story 8.1, AC4).
 //
-// TWO helpers with DIFFERENT jobs. Neither substitutes for the other, and the
-// distinction is the whole point of AR-E8-3a:
+// THREE helpers with DIFFERENT jobs. None substitutes for another, and the
+// distinction between the first two is the whole point of AR-E8-3a:
 //
 //   * `expectNotClipped` measures ONE TEXT ELEMENT. It is the load-bearing half.
 //     MUI's `noWrap` compiles to `overflow: hidden` (Typography.js:88-90), and a
@@ -16,8 +16,16 @@ import {expect, type Locator, type Page} from '@playwright/test'
 //     class of defect: something that genuinely widens the document, which a
 //     third control on a row (Story 8.6) or an over-wide dialog will produce.
 //
-// One definition each, here, per NFR-E8-5. A second copy of either is a review
-// failure — the rule Story 7.5 applied to `byCreatedAtAsc`.
+//   * `expectInsideViewport` measures ONE CONTROL'S BOX. It exists because
+//     NFR-E8-1 has a third clause — "no interactive element is pushed
+//     off-screen" — that NEITHER of the other two can see: a button clipped
+//     inside an `overflow: hidden` ancestor widens nothing and is not a text
+//     element, so both of the above stay green while it is unreachable. That is
+//     the failure shape Story 8.6 is expected to create by adding a third
+//     control to the category row.
+//
+// One definition each, here, per NFR-E8-5. A second copy of any of them is a
+// review failure — the rule Story 7.5 applied to `byCreatedAtAsc`.
 
 // The NFR-E8-1 floor. Exported so a spec asserts against the requirement rather
 // than a literal repeated per call site.
@@ -41,6 +49,16 @@ type Clipping = {
 // today's defect and goes blind to the fix's own failure mode, on the very
 // screen it was written for. Asserting both keeps AC4's red phase intact (the
 // shipped `noWrap` still fails on width) and survives Story 8.2.
+//
+// THE AXES HAND OVER — do not read this as two durable checks. Today only the
+// WIDTH assertion can fail: every target is `noWrap`, which truncates
+// horizontally, so the height branch has never been observed doing anything.
+// After Story 8.2 the reverse holds: for a wrapping element `scrollWidth ===
+// clientWidth` by construction, so the width assertion can no longer fail and
+// the HEIGHT one carries the whole gate. Each axis is therefore unexercised in
+// exactly the story where the other is load-bearing, which is why both have a
+// dedicated falsifiability control in narrow-viewport.spec.ts rather than
+// relying on the layout reds — those disappear when Story 8.2 fixes the layout.
 export async function expectNotClipped(locator: Locator): Promise<void> {
   await expect(locator).toBeVisible()
   const box: Clipping = await locator.evaluate(el => ({
@@ -73,4 +91,23 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
     doc.scrollWidth,
     `page scrolls horizontally (documentElement scrollWidth ${doc.scrollWidth} > clientWidth ${doc.clientWidth})`,
   ).toBeLessThanOrEqual(doc.clientWidth)
+}
+
+// Assert an interactive control lies fully inside the viewport.
+//
+// NFR-E8-1's third clause, and the one neither helper above can discharge — see
+// the header. Measured against the real `clientWidth` rather than
+// `NARROW_FLOOR_PX`, because a classic scrollbar narrows the content box and a
+// hardcoded bound would be looser than intended; the same reasoning
+// navigation.spec.ts already applies to the app-bar chip.
+export async function expectInsideViewport(locator: Locator, label: string): Promise<void> {
+  await expect(locator).toBeVisible()
+  const box = await locator.boundingBox()
+  expect(box, `${label} has no bounding box`).not.toBeNull()
+  const clientWidth = await locator.page().evaluate(() => document.documentElement.clientWidth)
+  expect(box!.x, `${label} is pushed off the left edge (x ${box!.x})`).toBeGreaterThanOrEqual(0)
+  expect(
+    box!.x + box!.width,
+    `${label} is pushed off the right edge (right ${box!.x + box!.width} > clientWidth ${clientWidth})`,
+  ).toBeLessThanOrEqual(clientWidth)
 }

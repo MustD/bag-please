@@ -1,6 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
 import {gql, loginApi} from './support/api'
+import {expectNoHorizontalOverflow} from './support/layout'
 import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // Item Editing E2E (Story 6.1, FR40 + FR44). Every asserted behaviour is
@@ -390,8 +391,13 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   await addCategory(page, categoryName)
   await addItem(page, categoryName, longName)
 
-  // Narrow to the ~360px floor. Uses the `page` fixture (not a hand-built
-  // context) so the rest of the project's `use` block still applies.
+  // 360px is a SPECIFIC WIDTH THIS TEST OWNS, not "the floor" — NFR-E8-1's floor
+  // is 320 and is covered by narrow-viewport.spec.ts, which asserts these same
+  // controls there with `expectInsideViewport`. Kept at 360 because in the
+  // retargeted `mobile` project this call now WIDENS the viewport, and dropping
+  // to 320 would change what this FR40 test measures without anyone having
+  // measured the result first. Uses the `page` fixture (not a hand-built context)
+  // so the rest of the project's `use` block still applies.
   await page.setViewportSize({width: 360, height: 760})
   const row = page.getByTestId(`item-row-${longName}`)
   const edit = row.getByTestId('edit-item-button')
@@ -403,16 +409,32 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   await expect(edit).toHaveAttribute('aria-label', `Edit item ${longName}`)
   await expect(remove).toHaveAttribute('aria-label', `Remove item ${longName}`)
 
-  // Both sit fully inside the viewport, and neither overlaps the name.
-  const nameBox = (await row.locator('p').first().boundingBox())!
+  // Both sit fully inside the viewport, and neither overlaps the name. Bound by
+  // the real clientWidth rather than a hardcoded 360 — a classic scrollbar
+  // narrows the content box and would make a hardcoded bound looser than
+  // intended, the same reasoning navigation.spec.ts applies to the app-bar chip.
+  //
+  // The name is reached by `item-name` (added in Story 8.1), not by
+  // `locator('p').first()`: Story 8.2 rewrites this element, and a structural
+  // path would break there for a selector reason that reads as a layout
+  // regression.
+  const name = row.getByTestId('item-name')
+  const clientWidth = await page.evaluate(() => document.documentElement.clientWidth)
+  const nameBox = (await name.boundingBox())!
   const editBox = (await edit.boundingBox())!
   const removeBox = (await remove.boundingBox())!
-  expect(editBox.x + editBox.width).toBeLessThanOrEqual(360)
-  expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(360)
+  expect(editBox.x + editBox.width).toBeLessThanOrEqual(clientWidth)
+  expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(clientWidth)
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(editBox.x)
 
   // The name truncates rather than wrapping.
-  const nameMetrics = await row.locator('p').first().evaluate(el => ({
+  //
+  // FOR STORY 8.2: these three lines encode the DEFECT as a requirement. Epic 8
+  // commits 8.2 to wrapping item names to at most two lines instead of
+  // truncating, which makes `whiteSpace` no longer `nowrap` and `truncated`
+  // false — so a CORRECT 8.2 fix turns this test red. That is a planned update,
+  // not a regression; see deferred-work.md.
+  const nameMetrics = await name.evaluate(el => ({
     truncated: el.scrollWidth > el.clientWidth,
     whiteSpace: getComputedStyle(el).whiteSpace,
     textOverflow: getComputedStyle(el).textOverflow,
@@ -421,11 +443,9 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   expect(nameMetrics.whiteSpace).toBe('nowrap')
   expect(nameMetrics.textOverflow).toBe('ellipsis')
 
-  // The document does not scroll horizontally.
-  const overflows = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  )
-  expect(overflows).toBe(false)
+  // The document does not scroll horizontally. Uses the shared helper rather than
+  // a second inline copy of the same measurement (NFR-E8-5).
+  await expectNoHorizontalOverflow(page)
 
   // The edit control still works at this width.
   await openEditDialog(page, longName)

@@ -2894,10 +2894,43 @@ rather than re-filed.
   the scheduler hard-deletes within the hour) is the soft-delete-tombstone work the epic already scoped out, not a
   defect in the merge.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
-  summary: `expectNotClipped` compares integer-rounded `scrollWidth`/`clientWidth` with no subpixel tolerance, so fractional text widths could in principle produce 1px false reds in the gate every Epic 8 story reuses.
-  evidence: Plausible because the Pixel 7 descriptor carries `deviceScaleFactor: 2.625` and both properties round up, but no false red was observed in any Story 8.1 run. What would settle it: a 320px run showing `expectNotClipped` red at exactly 1px on text that is visibly not truncated. Adding a tolerance before that would guard undemonstrated state and blunt the epic's only geometry gate.
+## Deferred from: code review of 8-1-move-the-mobile-gate-to-the-width-people-actually-use (2026-09-05)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
-  summary: `data-testid={`item-row-${item.name}`}` (`bp_front/src/routes/ListDetailPage.tsx:193`) is not unique — one list holding two same-named items in different categories makes `getByTestId('item-row-X')` match twice and trip Playwright strict mode.
-  evidence: Verified at the cited line. Pre-existing since Story 6.1, not caused or exposed by Story 8.1, and every narrow-viewport scenario uses unique names. Keying the testid by `item.id` would fix it but touches selectors several shipped specs depend on, so it wants its own story.
+  summary: `expectNotClipped` compares integer-rounded `scrollWidth`/`clientWidth` with no subpixel tolerance, so
+  fractional text widths could in principle produce 1px false reds in the gate every Epic 8 story reuses.
+  evidence: Plausible because the Pixel 7 descriptor carries `deviceScaleFactor: 2.625` and both properties round up,
+  but no false red was observed in any Story 8.1 run, including a `--repeat-each=2` pass over the whole `mobile`
+  project (160/160 green, 2026-09-05). What would settle it: a 320px run showing `expectNotClipped` red at exactly 1px
+  on text that is visibly not truncated. Adding a tolerance before that would guard undemonstrated state and blunt the
+  epic's only geometry gate.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: ``data-testid={`item-row-${item.name}`}`` in `bp_front/src/routes/ListDetailPage.tsx` is not unique — one
+  list holding two same-named items in different categories makes `getByTestId('item-row-X')` match twice and trip
+  Playwright strict mode.
+  evidence: Verified against the rendering of the item row (cited by testid rather than line number, which moved once
+  inside Story 8.1 already). Pre-existing since Story 6.1, not caused or exposed by Story 8.1, and every
+  narrow-viewport scenario uses unique names. Keying the testid by `item.id` would fix it but touches selectors
+  several shipped specs depend on, so it wants its own story.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `bp_front/e2e/item-editing.spec.ts` (FR40, the ~360px case) asserts `whiteSpace === 'nowrap'`,
+  `textOverflow === 'ellipsis'` and `truncated === true` on the item name — it encodes report #2's DEFECT as a
+  requirement, so a CORRECT Story 8.2 fix turns it red.
+  evidence: Verified in the spec. UX-DR-E8-2 commits Story 8.2 to wrapping the item name to at most two lines instead
+  of truncating, which makes all three assertions false. This is a planned update owed by Story 8.2, not a regression:
+  without it, 8.2 will see a red in a spec it does not otherwise touch and read it as one. A `FOR STORY 8.2` comment
+  now sits on those lines; this row is what makes the obligation visible outside the file. Not fixed in 8.1 because
+  the replacement assertion depends on the layout 8.2 delivers.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `bp_front/e2e/navigation.spec.ts` (NFR-E6-2) and `bp_front/e2e/item-editing.spec.ts` (FR40) each call
+  `page.setViewportSize({width: 360})`, which in the retargeted `mobile` project now WIDENS the viewport rather than
+  narrowing it — so neither assertion runs at NFR-E8-1's floor.
+  evidence: Verified at both call sites. Story 8.1 closed the coverage gap by ADDING floor-level assertions in
+  `narrow-viewport.spec.ts` (the app-bar chip and home link, and the item row's edit/remove controls, all via
+  `expectInsideViewport`) rather than by changing the two existing tests, because dropping them to 320 would change
+  what they measure without anyone having measured the result first — which is exactly what AR-E8-2a forbids. Whether
+  the 360px cases should survive at all is a question for Story 8.2, which rewrites both surfaces. Their comments now
+  say 360 is a width those tests own, not "the floor".

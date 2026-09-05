@@ -362,11 +362,14 @@ and Story 7.3's race stays closed with no further work (AR-E8-2). What is given 
 which was a claim about a width nothing was measured at.
 
 NFR-E8-3: **Horizontal overflow is asserted mechanically, never by eye.** "Fits on screen" is checked as a measured
-property — `document.documentElement.scrollWidth <= clientWidth`, plus per-element bounding-box containment for the
-controls named in the UX-DRs — because a screenshot review cannot fail a pipeline and truncation is silent by design
-(`noWrap` renders an ellipsis, not an error).
+property, by three assertions with three different jobs — element-level clipping (`el.scrollWidth > el.clientWidth`
+on the TEXT element, which is the load-bearing one: see AR-E8-3a), document-level overflow
+(`document.documentElement.scrollWidth <= clientWidth`), and per-element bounding-box containment for the controls
+named in the UX-DRs — because a screenshot review cannot fail a pipeline and truncation is silent by design (`noWrap`
+renders an ellipsis, not an error). All three ship in `e2e/support/layout.ts` as `expectNotClipped`,
+`expectNoHorizontalOverflow` and `expectInsideViewport`, one definition each (NFR-E8-5).
 
-NFR-E8-4: **Filtering and search stay client-side and instantaneous.** FR61 adds no query, no round trip and no
+NFR-E8-4: **Filtering and search stay client-side and instant.** FR61 adds no query, no round trip and no
 `refetch`; both surfaces already hold the full item and category sets in the Apollo cache. Typing in the search box
 does not put the app in a loading state.
 
@@ -738,12 +741,13 @@ From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-u
 
 - **AR-E8-0: the backend stays frozen unless a UX requirement demands otherwise, and then only in named files.** Same
   shape as AR-E7-0. `md` authorised a scoped unfreeze during Epic 8 planning, and the planning pass then established
-  that **none of FR60–FR62 needs it** — all three are frontend-only against the existing schema. The allowance stands
+  that **none of FR60–FR63 needs it** — all four are frontend-only against the existing schema. The allowance stands
   for whatever the epic's design work turns up; it is not open season on `bp_back/`, and any story that uses it names
   the files in its own ACs.
 
-- **AR-E8-1: the E2E `mobile` project is a Pixel 7 at 412px CSS, which is why items 2 and 3 shipped.**
-  `bp_front/playwright.config.ts:103` is `{...devices['Pixel 7']}` (and `:134` for the toggle-chain twin). Both reported layout defects occur below that
+- **AR-E8-1: the E2E `mobile` project is a Pixel 7 at 412px CSS, which is why reports #2 and #3 shipped.**
+  `bp_front/playwright.config.ts` gives both the `mobile` and `registration-toggle-mobile` projects a bare
+  `{...devices['Pixel 7']}`. Both reported layout defects occur below that
   width, so the suite that gates every story has never rendered them. This is the mechanical reason the epic needs
   NFR-E8-2 before it needs a layout fix — a fix landed against the current gate is unverifiable.
 
@@ -760,32 +764,35 @@ From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-u
   after any change here:
   `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c`.
 
-- **AR-E8-2a: retargeting the gate will surface defects beyond the two reported, and that is the point.** Fifty-nine
-  specs currently run in the `mobile` project and none has ever rendered below 412px; `AppShell.tsx:193`'s username
-  chip (`maxWidth: {xs: 140}`), the admin user table, `AuthPage`, and every dialog are unmeasured at the floor.
-  Reports #2 and #3 are the two defects `md` happened to hit, not the two that exist. The first story must therefore
+- **AR-E8-2a: retargeting the gate will surface defects beyond the two reported, and that is the point.** 66
+  specs ran in the `mobile` project and none had ever rendered below 412px (re-measured 2026-09-05; the epic was
+  drafted against a stale 59, and this file's own standing rule is to re-measure a count rather than quote it);
+  `AppShell.tsx:193`'s username chip (`maxWidth: {xs: 140}`), the admin user table, `AuthPage`, and every dialog are
+  unmeasured at the floor. Reports #2 and #3 are the two defects `md` happened to hit, not necessarily the only two
+  that exist. The first story must therefore
   begin by **measuring**: make the viewport change, run the suite once, and count what goes red — before the rest of
   the epic's story order is treated as settled. A count of two leaves the plan below intact; a substantially larger
   count is a scoping decision for `md` (absorb them into Epic 8, or file them in `deferred-work.md`), taken with the
   number in hand rather than discovered mid-epic.
 
-- **AR-E8-3: the four hard-coded pixel caps that cause the reported clipping**, all in `ListDetailPage.tsx` and all
+- **AR-E8-3: the three hard-coded pixel caps that cause the reported clipping**, all in `ListDetailPage.tsx` and all
   paired with `noWrap`, which is what makes the failure silent:
-    - `:101` list title — `variant="h4" noWrap sx={{maxWidth: {xs: 200, sm: 460}}}`. **Report #3 is a squeeze, not an
-      overflow** — corrected 2026-09-05 after the first analysis got the mechanism backwards. MUI's `noWrap` is three
-      declarations (`Typography.js:88-90`, verified in `node_modules`): `overflow: hidden`, `textOverflow: ellipsis`,
-      `whiteSpace: nowrap`. Flexbox's automatic minimum size applies **only** to a flex item whose `overflow` is
+    - the `list-detail-title` Typography — `variant="h4" noWrap sx={{maxWidth: {xs: 200, sm: 460}}}`.
+      **Report #3 is a squeeze, not an overflow** — corrected 2026-09-05 after the first analysis got the mechanism
+      backwards. MUI's `noWrap` is three declarations (`Typography.js:88-90`, verified in `node_modules`):
+      `overflow: hidden`, `textOverflow: ellipsis`, `whiteSpace: nowrap`. Flexbox's automatic minimum size applies
+      **only** to a flex item whose `overflow` is
       `visible`, so `overflow: hidden` already resolves this item's `min-width: auto` to **zero**. The title therefore
       *can* shrink, *does* shrink, and is squeezed to an ellipsis while the two buttons take the remaining width — the
       row never overflows the viewport. Two consequences: **adding `minWidth: 0` is a no-op** and must not be
       prescribed as the fix, and a document-level overflow assertion cannot detect this defect (AR-E8-3a). The fix is
       to make the *buttons* yield (`md`'s ruling, UX-DR-E8-3).
-    - `:224` item name — `noWrap sx={{maxWidth: {xs: 150, sm: 400}}}`. Report #2. The Story 6.1 comment records that
-      150px was chosen for ~360px viewports and a two-control `secondaryAction`; the request is to wrap to two lines
-      instead, which means `noWrap` is removed here rather than the cap being retuned.
-    - `:158` category name — `variant="h6" noWrap sx={{maxWidth: {xs: 160, sm: 380}}}`, the same pattern beside two
-      IconButtons; not reported, but it is the third instance of the identical construct and will clip at the same
-      widths.
+    - the `item-name` Typography — `noWrap sx={{maxWidth: {xs: 150, sm: 400}}}`. Report #2. The Story 6.1 comment
+      records that 150px was chosen for ~360px viewports and a two-control `secondaryAction`; the request is to wrap
+      to two lines instead, which means `noWrap` is removed here rather than the cap being retuned.
+    - the `category-name` Typography — `variant="h6" noWrap sx={{maxWidth: {xs: 160, sm: 380}}}`, the same pattern
+      beside two IconButtons; not reported, but it is the third instance of the identical construct and will clip at
+      the same widths.
   `AppShell.tsx:193`'s username chip (`maxWidth: {xs: 140, sm: 220}`) is the same family and is **in the audit, not
   automatically in scope** — it was deliberately capped so the app bar survives ~360px.
 
@@ -797,14 +804,14 @@ From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-u
   check subject to exactly it. Both defects are clipping, so the detecting assertion is the same comparison **one level
   down, on the text element**: `el.scrollWidth > el.clientWidth` is true precisely when that text is truncated. Keep
   **both** assertions, with different jobs: the element-level one catches silent clipping (reports #2, #3, and the
-  `:158` category name), and the document-level one catches genuine overflow, which is what a third control on a row or
+  `category-name`), and the document-level one catches genuine overflow, which is what a third control on a row or
   an over-wide dialog will produce. Neither substitutes for the other.
 
 - **AR-E8-4: `handleToggle` reads its next state off the DOM event, so FR60 requires a signature change.**
   `ListShoppingPage.tsx:237` `handleToggle(item, event)` derives `nextChecked` from `event.target.checked`. A row-level
   click has no such event, so the next state must be passed explicitly (`!item.checked`) and the `Checkbox` must stop
   owning the decision. The row's existing accessible name comes from the checkbox's
-  `slotProps={{input: {'aria-label': \`Toggle ${item.name}\`}}}` — FR60's "one control" clause means that name moves to
+  ``slotProps={{input: {'aria-label': `Toggle ${item.name}`}}}`` — FR60's "one control" clause means that name moves to
   the row, and the nested-interactive-inside-clickable-row pattern must not produce two tab stops or a double-fire.
 
 - **AR-E8-5: the shopping view's stale-filter guards must generalise to a set, not be duplicated.**
@@ -842,7 +849,7 @@ From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-u
   control, the store chip and the `addedBy` avatar inside it can no longer become affordances of their own — a
   filter-by-store chip, or a "show me what Anna added" avatar — without breaking the single-control rule FR60 exists to
   create. `md`'s whole-row ruling stands and is right for a one-handed user holding a basket; this is recorded so that
-  a later epic wanting either affordance knows it is re-opening a decision rather than adding to an empty row.
+  a later epic wanting either affordance knows it is re-opening a decision rather than treating the row as free space.
 
 - **AR-E8-8: the epic's CLOSING story writes the UX design contract this project has been missing since Epic 5.** Both existing UX
   specs (`ux-design-specification.md`, `ux-design-specification-epic-4.md`) describe the Next.js app and the Epic 4
@@ -907,7 +914,7 @@ From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-u
 - **AR-E8-13: category names are not unique and FR63 does not make them so.** Neither `AddCategoryDialog` nor
   `CategoryService` checks for a duplicate name; two categories called "Dairy" can exist on one list today, and a
   rename can create that collision. Out of scope for FR63 — noted because the management screen's
-  `data-testid={`category-row-${category.name}`}` and the shopping view's `shopping-group-${group.name}` are
+  ``data-testid={`category-row-${category.name}`}`` and the shopping view's ``shopping-group-${group.name}`` are
   **name-keyed test selectors**, so an E2E test that renames a category to an existing name would select ambiguously.
   Story-level concern for whoever writes FR63's coverage.
 
@@ -1167,17 +1174,17 @@ announcement, and a click that fires the handler twice.
 
 UX-DR-E8-2: **A long item name wraps to a second line instead of being truncated (report #2).** On the management
 screen the item name is `noWrap` under a fixed `{xs: 150}` cap (AR-E8-3), so on a narrow phone the user sees an
-ellipsis where the item is. Two things change together: the name is allowed **up to two lines** before it is
-ellipsised — two, not unbounded, so a pathological name cannot push the row taller than the controls beside it — and
-the horizontal gap between the name and the edit/remove buttons is reduced to give the name back the space the cap was
-protecting. The fixed pixel cap goes away entirely; the name takes the room the flex row actually has.
+ellipsis where the item's name should be. Two things change together: the name is allowed **up to two lines** before
+it is ellipsised — two, not unbounded, so a pathological name cannot push the row taller than the controls beside it
+— and the horizontal gap between the name and the edit/remove buttons is reduced to give the name back the space the
+cap was reserving for the controls. The fixed pixel cap goes away entirely; the name takes the room the flex row
+actually has.
 
 UX-DR-E8-3: **The list title and its two action buttons coexist at the narrow floor (report #3).** The header row on
-the management screen puts an `h4` title beside "+ Category" and "+ Item". The title is a flex child that cannot
-shrink (AR-E8-3), so below roughly 360px the row overflows the screen rather than adapting. The mechanism is a **squeeze, not an
-overflow** (AR-E8-3, corrected): the title's `min-width` is already zero because `noWrap` sets `overflow: hidden`, so
-it shrinks all the way to an ellipsis while the buttons take the rest. Letting the title shrink is therefore not the
-fix — it is the defect.
+the management screen puts an `h4` title beside "+ Category" and "+ Item". Below roughly 360px the mechanism is a
+**squeeze, not an overflow** (AR-E8-3a): the title's `min-width` is already zero because `noWrap` sets
+`overflow: hidden`, so it shrinks all the way to an ellipsis while the buttons take the rest, and the row never
+widens the screen. Letting the title shrink is therefore not the fix — it is the defect.
 
 **`md`'s ruling (2026-09-05): the buttons wrap to their own line at the narrow floor.** The title gets the full width
 and "+ Category" and "+ Item" sit on a row beneath it. The cost is one row of vertical space that those buttons already
@@ -1218,11 +1225,12 @@ query returned (AR-E8-7). So the user arranges a list on one screen and finds it
 in an app whose two screens show the same data. `md`'s ruling (2026-09-05): **the shopping view's order is canonical
 and the management screen adopts it, items included.** One comparator, one definition, used by both (NFR-E8-5). The
 divergences the management screen keeps — showing empty categories, and its "No items yet." affordance — are
-deliberate and stay; whether it also gains the shopping view's synthetic `Uncategorized` bucket is an open ruling
-(AR-E8-7), and it matters because the management screen is the only place an orphaned item can be deleted.
+deliberate and stay. It also gains the shopping view's synthetic `Uncategorized` bucket — `md` ruled so on
+2026-09-05 (AR-E8-7), and Story 8.5 AC4 implements it; the ruling matters because the management screen is the only
+place an orphaned item can be deleted.
 
 UX-DR-E8-9: **A phone narrower than a Pixel 7 is a supported device, and the gate must know it (NFR-E8-1, NFR-E8-2).**
-Two of the seven reports are pure layout failures on a Galaxy Z Fold 5 cover screen (~344px CSS). Every "mobile"
+Two of the eight reports are pure layout failures on a Galaxy Z Fold 5 cover screen (~344px CSS). Every "mobile"
 assertion this project has ever run was at 412px (AR-E8-1), so the suite could not have caught either one. Fixing the
 two layouts without moving the gate would leave the next fixed pixel cap to be found the same way — by `md`, on the
 device, after it shipped. The floor is 320px (NFR-E8-1), chosen so the requirement outlives one handset.
@@ -1536,7 +1544,7 @@ arrive so a long list can be worked on one aisle at a time, and **a mistyped cat
 than deleted — which today destroys every item inside it. And both screens stop disagreeing about what order the same
 list is in.
 
-Underneath the eight fixes sit two structural changes that are what make them stick. **The project gains a supported
+Underneath the eight fixes sit two structural changes that make them stick. **The project gains a supported
 narrow-viewport floor that the gate actually enforces**: two of the eight reports are pure layout failures on a Galaxy
 Z Fold 5 cover screen (~344px CSS), and every "mobile" assertion this project has ever run was at a Pixel 7's 412px —
 so the suite could not have caught either one, and without moving the gate the next fixed pixel cap gets found the same
@@ -1550,7 +1558,7 @@ shipped — and Epics 6 and 7 each worked around that by reading the code instea
 
 **This is a fixes epic, not a redesign** (`md`, 2026-09-05: "small ux fixes based on real usage"). The dark theme, the
 type scale and the visual language are unchanged; light mode, a token overhaul and the Epic 4 bottom-tab navigation are
-recorded in `DESIGN.md` as known gaps and acted on by nobody here (UX-DR-E8-11).
+recorded in `DESIGN.md` as known gaps and are not acted on in this epic (UX-DR-E8-11).
 
 **FRs covered:** FR60 (new — the whole item row is the check target); FR61 (new — multi-select category filter **and**
 item search on both list surfaces); FR62 (new — one canonical order on both surfaces); FR63 (new — rename a category)
@@ -1599,7 +1607,7 @@ open question and the order below is the result, not the proposal that went in.
   lines and the instinct is to merge them. Story 7.15 measured this project's dev-auto spec budget at 900–1600 tokens
   and found Story 6.1 at roughly 6k — four times over, the only story ever to trip the multiple-goals flag, and the
   flag was **correct**: 6.1 was two shippable goals under one number, and that scope came from the review room itself.
-  8.4 is already the epic's largest story; merging 8.5 into it would build exactly that spec again, deliberately, with
+  8.4 is already the epic's largest story; merging 8.5 into it would build another Story 6.1, deliberately, with
   the measurement in hand.
 
 - **The UX design contract moved from first to last, because it was two things under one number.** As proposed it both
@@ -3868,7 +3876,7 @@ outcome is recorded as deliberate rather than incidental
 
 **Given** the story is user-facing
 **When** it is completed
-**Then** — discharging NFR-E8-6 — the above are covered by FR38/FR57-tagged specs passing on **both** `chromium` and `mobile` against the
+**Then** the above are covered by FR38/FR57-tagged specs passing on **both** `chromium` and `mobile` against the
 production image, manually exercised first and observed failing before acceptance
 **And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
 
@@ -4372,6 +4380,21 @@ The eight defects below were reported by `md` from using the running app, not de
 specs on file are stale (AR-E8-8), so every requirement here was verified against the shipped source on 2026-09-05 and
 the code is authoritative wherever a planning document disagrees.
 
+**The eight reports.** "Report #N" is the epic's most-used cross-reference and is defined here, once:
+
+1. Checking an item off means aiming at the small checkbox rather than tapping the row (FR60, UX-DR-E8-1) — Story 8.3.
+2. A long item name is truncated instead of wrapping on the management screen (UX-DR-E8-2) — Story 8.2.
+3. The list title is squeezed to an ellipsis by its two action buttons at narrow widths (UX-DR-E8-3) — Story 8.2.
+4. The category filter selects only one category at a time (FR61, UX-DR-E8-4) — Story 8.4.
+5. The management screen has no category filter (FR61, UX-DR-E8-5) — Story 8.4.
+6. The management screen has no item search (FR61, UX-DR-E8-6) — Story 8.4.
+7. The two list screens order categories and items differently (FR62, UX-DR-E8-8) — Story 8.5.
+8. A mistyped category name can only be corrected by deleting the category and every item in it (FR63, UX-DR-E8-12) —
+   Story 8.6.
+
+Seven stories cover eight reports: #2 and #3 are both Story 8.2, and #4, #5 and #6 are all Story 8.4. Story 8.1
+delivers the gate that lets #2 and #3 be proven, and Story 8.7 delivers no report at all.
+
 ### Story 8.1: Move the Mobile Gate to the Width People Actually Use
 
 As the person who has to trust this project's test suite, I want the mobile E2E project to render at the narrow
@@ -4386,8 +4409,8 @@ value, it does not add a project (AR-E8-2)
 
 **AC1 — measure before anything is fixed, and report the number (AR-E8-2a)**
 
-**Given** 59 specs run in the `mobile` project and not one has ever rendered below 412px, so reports #2 and #3 are the
-two defects `md` happened to hit rather than the two that exist
+**Given** 66 specs run in the `mobile` project and not one has ever rendered below 412px, so reports #2 and #3 are the
+two defects `md` happened to hit rather than necessarily the only two that exist
 **When** the viewport is retargeted and the suite is run once
 **Then** the count and identity of every newly-failing test is recorded in the story record before any layout is
 touched
@@ -4400,8 +4423,8 @@ decision that follows is `md`'s, and is explicitly **not** this story's to make 
 
 **AC2 — the `mobile` project renders at the NFR-E8-1 floor**
 
-**Given** `playwright.config.ts:103` is `{...devices['Pixel 7']}`, whose 412px width was never chosen for a reason and
-has not been examined since Story 5.1
+**Given** the `mobile` project in `playwright.config.ts` is a bare `{...devices['Pixel 7']}`, whose 412px width
+nobody ever chose deliberately and which has not been examined since Story 5.1
 **When** the project is retargeted
 **Then** its viewport width is the NFR-E8-1 floor of 320px
 **And** the `devices['Pixel 7']` descriptor is otherwise retained, because the Chrome-on-Android user agent and touch
@@ -4458,8 +4481,8 @@ keep its buttons on screen, So that I can read what is on my list and act on it 
 
 **AC1 — a long item name wraps to two lines instead of truncating (UX-DR-E8-2, report #2)**
 
-**Given** `ListDetailPage.tsx:224` renders the item name as `noWrap` under a fixed `{xs: 150, sm: 400}` cap, so on a
-narrow phone the user sees an ellipsis where the item is
+**Given** the `item-name` Typography in `ListDetailPage.tsx` renders `noWrap` under a fixed `{xs: 150, sm: 400}` cap,
+so on a narrow phone the user sees an ellipsis where the item's name should be
 **When** a list contains an item whose name does not fit on one line at 320px
 **Then** the name wraps and up to **two** lines are shown before it is ellipsised
 **And** the two-line bound is enforced, so a pathological name cannot grow the row taller than the controls beside it
@@ -4485,7 +4508,8 @@ document-level overflow check, which cannot see this defect (AR-E8-3a)
 
 **AC3 — the category-name row is fixed in the same pass (AR-E8-3, third bullet)**
 
-**Given** `ListDetailPage.tsx:158` is the identical `noWrap` + `{xs: 160}` construct beside two IconButtons, unreported
+**Given** the `category-name` Typography in `ListDetailPage.tsx` is the identical `noWrap` + `{xs: 160}` construct
+beside two IconButtons, unreported
 only because `md` had not hit it yet
 **When** a category has a long name at 320px
 **Then** it behaves consistently with AC1's item name and does not overflow its row
@@ -4496,8 +4520,8 @@ only because `md` had not hit it yet
 **Given** `AppShell.tsx:193` caps the username at `{xs: 140}` and was deliberately capped so the bar survives ~360px —
 it is in the audit but not automatically in scope (AR-E8-3)
 **When** the app bar is rendered at 320px with a long username
-**Then** either it is fixed in this story, or it is confirmed correct at the floor and that confirmation is recorded
-**And** if it is neither, it goes into `deferred-work.md` with its measurement — it does not pass silently
+**Then** one of three outcomes is recorded: it is fixed in this story, it is confirmed correct at the floor, or it
+goes into `deferred-work.md` with its measurement — it does not pass silently
 
 **AC5 — the fixes are proven at the floor, and the tests were seen failing first**
 
@@ -4551,7 +4575,7 @@ lost
 a row-level activation has no such event
 **When** the handler is reworked
 **Then** it takes the next state explicitly and the `Checkbox` no longer owns that decision
-**And** the existing failure behaviour is preserved unchanged: the normalized cache is untouched on error, the control
+**And** the existing failure behaviour is preserved unchanged: the normalised cache is untouched on error, the control
 reverts to server state on its own, and the reason is surfaced in the existing inline `shopping-action-error` alert
 
 **AC4 — a scroll that starts on a row does not check the item**

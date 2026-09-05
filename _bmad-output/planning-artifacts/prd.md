@@ -5,7 +5,7 @@ completedAt: '2026-05-08'
 lastEdited: '2026-09-05'
 editHistory:
   - date: '2026-09-05'
-    changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8's closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. Added in the same planning pass per the standing Epic 6/7 retro agreement. All four are frontend-only against the existing schema.'
+    changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8's closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. All four are frontend-only against the existing schema.'
   - date: '2026-07-30'
     changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
   - date: '2026-07-29'
@@ -431,6 +431,22 @@ required.
 for mobile screens first and adapts up to desktop. MUI `sx` breakpoints throughout — no fixed-width layouts on auth
 screens.
 
+**NFR64 — a 320px CSS width is a supported viewport.** Every screen is usable at 320px: nothing overflows
+horizontally, no text is clipped, and no interactive element is pushed off-screen. The driver is a foldable cover
+display (~344px); 320px is chosen so the requirement outlives one handset. This supersedes any per-component fixed
+pixel cap.
+
+**NFR65 — the floor is gated, not inspected.** The E2E suite renders at the 320px floor as part of a normal run, on
+every project that emulates a phone, so a future fixed pixel cap fails the gate instead of reaching a device.
+Overflow and clipping are asserted mechanically, never by eye, because truncation is silent by design (`noWrap`
+renders an ellipsis, not an error): element-level clipping, document-level horizontal overflow, and per-element
+containment of interactive controls are three separate assertions with three different jobs, and the document-level
+one alone gates nothing.
+
+NFR64/NFR65 are carried in `epics.md` as NFR-E8-1 and NFR-E8-2. They are recorded here as well because the reverse
+omission is a known failure of this project: the 2026-07-30 entry in `editHistory` records NFR17/NFR18 living only in
+this document and never reaching the epics inventory, "which is why the contradiction survived three epics".
+
 ## Project Scoping & Phased Development
 
 ### Strategy & Philosophy
@@ -656,10 +672,13 @@ to lists and introduces sharing.
 
 ### Navigation & UX
 
-- **FR48:** Bottom tab navigation (Today, Lists, Household) is the primary navigation chrome, replacing the
+- **FR48:** *(Superseded — describes the Epic 4 bottom-tab design that never shipped; see AR-E8-8 and Story 8.7,
+  which replaces the two stale UX specifications with a description of what is actually deployed.)* Bottom tab
+  navigation (Today, Lists, Household) is the primary navigation chrome, replacing the
   existing AppBar and navigation drawer; the Household tab displays the current user's list memberships and allows
   list owners to remove members from lists they own
-- **FR49:** The Today tab displays the active list's items organized by category with a progress strip; category
+- **FR49:** *(Superseded — same Epic 4 bottom-tab design; see AR-E8-8 and Story 8.7.)* The Today tab
+  displays the active list's items organized by category with a progress strip; category
   groups disappear from view when all items in the group are checked off; a completion state is shown when all
   items across all categories are checked; the Today tab includes a + button to add a new item directly — if the
   user has multiple lists, a list selector is shown so they can choose which list to add to
@@ -691,6 +710,9 @@ to lists and introduces sharing.
   free-text item-name search, combined with AND. The category filter accepts more than one category at a time:
   selecting two categories shows the items of both, and selecting none shows all. The shopping view keeps its
   checked-status toggle (All / To buy / Done), which has no meaning while managing a list and is not added there.
+  Empty categories are shown on the management screen when no filter or search is active — its "No items yet." row is
+  where a first item gets added — and hidden while filtering; the shopping view hides empty groups always. See
+  `epics.md` FR61 and UX-DR-E8-8 for the full ruling.
 - **FR62:** Categories and the items inside them appear in the same order on both list surfaces — categories ordered by
   name, items ordered by name within their category, on `/list/:id` and `/lists/:id` alike. A user who arranges a list
   on one screen and then shops it on the other reads the same sequence in both places.
