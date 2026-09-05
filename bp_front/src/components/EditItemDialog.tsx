@@ -16,7 +16,7 @@ import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import {type ListCategory, type ListItem, SaveItemMutation} from '@/lib/lists/listsQueries'
-import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
+import {itemSaveErrorMessage} from '@/lib/admin/adminErrors'
 import StoreField from '@/components/StoreField'
 import {normalizeStore} from '@/lib/lists/storeValue'
 
@@ -146,7 +146,7 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
           },
         })
       } catch (err) {
-        setFormError(graphqlErrorMessage(err))
+        setFormError(itemSaveErrorMessage(err))
         return
       }
     }

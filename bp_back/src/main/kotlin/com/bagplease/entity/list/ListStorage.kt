@@ -3,12 +3,14 @@ package com.bagplease.entity.list
 import com.bagplease.entity.list.mongo.ListRepository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.Volatile
 
 @Suppress("RedundantSuspendModifier")
 class ListStorage(
     private val repository: ListRepository,
 ) {
     private val storage: ConcurrentHashMap<UUID, List> = ConcurrentHashMap()
+    @Volatile
     private var synced = false
 
     suspend fun sync() {

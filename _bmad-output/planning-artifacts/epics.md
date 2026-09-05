@@ -1,5 +1,5 @@
 ---
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8', 'epic6-step-01-validate-prerequisites', 'epic6-step-02-design-epics', 'epic6-story-6.1', 'epic6-story-6.2', 'epic6-step-03-create-stories', 'epic6-step-04-final-validation']
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8', 'epic6-step-01-validate-prerequisites', 'epic6-step-02-design-epics', 'epic6-story-6.1', 'epic6-story-6.2', 'epic6-step-03-create-stories', 'epic6-step-04-final-validation', 'epic7-step-01-validate-prerequisites', 'epic7-step-02-design-epics', 'epic7-story-7.1', 'epic7-story-7.2', 'epic7-story-7.3', 'epic7-story-7.4', 'epic7-story-7.5', 'epic7-story-7.6', 'epic7-story-7.7', 'epic7-story-7.8', 'epic7-story-7.9', 'epic7-story-7.10', 'epic7-story-7.11', 'epic7-story-7.12', 'epic7-story-7.13', 'epic7-story-7.14', 'epic7-story-7.15', 'epic7-step-03-create-stories', 'epic7-step-04-final-validation']
 status: complete
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
@@ -26,6 +26,27 @@ inputDocuments:
   - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
   - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemInput.kt
   - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
+  # Added for Epic 7 (2026-07-29). The Epic 6 retrospective's "Prepared For Epic 7"
+  # section is the standing input — it scoped and owned six action items so that no
+  # re-derivation is needed. The two UX specs above remain listed for history but are
+  # stale from Epic 5 onward and Epic 7 changes almost no pixels (see UX-DR-E7-1).
+  - _bmad-output/implementation-artifacts/epic-6-retro-2026-07-29.md
+  # Live package registries queried during planning (2026-07-29), not read off a doc:
+  #   npm outdated in bp_front/, and repo1.maven.org maven-metadata.xml for every
+  #   coordinate in gradle/libs.versions.toml. Versions in AR-E7-9 are from that audit.
+  # Epic 7 requirements verified against the shipped code, which is authoritative over
+  # the planning docs where they disagree:
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt
+  - bp_front/src/routes/HomeRedirect.tsx
+  - bp_front/package.json
+  - bp_front/tsconfig.app.json
+  - bp_front/tsconfig.node.json
+  - bp_front/eslint.config.mjs
+  - bp_front/playwright.config.ts
+  - gradle/libs.versions.toml
 ---
 
 # bag-please - Epic Breakdown
@@ -143,6 +164,46 @@ the list management view already provides
 lifecycle control lives in the item editor per FR43, so Epic 6 builds the editor **without** it; undeferring them is a
 later epic and depends on the `checkedAt` preservation gap recorded in AR-E6-3.
 
+#### Epic 7 — Correctness, Test Harness & Dependency Currency
+
+FR58: Saving an item that already exists modifies only the fields the item editor sends. The item's recorded author
+(`addedBy`), its check-off timestamp (`checkedAt`), and its soft-delete state (`deleted`, `deletedAt`) survive the save
+unchanged. Create and update are discriminated by **whether the item id already exists on the target list**, never by
+whether an id was supplied: the client generates the id with `crypto.randomUUID()` for new items as well as for edits,
+so an id is always present. A save whose id is not found on the target list creates the item, with `addedBy` set from
+the caller; a save whose id is found merges the input onto the stored item. A save naming an id that exists on a
+**different** list is rejected with an error and moves nothing, and a save naming a category that does not belong to
+the target list is rejected rather than being written as a dangling reference.
+
+**Also delivered in Epic 7 (correctness restored on already-shipped FRs, not new requirements):**
+
+- **FR45 — `addedBy` stops being reassigned.** FR45 requires each item to display "the username of the user who added
+  it". BUG-E6-1 makes an edit re-attribute authorship to the editor, so the shopping view's avatar silently shows the
+  wrong person on any shared list. FR58 restores FR45's truth condition.
+- **FR54 — the recurring scheduler stops losing items.** FR54's restore pass `continue`s when `checkedAt == null`.
+  BUG-E6-2 clears `checkedAt` on every edit, so an edited recurring item is never restored. FR58 is the recorded
+  prerequisite for undeferring FR42/FR43.
+- **FR40 — an edit stops being able to resurrect a deleted item.** FR40 grants every member add/check/edit/delete.
+  BUG-E6-3 lets a stale open dialog re-create an item another member just deleted, or orphan it under a deleted
+  category (recoverable only with direct database access). FR58's explicit create-vs-update rule closes both outcomes.
+- **FR38 — `/` resolves to the genuinely oldest list.** FR38 says `/` redirects to "the user's oldest list by creation
+  date". `HomeRedirect` compares `createdAt` lexicographically against variable-precision `Instant.toString()` output,
+  so `…:05Z` sorts after `…:05.100Z` and the wrong list wins roughly once in a thousand list pairs.
+- **FR57 — the home affordance is a no-op when it is already home.** FR57 says the user can "return to the application
+  home destination in one action". Activating it while already standing on the resolved destination currently costs a
+  spinner flash and a dead history entry, so Back appears to do nothing once.
+
+FR59: The application is installable from Chrome on Android as a real standalone app, not a bookmark shortcut: Chrome's
+menu offers **"Install app"**, and the installed app has its own launcher icon, its own entry in the task switcher, and
+runs with no browser URL bar. Chrome builds a WebAPK only when all three of HTTPS, a linked manifest with PNG icons at
+192×192 **and** 512×512, and a registered service worker with a fetch handler are satisfied simultaneously; missing any
+one silently downgrades the result to a shortcut with no error.
+
+**Explicitly still deferred after Epic 7:** FR42 (one-timer) and FR43 (recurring) — FR58 discharges their recorded
+technical prerequisite, but `md` is reconsidering the requirements themselves before they are scoped, so they are not in
+this epic. FR34 (list description) still needs a `List.description` backend field and a schema change; it is out of
+Epic 7's scoped unfreeze (AR-E7-0).
+
 ### NonFunctional Requirements
 
 NFR1: User passwords are hashed using bcrypt with cost factor 12; plaintext passwords are never stored or logged
@@ -164,6 +225,14 @@ NFR13: All input fields on auth forms have visible, associated labels
 NFR14: Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 NFR15: Form error messages are associated with their corresponding input fields
 NFR16: Text and interactive elements on auth screens meet minimum colour contrast for readability
+NFR17: The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
+production artifact (built SPA served by Caddy + backend + MongoDB) on both a desktop and a mobile viewport, and must
+pass with zero failures before any story in any epic is marked done; it is deliberately not pointed at the Vite dev
+server
+NFR18: E2E tests use browser-level isolation (no shared auth state across test files) and are UI-driven — each spec
+registers its own fresh user and signs in through the form; there is deliberately no login fixture and no
+`storageState`; direct API calls are permitted only to prepare the environment, never for the behaviour under
+assertion
 
 #### Epic 4 — Lists & Sharing
 
@@ -184,6 +253,48 @@ are reachable and operable on both the `chromium` and
 ~360px viewport NFR-E6-3: Both new affordances are keyboard-operable and screen-reader-labelled: the app-bar home link
 is a real link element (focusable, Enter-activated, discoverable as a link), and each per-row edit control carries an
 item-specific accessible name rather than a bare "Edit"
+
+#### Epic 7 — Correctness, Test Harness & Dependency Currency
+
+NFR-E7-1: **Dependency currency.** At epic close every direct dependency in `bp_front/package.json` and
+`gradle/libs.versions.toml` is either at its latest stable release or is deliberately held back with the reason
+recorded in **`deferred-work.md`** — the ledger both dev workflows read — **not** in `project-context.md`, which is a
+rules file for agents rather than a debt ledger. A held-back major with a blocking peer range is tracked debt and must
+live where tracked debt lives; this is the same distinction that made Story 6.1's AC15 execute while the FR9 item was
+orphaned. "We did not get to it" is not a reason; a failing upgrade with a named symptom is.
+
+NFR-E7-2: **The E2E suite is green at `retries: 0`, and stays green.** Two consecutive full runs at `retries: 0` pass
+on both `chromium` and `mobile` with no flake. Today the suite is green only under CI's `retries: 2`, and the
+`registrationEnabled` race has been accepted seven times across two epics. A probabilistic pass does not satisfy this
+NFR. **The measurement is taken twice: once when Story 7.3 claims it, and again at epic close** — because eleven
+stories run after 7.3, six of them dependency majors and one of them adding a service worker, and an NFR asserted once
+and then assumed for the rest of an epic is the same failure mode as a test that has never been seen to fail.
+
+NFR-E7-3: **`bp_front/e2e/` is inside both static gates.** `npm run lint` lints the spec files and `tsc -b`
+type-checks them, so the claim "lint and build pass" becomes a true statement about the suite the project treats as its
+hard gate. It covers nothing there today.
+
+NFR-E7-4: **Every backend behaviour change ships Kotest coverage, and every new test is observed failing first.** The
+existing suite stays green, and each new assertion is proven non-vacuous by breaking the behaviour it guards, watching
+it go red, and restoring — the Epic 6 convention, applied to backend tests as well as Playwright specs.
+
+NFR-E7-5: **The dependency upgrades change no user-visible behaviour.** After every bump the dark theme tokens, the
+~360px and desktop layouts, and every existing E2E assertion hold unchanged. A rendering difference is an upgrade
+failure, not an accepted cosmetic drift.
+
+NFR-E7-6: **Each major version bump is independently attributable.** A major lands, is verified green on its own, and
+only then does the next one start — so a break names its own cause. Bundling majors into one commit is forbidden.
+
+NFR-E7-7: **The service worker never intercepts the API surface.** `/api/*` (GraphQL HTTP and the auth REST endpoints)
+and `/api/subscriptions` (the WebSocket upgrade) are excluded from navigation fallback **and** from runtime caching; no
+API response is ever served from cache, and no authenticated response is ever written to one. The concrete test is
+`GET /api/graphiql`: it is a *navigation*, it is the project's documented backend-readiness check, and without an
+explicit denylist the service worker returns the SPA shell for it instead.
+
+NFR-E7-8: **Adding the service worker does not regress NFR-E7-2.** After the PWA story, two consecutive full runs at
+`retries: 0` still pass on both `chromium` and `mobile`. A service worker is a global request interceptor introduced
+into a suite where every spec navigates; it is landed last precisely so that any resulting flake is attributable to it
+and to nothing else.
 
 ### Additional Requirements
 
@@ -325,6 +436,220 @@ From Architecture (Epic 6) — verified against the current code, not inferred f
   inputs via `slotProps={{htmlInput: {'data-testid': …}}}`; every story ships FR-tagged Playwright specs passing on
   **both** `chromium` and `mobile`, each flow manually exercised in a real browser first; each spec registers its own
   fresh user and asserts only on data it created.
+
+From Architecture (Epic 7) — verified against the current code and against live package registries, not inferred:
+
+- **AR-E7-0 (standing constraint): the backend unfreeze is scoped, not general.** Epic 7 deliberately ends the
+  three-epic `bp_back/` freeze — but only for the changes named in AR-E7-1, AR-E7-2 and AR-E7-11, plus the Gradle
+  catalog bumps in AR-E7-9. Every backend story names the files it may touch. A backend need discovered mid-story that
+  falls outside that list stops the story and goes to `md`, exactly as under the freeze. "The freeze is over" must not
+  become open season on `bp_back/` — the freeze's value was that it made every backend change a decision.
+- **AR-E7-1: the `saveItem` defect family has one cause and one fix.** `ItemApi.saveItem` calls
+  `GqlItemMapper.mapItemFromInput(item, caller.value)`, which constructs a **fresh** `Item`; `Item` defaults
+  `addedBy`, `checkedAt`, `deleted` and `deletedAt`. `ItemService.saveItem` then calls `storage.save(item)` with no
+  merge, and `ItemRepository.save` runs `Updates.set` on every field with `UpdateOptions().upsert(true)`. So every
+  field absent from `ItemInput` is written back as its default. The fix is in `ItemService.saveItem`: load the stored
+  item by (`id`, `listId`) and `copy()` only the seven fields `GqlItemInput` actually carries (`id`, `name`, `checked`,
+  `category`, `listId`, `store`, `recurring`), leaving `addedBy`, `checkedAt`, `deleted` and `deletedAt` untouched.
+  **`GqlItemInput` is unchanged, so there is no GraphQL schema change and no `npm run generate` run in this epic.**
+- **AR-E7-2: create-vs-update is discriminated by EXISTENCE IN STORAGE, never by presence of the id** (`md`,
+  2026-07-29). An earlier draft of this requirement said "absent id → create, present id → update, reject an id that
+  does not exist". **That draft was wrong and would have broken add-item entirely.** `GqlItemInput.id` is
+  non-nullable (`GqlItemInput.kt:9`) and the frontend generates the UUID client-side with `crypto.randomUUID()` for
+  *creates* as well as edits, so an id is always present and rejecting unknown ids would reject every new item.
+  `md`'s ruling: **the frontend keeps generating the UUID.** The fix therefore discriminates on the lookup:
+    - Load the stored item by (`id`, `listId`). **Found** → `copy()` only the seven fields `GqlItemInput` carries.
+      **Not found** → create it, `addedBy` set from the caller exactly as today.
+    - An id that exists on a **different** list is an error, not a cross-list move.
+    - `category` is validated as belonging to `listId` before the write, closing **BUG-E6-3b** — the
+      dangling-category outcome whose only recovery today is direct database access.
+    - **This needs no GraphQL schema change and no `npm run generate` run**, so AR-E7-1's promise holds.
+- **AR-E7-2a: BUG-E6-3a (resurrection) is NOT fixed by Story 7.4, and that is a recorded decision rather than an
+  oversight.** `ItemStorage.delete` is a hard delete (`ItemStorage.kt:41-46`), so a deleted id no longer exists and a
+  save against it takes the create branch. The merge fix does, however, **downgrade its severity**: the item returns as
+  a genuinely new row — `addedBy` is the editor, who did in fact create it, and `checkedAt` is null, correct for a new
+  item — and it is removable through the UI. The user-describable behaviour becomes *"you edited something that had
+  already been deleted, so it came back as a new item"*, which is no longer silent corruption. A real fix requires
+  making `deleteItem` a soft delete (tombstones the scheduler would then own), which is outside Epic 7's scoped
+  unfreeze. **Story 7.4 must record this in `deferred-work.md` as a severity downgrade with the proposed fix — never
+  close it silently on the grounds that the merge made it tolerable.**
+- **AR-E7-3: `checkItem`, `uncheckItem` and `runSchedulerCycle` are already correct — they `copy()` the stored item —
+  and are the reference for the pattern.** They must not regress; their existing Kotest coverage is the regression net
+  for the `ItemService` change. Note `uncheckItem` deliberately clears `checkedAt`; that is the scheduler contract, not
+  an instance of the bug.
+- **AR-E7-4: `e2e/` enters the static gates via a third tsconfig project.** Add `tsconfig.e2e.json` to the `references`
+  array in `tsconfig.json` (alongside `tsconfig.app.json` and `tsconfig.node.json`) covering `e2e`, and widen
+  `package.json`'s `"lint": "eslint src/"`. The spec files are Node-side, not browser-side: they need
+  `@playwright/test` types and `globals.node`, and `eslint-plugin-react-refresh`'s `only-export-components` rule must
+  **not** apply to them — it is the rule that forced `normalizeStore` out of `StoreField.tsx` in Epic 6, and a helper
+  module full of exported functions is exactly what AR-E7-5 requires. Expect this story to surface real pre-existing
+  errors across ~1,015 lines of Epic 6 spec code that nothing has ever type-checked; fixing them is in scope.
+- **AR-E7-5: one shared E2E support module, and it lands before the race fix.** `uniqueUsername`, `registerViaUi`,
+  `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`, `loginApi` and `gql` are currently re-declared in
+  `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and `item-editing.spec.ts`, differing only in the
+  `uniqueUsername` prefix. Extract them once (e.g. `e2e/support/`) and import everywhere. This is sequenced **before**
+  AR-E7-6 for a concrete reason: `registerViaUi` carries the `expect(...).toPass()` race workaround, so fixing the race
+  first would mean fixing it in four places. **This is not a login fixture and not `storageState`** — each spec still
+  registers its own fresh user through the UI and asserts only on data it created.
+- **AR-E7-6: delete the `registrationEnabled` race rather than retry it.** One Mongo `ApplicationConfig` document is
+  shared by the concurrently-running `chromium` and `mobile` projects, so the admin-toggle test's OFF window breaks
+  register-based specs in the other project. Decided approach (Epic 6 retro): registration stays **enabled** as the
+  steady state, and the registration-disabled test runs **non-parallel**. Note that `test.describe.configure({mode:
+  'serial'})` is insufficient — it serializes within a project, and the race is *across* projects; the disabled test
+  needs genuine exclusivity (its own project with a dependency, a worker-scoped lock, or equivalent). Restore the
+  enabled state in a `finally` so a failing assertion cannot leave registration off. Once the race is gone, **remove**
+  the `toPass()` workaround from the shared helper — do not leave both, or the next flake will be invisible.
+- **AR-E7-7: `HomeRedirect` must sort `createdAt` numerically.** `[...lists].sort((a, b) =>
+  a.createdAt.localeCompare(b.createdAt))[0]` runs against `GqlListMapper`'s `list.createdAt.toString()` on a
+  `java.time.Instant`, which omits the fractional part entirely when nanos are zero — so `…:05Z` compares *greater*
+  than `…:05.100Z` (`'Z'` 0x5A > `'.'` 0x2E). Fix by comparing `Date.parse(createdAt)`. **The alternative of emitting a
+  fixed-precision timestamp from the backend is rejected**: it is a wire-format change made to work around a frontend
+  comparison bug, and it would silently alter every consumer of `createdAt`.
+- **AR-E7-8: the home no-op fix belongs in `HomeRedirect`, not `AppShell`.** AR-E6-7 forbids the app bar re-deriving
+  the home path, and that ruling stands. Expose the resolved path from `HomeRedirect` (or a shared hook reading the
+  same `ListsQuery`) so the app bar can render a link that is inert when it already points at the current route.
+  Suppressing the history entry must not regress the link's nature: it stays a real anchor, reachable by Tab and
+  activated by Enter (NFR-E6-3), never a `Button` and never an imperative `navigate()`.
+  **The inert state must be inert-but-PRESENT — never removed, never hidden, never `disabled`.** See AR-E7-8a for why
+  that is a hard requirement rather than a styling preference.
+- **AR-E7-8a: Story 7.14 promotes Story 7.5's link from convenience to the app's only exit, so the two cannot be
+  planned independently.** An installed WebAPK at `display: 'standalone'` has **no URL bar and no browser back or
+  forward button**. The only navigation is the Android system back gesture, which is `history.back()` — and when the
+  history stack is exhausted it does not no-op, it **exits the app**. `HomeRedirect` redirects with
+  `<Navigate … replace/>` (`HomeRedirect.tsx:37,41,44`, and `:30` for admin), so launching at `start_url: '/'` leaves
+  the history stack exactly **one** entry deep. Consequences, all verified against the routes as shipped:
+    - On the launch screen, system back closes the app. This is correct and native-like, but it means the resolved home
+      route is the one screen where a mis-tap ejects the user mid-shop. It must be a deliberate acceptance, not a
+      discovery.
+    - **`/account/password` and `/admin` carry no back affordance of their own.** `ListDetailPage.tsx:84` and
+      `ListShoppingPage.tsx:263` each have one; those two routes do not. Their sole in-app exit is the app-bar title
+      link at `AppShell.tsx:93` — invisible as a risk in a browser, load-bearing and single-point-of-failure without
+      chrome.
+    - For the **admin** account, home resolves to `/admin` (`HomeRedirect.tsx:30`), so Story 7.5's guard suppresses the
+      title link on the very route that has no other affordance. This is harmless **by coincidence** — admin's app is
+      one screen, and `ChangePasswordPage.tsx:40` bounces admin away — which is precisely why it would never be tested.
+      Hence AR-E7-8's inert-but-present rule: a title that *vanishes* on one route is worse than one that does not
+      navigate.
+    - **No URL-bar recovery exists.** Today a user in a broken state can edit the address bar; in standalone that door
+      is gone, which promotes every graceful-redirect branch (`HomeRedirect.tsx:37`'s lists-query-error path,
+      `ListShoppingPage.tsx:233`) from defensive politeness to the only way out. None may be weakened by either story.
+    - **Required coverage, and it is cheap.** Do not attempt to emulate a WebAPK — Playwright cannot install one.
+      Assert `window.history.length` after landing on the resolved home route, and walk every guarded route asserting
+      each exposes at least one in-app navigation affordance. That catches the real defect class without pretending to
+      test the container.
+- **AR-E7-9: package upgrade sequencing, from the 2026-07-29 audit.** Already current: Testcontainers 2.0.5, bcrypt
+  0.10.2, Gradle 9.6.1. Minor/patch sweeps: `@apollo/client` 4.1.9→4.2.8, `@mui/material` + `@mui/icons-material`
+  9.0.0→9.2.0, codegen `cli` 7.0.0→7.2.0 and `client-preset` 6.0.0→6.1.0, `@playwright/test` 1.61.1→1.62.0, `react` +
+  `react-dom` 19.2.5→19.2.8, `graphql-ws` 6.0.8→6.2.0, `react-router-dom` 7.18.1→7.18.2, `rxjs` 7.8.1→7.8.2,
+  `@types/react` 19.2.14→19.2.17, `globals` 17.7.0→17.8.0; Ktor 3.4.3→3.5.1, Mongo driver 5.5.1→5.9.1, Kotest
+  6.1.11→6.2.3, Arrow 2.1.2→2.2.3, Logback 1.5.18→1.6.1.
+  **Kotlin is deliberately NOT in the minor sweep** (`md`, 2026-07-29). A Kotlin minor is not a no-migration-risk bump,
+  and `graphql-kotlin` 9.2.0 sits in the same build and may cap the supported Kotlin version — so bumping Kotlin in
+  Story 7.7 could break the backend six stories before the story allowed to fix it. Kotlin moves **with**
+  `graphql-kotlin` in Story 7.12, pinned to the newest Kotlin that `graphql-kotlin` 10.2.0 actually supports. `md`'s
+  read is that Kotlin will be fine in 99% of cases; the pairing exists so that the 1% is attributable to one story
+  instead of poisoning the sweep. Note the Kotlin serialization plugin already tracks `version.ref = "kotlin"`, so it
+  moves in lockstep automatically. Majors, each its own gated step:
+    - **Vite 7.3.6→8.1.5 with `@vitejs/plugin-react` 5.2.0→6.0.4 — one atomic step.** Plugin v6 requires Vite 8;
+      bumping either alone breaks the build. This pairing is already recorded in `project-context.md`.
+    - **TypeScript 6.0.3→7.0.2.** Interacts with AR-E7-4 — do the `e2e` tsconfig project **first**, so the TS major is
+      type-checking the whole codebase rather than 80% of it.
+    - **ESLint 9.39.5→10.8.0 with `@eslint/js` 10.0.1.** Check `typescript-eslint`, `eslint-plugin-react-hooks` v7 and
+      `eslint-plugin-react-refresh` peer ranges before starting. `react-hooks/set-state-in-effect` must survive — it is
+      load-bearing for the render-phase-adjustment convention.
+    - **`graphql` 16.14.0→17.0.2 — highest frontend risk.** It is a peer dependency of `@apollo/client`, `graphql-ws`
+      and both codegen packages simultaneously. Verify all four accept v17 **before** attempting it; if any does not,
+      hold it back and record the blocking peer range. A held-back `graphql` does not fail the story.
+    - **`graphql-kotlin` 9.2.0→10.2.0 — highest backend risk.** A major on the Ktor server integration that owns schema
+      generation, the subscription transport and the auth wrapper. Its blast radius is the entire GraphQL surface.
+    - **`@types/node` 25.6.0→26.1.2.** Types-only; verify against the Node running the build.
+- **AR-E7-10: a bump is not done until it is verified, and a failed bump is reverted, not worked around.** Each step
+  runs the frontend build + lint + the full Playwright suite on **both** projects (and `./gradlew :bp_back:test` for
+  backend bumps) before the next step starts. A bump that cannot be made green is reverted and recorded against
+  NFR-E7-1 with its symptom. Do not carry a half-migrated dependency forward.
+- **AR-E7-11: the backend safety fixes are three catalogued Epic 4 items, all low-risk.**
+    - (a) `private var synced = false` is non-volatile in `ItemStorage.kt:12`, `CategoryStorage.kt:12` and
+      `ListStorage.kt:12` — two coroutines can double-sync on startup; add `@Volatile`.
+    - (b) Invite status is untyped `"PENDING"` / `"ACCEPTED"` / `"DECLINED"` across `ListService.kt:151-152,162-163,
+      179-180`, `ListMemberRepository.kt:49,62` and `GqlListMapper.kt:17`, so a typo silently produces broken state.
+      **The enum goes in the DOMAIN model only; storage stays a `String`** — this is not a style preference, it is the
+      convention the codebase already uses and the safe choice. Precedent: `MongoItem.recurring` is `String?` while
+      `Item.recurring` is the `Recurring` enum, converted at the mapper boundary. So `ListMember.status` becomes the
+      enum (giving the compile-time checking this fix exists for) and `MongoListMember.status` stays `String`.
+      **Putting the enum in `MongoListMember` would be actively worse than the strings it replaces:**
+      kotlinx-serialization throws `SerializationException` decoding an unknown value, and
+      `listMemberRepository.findActiveByListId` is called at `ListApi.kt:30,60,72,92,104,124` — on essentially every
+      list query and mutation response — so one unexpected row would fail the whole `lists` query for every member of
+      that list, where today it merely falls through `!= "DECLINED"` and renders as a member.
+    - (c) `ListService.deleteList` cascades items → categories → list (`ListService.kt`) but never deletes the list's
+      `list_members` rows, so orphans accumulate and `getLists` silently null-maps them away; add the cascade inside
+      the same ordered block, after the category delete and before `listRepository.delete`.
+      **No backfill of already-orphaned rows is in scope** — `md`'s ruling (2026-07-29) is to assume none exist in
+      production. The fix is forward-looking only. If a future read ever surfaces an orphan, that is a new finding, not
+      a regression of this story.
+- **AR-E7-12: Epic 7 runs on a fresh `epic-7-*` branch.** Epics 5 **and** 6 both ran on `epic-4-lists`, a name two
+  epics stale by the end; it was flagged twice with no consequence.
+- **AR-E7-13: the dev-auto warnings get a measured verdict, not a fourth slip.** Both warnings are the tool flagging
+  *itself* and neither blocks anything, which is exactly why they have been ignorable. Their definitions:
+  `spec-template.md:12` — *"Aim for 900–1600 tokens. If larger, add `oversized` to frontmatter `warnings` and
+  continue"*; `step-01-clarify-and-route.md:59` — *"If the intent appears to contain multiple independently shippable
+  goals, carry `multiple-goals` forward … **Do not split or block**"*; both written into frontmatter by
+  `step-02-plan.md:19`. The story is **measure → correlate → encode**, in that order:
+    - **Measure.** Five consecutive specs carry `oversized` (5.5, 5.6, 5.7, 6.1, 6.2) against a 900–1600 token budget.
+      Approximate sizes: 5.5 ≈ 3,000 tokens (~2×), 6.2 ≈ 3,200 (~2×), **6.1 ≈ 6,000 (~4×)**. Record exact counts rather
+      than these estimates.
+    - **Correlate.** Test whether spec size predicts review findings, using data that already exists. Story 6.1 was the
+      largest spec, the only one flagged `multiple-goals`, **and** the story that produced the most review findings —
+      including six assertions that could not fail. That is one data point in favour of the warnings being real, not a
+      proof; five specs and their finding counts are enough to tell noise from signal.
+    - **Note that `multiple-goals` was CORRECT on 6.1.** The story delivered the FR40 edit verb *and* the FR44 store
+      write path across both dialogs — genuinely two independently shippable goals. The scope came from the Epic 6
+      planning review, so the tool detected scope creep the review process itself had introduced, and reported it in a
+      blocked report **before Epic 6 ran**, where it was ignored. A warning that was right is different evidence from a
+      warning that was noise.
+    - **Encode the verdict as an artifact.** If the threshold is simply wrong for this codebase — plausible, given how
+      much standing convention every bag-please spec must carry — raise or waive it in `_bmad/custom/bmad-dev-auto.toml`
+      so the field stops emitting a signal nobody acts on. If the warnings are real, land a spec-size convention in
+      `project-context.md`. **Either outcome closes the item; "we looked and the threshold is wrong" is a finished
+      result, not a failure.** What is forbidden is a finding that exists only in this epic's retrospective — the exact
+      failure mode the Epic 6 retro identified when its predecessor's seven action-item rows came back 0/7.
+    - Scope note: this is the only Epic 7 story with no code in it. It is kept because the signal has now accumulated
+      unread across three epics *and* gained a new warning type while being ignored.
+- **AR-E7-14: the PWA is `vite-plugin-pwa`, and it lands after every dependency bump.** Sequenced last among the code
+  stories for two reasons: the plugin peers on Vite, so installing it before Story 7.9 would mean migrating it twice
+  across the Vite 7→8 major; and a service worker is a **global request interceptor** added to a suite in which every
+  spec navigates, so landing it while GraphQL majors are in flight would make any flake unattributable (NFR-E7-6).
+  Concrete shape, verified against this repo:
+    - `npm i -D vite-plugin-pwa`, added to `plugins` in `vite.config.ts` with `registerType: 'autoUpdate'` and
+      `includeAssets: ['favicon.svg']`. Registration via `registerSW({immediate: true})` from `virtual:pwa-register`
+      in `src/main.tsx`.
+    - Manifest: `id: '/'`, `name` and `short_name` "Bag Please", `start_url: '/'`, `scope: '/'`,
+      `display: 'standalone'`, `theme_color: '#000000'`.
+    - **`background_color` must be `#000000`, not `#ffffff`.** It is Android's cold-launch splash colour, and
+      `src/theme.ts` sets `background.default: '#000000'` on a dark-only theme — white would flash on every launch of
+      an all-black app. This is a deliberate correction to the recipe this story came from.
+    - Icons: `bp_front/public/` currently holds **only** `favicon.svg` (305 bytes) and no PNG at any size, so the
+      icons must be generated, not merely referenced. **Chrome will not build a WebAPK icon from SVG.** Required:
+      192×192 PNG, 512×512 PNG, and a 512×512 `purpose: 'maskable'` PNG carrying ~20% padding so Android's
+      circle/squircle mask does not clip the artwork. `npx pwa-asset-generator public/favicon.svg public/icons
+      --manifest false --padding "20%"` produces them; the generated PNGs are committed.
+    - Workbox: `navigateFallback: '/index.html'` with `navigateFallbackDenylist: [/^\/api/]` and no runtime caching of
+      the API (NFR-E7-7).
+    - `index.html` currently links only `/favicon.svg` and declares no manifest and no `theme-color`; the plugin
+      injects the manifest link, and the result must be verified in the built `dist/index.html`, not assumed.
+- **AR-E7-15: two deployment-path hazards specific to this stack, both silent when wrong.**
+    - **Caddy MIME type.** `routing/Caddyfile` serves the SPA with `try_files {path} /index.html` + `file_server`, so
+      `/manifest.webmanifest` and `/sw.js` resolve from `dist/` correctly — but the Alpine-based Caddy image cannot be
+      relied on to carry `.webmanifest` in its MIME table, and a wrong `Content-Type` kills installability with no
+      error anywhere. Set `application/manifest+json` explicitly with a `header` directive rather than depending on
+      the image, and assert the served header, not the file's presence. The service worker must be served from the
+      root scope and must not be cached long-term.
+    - **Real-device verification cannot use the TLS edge domain.** `https://bag-please.localhost` neither resolves nor
+      validates on a physical phone. Use `chrome://inspect` port forwarding so the device reaches
+      `http://localhost:2080`, which Chrome treats as a secure context, making install available. Confirm in DevTools
+      → Application → Manifest, whose **Installability** section names any unmet criterion outright — that panel, not
+      the presence of a menu item, is the evidence. Note that the WebAPK path is Chrome-on-Android specific; iOS
+      Safari uses its own `apple-touch-icon` route and is explicitly **not** in scope for FR59.
 
 ### UX Design Requirements
 
@@ -497,6 +822,72 @@ UX-DR-E6-7: Admin behaviour is unchanged and must stay graceful — the admin ac
 (FR56), so the app-bar home link resolves via `HomeRedirect` to `/admin` for admins. No new admin-facing surface, and no
 list affordance is added to any admin screen
 
+#### Epic 7 UX Design Requirements
+
+> **UX source note.** Epic 7 is a consolidation epic and is very nearly invisible. It adds no screen, no dialog and no
+> control. Both UX specs in `inputDocuments` remain stale from Epic 5 onward (see the Epic 6 UX source note); nothing in
+> them applies here. The requirements below exist to state what must **not** change — which is the whole UX contract of
+> an epic like this one.
+
+UX-DR-E7-1: **The dependency upgrades are visually inert.** After every bump — `@mui/material` and
+`@mui/icons-material` 9.0→9.2 above all, plus the Vite 8 / TypeScript 7 build-chain majors that change how the bundle is
+produced — the app renders identically: the same dark theme tokens from `src/theme.ts` (bg `#000`, paper `#1C1C1E`,
+primary teal `#4DC9BB`, success `#30D158`, error `#FF453A`, warning `#FFD60A`, and every `theme.custom.bp.*` value), the
+same spacing and type scale, the same layout at a ~360px viewport and on desktop. A visible difference is an upgrade
+regression to be diagnosed, not a cosmetic drift to be accepted. Verification is a real-browser pass on the `:2080`
+production stack, not only a green suite.
+
+UX-DR-E7-2: **The home no-op fix succeeds by being unnoticeable.** Activating the app-bar "Bag Please" link while
+already standing on the route `/` resolves to leaves the screen visually unchanged: no `home-redirect-loading` spinner
+flash, no scroll-position change, and no additional browser-history entry — so a single Back still leaves the screen the
+user came from. On every *other* screen the link behaves exactly as Epic 6 shipped it. It stays a real link throughout
+(Tab-reachable, Enter-activated, exposed to assistive technology as a link, `textDecoration: 'none'` at rest with a
+visible hover and focus-visible state) and must not become a `Button` or a disabled element (NFR-E6-3, UX-DR-E6-5).
+
+UX-DR-E7-3: **The item-edit surface gains nothing and loses nothing.** FR58 is entirely server-side: `EditItemDialog`,
+`AddItemDialog` and the shared store field are untouched, and no edit or delete affordance appears on the shopping view
+(UX-DR-E6-2a still holds — `/lists/:id` manages, `/list/:id` uses). The only user-visible consequence is a correction:
+the `addedBy` avatar on the shopping row stops flipping to whoever last edited the item, and a checked item edited by a
+co-member stays checked with its clock intact.
+
+UX-DR-E7-4: **The no-op guard must not swallow a real navigation.** From `/lists`, from a list the user is *not* homed
+on, from change-password, and from any admin screen, the home link still navigates and still resolves through
+`HomeRedirect` per FR38 — including the admin case, which resolves to `/admin` (FR56, UX-DR-E6-7). The suppression
+applies only when the resolved destination is the current route. A guard that over-fires turns FR57 into a dead control
+on the screens that need it most, which is the failure mode this requirement exists to prevent.
+
+UX-DR-E7-5: **Installed-app identity (FR59).** The app installs as "Bag Please" — the same name in the manifest's
+`name` and `short_name`, so the launcher label matches the app-bar title the user already knows and nothing is
+truncated on a phone home screen. The launcher icon is derived from the existing `public/favicon.svg` artwork so the
+installed app is visually continuous with the browser tab, rasterised to the three required PNGs (192, 512, and a
+512 maskable with ~20% safe-area padding). The maskable variant is not optional polish: without it Android
+letterboxes the square icon inside its adaptive-icon mask, which reads as a broken third-party install rather than an
+app.
+
+UX-DR-E7-6: **Launching the installed app looks like the app, immediately.** `theme_color` and `background_color` are
+both `#000000`, matching `src/theme.ts`'s `background.default` on the dark-only theme, so the cold-launch splash and
+the Android system bars are the app's own black rather than a white flash followed by a dark app.
+
+UX-DR-E7-6a: **Without browser chrome, in-app navigation stops being a convenience and becomes the app's only exit.**
+`display: 'standalone'` removes the URL bar *and* the browser back button, so FR57's app-bar home link and the
+shopping view's back-to-lists affordance are no longer polish — they are the whole navigation model. Two routes,
+`/account/password` and `/admin`, have no back affordance of their own and depend entirely on the app-bar title link
+(`AppShell.tsx:93`); and because Story 7.5 makes that link inert on the resolved home route, it must go **inert without
+disappearing** — a title that vanishes on one screen reads as a broken render, while one that simply does not navigate
+reads as "you are already here". The full analysis, the per-route audit and the required coverage are in AR-E7-8a. This
+is the Epic 6 UX warning arriving on schedule: the aisle-edit round trip was accepted on the understanding that
+navigation would carry it, and an installed app is where that promise is actually called in.
+
+UX-DR-E7-6b: **Nothing about the installed app may depend on being able to read or edit the URL.** No error state, no
+recovery path, and no support instruction may assume the address bar exists. The graceful-redirect branches that exist
+today are the recovery mechanism.
+
+UX-DR-E7-7: **The service worker is invisible to the user.** `registerType: 'autoUpdate'` means a new deployment is
+picked up silently on the next launch: no update toast, no "reload to update" prompt, no version banner — consistent
+with the standing convention that mutations and state changes are confirmed by the UI changing, never by a
+notification. There is no offline mode in scope: the app requires the network exactly as it does today, and no
+offline UI, cached-data indicator, or "you're offline" affordance is added by this story.
+
 ### FR Coverage Map
 
 FR1: Epic 1 — Registration endpoint + RegisterPage
@@ -572,6 +963,36 @@ NFR-E6-2: Epic 6 — Both affordances pass on `chromium` + `mobile`; app-bar lin
 360px NFR-E6-3: Epic 6 — Home affordance is a real focusable link; per-row edit control carries an item-specific
 accessible name
 
+FR58: Epic 7 — `ItemService.saveItem` merges `ItemInput` onto the stored `Item` instead of constructing a fresh one;
+explicit create-vs-update replaces the blind upsert; `category` validated against `listId` (Story 7.4)
+FR45 (restored): Epic 7 — `addedBy` preserved on update, so an edit stops stealing authorship (BUG-E6-1, Story 7.4)
+FR54 (restored): Epic 7 — `checkedAt` preserved on update, so the hourly recurring restore stops skipping edited items
+(BUG-E6-2, Story 7.4)
+FR40 (restored): Epic 7 — an edit can no longer resurrect a deleted item or orphan it under a deleted category
+(BUG-E6-3, Story 7.4)
+FR38 (restored): Epic 7 — `HomeRedirect` compares `createdAt` numerically via `Date.parse`, so `/` reaches the genuinely
+oldest list (Story 7.5)
+FR57 (restored): Epic 7 — the app-bar home link is inert when it already points at the current route: no spinner flash,
+no dead history entry (Story 7.5)
+NFR-E7-1: Epic 7 — every direct npm and Gradle dependency at latest stable or held back with a recorded reason
+(Stories 7.7–7.13)
+NFR-E7-2: Epic 7 — the `registrationEnabled` race is deleted rather than retried; two consecutive full runs green at
+`retries: 0` on both projects (Story 7.3)
+NFR-E7-3: Epic 7 — `bp_front/e2e/` enters both static gates via a third tsconfig project and a widened lint glob
+(Story 7.1)
+NFR-E7-4: Epic 7 — backend behaviour changes ship Kotest coverage, each test observed failing before it is accepted
+(Stories 7.4, 7.6)
+NFR-E7-5: Epic 7 — no rendered difference after any bump, verified by a real-browser pass on the production stack
+(Stories 7.7–7.13)
+NFR-E7-6: Epic 7 — each major lands and is verified alone, so a break names its own cause — enforced structurally by
+one story per major (Stories 7.8–7.13)
+FR59: Epic 7 — `vite-plugin-pwa` manifest + generated PNG icons (192/512/512-maskable) + a registered service worker,
+turning Chrome-on-Android's "Add to Home screen" into a real WebAPK install (Story 7.14)
+NFR-E7-7: Epic 7 — `navigateFallbackDenylist: [/^\/api/]` and no runtime caching of the API, so the service worker
+never shadows GraphQL, the auth REST endpoints, the WebSocket upgrade, or `/api/graphiql` (Story 7.14)
+NFR-E7-8: Epic 7 — the suite stays green at `retries: 0` on both projects with the service worker registered
+(Story 7.14)
+
 ## Epic List
 
 ### Epic 1: User Authentication, Session Management & Identity
@@ -638,6 +1059,85 @@ accepted behaviour (AR-E6-3), and logging them in `deferred-work.md` is an AC of
 backend frozen (AR-E6-0), re-affirmed by `md` after the freeze was challenged in review. One
 `npm run generate` run is needed for the previously unused `itemStoreSuggestions` query (AR-E6-4) — authoring a query
 document against the existing schema, not a schema change.
+
+### Epic 7: Item Integrity, a Trustworthy Test Suite & Dependency Currency
+
+Three data-correctness defects are live in production today by explicit Epic 6 decision, and this epic removes all
+three with one server-side change. A co-member who fixes a typo stops **stealing authorship** of the item; editing a
+checked item stops **wiping the clock** that the recurring scheduler reads; and a dialog left open while someone else
+deletes the item can no longer **resurrect it for everyone** or strand it under a deleted category — an outcome whose
+only recovery today is direct database access. Alongside those, `/` starts resolving to the genuinely oldest list, and
+the app-bar home link stops costing a spinner flash and a dead Back press when the user is already home.
+
+Behind the user-facing repairs, the epic makes the project's own hard gate trustworthy and brings the stack current.
+**These are not user value and this epic does not claim they are** — they are what makes the repairs above verifiable.
+Today `bp_front/e2e/` is inside neither frontend quality gate, so "lint and build pass" says nothing about the ~1,015
+lines of Epic 6 spec code; the helper block is copy-pasted into four spec files; and the suite is green only under CI's
+`retries: 2`, because a shared `registrationEnabled` document races between the concurrently-running `chromium` and
+`mobile` projects — a flake accepted seven times across two epics. Epic 7 closes all three and then upgrades every
+direct npm and Gradle dependency behind that repaired gate.
+
+The epic's one genuinely new user-facing capability is **installability**: after Story 7.14 the app installs from
+Chrome on Android as a real WebAPK — its own launcher icon, its own entry in the task switcher, no URL bar — instead of
+the bookmark shortcut it degrades to today for want of PNG icons and a service worker.
+
+**FRs covered:** FR58 (new — item save is a merge, not a reconstruction); FR59 (new — installable PWA); FR45, FR54,
+FR40 (correctness restored — the three live defects); FR38, FR57 (correctness restored — wrong-list resolution and the
+home-link no-op)
+**NFRs covered:** NFR-E7-1 … NFR-E7-8
+**Still deferred:** FR42, FR43 — FR58 discharges their recorded technical prerequisite, but `md` is reconsidering the
+requirements before they are scoped. FR34 (list description) needs a `List.description` field, outside the scoped
+unfreeze.
+
+**Why one epic and not three.** The three themes look separable and are not: the package sweep must be gated by the
+repaired harness, and the race fix must be gated by the shared fixture module, so splitting would create exactly the
+cross-epic ordering dependency the epic-design rules forbid. The file overlap is meaningful rather than incidental —
+Stories 7.1, 7.2 and 7.3 all rewrite the same four spec files' helper blocks, and 7.7 then re-runs every one of them.
+The Epic 6 retrospective reached the same conclusion independently ("the obvious shape: a consolidation epic").
+
+**Story order is the epic's design, not a preference.** Each step is the gate for the next:
+
+1. **7.1** `e2e/` into lint + tsconfig — cheapest, and makes everything after it statically verifiable.
+2. **7.2** shared E2E support module — **must** precede 7.3, or the race fix lands in four copies.
+3. **7.3** delete the `registrationEnabled` race — **the pivot**: NFR-E7-2 becomes true, and every later story is
+   verified by a suite that can actually fail.
+4. **7.4** the `saveItem` merge (FR58) — the epic's highest user value and the first scoped backend unfreeze in three
+   epics, deliberately sequenced *after* the gate is trustworthy.
+5. **7.5** `HomeRedirect` numeric sort + the home no-op — one file, both FR-correctness.
+6. **7.6** backend safety fixes riding the same unfreeze — `@Volatile` `synced` flags, typed invite status,
+   `deleteList` orphan cleanup.
+7. **7.7 – 7.13** the dependency sweep — **last on purpose**: it needs the strongest gate available and re-verifies
+   everything before it. **One story per major** (`md`, 2026-07-29), which makes NFR-E7-6's independent-attributability
+   rule structural rather than an acceptance criterion someone has to remember. A major that cannot be made green is
+   reverted and held back with its symptom recorded (AR-E7-10); **a held-back major does not fail its story**, it
+   closes it with a recorded reason under NFR-E7-1.
+    - **7.7** the minor and patch sweep, npm **and** Gradle, in one pass — the ~16 bumps that carry no migration risk,
+      landed together so the majors that follow start from a current baseline.
+    - **7.8** `@types/node` 25→26 — types-only and the cheapest major; first so the sequence starts on low risk.
+    - **7.9** Vite 7→8 **with** `@vitejs/plugin-react` 5→6 — **one atomic story**, never two: plugin v6 requires Vite 8
+      and bumping either alone breaks the build (already recorded in `project-context.md`).
+    - **7.10** TypeScript 6→7 — after 7.1, so the major type-checks the whole codebase including `e2e/` rather than
+      80% of it.
+    - **7.11** ESLint 9→10 with `@eslint/js` 10 — after 7.10, because `typescript-eslint` must satisfy both at once.
+      `react-hooks/set-state-in-effect` must survive: it is load-bearing for the render-phase-adjustment convention.
+    - **7.12** `graphql-kotlin` 9→10 **together with the Kotlin bump** — the backend major, sequenced **before** 7.13
+      so that if it moves the generated schema at all, the frontend GraphQL major is verified against the final schema
+      rather than a stale one. Kotlin's target version is whatever `graphql-kotlin` 10.2.0 supports, resolved in this
+      story rather than assumed in 7.7.
+    - **7.13** `graphql` 16→17 — last, and the most likely to be held back: it is a simultaneous peer of
+      `@apollo/client`, `graphql-ws`, `@graphql-codegen/cli` and `@graphql-codegen/client-preset`.
+8. **7.14** installable PWA (FR59) — **after** every dependency bump, not before. `vite-plugin-pwa` peers on Vite, so
+   installing it earlier means migrating it twice across 7.9; and a service worker is a global request interceptor
+   added to a suite where every spec navigates, so landing it while GraphQL majors are in flight would make any
+   resulting flake unattributable. Last position is what keeps NFR-E7-8 a meaningful check (AR-E7-14, AR-E7-15).
+9. **7.15** the dev-auto warnings verdict — independent of the chain, schedulable anywhere.
+
+**Standing constraints for every Epic 7 story** are recorded as AR-E7-0 (the unfreeze is scoped to named files, not
+open season on `bp_back/`), AR-E7-10 (a failed bump is reverted and recorded, never worked around), AR-E7-12 (a fresh
+`epic-7-*` branch — Epics 5 **and** 6 both ran on `epic-4-lists`), and the Epic 6 non-negotiables carried forward:
+production-artifact E2E on desktop **and** mobile, manually exercised first, **every new test observed failing before
+it is accepted**, deferrals into `deferred-work.md`, and `sprint-status.yaml` reconciled at story close whichever dev
+workflow ran.
 
 ---
 
@@ -2362,3 +2862,888 @@ only within `RouteGuard`
 the `chromium` and `mobile`
 projects against the production image **And** each flow was manually exercised in a real browser before its test was
 written **And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+## Epic 7: Item Integrity, a Trustworthy Test Suite & Dependency Currency
+
+Three data-correctness defects are live in production by explicit Epic 6 decision; one server-side change removes all
+three. Alongside them, `/` starts resolving to the genuinely oldest list and the home link stops costing a dead Back
+press. Behind those repairs the epic makes the project's own hard gate trustworthy, brings every direct dependency
+current, and ships the app as an installable PWA.
+
+**Standing constraints for every Epic 7 story:**
+
+- **The backend unfreeze is scoped, not general (AR-E7-0).** Only Stories 7.4, 7.6 and 7.12 may touch `bp_back/`, and
+  each names the files it may change. A backend need discovered in any other story stops the story and goes to `md`.
+- **Every story ships FR- or NFR-tagged Playwright E2E passing on BOTH `chromium` and `mobile` (Pixel 7)**, against the
+  production image on `:2080`, for any user-facing change. Each flow is manually exercised in a real browser before its
+  test is written. Each spec registers its own fresh user through the UI and asserts only on data it created. `admin`
+  is blocked from all list operations.
+- **A new test is unproven until it has been observed FAILING** (Epic 6 convention). Break the behaviour it guards,
+  confirm red on **both** projects, restore. Six of Epic 6's seventeen review patches were assertions that could not
+  fail; this applies to Kotest tests as well as Playwright specs (NFR-E7-4).
+- **Epic 5 form, feedback and styling conventions apply verbatim**, and MUI v9 APIs are looked up via the
+  `mcp__mui-mcp__fetchDocs` MCP tool rather than recalled from v5/v6 memory.
+- **Deferred or discovered work goes in `deferred-work.md`**, the ledger both dev workflows read — never only in a story
+  file, a spec, or a retro table.
+- **`sprint-status.yaml` is reconciled at story close**, whichever dev workflow ran. Epic 6 produced no `epic-6` block
+  at all.
+- **The epic runs on a fresh `epic-7-*` branch** (AR-E7-12). Epics 5 and 6 both ran on `epic-4-lists`.
+
+**Story independence.** Every story is completable using only the stories before it. 7.2 depends on nothing but makes
+7.3 land in one file instead of four; 7.3 depends on 7.2; 7.10 depends on 7.1; 7.13 depends on 7.12; 7.14 depends on
+7.9. No story requires a later one. 7.4, 7.5, 7.6 and 7.15 are independent of the whole chain and of each other.
+
+### Story 7.1: Bring the E2E Suite Inside the Frontend Quality Gates
+
+As a developer, I want `bp_front/e2e/` linted and type-checked like the rest of the frontend, So that "lint and build
+pass" becomes a true statement about the suite the project treats as its hard gate, instead of saying nothing about it.
+
+**Delivers:** NFR-E7-3 (AR-E7-4)
+**Files:** new `bp_front/tsconfig.e2e.json`, `bp_front/tsconfig.json` (references), `bp_front/package.json` (lint
+script), `bp_front/eslint.config.mjs`, plus any spec file carrying a real error
+**Reuses:** the existing three-project tsconfig layout and the existing flat ESLint config
+
+**Acceptance Criteria:**
+
+**AC1 — a third tsconfig project covers the suite (NFR-E7-3)**
+
+**Given** `tsconfig.json` currently references only `tsconfig.app.json` (`include: ["src"]`) and `tsconfig.node.json`
+(`include: ["vite.config.ts"]`)
+**When** the story is complete
+**Then** a `tsconfig.e2e.json` covering `e2e` exists and is listed in `tsconfig.json`'s `references` array
+**And** `npm run build` (`tsc -b && vite build`) type-checks the spec files as part of the normal build
+**And** the new project targets a Node/Playwright environment, not `DOM` + `react-jsx` — the specs are not browser code
+
+**AC2 — the lint glob covers the suite**
+
+**Given** `package.json` runs `"lint": "eslint src/"`
+**When** the story is complete
+**Then** `npm run lint` lints `e2e/` as well as `src/`
+**And** `src/__generated__` and `dist` remain ignored
+
+**AC3 — spec files get rules appropriate to what they are**
+
+**Given** the flat config currently applies `globals.browser` and `reactRefresh.configs.vite` to every `**/*.{ts,tsx}`
+**When** the story is complete
+**Then** spec files resolve `@playwright/test` types and Node globals
+**And** `eslint-plugin-react-refresh`'s `only-export-components` rule does **not** apply to `e2e/` — a support module of
+exported helper functions is precisely what Story 7.2 requires, and that rule is what forced `normalizeStore` out of
+`StoreField.tsx` in Epic 6
+**And** the rules applied to `src/` are unchanged — in particular `react-hooks/set-state-in-effect` still fires there
+
+**AC4 — pre-existing errors are fixed, not silenced**
+
+**Given** roughly 1,015 lines of Epic 6 spec code have never been type-checked or linted
+**When** the gates are switched on
+**Then** every error surfaced is fixed at the source
+**And** no `@ts-ignore`, `@ts-expect-error`, `eslint-disable`, or `skipLibCheck`-style widening is introduced to make the
+gate pass
+**And** if an error reveals a genuine test defect rather than a typing nit, it is called out in the story record — a
+spec that does not compile may never have asserted what it claimed
+
+**AC5 — the new gate is observed failing before it is accepted (NFR-E7-4)**
+
+**Given** a gate that cannot fail proves nothing
+**When** the story is completed
+**Then** a deliberate type error and a deliberate lint error have each been introduced into a spec file, `npm run build`
+and `npm run lint` confirmed to **fail** on them, and both reverted
+**And** this is recorded in the story's dev notes
+
+**AC6 — the suite's behaviour is unchanged**
+
+**Given** this story changes tooling configuration, not tests
+**When** the story is complete
+**Then** the full Playwright suite still passes on both `chromium` and `mobile` against the production image
+**And** no test's assertions were weakened to satisfy a type error
+
+### Story 7.2: Extract One Shared E2E Support Module
+
+As a developer, I want the E2E helper block to live in exactly one module, So that a fix to shared test logic lands once
+instead of being copy-pasted into four spec files where the copies silently drift.
+
+**Delivers:** AR-E7-5; prerequisite for Story 7.3
+**Files:** new `bp_front/e2e/support/` module, `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts`,
+`item-editing.spec.ts`
+**Reuses:** the existing helper implementations verbatim — this is an extraction, not a rewrite
+
+**Acceptance Criteria:**
+
+**AC1 — one module, imported by every spec that needs it**
+
+**Given** `uniqueUsername`, `registerViaUi`, `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`,
+`loginApi` and `gql` are re-declared in four spec files, differing only in the `uniqueUsername` prefix
+**When** the story is complete
+**Then** each helper is defined exactly once in a shared support module and imported by every spec that uses it
+**And** `grep` confirms no spec file re-declares any of them
+**And** the per-spec `uniqueUsername` prefix is passed as a parameter, so each spec keeps its distinct prefix
+
+**AC2 — extraction preserves behaviour exactly**
+
+**Given** this is a refactor with no intended behaviour change
+**When** the story is complete
+**Then** the full suite passes on both `chromium` and `mobile` against the production image
+**And** the extracted helpers are behaviourally identical to the copies they replace, including the
+`expect(...).toPass()` workaround inside `registerViaUi` — **which stays for now** and is removed by Story 7.3, not here
+**And** any behavioural difference found between the four copies during extraction is reported to `md` rather than
+silently resolved by picking one
+
+**AC3 — it is a support module, not a login fixture (AR-E7-5)**
+
+**Given** the project deliberately has no login fixture and no `storageState`
+**When** the story is complete
+**Then** every spec still registers its own fresh user through the UI and logs in through the form
+**And** no `storageState`, no auth fixture, and no session reuse across specs is introduced
+**And** API calls remain permitted only for environment preparation, never for behaviour under test
+
+**AC4 — the mobile gate is not quietly voided**
+
+**Given** `browser.newContext()` does not inherit the project's `use` block, which silently ran a desktop viewport on
+the `mobile` project in Epic 6
+**When** any helper touching multi-actor setup is extracted
+**Then** it does not introduce a hand-built context where the `page` fixture would do
+**And** where a second actor genuinely needs its own context, the actor whose rendering the mobile gate must cover stays
+on `page`
+
+**AC5 — the new module is inside the gates**
+
+**Given** Story 7.1 brought `e2e/` into lint and type-check
+**When** the story is complete
+**Then** the support module passes both, with no suppression comments
+
+### Story 7.3: Delete the `registrationEnabled` Race
+
+As a developer, I want the shared-registration-flag race removed at its source rather than retried, So that a green
+suite means the application works instead of meaning the retries absorbed a known flake.
+
+**Delivers:** NFR-E7-2 (AR-E7-6)
+**Files:** the shared support module from Story 7.2, `bp_front/playwright.config.ts`, the admin registration-toggle
+spec
+**Depends on:** Story 7.2 (so the fix lands in one file rather than four)
+
+**Acceptance Criteria:**
+
+**AC1 — registration is enabled as the steady state**
+
+**Given** `registrationEnabled` is one shared Mongo document and `global-setup.ts` already enables it idempotently
+**When** the suite runs
+**Then** registration is ON for the entire run except inside the one test that deliberately turns it off
+**And** that test restores the enabled state in a `finally`, so a failing assertion inside it cannot leave registration
+off for everything else
+
+**AC2 — the disabled-registration test cannot run concurrently with anything that registers**
+
+**Given** the `chromium` and `mobile` projects run **concurrently against one backend**, so the race is *across*
+projects
+**When** the fix is implemented
+**Then** the registration-disabled test has genuine exclusivity for its OFF window
+**And** `test.describe.configure({mode: 'serial'})` alone is explicitly **not** accepted as the mechanism — it
+serializes within a project and this race is between projects
+**And** the chosen mechanism (a dedicated project with a dependency, a worker-scoped lock, or equivalent) is recorded in
+the story with the reason
+
+**AC3 — the workaround is removed, not left alongside the fix**
+
+**Given** `registerViaUi` carries an `expect(...).toPass()` retry wrapper for exactly this race
+**When** the race is gone
+**Then** that wrapper is removed from the shared support module
+**And** no spec retains a local copy of it
+**Rationale:** leaving both means the next occurrence of this flake is invisible.
+
+**AC4 — the fix is proven, not assumed (NFR-E7-2)**
+
+**Given** the suite is currently green only under CI's `retries: 2`, and this flake has been accepted seven times
+across two epics
+**When** the story is completed
+**Then** **two consecutive full runs at `retries: 0`** pass on both `chromium` and `mobile` with zero flaky results
+**And** both runs are recorded in the story with their output
+**And** a single green run is explicitly not sufficient evidence
+
+**AC5 — the deleted race is observed, not inferred**
+
+**Given** the Epic 6 convention that a test is unproven until seen failing
+**When** the story is completed
+**Then** the exclusivity mechanism has been deliberately disabled, a full run at `retries: 0` confirmed to reproduce the
+race, and the mechanism restored
+**And** if the race cannot be reproduced with the mechanism disabled, that is reported — it would mean the fix is not
+demonstrably the thing that closed it
+
+**AC6 — the ledger entry is closed**
+
+**Given** `deferred-work.md` carries this item from the Epic 5 close-out as still open
+**When** the story is complete
+**Then** that entry is marked resolved with the mechanism used, rather than a new entry being added alongside it
+
+### Story 7.4: An Item Edit Modifies the Stored Item Instead of Reconstructing It
+
+As a list member, I want editing an item to change only what I edited, So that fixing a co-member's typo does not steal
+their authorship, and editing a checked item does not silently break its recurrence.
+
+**Delivers:** FR58; restores FR45, FR54 and FR40 (AR-E7-1, AR-E7-2, AR-E7-2a, AR-E7-3, NFR-E7-4, UX-DR-E7-3)
+**Files:** `bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt`, its Kotest tests, one Playwright spec.
+`bp_back/.../gql/GqlItemInput.kt` is **not** modified
+**Scoped unfreeze:** this is the first deliberate `bp_back/` change since Epic 4 (AR-E7-0)
+
+**Acceptance Criteria:**
+
+**AC1 — an edit preserves every server-owned field (FR58, BUG-E6-1, BUG-E6-2)**
+
+**Given** an item with a recorded `addedBy`, a non-null `checkedAt`, and `deleted`/`deletedAt` state
+**When** a **different** member saves it with a changed name
+**Then** `addedBy` is unchanged — the original author keeps authorship
+**And** `checkedAt`, `deleted` and `deletedAt` are unchanged
+**And** only the fields `ItemInput` carries (`name`, `checked`, `category`, `store`, `recurring`) reflect the input
+**Rationale (AR-E7-1):** `GqlItemMapper.mapItemFromInput` builds a **fresh** `Item` whose defaults then overwrite these
+fields, because `ItemRepository.save` `Updates.set`s everything.
+
+**AC2 — create still works, and the discriminator is storage existence (AR-E7-2)**
+
+**Given** `GqlItemInput.id` is non-nullable and the frontend generates the UUID client-side with
+`crypto.randomUUID()` for **new** items as well as edits
+**When** `saveItem` receives an id that does **not** exist on the target list
+**Then** the item is created, with `addedBy` set from the caller exactly as today
+**And When** the id **does** exist on the target list
+**Then** the stored item is loaded and the input merged onto it
+**And** the frontend is **not** changed and continues to supply client-generated UUIDs
+**And** rejecting unknown ids is explicitly **not** implemented — it would reject every new item
+
+**AC3 — an id belonging to another list is rejected**
+
+**Given** an item id that exists, but on a list other than the `listId` in the input
+**When** `saveItem` is called
+**Then** it fails with an error and writes nothing
+**And** the item is not moved between lists
+
+**AC4 — a category outside the list is rejected (BUG-E6-3b)**
+
+**Given** a save whose `category` does not belong to the target list — the state a stale dialog produces after a
+co-member deletes a category
+**When** `saveItem` is called
+**Then** it fails with an error and writes nothing
+**And** no item is left with a dangling `category` rendering under no group
+**Rationale:** this outcome's only recovery today is direct database access.
+
+**AC5 — the check-off clock survives an edit, so recurrence still works (FR54)**
+
+**Given** a recurring item that was checked off, so `checkedAt` is set
+**When** its name is edited and saved
+**Then** `checkedAt` is unchanged
+**And** `runSchedulerCycle` still restores it once its cadence elapses — it no longer `continue`s on a null `checkedAt`
+**And** this is covered by a Kotest test that drives the scheduler, not only by asserting the field
+
+**AC6 — the already-correct paths do not regress (AR-E7-3)**
+
+**Given** `checkItem`, `uncheckItem` and `runSchedulerCycle` already `copy()` the stored item
+**When** the story is complete
+**Then** their existing Kotest coverage still passes unchanged
+**And** `uncheckItem` still deliberately clears `checkedAt` — that is the scheduler contract, not an instance of this
+bug
+
+**AC7 — Kotest coverage exists and was observed failing first (NFR-E7-4)**
+
+**Given** every AC above is a server-side behaviour
+**When** the story is completed
+**Then** each of AC1–AC5 has Kotest coverage
+**And** each new test was proven non-vacuous by reverting the fix, confirming the test goes **red**, and restoring
+**And** that break-and-restore is recorded in the story's dev notes
+**And** the full backend suite passes
+
+**AC8 — one end-to-end proof that the user-visible symptom is gone (FR45)**
+
+**Given** the shopping view renders `addedBy` as `shopping-item-addedby-<name>`
+**When** a list is shared with a second member who accepted, member A adds an item, and member B edits its name
+**Then** the shopping row still attributes the item to **A**
+**And** this is an FR45/FR58-tagged Playwright spec passing on **both** `chromium` and `mobile` against the production
+image
+**And** it was manually exercised in a real browser first, and observed failing before being accepted
+
+**AC9 — BUG-E6-3a is recorded, not silently closed (AR-E7-2a)**
+
+**Given** `ItemStorage.delete` is a hard delete, so a save against a deleted id takes the create branch and the item
+returns
+**When** the story is completed
+**Then** `deferred-work.md` records BUG-E6-3a as **severity-downgraded rather than fixed**: the item now returns as a
+genuinely new row (`addedBy` = the editor, who did create it; `checkedAt` null, correct for a new item) and is
+removable through the UI
+**And** the entry names the real fix — making `deleteItem` a soft delete, with the tombstones the scheduler would then
+own — and states that it is outside Epic 7's scoped unfreeze
+**And** the BUG-E6-1 and BUG-E6-2 entries are marked resolved by this story
+
+**AC10 — the change is scoped, the schema is untouched, and the edit UI gains nothing (AR-E7-0, AR-E7-1, UX-DR-E7-3)**
+
+**Given** the unfreeze is scoped to named files, and FR58 is entirely server-side
+**When** the story is completed
+**Then** `git diff` under `bp_back/` shows changes only to `ItemService.kt` and its tests
+**And** `GqlItemInput.kt` is unchanged, no GraphQL schema change occurred, and **no `npm run generate` run was needed**
+**And** `git diff` shows no change under `bp_front/src/` other than the new spec — `EditItemDialog.tsx`,
+`AddItemDialog.tsx` and the shared store field are untouched, and no edit or delete affordance appears on the shopping
+view (UX-DR-E6-2a still holds: `/lists/:id` manages, `/list/:id` uses)
+**And** the only user-visible change is the correction itself — the `addedBy` avatar stops flipping to whoever last
+edited, and a checked item edited by a co-member stays checked with its clock intact
+
+### Story 7.5: Resolve Home Correctly, and Make the Home Link Inert When Already Home
+
+As a signed-in user, I want `/` to take me to my genuinely oldest list, and the home link to do nothing visible when I
+am already there, So that the app does not occasionally open the wrong list or waste a Back press on a spinner.
+
+**Delivers:** restores FR38 and FR57 (AR-E7-7, AR-E7-8, AR-E7-8a)
+**Files:** `bp_front/src/routes/HomeRedirect.tsx`, `bp_front/src/components/AppShell.tsx`, one spec
+**Reuses:** `HomeRedirect`'s existing `ListsQuery` and `<Navigate replace/>` resolution — the app bar still does not
+re-derive the home path (AR-E6-7)
+
+**Acceptance Criteria:**
+
+**AC1 — the oldest list is chosen numerically, not lexicographically (FR38)**
+
+**Given** the backend emits `createdAt` as `Instant.toString()`, which omits the fractional part entirely when nanos are
+zero — so `…:05Z` sorts *after* `…:05.100Z` under `localeCompare` (`'Z'` 0x5A > `'.'` 0x2E)
+**When** a user with two lists created within the same second navigates to `/`
+**Then** they land on the list created first
+**And** the comparison uses `Date.parse(createdAt)` numerically
+**And** the backend wire format is **not** changed — AR-E7-7 rejects that alternative explicitly
+
+**AC2 — the wrong-list bug is proven fixed against the real precision case**
+
+**Given** the defect window is roughly 1-in-1000 per list pair and will not appear by chance in a test run
+**When** the story is completed
+**Then** a test constructs the specific precision pair (one timestamp with zero nanos, one with a fractional part) and
+asserts the earlier list wins
+**And** the test was confirmed to **fail** against `localeCompare` before the fix was applied
+**And** the vehicle is a Playwright `page.route` interception of the `ListsQuery` response returning the crafted
+`createdAt` pair — `createdAt` is server-generated from `Instant.now()`, so the precision case cannot be produced
+through the UI. This is permitted under the standing rule "mock only the *input to a render*, never the thing under
+test": the thing under test is `HomeRedirect`'s comparison, and the query result is its input.
+**And** it is explicitly **not** implemented by adding a unit-test framework (none exists in `bp_front/`, and this epic
+is not the place to introduce one) nor by writing `createdAt` values directly into MongoDB (which would violate the
+API-only test-data rule)
+
+**AC3 — activating home while already home changes nothing visible (FR57, UX-DR-E7-2)**
+
+**Given** I am standing on the route `/` resolves to
+**When** I activate the app-bar title link
+**Then** the screen is visually unchanged: no `home-redirect-loading` spinner appears and the scroll position does not
+move
+**And** no browser-history entry is added, so a single Back still returns me to the screen I came from
+
+**AC4 — the inert link remains a real, present link (AR-E7-8, NFR-E6-3)**
+
+**Given** the link must not regress into a `Button`, a disabled control, or a removed element
+**When** it is in its inert state
+**Then** it is still rendered, still reachable by Tab, still exposed to assistive technology, and keeps its type scale,
+weight and colour
+**And** it is never hidden or unmounted — a title that vanishes on one route reads as a broken render
+**And** the suppression happens in `HomeRedirect` or a shared hook exposing the resolved path, **not** by the app bar
+re-deriving it (AR-E6-7)
+
+**AC5 — the guard does not over-fire (UX-DR-E7-4)**
+
+**Given** a guard that suppresses too eagerly turns FR57 into a dead control on the screens that need it most
+**When** I activate the home link from `/lists`, from a list that is **not** my home list, from change-password, or from
+any admin screen
+**Then** it navigates and resolves through `HomeRedirect` exactly as Epic 6 shipped it
+**And** the admin case still resolves to `/admin` (FR56)
+**And** each of these is asserted, not assumed
+
+**AC6 — every guarded route keeps an in-app way out (AR-E7-8a)**
+
+**Given** Story 7.14 will remove the browser's URL bar and back button, making these affordances the entire navigation
+model
+**When** the story is complete
+**Then** a test walks every guarded route — `/lists`, `/lists/:id`, `/list/:id`, `/account/password`, `/admin` — and
+asserts each exposes at least one in-app navigation affordance
+**And** `window.history.length` after landing on the resolved home route is asserted, documenting that the launch stack
+is one deep
+**And** for the admin account, whose home **is** `/admin`, the inert title link is confirmed present and the single-screen
+outcome is recorded as deliberate rather than incidental
+
+**AC7 — coverage and gates**
+
+**Given** the story is user-facing
+**When** it is completed
+**Then** the above are covered by FR38/FR57-tagged specs passing on **both** `chromium` and `mobile` against the
+production image, manually exercised first and observed failing before acceptance
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+### Story 7.6: Backend Safety Fixes Riding the Same Unfreeze
+
+As a maintainer, I want three catalogued Epic 4 defects closed while the backend is legitimately open, So that they stop
+being carried across retrospectives and cannot surprise a future story.
+
+**Delivers:** AR-E7-11, NFR-E7-4
+**Files:** `ItemStorage.kt`, `CategoryStorage.kt`, `ListStorage.kt`, `ListMember.kt`, `ListService.kt`,
+`ListMemberRepository.kt`, `GqlListMapper.kt`, plus Kotest tests. `MongoListMember.kt` is **not** changed
+**Scoped unfreeze:** AR-E7-0
+
+**Acceptance Criteria:**
+
+**AC1 — the lazy-sync flags are volatile**
+
+**Given** `private var synced = false` at `ItemStorage.kt:12`, `CategoryStorage.kt:12` and `ListStorage.kt:12` is
+non-volatile, so two coroutines can double-sync on startup
+**When** the story is complete
+**Then** all three carry `@Volatile`
+**And** the `if (synced.not()) { … synced = true }` guard is otherwise unchanged in every Storage class
+
+**AC2 — invite status is typed in the domain (AR-E7-11b)**
+
+**Given** `"PENDING"` / `"ACCEPTED"` / `"DECLINED"` appear as bare strings at `ListService.kt:151-152,162-163,179-180`,
+`ListMemberRepository.kt:49,62` and `GqlListMapper.kt:17`
+**When** the story is complete
+**Then** `ListMember.status` is a typed enum and every domain-layer comparison is compile-time checked
+
+**AC3 — the enum stops at the storage boundary (AR-E7-11b) — THIS IS NOT A STYLE CHOICE**
+
+**Given** the codebase already solves this: `MongoItem.recurring` is `String?` while `Item.recurring` is the `Recurring`
+enum, converted at the mapper
+**When** the story is complete
+**Then** `MongoListMember.status` remains a `String`, and conversion happens in the mapper
+**And** the persisted string values are unchanged, so no data migration is required
+**Rationale:** kotlinx-serialization throws `SerializationException` on an unknown enum value, and
+`listMemberRepository.findActiveByListId` is called at `ListApi.kt:30,60,72,92,104,124` — on essentially every list
+query and mutation response — so one unexpected row would fail the entire `lists` query for every member of that list.
+Today it merely falls through `!= "DECLINED"`. Putting the enum in the Mongo model would be **strictly worse than the
+strings it replaces**.
+
+**AC4 — deleting a list cleans up its membership rows**
+
+**Given** `ListService.deleteList` cascades items → categories → list but never removes the list's `list_members` rows
+**When** a list is deleted
+**Then** its `list_members` rows are deleted too, inside the same ordered cascade — after the category delete, before
+`listRepository.delete`
+**And** a Kotest test asserts no `list_members` rows remain for the deleted list **and** that another list's rows are
+untouched
+
+**AC5 — no backfill, and the assumption is recorded (`md`, 2026-07-29)**
+
+**Given** the cascade fixes future deletes only
+**When** the story is complete
+**Then** **no** migration or one-off cleanup of already-orphaned rows is written
+**And** the story records `md`'s ruling that production is assumed to hold none, so that a future orphan reads as a new
+finding rather than a regression of this story
+
+**AC6 — coverage observed failing, and the ledger updated (NFR-E7-4)**
+
+**Given** three low-risk changes against live production data
+**When** the story is completed
+**Then** each behavioural change has a Kotest test that was confirmed **red** before the fix and green after
+**And** the full backend suite passes
+**And** the corresponding `deferred-work.md` entries from the Epic 4 code reviews are marked resolved
+**And** `git diff` shows no change under `bp_front/`
+
+### Story 7.7: Minor and Patch Dependency Sweep
+
+As a maintainer, I want every non-major dependency current in one pass, So that the majors that follow start from a
+clean baseline instead of compounding two kinds of change at once.
+
+**Delivers:** NFR-E7-1, NFR-E7-5 (AR-E7-9, AR-E7-10)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`, `gradle/libs.versions.toml`
+
+**Standing acceptance criteria — these apply to Stories 7.7 through 7.13 and are not repeated in each:**
+
+**S-AC1 — verified before the next story starts (AR-E7-10, NFR-E7-6).** `npm run lint`, `npm run build`, and the **full
+Playwright suite on both `chromium` and `mobile`** against the production image pass; for any story touching the Gradle
+catalog, `./gradlew :bp_back:test` passes too. No later dependency story begins until this one is green.
+**S-AC2 — no user-visible change (NFR-E7-5, UX-DR-E7-1).** A real-browser pass on the `:2080` production stack confirms
+identical rendering: the same `src/theme.ts` tokens, spacing, type scale, and layout at ~360px and on desktop. A visible
+difference is an upgrade regression to diagnose, not a drift to accept.
+**S-AC3 — a failed bump is reverted and recorded, never worked around (AR-E7-10, NFR-E7-1).** If a version cannot be
+made green, it is reverted and an entry is added to **`deferred-work.md`** — not `project-context.md` — naming the
+version attempted and the concrete blocking symptom. **A held-back dependency closes its story; it does not fail it.**
+**S-AC4 — no scope bleed.** Only version numbers and the changes strictly required by the upgrade are touched. Product
+behaviour, test assertions, and unrelated refactors are out of scope. Weakening an assertion to make a bump pass is
+forbidden.
+
+**Story-specific Acceptance Criteria:**
+
+**AC1 — every non-major bump lands together**
+
+**Given** the 2026-07-29 audit (AR-E7-9)
+**When** the story is complete
+**Then** npm is current on `@apollo/client` 4.2.8, `@mui/material` and `@mui/icons-material` 9.2.0,
+`@graphql-codegen/cli` 7.2.0, `@graphql-codegen/client-preset` 6.1.0, `@playwright/test` 1.62.0, `react` and
+`react-dom` 19.2.8, `graphql-ws` 6.2.0, `react-router-dom` 7.18.2, `rxjs` 7.8.2, `@types/react` 19.2.17, `globals`
+17.8.0
+**And** Gradle is current on Ktor 3.5.1, MongoDB driver 5.9.1, Kotest 6.2.3, Arrow 2.2.3, Logback 1.6.1
+**And** Testcontainers (2.0.5), bcrypt (0.10.2) and the Gradle wrapper (9.6.1) are confirmed already current and left
+alone
+
+**AC2 — Kotlin is deliberately excluded (`md`, 2026-07-29)**
+
+**Given** a Kotlin minor is not a no-migration-risk bump and `graphql-kotlin` 9.2.0 may cap the supported version
+**When** the story is complete
+**Then** `kotlin` in `libs.versions.toml` is **unchanged** at 2.3.21
+**And** it is bumped in Story 7.12 alongside `graphql-kotlin`, pinned to what that version supports
+**Rationale:** bumping Kotlin here could break the backend five stories before the story permitted to fix it.
+
+**AC3 — codegen output is verified current, not assumed**
+
+**Given** `@graphql-codegen/cli` and `client-preset` both move
+**When** the story is complete
+**Then** `npm run generate` has been re-run and any change to `src/__generated__/` is committed
+**And** no file under `src/__generated__/` was hand-edited
+**And** if the generated output is byte-identical, that is stated explicitly
+
+### Story 7.8: `@types/node` 25 → 26
+
+As a maintainer, I want the cheapest major taken first, So that the majors sequence begins on low risk and any early
+failure is trivially attributable.
+
+**Delivers:** NFR-E7-1, NFR-E7-6 (AR-E7-9)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — types-only, verified against the build's Node**
+
+**Given** `@types/node` 25.6.0 → 26.1.2 is a types-only major
+**When** the story is complete
+**Then** the declared version matches the Node major actually running the build and the Docker build stage
+**And** if they disagree, the mismatch is reported to `md` rather than resolved by guessing — a types package ahead of
+its runtime produces confident, wrong type-checking
+
+**AC2 — it interacts with `tsconfig.node.json` and the new e2e project**
+
+**Given** `tsconfig.node.json` covers `vite.config.ts` and Story 7.1 added a Node-flavoured `tsconfig.e2e.json`
+**When** the story is complete
+**Then** both projects type-check clean under the new types
+**And** no `skipLibCheck` widening is added to absorb a failure
+
+### Story 7.9: Vite 7 → 8 with `@vitejs/plugin-react` 5 → 6
+
+As a maintainer, I want the build chain moved to Vite 8 with its matching React plugin in one atomic change, So that the
+pair that cannot be split is never split.
+
+**Delivers:** NFR-E7-1, NFR-E7-5, NFR-E7-6 (AR-E7-9)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`, `bp_front/vite.config.ts` if the upgrade requires it
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — the two move together, in one commit**
+
+**Given** `@vitejs/plugin-react` v6 requires Vite 8, and bumping either alone breaks the build — already recorded in
+`project-context.md`
+**When** the story is complete
+**Then** `vite` 8.1.5 and `@vitejs/plugin-react` 6.0.4 are both present
+**And** they landed in a single commit; there is no intermediate state where one is bumped without the other
+
+**AC2 — the production artifact is what gets verified**
+
+**Given** the E2E gate builds the production image, and the shipped bundle is what a build-tool major can break —
+asset hashing, base path, tree-shaking, SPA fallback
+**When** the story is complete
+**Then** the full suite passes against the production image on `:2080`, not the dev server
+**And** the dev server (`npm run dev` on `:5173`) with its `/api` and `/api/subscriptions` proxies is separately
+confirmed working, since it is the day-to-day inner loop and is **not** covered by the E2E gate
+
+**AC3 — the `@/*` path alias survives**
+
+**Given** `@/*` → `src/*` is configured in both `tsconfig` and `vite.config.ts` and is used throughout
+**When** the story is complete
+**Then** alias resolution works in build, dev server, and type-check
+
+### Story 7.10: TypeScript 6 → 7
+
+As a maintainer, I want TypeScript current, So that the type system checking this codebase is the current one — across
+the whole codebase, including the E2E suite.
+
+**Delivers:** NFR-E7-1, NFR-E7-6 (AR-E7-9)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`, the three tsconfig projects if required
+**Depends on:** Story 7.1
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — the major checks 100% of the code, not 80%**
+
+**Given** Story 7.1 brought `e2e/` into a tsconfig project
+**When** TypeScript 7.0.2 lands
+**Then** `tsc -b` type-checks `src`, `vite.config.ts` **and** `e2e` under the new compiler
+**And** every error is fixed at the source, with no `@ts-ignore` / `@ts-expect-error` added to absorb the migration
+
+**AC2 — strictness is not traded away for a green build**
+
+**Given** `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch` and
+`moduleResolution: bundler` are all in force
+**When** the story is complete
+**Then** no compiler option has been relaxed
+**And** `src/__generated__` remains excluded from program roots exactly as documented in `tsconfig.app.json`
+
+**AC3 — `typescript-eslint` still functions**
+
+**Given** `typescript-eslint` 8.x consumes the TypeScript version
+**When** the story is complete
+**Then** `npm run lint` runs clean with no parser or version-range warnings
+**And** if `typescript-eslint` does not support TS 7, that is the blocking symptom recorded under S-AC3
+
+### Story 7.11: ESLint 9 → 10
+
+As a maintainer, I want the linter current, So that the rules protecting this codebase's hardest-won conventions are on
+a supported version.
+
+**Delivers:** NFR-E7-1, NFR-E7-6 (AR-E7-9)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`, `bp_front/eslint.config.mjs` if required
+**Depends on:** Story 7.10
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — the plugin set moves with it**
+
+**Given** `eslint` and `@eslint/js` go to 10, and `typescript-eslint`, `eslint-plugin-react-hooks` v7 and
+`eslint-plugin-react-refresh` all peer on ESLint
+**When** the story is complete
+**Then** every plugin resolves against ESLint 10 with no peer warnings
+**And** the flat-config shape in `eslint.config.mjs` still loads
+
+**AC2 — `react-hooks/set-state-in-effect` must survive — this is load-bearing**
+
+**Given** that rule is what forbids `useEffect` state-sync and forces the render-phase-adjustment (`prevOpen`) pattern
+used by the dialogs
+**When** the story is complete
+**Then** the rule is still active and still reports
+**And** it is proven by introducing a `useEffect` state-sync, confirming lint **fails**, and reverting
+**And** if ESLint 10 drops or renames it, the replacement is wired up and the equivalence demonstrated the same way
+
+**AC3 — the Story 7.1 rule split is preserved**
+
+**Given** Story 7.1 excluded `react-refresh/only-export-components` from `e2e/` so the shared support module is legal
+**When** the config is migrated
+**Then** that exclusion still holds and the support module lints clean
+**And** the rule still applies to `src/`
+
+### Story 7.12: `graphql-kotlin` 9 → 10, with Kotlin
+
+As a maintainer, I want the GraphQL server library and Kotlin moved together to their newest mutually compatible
+versions, So that the highest-risk backend upgrade is one attributable change rather than a surprise inside a sweep.
+
+**Delivers:** NFR-E7-1, NFR-E7-6 (AR-E7-9)
+**Files:** `gradle/libs.versions.toml`, plus whatever the major requires under `bp_back/`
+**Scoped unfreeze:** AR-E7-0
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — Kotlin is pinned to what `graphql-kotlin` 10 supports (`md`, 2026-07-29)**
+
+**Given** `md`'s ruling that Kotlin should go to the latest version compatible with the latest `graphql-kotlin`
+**When** the story is complete
+**Then** `graphql-kotlin` is 10.2.0 and `kotlin` is the newest version that release supports
+**And** the compatibility source is cited in the story, not assumed
+**And** the Kotlin serialization plugin tracks `version.ref = "kotlin"` and therefore moves in lockstep automatically —
+confirm rather than assume
+
+**AC2 — the generated schema is compared, not trusted**
+
+**Given** `graphql-kotlin` owns schema generation, and the frontend's `src/__generated__/` is produced from it
+**When** the story is complete
+**Then** the generated schema is captured before and after and **diffed**
+**And** any difference is reported to `md` before proceeding — a silent schema change would reach the frontend through
+codegen
+**And** `npm run generate` is re-run and its output committed if anything moved
+
+**AC3 — the whole GraphQL surface is exercised, not just compilation**
+
+**Given** the major touches schema generation, the subscription transport, and the auth wrapper simultaneously
+**When** the story is complete
+**Then** `./gradlew :bp_back:test` passes in full
+**And** the full Playwright suite passes on both projects — this is what covers real-time subscriptions, WebSocket auth
+in `connection_init`, and the `authenticate(authMethod)` boundary end to end
+**And** `/api/graphiql` still loads, since it is the project's only backend-readiness check
+
+**AC4 — JVM toolchain 25 is confirmed, not assumed**
+
+**Given** the build targets JDK 25 and a wrong JDK produces a cryptic toolchain error rather than a clear mismatch
+**When** the story is complete
+**Then** the toolchain still resolves and the Docker build stage still succeeds
+
+### Story 7.13: `graphql` 16 → 17
+
+As a maintainer, I want the GraphQL client library current if its ecosystem allows it, So that we either land the last
+major or record exactly what is blocking it.
+
+**Delivers:** NFR-E7-1, NFR-E7-6 (AR-E7-9)
+**Files:** `bp_front/package.json`, `bp_front/package-lock.json`
+**Depends on:** Story 7.12
+**Standing ACs S-AC1 – S-AC4 apply.**
+
+**Acceptance Criteria:**
+
+**AC1 — the four peer ranges are checked before the attempt, not after**
+
+**Given** `graphql` is a simultaneous peer of `@apollo/client`, `graphql-ws`, `@graphql-codegen/cli` and
+`@graphql-codegen/client-preset`
+**When** the story starts
+**Then** all four are checked for v17 support first, at the versions Story 7.7 landed
+**And** the finding is recorded whichever way it goes
+
+**AC2 — a hold-back is a successful outcome (S-AC3)**
+
+**Given** any one unsupported peer blocks the upgrade
+**When** at least one does not accept v17
+**Then** the bump is not attempted, `graphql` stays at 16.14.0, and `deferred-work.md` records the blocking package and
+its published peer range
+**And** the story closes as **done**, not failed — NFR-E7-1 is satisfied by a recorded reason
+**And** no peer dependency is force-installed, overridden, or `--legacy-peer-deps`'d to get past it
+
+**AC3 — if it does land, it is verified against the current schema**
+
+**Given** Story 7.12 may have moved the generated schema
+**When** the bump lands
+**Then** `npm run generate` is re-run against the schema as of Story 7.12 and its output committed
+**And** the full suite passes on both projects, covering queries, mutations and subscriptions
+
+### Story 7.14: Install Bag Please as a Real App
+
+As a shopper, I want to install Bag Please on my phone like any other app — its own icon, its own place in the app
+switcher, no browser bar — So that reaching my list is one tap from the home screen instead of finding a tab.
+
+**Delivers:** FR59, NFR-E7-7, NFR-E7-8 (AR-E7-14, AR-E7-15, UX-DR-E7-5, UX-DR-E7-6, UX-DR-E7-6a, UX-DR-E7-6b)
+**Files:** `bp_front/package.json`, `bp_front/vite.config.ts`, `bp_front/src/main.tsx`, new
+`bp_front/public/icons/*.png`, `routing/Caddyfile`, one spec
+**Depends on:** Story 7.9 (the plugin peers on Vite) and Story 7.5 (which makes the navigation model whole)
+
+**Acceptance Criteria:**
+
+**AC1 — Chrome offers "Install app", not "Add to Home screen" (FR59)**
+
+**Given** Chrome builds a WebAPK only when HTTPS, a linked manifest with PNG icons at both 192×192 and 512×512, and a
+registered service worker with a fetch handler **all** hold
+**When** the app is opened in Chrome on Android
+**Then** the menu offers **"Install app"**, and the installed result has its own launcher icon, its own task-switcher
+entry, and no URL bar
+**And** DevTools → Application → Manifest reports **no** unmet installability criterion — that panel is the evidence,
+not the presence of a menu item
+
+**AC2 — the icons are generated and committed (UX-DR-E7-5)**
+
+**Given** `bp_front/public/` currently contains only `favicon.svg` (305 bytes) and **Chrome will not build a WebAPK icon
+from SVG**
+**When** the story is complete
+**Then** committed PNGs exist at 192×192, 512×512, and a 512×512 `purpose: 'maskable'` variant carrying ~20% padding so
+Android's adaptive-icon mask does not clip the artwork
+**And** they are derived from the existing `favicon.svg` so the installed app is visually continuous with the browser tab
+**And** the maskable variant is verified against a circle and a squircle mask, not just eyeballed as a square
+
+**AC3 — the manifest is correct for a dark-only app (UX-DR-E7-6)**
+
+**Given** `src/theme.ts` sets `background.default: '#000000'` and the theme is dark-only
+**When** the manifest is authored
+**Then** it declares `id: '/'`, `name` and `short_name` "Bag Please", `start_url: '/'`, `scope: '/'`,
+`display: 'standalone'`, `theme_color: '#000000'` and **`background_color: '#000000'`**
+**And** `background_color` is **not** `#ffffff` — it is Android's cold-launch splash colour and white would flash before
+an all-black app
+**And** the built `dist/index.html` is inspected to confirm the manifest link was actually injected
+
+**AC4 — the service worker never touches the API surface (NFR-E7-7)**
+
+**Given** a service worker that shadows the backend would be indistinguishable from an outage
+**When** the worker is registered
+**Then** `navigateFallback: '/index.html'` is paired with `navigateFallbackDenylist: [/^\/api/]` and there is **no**
+runtime caching of any `/api` route
+**And** `GET /api/graphiql` returns GraphiQL, **not** the SPA shell — it is a navigation, and it is the project's only
+backend-readiness check
+**And** GraphQL POSTs, the auth REST endpoints, and the `/api/subscriptions` WebSocket upgrade all behave exactly as
+before, with real-time collaboration still working
+**And** no authenticated response is written to any cache
+
+**AC5 — Caddy serves the manifest with the right content type (AR-E7-15)**
+
+**Given** `routing/Caddyfile` uses `try_files {path} /index.html` + `file_server`, and the Alpine-based Caddy image
+cannot be relied on to carry `.webmanifest` in its MIME table — a wrong content type kills installability silently
+**When** the story is complete
+**Then** the manifest is served as `application/manifest+json` via an explicit `header` directive
+**And** the assertion is on the **served response header**, not on the file existing in `dist/`
+**And** the service worker is served from the root scope and is not long-term cached
+**And** the existing route order is preserved — `/api/subscriptions` before `/api/*` before the SPA handler
+
+**AC6 — the suite stays green with a global request interceptor in place (NFR-E7-8)**
+
+**Given** a service worker intercepts every navigation, in a suite where every spec navigates
+**When** the story is completed
+**Then** **two consecutive full runs at `retries: 0`** pass on both `chromium` and `mobile`, re-establishing the
+NFR-E7-2 measurement taken in Story 7.3
+**And** any new flake is attributed to the service worker and fixed, not absorbed by retries
+
+**AC7 — the app is navigable without browser chrome (UX-DR-E7-6a, AR-E7-8a)**
+
+**Given** `display: 'standalone'` removes the URL bar **and** the browser back button, leaving only the Android system
+back gesture, which exits the app once the history stack is exhausted
+**When** the installed app is exercised on a device
+**Then** every guarded screen is escapable using only in-app affordances — with `/account/password` and `/admin`
+depending entirely on the app-bar title link
+**And** Story 7.5's inert-but-present behaviour is confirmed on the resolved home route
+**And** the one-deep launch history — system back exits from the home screen — is confirmed as accepted behaviour and
+recorded
+
+**AC8 — no offline mode is introduced (UX-DR-E7-7)**
+
+**Given** the service worker exists solely to satisfy Chrome's WebAPK criterion
+**When** the story is complete
+**Then** `runtimeCaching` is empty, and no offline UI, cached-data indicator, or "you're offline" affordance is added
+**And** `registerType: 'autoUpdate'` picks up a new deployment silently: no update toast, no reload prompt, no version
+banner
+**And** the app requires the network exactly as it does today
+
+**AC9 — real-device verification uses the only route that works (AR-E7-15)**
+
+**Given** `https://bag-please.localhost` neither resolves nor validates on a physical phone
+**When** installability is verified
+**Then** it is done over `chrome://inspect` port forwarding so the device reaches `http://localhost:2080`, which Chrome
+treats as a secure context
+**And** the DevTools Installability panel output is recorded in the story
+**And** iOS Safari is explicitly **out of scope** — it uses a separate `apple-touch-icon` route (FR59)
+
+### Story 7.15: Give the dev-auto Warnings a Measured Verdict
+
+As a maintainer, I want to know whether `oversized` and `multiple-goals` mean anything, So that a signal that has
+accumulated unread across three epics either starts being acted on or stops being emitted.
+
+**Delivers:** AR-E7-13
+**Files:** either `_bmad/custom/bmad-dev-auto.toml` or `_bmad-output/project-context.md` — the verdict decides which
+**Independent of** every other story in the epic
+
+**Acceptance Criteria:**
+
+**AC1 — measure**
+
+**Given** the budget is 900–1600 tokens (`spec-template.md:12`), and five consecutive specs carry `oversized` — 5.5,
+5.6, 5.7, 6.1, 6.2
+**When** the story starts
+**Then** the exact token count of each of the five specs is recorded against that budget
+**And** the estimates used in planning (5.5 ≈ 2×, 6.2 ≈ 2×, 6.1 ≈ 4×) are replaced with measurements
+
+**AC2 — correlate**
+
+**Given** the review-finding counts for those stories already exist in their records
+**When** the measurement is done
+**Then** the story states whether spec size predicts review-finding count across the five
+**And** it notes the one data point already visible: Story 6.1 was the largest spec, the only one flagged
+`multiple-goals`, and the story that produced the most review findings — including six assertions that could not fail
+**And** it says plainly whether five samples support a conclusion or not, rather than over-reading them
+
+**AC3 — the correct `multiple-goals` flag is accounted for**
+
+**Given** the flag on 6.1 was **right** — that story delivered the FR40 edit verb *and* the FR44 store write path
+across both dialogs, two independently shippable goals
+**When** the verdict is formed
+**Then** it records that the scope came from the Epic 6 planning review, that `bmad-dev-auto` reported it in its own
+blocked report **before Epic 6 ran**, and that it was ignored
+**And** a warning that was correct is weighed differently from a warning that was noise
+
+**AC4 — encode the verdict as an artifact, whichever way it goes**
+
+**Given** both outcomes are legitimate closures
+**When** the verdict is reached
+**Then** **either** the threshold is raised or waived in `_bmad/custom/bmad-dev-auto.toml`, on the grounds that every
+bag-please spec must carry a large body of standing convention — **or** a spec-size convention is added to
+`project-context.md`
+**And** "we looked and the threshold is wrong for this codebase" is an accepted, complete result
+**And** the outcome does **not** live only in this epic's retrospective — that is the exact failure mode the Epic 6
+retro identified when its predecessor's seven action-item rows came back 0/7
+
+**AC5 — the ledger entry is closed**
+
+**Given** `deferred-work.md` carries this item as open since the Epic 5 close-out, escalating
+**When** the story is complete
+**Then** that entry is marked resolved with the verdict and the artifact that now holds it

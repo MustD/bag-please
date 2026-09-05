@@ -2,8 +2,12 @@
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: complete
 completedAt: '2026-05-08'
-lastEdited: '2026-06-23'
+lastEdited: '2026-07-30'
 editHistory:
+  - date: '2026-07-30'
+    changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
+  - date: '2026-07-29'
+    changes: 'Epic 7 planning pass: added FR58 (item save is a merge, not a reconstruction — addedBy/checkedAt/deleted survive an edit; unknown item id and foreign category are rejected) under Item Lifecycle, and FR59 (installable PWA — Chrome-on-Android WebAPK via manifest + PNG icons + service worker) under Navigation & UX. FR58 is the single requirement behind BUG-E6-1/E6-2/E6-3, restores the truth conditions of FR45 and FR54, and is the recorded prerequisite for undeferring FR42/FR43. FR59 makes FR57 load-bearing, since an installed app has no browser back button. Both added in the same planning pass per the Epic 6 retro agreement, after FR57 reached production without ever entering this document.'
   - date: '2026-06-23'
     changes: 'Frontend Reframe (Epic 5): frontend re-implemented from scratch on Vite + Material UI, served by Caddy (replacing Next.js + nginx); backend unchanged. No FR changes — same requirements, new delivery vehicle. Deferred FR42 (one-timer) and FR43 (recurring) item UI; real-time (FR52/FR53) kept. Removed the old Epic 5 (Stabilization & Delivery). See sprint-change-proposal-2026-06-23.md.'
   - date: '2026-05-20'
@@ -624,6 +628,17 @@ to lists and introduces sharing.
   whose cadence has elapsed since check-off by setting `checked: false`; (b) permanently hard-deletes one-timer
   items that have been soft-deleted for more than one hour; compound indexes on the items collection back both
   queries to keep each hourly run efficient (index definitions are in the architecture document)
+- **FR58:** Saving an item that already exists modifies only the fields the item editor sends; the item's recorded
+  author (`addedBy`), its check-off timestamp (`checkedAt`), and its soft-delete state (`deleted`, `deletedAt`)
+  survive the save unchanged. Create and update are discriminated by **whether the item id already exists on the
+  target list**, never by whether an id was supplied: the client generates the id with `crypto.randomUUID()` for new
+  items as well as for edits, so an id is always present. A save whose id is not found on the target list creates the
+  item, with `addedBy` set from the caller; a save whose id is found merges the input onto the stored item. A save
+  naming an id that exists on a **different** list is rejected with an error and moves nothing, and a save naming a
+  category that does not belong to the target list is rejected rather than being written as a dangling reference.
+  This makes an edit a modification rather than a reconstruction, which FR45 (correct authorship) and FR54 (recurring
+  restore, which reads `checkedAt`) both depend on, and which FR42/FR43 require before their item-editor lifecycle
+  control can be built on top.
 
 ### Data Scoping & Migration
 
@@ -657,6 +672,14 @@ to lists and introduces sharing.
   oldest list by creation date, the lists index when they own none, the admin area for the admin account); the shopping
   view additionally offers a back-to-lists affordance matching the list management screen's existing back link. No
   screen is a navigational dead end requiring the browser back button.
+- **FR59:** The application is installable from Chrome on Android as a real standalone app rather than a bookmark
+  shortcut: the browser menu offers "Install app", and the installed app has its own launcher icon, its own entry in
+  the task switcher, and runs with no browser URL bar. Chrome builds a WebAPK only when HTTPS, a linked web app
+  manifest carrying PNG icons at both 192×192 and 512×512, and a registered service worker with a fetch handler all
+  hold at once; missing any one silently downgrades the result to a shortcut with no error surfaced anywhere. Running
+  without browser chrome makes FR57's in-app home affordance load-bearing rather than convenient. Scope is
+  Chrome-on-Android; iOS Safari's separate install route is not covered. No offline capability is implied — the app
+  requires the network exactly as it does in the browser.
 
 ### Real-Time Collaboration & Authentication
 
@@ -698,12 +721,15 @@ to lists and introduces sharing.
 - **NFR14:** Auth forms are fully keyboard-navigable (tab order, submit on Enter)
 - **NFR15:** Form error messages are associated with their corresponding input fields
 - **NFR16:** Text and interactive elements on auth screens meet minimum colour contrast for readability
-- **NFR17:** The frontend has a Playwright e2e test suite covering all auth and session flows; the suite runs
-  against the full stack (nginx + backend + MongoDB) and must pass with zero failures before any Epic 1 or
-  Epic 2 story is marked done
-- **NFR18:** E2E tests use browser-level isolation (no shared auth state across test files); tests that require
-  an authenticated session establish it via a Playwright setup fixture calling `POST /api/auth/login` directly
-  rather than driving the UI login form each time
+- **NFR17:** The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
+  **production artifact** — the built SPA served by Caddy, plus the backend and MongoDB — on **both** a desktop
+  viewport and a mobile viewport, and must pass with zero failures before any story in any epic is marked done. It is
+  deliberately not pointed at the Vite dev server, so the bundle that ships is the bundle that is tested.
+- **NFR18:** E2E tests use browser-level isolation (no shared auth state across test files) and are **UI-driven**:
+  each spec registers its own fresh user and signs in through the form. There is deliberately **no login fixture and
+  no `storageState`**. Direct API calls are permitted **only** to prepare the environment — for example enabling
+  registration idempotently in global setup, or seeding membership for a two-actor test — and never for the behaviour
+  under assertion. A session is never faked by intercepting requests.
 
 ### Lists & Sharing
 

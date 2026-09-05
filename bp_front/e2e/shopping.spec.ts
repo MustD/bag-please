@@ -1,4 +1,7 @@
-import {expect, type Page, test} from '@playwright/test'
+import {expect, test} from '@playwright/test'
+
+import {gql, loginApi} from './support/api'
+import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // List View / Shopping / Real-Time E2E (Story 5.6). UI-driven only for every
 // asserted behaviour; the sole non-UI use is test SETUP that seeds a second
@@ -11,105 +14,8 @@ import {expect, type Page, test} from '@playwright/test'
 // across runs while the two projects run concurrently — so tests only ever
 // assert on data they created, never on totals.
 
-const PASSWORD = 'e2e-password-123'
-
-// Backend for API-only SETUP (membership seeding + token minting). Hit the Caddy
-// entrypoint on :2080 directly — same rationale as global-setup.ts — independent
-// of E2E_BASE_URL, which only controls the browser-facing origin under test.
-const BACKEND = 'http://localhost:2080'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `shopping_e2e_${label}_${projectName}_${Date.now()}`
-}
-
-// Register a brand-new account through the UI and land authenticated. Hardened
-// against the documented shared registration-flag race (admin.spec briefly flips
-// the flag OFF while projects run concurrently; AuthPage reads it only on mount)
-// by reloading /auth until the Register link appears — mirrors lists.spec.
-async function registerViaUi(page: Page, username: string, password: string): Promise<void> {
-  await expect(async () => {
-    await page.goto('/auth')
-    await expect(page.getByTestId('to-register-link')).toBeVisible({timeout: 1500})
-  }).toPass({timeout: 20000})
-  await page.getByTestId('to-register-link').click()
-  await page.getByTestId('register-username').fill(username)
-  await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-submit').click()
-  // `/` is a redirect (Story 5.6); a new user lands on /lists. Assert auth
-  // route-agnostically.
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-}
-
-async function openListsViaMenu(page: Page): Promise<void> {
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-lists').click()
-  await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
-
-// Create a list via the index overlay and open its management detail; returns
-// the list id (parsed from the /lists/:id URL) so the shopping view /list/:id
-// can be reached directly.
-async function createListAndOpen(page: Page, name: string): Promise<string> {
-  await page.getByTestId('create-list-button').click()
-  await expect(page.getByTestId('create-list-dialog')).toBeVisible()
-  await page.getByTestId('create-list-name').fill(name)
-  await page.getByTestId('create-list-submit').click()
-  await expect(page.getByTestId('create-list-dialog')).toHaveCount(0)
-  await page.getByTestId(`list-open-${name}`).click()
-  await expect(page).toHaveURL(/\/lists\/[^/]+$/)
-  await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  return page.url().split('/lists/')[1]
-}
-
-async function addCategory(page: Page, name: string): Promise<void> {
-  await page.getByTestId('add-category-button').click()
-  await expect(page.getByTestId('add-category-dialog')).toBeVisible()
-  await page.getByTestId('add-category-name').fill(name)
-  await page.getByTestId('add-category-submit').click()
-  await expect(page.getByTestId('add-category-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
-}
-
-async function addItem(page: Page, categoryName: string, itemName: string): Promise<void> {
-  await page.getByTestId('add-item-button').click()
-  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
-  await page.getByTestId('add-item-name').fill(itemName)
-  await page.getByTestId('add-item-dialog').getByRole('combobox').click()
-  await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  await page.getByTestId('add-item-submit').click()
-  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
-}
-
-// --- API-only setup helpers (membership seeding) ---
-
-async function loginApi(username: string, password: string): Promise<string> {
-  const res = await fetch(`${BACKEND}/api/auth/login`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, password}),
-  })
-  if (!res.ok) throw new Error(`API login failed for ${username}: ${res.status}`)
-  const {accessToken} = (await res.json()) as {accessToken: string}
-  return accessToken
-}
-
-async function gql(query: string, token: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/api/graphql`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
-    body: JSON.stringify({query}),
-  })
-  const body = (await res.json()) as {errors?: unknown}
-  if (!res.ok || body.errors) {
-    throw new Error(`GraphQL setup call failed: ${res.status} ${JSON.stringify(body.errors)}`)
-  }
-}
-
 test('FR40 — checking an item persists across a reload, and it can be unchecked', async ({page}, testInfo) => {
-  const username = uniqueUsername('check', testInfo.project.name)
+  const username = uniqueUsername('shopping', 'check', testInfo.project.name)
   const listName = `Check ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`
@@ -142,7 +48,7 @@ test('FR40 — checking an item persists across a reload, and it can be unchecke
 })
 
 test('reframe 7.1 — category, checked-status and search filters each narrow the visible items', async ({page}, testInfo) => {
-  const username = uniqueUsername('filters', testInfo.project.name)
+  const username = uniqueUsername('shopping', 'filters', testInfo.project.name)
   const listName = `Filters ${Date.now()}`
   const produce = `Produce ${Date.now()}`
   const bakery = `Bakery ${Date.now()}`
@@ -194,7 +100,7 @@ test('reframe 7.1 — category, checked-status and search filters each narrow th
 })
 
 test('FR38 — visiting `/` redirects an authenticated user to their oldest list', async ({page}, testInfo) => {
-  const username = uniqueUsername('redirect', testInfo.project.name)
+  const username = uniqueUsername('shopping', 'redirect', testInfo.project.name)
   const oldest = `Oldest ${Date.now()}`
   const newer = `Newer ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
@@ -216,7 +122,7 @@ test('FR38 — visiting `/` redirects an authenticated user to their oldest list
 })
 
 test('FR36 — the switcher changes the active list (header + URL) and resets filters', async ({page}, testInfo) => {
-  const username = uniqueUsername('switch', testInfo.project.name)
+  const username = uniqueUsername('shopping', 'switch', testInfo.project.name)
   const listA = `Alpha ${Date.now()}`
   const listB = `Bravo ${Date.now()}`
   const catA = `Fruit ${Date.now()}`
@@ -253,8 +159,8 @@ test('FR36 — the switcher changes the active list (header + URL) and resets fi
 })
 
 test('FR52 — a check by one member appears live in another member\'s view without a refresh', async ({browser, page, baseURL}, testInfo) => {
-  const owner = uniqueUsername('owner', testInfo.project.name)
-  const member = uniqueUsername('member', testInfo.project.name)
+  const owner = uniqueUsername('shopping', 'owner', testInfo.project.name)
+  const member = uniqueUsername('shopping', 'member', testInfo.project.name)
   const listName = `Shared ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
   const itemName = `Bananas ${Date.now()}`

@@ -4,7 +4,7 @@ user_name: 'md'
 date: '2026-05-07'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules']
 status: 'complete'
-rule_count: 77
+rule_count: 105
 optimized_for_llm: true
 ---
 
@@ -17,28 +17,161 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 ### Backend
-- Kotlin 2.3.21, JVM toolchain 25 (JDK 25)
-- Ktor 3.4.3 (Netty engine, App Router style plugins)
-- graphql-kotlin 9.2.0 (ExpediaGroup)
-- MongoDB Kotlin Coroutine Driver 5.5.1 + bson-kotlinx 5.5.1
-- Arrow-kt 2.1.2 (arrow-core, arrow-fx-coroutines)
-- Kotlin Serialization (plugin 2.3.21) — used only for MongoDB BSON, not HTTP
-- Jackson — used for HTTP content negotiation and WebSocket frames
+- Kotlin **2.4.10**, JVM toolchain 25 (JDK 25) — moved in Story 7.12 with `graphql-kotlin` 10, at the top rung of that
+  story's ladder (`2.4.10` was the newest *stable*; `2.4.20-RC` is a prerelease and never a candidate). **The declared
+  version is still not the resolved one, and the reason is no longer Arrow.** The split Kotlin runtime filed by Story
+  7.7 **did not heal** — it is now **stdlib 2.4.10 with reflect 2.3.21** — and the cause is
+  `io.ktor:ktor-server-core-jvm:3.5.2`, which declares `kotlin-reflect:2.3.21` and is the highest request for that
+  module in the whole graph. **`kotlin-stdlib` tracks the compiler (the Kotlin Gradle Plugin injects it);
+  `kotlin-reflect` tracks KTOR (nothing injects it), so no `kotlin` bump alone closes the skew** — it takes a Ktor bump
+  whose `ktor-server-core` POM asks for a newer reflect, an explicit `constraints { }` pin, or a plain
+  `implementation(kotlin("reflect"))` in `bp_back/build.gradle.kts`, which KGP version-aligns to the compiler. Do not
+  spend a pass re-deriving this, and do not read a `kotlin` bump that leaves reflect behind as a failed bump.
+  **The skew is measured safe, not assumed safe, and the measurement is the reason it is filed rather than fixed:**
+  the compiled GQL classes carry Kotlin metadata `mv=[2,4,0]` (`javap -v` on
+  `bp_back/build/classes/kotlin/main`), the shipped image's `/app/lib` carries `kotlin-reflect-2.3.21.jar` beside
+  `kotlin-stdlib-2.4.10.jar`, and graphql-kotlin's schema generation is **entirely** reflection over exactly those
+  classes — so reflect 2.3.21 demonstrably reads 2.4 metadata, or `install(GraphQL)` would throw at boot and every
+  test would be red. Story 7.12 measured 115/115 backend and 120/120 E2E green against that image. The residual is
+  only reflection paths no test walks; re-check it, not the version numbers, after any Kotlin **minor**. Read the
+  resolved versions from `./gradlew :bp_back:dependencies --configuration runtimeClasspath`, never from
+  `libs.versions.toml` alone
+- Ktor 3.5.2 (Netty engine, App Router style plugins)
+- graphql-kotlin **10.2.1** (ExpediaGroup) — Story 7.12. The 10.0.0 release changed three things at once and all three
+  are now on the classpath: Kotlin ≥ 2.3.0, **graphql-java 23.1 → 25.0**, and **Jackson 2 → Jackson 3**. The SDL, the
+  generated frontend types and the raw `errors[0].message`/`extensions.code` shapes were all measured **byte-identical**
+  across the move, and `GQL.kt`/`Routing.kt` compiled unedited
+- MongoDB Kotlin Coroutine Driver 5.9.2 + bson-kotlinx 5.9.2
+- Arrow-kt 2.2.3 (arrow-core, arrow-fx-coroutines)
+- Logback 1.6.2; Kotest 6.2.4 (runner-junit5, property, assertions-ktor, extensions-testcontainers);
+  Testcontainers 2.0.5; bcrypt 0.10.2
+- Gradle wrapper 9.6.1, **held** while 9.7.0 exists: `bp_back/Dockerfile:1` is `FROM gradle:9.6.1-jdk25` and the shipped
+  image builds with the image's Gradle, so the wrapper cannot move alone (ledger entry, Story 7.7)
+- Kotlin Serialization (plugin **2.4.10**, resolved `kotlinx-serialization-core` 1.11.0) — used only for MongoDB BSON,
+  not HTTP. Both `kotlin-jvm` and `kotlin-serialization` carry `version.ref = "kotlin"`, so they move in lockstep;
+  confirm that from `./gradlew :bp_back:buildEnvironment`, not from the catalog
+- **Jackson 2 and Jackson 3 now BOTH sit on the backend runtime classpath, by design, and must not be "unified".**
+  `com.fasterxml.jackson.*` **2.22.1** arrives via `ktor-serialization-jackson` and is what
+  `Routing.kt:14-16`'s `ContentNegotiation { jackson() }` uses to serve the auth REST surface (`/api/auth/*`).
+  `tools.jackson.*` **3.1.3** arrives with graphql-kotlin 10 via `ktor-serialization-jackson3` (resolved at the
+  project's Ktor **3.5.2**, above the 3.4.1 its POM asks for). The two package namespaces coexist without class-load
+  conflict. **Two things here are NOT established and must not be quoted as if they were:** which mapper actually
+  serialises GraphQL `data`/`errors` (the bodies are byte-identical either way, so nothing observable distinguishes
+  them yet), and whether `GQL.kt:130`'s Jackson 2 `JacksonWebsocketContentConverter()` still serves GraphQL WebSocket
+  frames at all — graphql-kotlin 10's subscription server carries its own Jackson 3 mapper, so that converter **may be
+  vestigial**. Both are filed in the ledger with proposed probes. **Re-check trigger for this whole bullet:** any Ktor
+  or graphql-kotlin bump, or the day `ktor-serialization-jackson` stops being a direct dependency — at which point
+  "must not be unified" may have become wrong rather than protective
 - Gradle with shared version catalog at `gradle/libs.versions.toml`
 
 ### Frontend (rebuilt from scratch in Epic 5 — Vite SPA, no Next.js)
 
-- Vite 7.3.x + `@vitejs/plugin-react` 5.x (plugin v6 requires Vite 8 — do not bump one without the other)
-- React 19.2.5 / react-dom 19.2.5
-- react-router-dom 7.9.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
+- Vite 8.2.1 + `@vitejs/plugin-react` 6.0.5 (Story 7.9; plugin 6 peers on `vite ^8.0.0` — do not bump one without the
+  other). **Vite 8 is Rolldown-based, not esbuild/rollup-based:** `rolldown` 1.2.4 + `lightningcss` 1.33.0 + `postcss`
+  8.5.26 replace them, and **`esbuild` and `rollup` are gone from the lockfile entirely** — `esbuild` is now only an
+  optional peer. The native bindings are platform-optional packages, so the `node:26-alpine` image resolves the
+  **-musl** variants and a glibc host build proves nothing about it; `docker compose build bp_front` is the real check.
+  `vite.config.ts` carries no `build`/`rollupOptions`/`optimizeDeps`/`esbuild`/`css` block and must not gain one to
+  steer Rolldown. The build still emits **no CSS file** (all styling is emotion CSS-in-JS)
+- **Vite 8 raised the shipped browser floor, and no gate in this project can see it.** Measured from both packages,
+  not recalled: Vite 7.3.6's `ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET` is
+  `["chrome107","edge107","firefox104","safari16"]`; Vite 8.2.1 resolves this project's actual config to
+  `["chrome111","edge111","firefox114","safari16.4","ios16.4"]` (`vite.resolveConfig(…, 'build').build.target`), with
+  `build.minify` now `"oxc"`. **Safari/iOS 16.0–16.3, Chrome/Edge 107–110 and Firefox 104–113 were dropped by the
+  upgrade**, silently: Playwright runs Chromium only, and identical screenshots on a current browser cannot detect a
+  narrowed support floor. Accepted as a normal consequence of a build-tool major rather than pinned back — but it is a
+  *decision*, and it matters more than usual here because Story 7.14 makes this an installable mobile app. Re-check the
+  resolved `build.target` on every future Vite major and record the delta
+- `@types/node` 26.2.0 — kept on the **same major as the Node that builds the project** (`mise.toml:6` = `26`
+  — a floating MAJOR since 2026-08-21, no longer the exact `26.4.0` earlier revisions of this file cited;
+  `bp_front/Dockerfile:7` = `node:26-alpine`). Because both are now major-only, the "same major" rule is what the
+  toolchain actually enforces and the exact minor is not pinned anywhere. A types major behind the runtime type-checks
+  against APIs the build no
+  longer has. `tsc -b` is build-mode and caches per project under `node_modules/.tmp/`, so a types bump must be gated
+  on `npx tsc -b --force` or it proves nothing
+- React 19.2.8 / react-dom 19.2.8
+- react-router-dom 7.18.x — **declarative API** (`<BrowserRouter>` + `<Routes>`), not `createBrowserRouter`
 - TypeScript 6.0.3 (strict mode, `moduleResolution: bundler`; `baseUrl` is deprecated in TS 6 — `paths` resolves without
-  it)
-- Apollo Client 4.1.9 (+ rxjs 7.8.1 peer) — plain React, no SSR integration package
-- MUI (Material UI) 9.0.0 + @mui/icons-material 9.0.0
+  it). **The MAJOR is held at 6 while `7.0.2` is `latest` (Story 7.10, 2026-08-15): do not bump to 7.** Patches *inside*
+  6.x remain in scope — `6.0.3` was the newest stable 6.x when measured, but re-measure `npm view typescript versions`
+  rather than assuming that still holds. The blocker is `typescript-eslint`, which **hard-refuses TS 7 in its own
+  runtime check** — not merely in a peer range, so no `overrides` or `--legacy-peer-deps` trick reaches it. Three facts
+  an agent would otherwise burn a pass rediscovering: (1) **TS 7 is the native (Go) port and ships no JavaScript
+  compiler API** — `require('typescript')` yields exactly `['version','versionMajorMinor']`, `ts.createProgram` is
+  `undefined`, and **`tsserver` is gone from `bin/`** (6.0.3 ships both), so **editor tooling breaks too and no gate in
+  this project can see that**; (2) **`npm install typescript@7.0.2` SUCCEEDS, exit 0** — npm only `warn`s
+  `ERESOLVE overriding peer dependency` for an explicitly-versioned target, so **the peer conflict is not what stops
+  you, the runtime is**; `npm run lint` then dies at **module load** with
+  `Error: typescript-eslint does not support TS 7.0.` (exit 2, **zero files linted** — the whole static lint gate,
+  including the load-bearing `react-hooks/set-state-in-effect` rule); (3) **the codebase itself is already TS-7-clean**
+  — `tsc -b tsconfig.json --force` under 7.0.2 exits 0 with zero diagnostics across all three projects, under unchanged
+  `strict`/`noUnusedLocals`/`noUnusedParameters`, so the hold is about the linter, not the code. Upstream issue #10940
+  tracks support for TS **>=7.1**, never 7.0. The blocking symptom, the refused side-by-side workaround, the re-check
+  trigger and every measurement live in `deferred-work.md`, "Deferred from: Story 7.10" — not here (NFR-E7-1).
+  **The hold did not block Story 7.11, and that is now measured rather than predicted (2026-08-16):** ESLint went 9 → 10
+  with `typescript-eslint` unmoved at 8.67.0, whose `eslint` peer is `"^8.57.0 || ^9.0.0 || ^10.0.0"` and whose
+  `typescript` peer is still `>=4.8.4 <6.1.0` — so the held 6.0.3 is still admitted and the TS hold is undisturbed.
+  The standing obligation survives the story: **whatever `typescript-eslint` any future pass lands must still declare a
+  `typescript` peer admitting the held 6.x**, or the linter and the TypeScript hold collide
+- Apollo Client 4.2.11 (+ rxjs 7.8.2 peer) — plain React, no SSR integration package
+- MUI (Material UI) 9.3.1 + @mui/icons-material 9.3.1
 - Emotion 11.14.x (MUI peer dependency)
-- graphql 16.14.0 + graphql-ws 6.0.8
-- graphql-codegen CLI 7.0.0 + client-preset 6.0.0
-- @playwright/test 1.60.x (E2E; no unit/component framework exists)
+- graphql **17.0.2** + graphql-ws 6.2.1 (Story 7.13, 2026-08-19) — the epic's last dependency major, and the only one
+  that is a **runtime** dependency: Apollo imports `Kind`, `visit`, `BREAK`, `print` and `OperationTypeNode` from it
+  across 23 modules, so v17 is in the shipped chunk. Three directives follow, and the detail behind all three lives in
+  `deferred-work.md`, "Deferred from: Story 7.13" (NFR-E7-1) rather than here.
+  (1) **`npm ls graphql` EXITS 1 and flags 25 tree positions — that is the filed steady state, not a broken install.**
+  `graphql-config@5.1.6` (a hard dependency of `@graphql-codegen/cli@7.2.0`, and already registry `latest`) declares a
+  `graphql` peer topping out at `^16.0.0`. **Never "repair" it with `--legacy-peer-deps`, `--force`, an
+  `overrides`/`resolutions` block or a `.npmrc`** — none was used to land it and none is needed. The refusal is stale
+  rather than functional **on the one path this project walks** (`@graphql-codegen/cli` loading `codegen.ts`, where
+  `graphql-config`'s whole runtime graphql surface is `buildASTSchema` + `print`): `npm run generate` exits 0 and
+  leaves `src/__generated__/` byte-identical. It was **not** established that `graphql-config` is v17-safe generally.
+  (2) **`npm run dev` loads a DIFFERENT graphql build than any gate covers.** 16.14.2 shipped no `exports` field;
+  17.0.2 adds one whose `.` carries a `development` condition, and Vite's serve-mode conditions select it — so the
+  dev server pre-bundles `graphql/__dev__` while `vite build`, the image build and Playwright are all
+  production-conditioned. Measured working (a live list renders, 0 console errors), but re-check it on any graphql
+  major, because no gate here can.
+  (3) **Read `graphql` peer support from the resolved tree, not from a package's own peer line.** `@graphql-codegen/cli`
+  advertises `^17.0.0` while shipping a hard dependency that refuses it; sweeping only the named peers would have
+  missed the one blocker in 42 entries.
+- graphql-codegen CLI 7.2.0 + client-preset 6.1.3
+- @playwright/test 1.62.x (E2E; no unit/component framework exists) — a runner bump needs
+  `npx playwright install chromium` or the suite fails with "Executable doesn't exist"
+- eslint **10.8.1** / @eslint/js **10.0.1** (Story 7.11, 2026-08-16) / typescript-eslint 8.67.0 /
+  eslint-plugin-react-hooks 7.1.1 / eslint-plugin-react-refresh 0.5.4 / globals 17.11.0. **`eslint` and `@eslint/js`
+  are two independent version lines in v10 — bump each to *its own* latest and never "align" them to one number.**
+  Measured in-lockfile, not inferred: `eslint@9.39.5` depended on `@eslint/js@9.39.5` pinned exactly, whereas
+  `eslint@10.8.1` has **no `@eslint/js` dependency at all**, and `@eslint/js@10.0.1` declares `eslint: ^10.0.0` as an
+  *optional peer*. The v9 habit of moving both to the same number would pin a version that does not exist —
+  `@eslint/js`'s own latest had only reached 10.0.1 when `eslint` was at 10.8.1. Two consequences of the v10 move an
+  agent may otherwise trip over: `@eslint/eslintrc` (and the `globals@14` it bundled) is **gone from the tree**, so
+  nothing `.eslintrc`-shaped can be revived; and `js.configs.recommended` gained three rules —
+  `no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error` — which are `error` here via
+  `eslint.config.mjs:24` and currently report nothing, so a future edit that trips one is a real finding, not
+  config noise
+- **`vite-plugin-pwa` 1.3.0** (Story 7.14, 2026-08-20) — the app is an installable PWA. Four directives; the
+  measurements and the unperformed device verification live in `deferred-work.md`, "Deferred from: Story 7.14"
+  (NFR-E7-1) rather than here.
+  (1) **Every PWA artefact is injected at BUILD time, so `vite.config.ts` proves nothing** — verify the
+  `<link rel="manifest">`, the precache manifest and the registration from `bp_front/dist/` and from the response
+  **served** on `:2080`. In particular **`dist/registerSW.js` must NOT exist**: `src/main.tsx` calls
+  `registerSW({immediate: true})` from `virtual:pwa-register`, and `injectRegister: 'auto'` stands down when it sees
+  that import. A `registerSW.js` appearing is a SECOND registration path, not a missing file.
+  (2) **The worker must never touch `/api`.** `navigateFallbackDenylist: [/^\/api/]` **and** `runtimeCaching: []`.
+  Measured, not theorised: deleting the denylist makes `GET /api/graphiql` — a *navigation* — answer with the
+  precached SPA shell (`<title>` reads `Bag Please`), which silently breaks this project's only backend-readiness
+  check. GraphQL and auth are `POST`, which Workbox refuses to cache, so the denylist is what actually carries this.
+  (3) **Both manifest colours are `#000000`.** `background_color` is Android's cold-launch splash colour and the app
+  is dark-only (`src/theme.ts`), so the usual `#ffffff` flashes white before an all-black app.
+  (4) **The three icons in `bp_front/public/icons/` are COMMITTED PNGs derived from `public/favicon.svg`** — Chrome
+  builds no WebAPK icon from SVG. Regenerate with `rsvg-convert` (present on this machine, deterministic) rather than
+  `npx pwa-asset-generator`, which network-fetches a headless Chromium. `icon-192`/`icon-512` are direct
+  rasterisations; **`icon-512-maskable` is the artwork at ~60% (307 px) centred on an opaque `#1C1C1E` 512 canvas**,
+  because every Android adaptive mask keeps only the central 80%-diameter circle and a transparent edge letterboxes
+  the icon. A full-bleed 512 rasterisation puts artwork 235 px from centre against a 204.8 px safe radius — it fails.
+- **`package.json` mixes pinned and caret entries and `bp_front/Dockerfile` runs `npm ci`, so the LOCKFILE is what
+  ships.** Read installed versions from `package-lock.json`, never from `package.json`
 
 ### Infrastructure
 - MongoDB 8 (all environments — dev, prod, and Testcontainers)
@@ -92,6 +225,85 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **MongoDB upsert `$set` payload** — exclude `_id` from the `Updates.combine()` call; including it causes `"Performing an update on the path '_id' would modify the immutable field"` error
 - **Mapper access pattern** — mappers are `object` singletons; call as `GqlItemMapper.mapItemToGql(item)`, never `GqlItemMapper()` (that's a constructor call and won't compile)
 - **GQL Subscription flow mapping** — the flow exposed by a Subscription class must map domain types to GQL types via the mapper; exposing the domain type directly will fail schema generation or serialize incorrectly
+- **An upsert service method MERGES the stored row; it never reconstructs the entity from the input** (Story 7.4, the
+  shape to copy for every future entity). `ItemService.saveItem` loads the stored row with
+  `storage.getByIdCached(id, listId)` and, when it exists, `stored.copy(...)`s onto it **only the fields the GraphQL
+  input carries** — for `ItemInput` that is exactly `name`, `checked`, `category`, `store`, `recurring`. Everything
+  else on `Item` is **server-owned**: `addedBy`, `checkedAt`, `deleted`, `deletedAt` come from storage on an update
+  and are *meaningless* on the incoming object, because `GqlItemMapper.mapItemFromInput` builds a fresh `Item` and you
+  cannot tell "absent from the input" from "defaulted" inside the service. The direction matters and is not a style
+  choice: **copy the input onto the stored row (allowlist)**, never `item.copy(addedBy = stored.addedBy, …)`
+  (denylist) — the denylist form silently regresses the next server-owned field somebody adds. Three shipped
+  production bugs (BUG-E6-1/2/3) came from the reconstruct form. `checkItem`, `uncheckItem` and `runSchedulerCycle`
+  call `storage.save` directly and never route through `saveItem`; they already `copy()` the stored item and are the
+  reference pattern
+- **Create-vs-update is discriminated by EXISTENCE IN STORAGE, never by presence of an id.** Client-supplied UUIDs
+  mean `GqlItemInput.id` is non-nullable and the frontend calls `crypto.randomUUID()` for **new** items too, so
+  "reject an id that does not exist" rejects every add — measured, it turned **16 of the 25 `ItemLifecycleTest` tests
+  red** on `Exception while fetching data (/saveItem) : Item <uuid> does not exist`. `getByIdCached` hit → update
+  branch, miss → create branch
+- **`saveItem`'s two rejections are scoped differently, and the asymmetry is deliberate.** A **cross-list id** (the id
+  exists globally but on another list) is rejected on **every** call — `ItemRepository.save`'s filter is `_id` only,
+  with no `listId` clause, so an unguarded upsert silently *relocates* the item; the global point read
+  `ItemRepository.findById(id)` exists solely to see that case, because `getByIdCached` is list-scoped and misses it.
+  A **category that does not belong to the list** is rejected on the **update branch only** (`md`'s ruling A,
+  2026-08-10): that is the actual shape of the bug (a stale edit dialog), and guarding creates too would fail 29
+  existing `saveItem` test sites across six files. The create-branch hole is knowingly open, filed in
+  `deferred-work.md`, and pinned by a tripwire test so a later "tightening" fails one obvious test instead of 29
+  unrelated ones. **Both rejections must `throw` before `itemUpdateChannel.emit(...)`** — the subscription broadcasts
+  whatever is emitted, so emitting on a rejected save pushes a `SAVED` event for a write that never happened
+- **An enumerated field is an enum in the DOMAIN model only; the Mongo model and the GQL model both keep their own
+  `String`.** This is the codebase's mapper-boundary convention, established by `Recurring` and generalised by
+  `MemberStatus` (Story 7.6). The shape, all four parts required: (1) the enum is its own one-line file in the entity
+  package (`entity/item/Recurring.kt`, `entity/list/MemberStatus.kt`); (2) **the constant names are byte-identical to
+  the persisted strings** — that identity is the entire wire-safety argument and the only thing worth pinning with a
+  test; (3) conversion happens at the mapper on read (`Recurring.valueOf(it)`, `MemberStatus.valueOf(mongo.status)`) and
+  via `.name` on write; (4) `Mongo{Entity}.field` stays `String`/`String?` and `Gql{Entity}.field` holds its **own**
+  `String`, so **the GraphQL SDL never moves and no data migration is needed**. **Never put the enum at the persistence
+  layer:** `kotlinx-serialization` throws `SerializationException` on an unknown enum value, so one unexpected row would
+  fail an entire common query — for `list_members` that is `findActiveByListId`, feeding six `ListApi` call sites, i.e.
+  the whole `lists` query for every member of that list. **Watch the write paths that have no mapper.** A repository
+  `Updates.set(...)` is a domain→Mongo write with no mapper in it and must pass `.name` explicitly
+  (`ItemRepository.kt:60`, `ListMemberRepository.kt:40`). Measured **twice**, so nobody re-litigates it *and nobody
+  over-generalises it*: with an enum carrying no `@SerialName` overrides, passing the *enum* there was **not** a
+  corruption bug — `org.bson.codecs.EnumCodecProvider` is in the default registry and encoded it to the same BSON
+  string, and Story 7.6's persistence test stayed green under that revert. Story 7.6 measured it on driver
+  `mongodb 5.5.1`; **Story 7.7 re-measured it on `mongodb 5.9.2` and the result is unchanged** —
+  `ListMemberRepository.kt:40` reverted to bare `member.status`, `./gradlew :bp_back:cleanTest :bp_back:test --tests
+  "com.bagplease.ListSharingTest"` → exit 0, `ListSharingTest 18 0 0 0`, including the raw-BSON assertion
+  `acceptedDoc["status"] shouldBe "ACCEPTED"`; `EnumCodec`/`EnumCodecProvider` are still present in `bson-5.9.2.jar`
+  and `MongoConnection.kt:29-38` still installs no custom `CodecRegistry`. Read it as a two-point measurement, not a
+  law — and note **both data points sit inside driver major 5**, so the trigger stays **any driver bump**, not
+  "the next major".
+  `.name` is therefore mandatory as an explicitness/independence choice — it is what keeps the stored bytes from
+  depending on a driver default — while the thing a test can actually pin is the constant-name identity in (2).
+  A BSON filter on such a field must also use `MemberStatus.PENDING.name`, never a bare literal
+  (`ListMemberRepository.kt:50,63`); note that filtering status **at the database** is what keeps `valueOf`'s throw
+  unreachable on the hot paths, while an `_id`-only lookup like `findByListIdAndUserId` stays exposed (filed in
+  `deferred-work.md`, not fixed)
+- **`ListService.deleteList`'s cascade is `items → categories → members → list`, then the three `evict*` calls**
+  (Story 7.6 inserted the members step). Every child collection of a list is deleted **before**
+  `listRepository.delete(id)`, in the same block. **That ordering is a convention, NOT a safety property — do not repeat
+  the rationale this file carried before 2026-08-12, which had it backwards.** The block is four independent Mongo
+  deletes with no session, so a throw at `listRepository.delete` leaves a *live* list whose children are already gone;
+  and for `list_members` specifically there is no in-memory cache, so "a restart re-syncs it" is false — those rows are
+  gone for good. Neither ordering is failure-safe; only a single `ClientSession` transaction would be (filed in
+  `deferred-work.md`). The returned delete counts are only surfaced for items and categories; **do not add a new count
+  to `DeleteListResult`** for a new child collection, that is a schema change. Orphaned `list_members` rows are
+  invisible through the API (`getLists` `mapNotNull`s them away), so a cascade test must count on the **raw**
+  collection, must assert a *second* list's rows survive (otherwise it passes on a `deleteMany` with no `listId`
+  clause), and must include a **DECLINED** row on the deleted list — DECLINED is the one status `findActiveByListId`
+  cannot see, so it is what a status-filtered `deleteMany` would strand with every other assertion still green
+  (measured: that mistake yields `expected:<0L> but was:<1L>`). **Deleting a USER still leaks membership rows** —
+  `UserService.adminDeleteUser` has no equivalent cascade; that is open, not fixed
+- **A service rejects with `IllegalArgumentException`, never with a `GraphQL*Exception`.** The four
+  `GraphQL*Exception` classes live in `bp_back/src/main/java/com/bagplease/plugins/` and are imported **only** by
+  `*/gql` files; importing one into a service is a service→plugins layering violation. Consequence to accept
+  knowingly: a plain throw surfaces as graphql-java's default `ExceptionWhileDataFetching` with **no
+  `extensions.code`**, so the frontend can only branch on the message string (`graphqlErrorMessage` strips the
+  `Exception while fetching data (/field) : ` wrapper). Arrow's `either { }` captures `Raise` shifts, **not** thrown
+  exceptions, so the throw escapes the block entirely and the caller's `fold` never runs — a test that asserts only
+  `errors` proves nothing about the write, so always re-read and assert the stored row is unchanged as well
 
 #### Vite SPA / Apollo Client (Frontend)
 
@@ -123,6 +335,33 @@ _This file contains critical rules and patterns that AI agents must follow when 
   render-phase adjustment or query-derived state instead
 - **Client-supplied UUIDs** — categories and items are upserted with a client-generated `crypto.randomUUID()`; lists get
   their id from the server (`createList`)
+- **Where `/` resolves to has exactly ONE implementation: `useHomePath(mode)` in `src/lib/lists/homePath.ts`** (Story
+  7.5). `HomeRedirect` consumes it and does nothing else; `AppShell`'s title link consumes it to decide whether it is
+  standing on that route. **No consumer may re-derive the path** (AR-E6-7/AR-E7-8) — the app bar compares the path it is
+  *given* against `useLocation().pathname` and nothing more. **The `mode` argument is a permission, not a preference:**
+  `'resolve'` (HomeRedirect, which owns the redirect) is `cache-first` and may fetch; `'observe'` (the app bar, which
+  only decorates an answer that already exists) is **`cache-only`** so the app bar never issues the membership-gated
+  `lists` request — the same reason `ListDetailPage.tsx:52` uses it. **Branch order is load-bearing: `!data` must
+  precede the empty-list check.** Without it a cold cache in observe mode reads as `[]` → `/lists`, and the link goes
+  inert on `/lists` for a user who actually owns lists. `null` is the only honest "not known yet" and it maps to the two
+  correct behaviours — a spinner in `HomeRedirect`, a **live** link in `AppShell` (fail toward navigating, never toward
+  a dead control). **Timestamp ordering is numeric**: `byCreatedAtAsc` = `Date.parse(a) - Date.parse(b)`, exported from
+  the same module and used by every `createdAt` sort (currently `useHomePath` and `ListShoppingPage`'s switcher
+  `useMemo`). `localeCompare` on `createdAt` is a shipped bug, not a style choice — the backend emits
+  `Instant.toString()`, which drops the fractional part at zero nanos, so `…:05Z` sorts *after* `…:05.100Z`
+  (`'Z'` 0x5A > `'.'` 0x2E). Fixing this backend-side was explicitly **rejected** (AR-E7-7): a wire format is not
+  changed to paper over a frontend comparison
+- **An inert control means INERT-BUT-PRESENT** (Story 7.5, the app-bar home link is the reference case). Suppression is
+  a `preventDefault()` in the element's own `onClick` and nothing else: react-router 7's `Link` calls the caller's
+  `onClick` first and skips its internal navigation when `event.defaultPrevented`, and Enter on an anchor dispatches a
+  click, so one line covers pointer *and* keyboard. The element keeps its `href`, its role in the accessibility tree,
+  its Tab-reachability, its visible focus ring and its exact type scale; `aria-current="page"` is the only attribute
+  added. **Never** swap in a `Button`, set `disabled`/`aria-disabled`, set `tabIndex={-1}`, hide it, or unmount it —
+  `/admin` and `/account/password` have no back affordance of their own, so on those screens this link plus the user
+  menu are the only in-app exits, and a title that vanishes on one screen reads as a broken render. Never an imperative
+  `navigate()` either: `RouteGuard` owns auth redirects and the anchor stays declarative. The nearest sibling idiom is
+  `ListShoppingPage.tsx`'s switcher chip (`active ? undefined : onClick` + `aria-current`), but a `Chip` drops a handler
+  where a real anchor must prevent a default
 
 ### Testing Rules
 
@@ -144,17 +383,61 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - **Framework**: Playwright — config at `bp_front/playwright.config.ts`, tests at `bp_front/e2e/`, run via
   `npm run test:e2e`. **52 specs / 104 runs at the end of Epic 6** (32/64 at the end of Epic 5; Epic 6 added
-  `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each).
-- **`bp_front/e2e/` is currently outside both quality gates** — `lint` is `eslint src/` and `tsconfig.app.json` includes
-  only `src`, while Playwright transpiles without type checking. So "lint and build pass" says *nothing* about the suite
-  the project treats as its hard gate. Scheduled to be fixed (Epic 6 retro action B3); until then, treat a spec-file
-  type error as something only a runtime failure will reveal.
+  `navigation.spec.ts` and `item-editing.spec.ts`, 10 tests each). Story 7.4 took it to 106 runs and Story 7.5 to
+  **120 runs in 10 files** (`navigation.spec.ts` is now 17 tests). Every figure here is dated — re-measure, never quote.
+- **`bp_front/e2e/` is inside both quality gates** (since Story 7.1). `npm run lint` is `eslint .`; rules apply to
+  `**/*.{ts,tsx}` only, so `e2e/`, `playwright.config.ts`, `vite.config.ts` and `codegen.ts` are now checked alongside
+  `src/`, while `.mjs`/`.js` files are walked but carry no rules. Flat config does **not** read `.gitignore` — the
+  config's `ignores` array is the only thing keeping `dist`, `src/__generated__` and the Playwright output directories
+  out, so add to it rather than to the script glob. `npm run build`'s `tsc -b` type-checks the specs through a third
+  project, `bp_front/tsconfig.e2e.json`, referenced from the solution `tsconfig.json`
+  (`include: ["e2e", "playwright.config.ts"]`, `types: ["node"]`, and `lib` **includes** `DOM`/`DOM.Iterable` because
+  `page.evaluate` callbacks are genuinely browser code — omitting DOM produces 11 spurious errors in correct specs).
+  `react-refresh/only-export-components` is switched off for `e2e/**` so a support module of exported helpers is legal
+  there. So a spec-file type error or unused import now fails the build — **including the production image build**,
+  which runs `npm run build` inside `bp_front/Dockerfile`.
+- **The static gate proves a spec compiles, not that every assertion is awaited.** Type-aware linting is not enabled
+  (`tseslint.configs.recommended`, no `parserOptions.project`/`projectService`), so
+  `@typescript-eslint/no-floating-promises` does not run: a forgotten `await` on `expect(locator).toBeVisible()` still
+  passes both gates and silently asserts nothing. **Await every web-first matcher by hand.** (Ledger entry and the fix's
+  implementation trap: `deferred-work.md`, "Deferred from: Story 7.1".)
 - **E2E runs against the PRODUCTION image, not the dev server** — `webServer` runs `docker compose up -d --build` and
   `baseURL` is `http://localhost:2080` (built `dist/` served by Caddy). This is deliberate: it closes the "green on the
   dev server, broken in the shipped bundle" gap (asset hashing, base path, tree-shaking, SPA-fallback misconfig). Do not
   point E2E at `:5173`.
-- **Two projects are mandatory: `chromium` (Desktop Chrome) + `mobile` (Pixel 7).** Mobile is not optional — Epic 4's
-  regression was a mobile-only failure. Every flow must pass on both.
+- **Two viewport projects are mandatory: `chromium` (Desktop Chrome) + `mobile` (Pixel 7).** Mobile is not optional —
+  Epic 4's regression was a mobile-only failure. Every flow must pass on both.
+- **The config declares FOUR projects, not two (Story 7.3), and the extra pair is a mutual-exclusion mechanism, not
+  extra coverage.** Topology: `chromium` and `mobile` both carry `grepInvert: /@registration-toggle/`;
+  `registration-toggle-chromium` (Desktop Chrome, `grep: /@registration-toggle/`,
+  `dependencies: ['chromium', 'mobile']`) and `registration-toggle-mobile` (Pixel 7, same `grep`,
+  `dependencies: ['registration-toggle-chromium']`) run afterwards, in series, both with `fullyParallel: false` so a
+  future *second* tagged test cannot race the first. The tagged test is *rerouted*, not duplicated: at Story 7.3 the
+  split was **51 / 51 / 1 / 1 = 104**; at Story 7.4 **52 / 52 / 1 / 1 = 106**; at Story 7.5 it is
+  **59 / 59 / 1 / 1 = 120 tests in 10 files** — the +2 at 7.4 was `item-attribution.spec.ts`'s single
+  untagged test, the +12 at 7.5 is `navigation.spec.ts`'s six new untagged tests, each in both viewport projects.
+  Treat the absolute totals as dated; the standing invariant is **exactly 1 test in
+  each `registration-toggle-*` project** and everything else in the two viewport projects. Adding a new spec means +2
+  runs, in `chromium`/`mobile`; only a test that writes the shared registration flag belongs in the tagged pair.
+- **THE TOTAL PROVES NOTHING — check the per-project split.** Drop or misspell the tag and the test
+  simply runs in `chromium`+`mobile` while both toggle projects collect zero: the total is *unchanged*
+  (the tag REROUTES a test rather than duplicating it),
+  the race is silently back, and the guard that used to absorb it is gone. The real check is
+  `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c`. (Do **not** use `--list --project=<name>`
+  for this — `--project` pulls in that project's `dependencies`, so the toggle projects report 103 and 104.)
+- **Consequence of `dependencies`, measured: a failing dependency project makes the dependent one NOT RUN.** Observed
+  2026-08-08 by deliberately failing one `chromium` test: `1 failed / 2 did not run / 101 passed`, exit code `1`, and
+  Playwright's wording is "did not run" (not "skipped"). One failing dependency is enough — `mobile` passed in that
+  experiment. So **any red run tells you nothing about FR20/FR21**. To get that answer while something else is broken,
+  run `npx playwright test --project=registration-toggle-chromium --no-deps`. **`--no-deps` is not optional here:**
+  without it the command re-runs the still-broken dependency and fails identically. `globalSetup` still runs under
+  `--no-deps`, so registration is still enabled. Note also that `--project=chromium` or `--project=mobile` alone runs
+  **no** FR20/FR21 case at all — it is `grepInvert`ed out of both, and reports as absent rather than skipped.
+- **The exclusivity holds within ONE Playwright invocation only.** `dependencies` orders projects inside a single
+  runner process. Two suites run concurrently against the same `:2080` backend — e.g. a default run plus an
+  `E2E_BASE_URL=https://bag-please.localhost` run, which `reuseExistingServer` makes easy — share one Mongo
+  `ApplicationConfig` document and re-create the original race in full, now with no retry wrapper to absorb it. Same for
+  `--shard`. Run one suite at a time against a given backend.
 - **TLS path**: `E2E_BASE_URL=https://bag-please.localhost npm run test:e2e` exercises the real HTTPS + `Secure`-cookie
   route through the host edge proxy (the edge must already be running; compose only starts `:2080`).
 - **Tests are UI-driven.** API calls are permitted **only** for environment preparation (e.g. `global-setup.ts` enabling
@@ -177,19 +460,77 @@ _This file contains critical rules and patterns that AI agents must follow when 
   viewport on the `mobile` project, quietly voiding the mobile gate for whatever it covers. Prefer the `page` fixture
   (already per-test isolated); when a second actor genuinely needs its own context, put the actor whose *rendering* the
   mobile gate must cover on `page`, not in the hand-built context.
-- **No login fixture and no `storageState` exist** — each spec registers a fresh unique user through the UI
-  (`<prefix>_e2e_${project.name}_${Date.now()}`) and logs in through the form. Use `browser.newContext()` when a second
-  actor is needed so the first session is untouched.
-- **The DB volume `./db/data` persists across runs and the two projects run concurrently** — assert only on data your
+- **No login fixture and no `storageState` exist** — each spec registers a fresh unique user through the UI and logs in
+  through the form. The shared helper emits `` `${prefix}_e2e_${label}_${projectName}_${Date.now()}` `` —
+  `uniqueUsername(prefix, label, projectName)` in `e2e/support/ui.ts`, one distinct prefix per spec. (`auth.spec.ts:12`
+  predates the helper and inlines an eighth shape, `mia_e2e_${project.name}_${Date.now()}`, with **no label segment** —
+  do not "unify" it.) Use `browser.newContext()` when a second actor is needed so the first session is untouched.
+- **The DB volume persists across runs and the two projects run concurrently** — since 2026-08-13 this is the named
+  Docker volume `bag-please_db_data`, not the old `./db/data` bind mount (that path no longer exists) — assert only on
+  data your
   test created, and never on total row counts.
-- **Known race**: `registrationEnabled` is one shared Mongo document; the admin-toggle test flips it for real, so its
-  OFF window can break register-based specs in the other project. CI `retries: 2` heals it; the suite is not reliably
-  green at `retries: 0`. **Decided fix (Epic 6 retro, scheduled as an Epic 7 story):** keep registration **enabled** as
-  the steady state and run the registration-disabled test **non-parallel**, rather than serializing the whole toggle
-  spec. Until that lands, do not add a fifth copy of the `expect(...).toPass()` workaround — it is already duplicated
-  across `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and `item-editing.spec.ts`, which is itself why the fix
-  cannot currently be made in one place (Epic 6 retro action B4).
+- **`registrationEnabled` is ON for the whole run, and that is now an invariant, not a hope (Story 7.3 — the race is
+  deleted).** It is one shared Mongo `ApplicationConfig` document. `global-setup.ts` sets it to `true` idempotently
+  before the run (which is also what recovers a flag stranded OFF by a crashed prior run — the `bag-please_db_data`
+  volume persists). The
+  only test that writes it is the FR20/FR21 toggle case in `admin.spec.ts`, tagged `@registration-toggle` and routed by
+  the four-project topology above so its OFF window opens **only after both viewport projects have finished** — nothing
+  anywhere is registering while it is open. Consequences for anyone writing E2E here:
+    - **Do not add a retry loop around reaching the register form.** `registerViaUi` starts with a plain
+      `await page.goto('/auth')`. The `expect(async () => …).toPass()` wrapper that used to guard it was deleted with
+      the race, deliberately: keeping it "just in case" is what made this flake invisible for seven acceptances. If
+      `to-register-link` is ever missing again, that is a real regression and must be allowed to fail. The rule is
+      about *that guard*, not about the `toPass` matcher in general — `toPass` remains legitimate for genuinely
+      settling UI (`navigation.spec.ts:100` uses it for CSS hover, and is the only remaining occurrence).
+    - **`auth.spec.ts`'s inline, unhardened registration (`:18-28`) is correct as-is** and is no longer an exposure —
+      the decision was taken explicitly in Story 7.3, not by omission. Do not "harden" it.
+    - **Any new test that writes the flag must carry the `@registration-toggle` tag**, or it will run inside
+      `chromium`/`mobile` and re-create the race. Nothing enforces this mechanically yet (ledger item).
+    - The `setRegistration(page, true)` baseline at the top of the tagged test stays: the chain runs that same test
+      twice in sequence, so it is what recovers the flag if the chromium link strands it.
+  **Evidence this was a real race and is really closed** (both measured at `retries: 0` against the production image,
+  2026-08-08): with the mechanism disabled, three consecutive full runs failed **3 / 5 / 4** tests, all inside
+  `registerViaUi`, carrying `alert: "Registration is disabled"` or a 30 s timeout `waiting for
+  getByTestId('to-register-link')`; with the mechanism in place, two consecutive full runs were `104 passed`, 0 flaky.
+  **Read the 3/5/4 correctly:** those runs had the mechanism absent *and the `toPass` workaround already removed*, so
+  they measure the fully-exposed race, not the historical one. They are **not** comparable with the "1 flaky,
+  retry-healed" reports from Epics 5–6, which were measured with the workaround in place and retries on. No run was
+  ever taken in the historical configuration; the honest claim is "the race is real and the mechanism closes it", not
+  "the race was five times worse than reported".
+  Historical note kept because it explains the shape of the fix: the workaround had **five** copies before Story 7.2
+  (`lists:32`, `shopping:33`, `sharing:32`, `item-editing:41`, `navigation:41`), which is why the race could not be
+  fixed in one place (Epic 6 retro action B4); 7.2 removed that obstacle and 7.3 landed the fix once.
 - **No component/unit test framework exists** — do not assume one.
+
+##### Shared E2E helpers live in `bp_front/e2e/support/` (Story 7.2)
+
+- **`e2e/support/ui.ts`** holds `PASSWORD` and the UI-driving helpers (`uniqueUsername`, `registerViaUi`,
+  `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`). **`e2e/support/api.ts`** holds `BACKEND`,
+  `loginApi` and `gql<T>`. Do not re-declare any of them in a spec — that is the duplication Story 7.2 removed.
+- **`support/api.ts` must never import `@playwright/test`.** `global-setup.ts` runs in Playwright's globalSetup phase,
+  before the runner exists; a top-level runner import in `api.ts` would drag it into that phase. **This is now
+  load-bearing in fact, not just in principle:** since Story 7.3 `global-setup.ts` does
+  `import {BACKEND, gql, loginApi} from './support/api'` and holds no `BASE_URL` literal, no inline login and no inline
+  GraphQL `fetch` of its own. It imports nothing from `ui.ts` — it authenticates as `admin`/`admin` (the first-boot
+  admin), not with the suite's registered-user `PASSWORD` — so the two-file split is doing exactly the job it was built
+  for.
+- **`BACKEND` stays `'http://localhost:2080'`** — API prep always hits the local Caddy entrypoint directly. It must not
+  become `baseURL` or `E2E_BASE_URL`, which only control the *browser-facing* origin, or the TLS-edge run mode breaks.
+- **Imports are relative — `from './support/ui'`, never `@/`.** `tsconfig.e2e.json` has no `paths`, and Playwright
+  resolves the *closest* `tsconfig.json` walking up, so it reads `bp_front/tsconfig.json` and an alias would type-check
+  and then fail at runtime.
+- **A support file must not match `*.spec.ts` / `*.test.ts`, and must be `.ts`, never `.tsx`.** `playwright.config.ts`
+  sets no `testMatch`, so the default pattern applies and a `support/helpers.spec.ts` would be *collected* and fail the
+  run with zero tests. `.tsx` falls outside the `bp/e2e-playwright` override glob (`e2e/**/*.ts`) and would get
+  `react-refresh/only-export-components: error` — the rule that exists to permit a module of named exports here.
+- **`uniqueUsername` takes the caller's prefix first**: `uniqueUsername('shopping', label, project.name)`. The **eight**
+  prefixes (`acct`, `admin`, `attrib`, `lists`, `nav`, `sharing`, `shopping`, `item_editing`) are load-bearing — the
+  `bag-please_db_data` volume persists and both projects run concurrently, so collapsing the namespaces would make specs
+  collide on
+  foreign data. `attrib` is `item-attribution.spec.ts` (Story 7.4, FR45/FR58). **A new spec claims a new prefix and
+  adds it to the registry comment at `support/ui.ts:14-18`** — that comment is the only inventory there is.
+- **It is a support module, not a login fixture** (AR-E7-5). No `storageState`, no `test.extend`, no session reuse:
+  every spec still registers a fresh user through the UI and logs in through the form.
 
 ### Code Quality & Style Rules
 
@@ -208,7 +549,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Frontend (TypeScript / React)
 
 - **ESLint is a flat config** (`bp_front/eslint.config.mjs`): `typescript-eslint` + `eslint-plugin-react-hooks` +
-  `eslint-plugin-react-refresh`. `eslint-config-next` is gone. `npm run lint` runs `eslint src/`
+  `eslint-plugin-react-refresh`. `eslint-config-next` is gone. `npm run lint` runs `eslint .` — the whole package is
+  *walked*, but only `**/*.{ts,tsx}` carries rules, so a `.mjs`/`.js` file appearing in the linted set is not evidence
+  it was checked (see the E2E gate section above). The flat config's `ignores` is the only exclusion mechanism —
+  `.gitignore` is not consulted. Flat config objects concatenate and **later objects win**, so the `bp/e2e-playwright`
+  override must stay last
 - **All styling via the MUI theme + `sx`** — no `style={{}}`, no `className` styling, no CSS modules. The theme is
   dark-only (`src/theme.ts`): bg `#000`, paper `#1C1C1E`, primary teal `#4DC9BB`, success `#30D158`, error `#FF453A`,
   warning `#FFD60A`, plus `theme.custom.bp.*` tokens. Theme switching is out of scope
@@ -274,7 +619,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
   `setRegistrationEnabled(enabled: true)` GraphQL mutation as admin (this is what `e2e/global-setup.ts` does
   idempotently)
 - **Backend readiness — no health endpoint yet** — there is currently no `/health` or `/ping` endpoint; this is a known
-  gap / tech debt; for now, `http://localhost:2080/api/graphiql` loading is the manual readiness check
+  gap / tech debt. The readiness check is
+  `curl -o /dev/null -w '%{http_code}' -H "Authorization: Bearer <admin token>" http://localhost:2080/api/graphiql`
+  → `200`. **A plain browser navigation to `/api/graphiql` returns 401 on a perfectly healthy backend** —
+  `graphiQLRoute()` sits inside `authenticate(authMethod)` (`GQL.kt:136-140`) — so do not read that 401 as "the
+  backend is down". Measured in Story 7.12; corrected here because the earlier wording ("`/api/graphiql` loading is
+  the manual readiness check") sends an agent debugging a working stack
 - **Backend hot reload** — `../gradlew run -t` (from `bp_back/`) enables continuous compilation; `application.yaml` changes require a manual restart — resource files are not hot-reloaded
 - **`KTOR_RATE_LIMIT_ATTEMPTS: 6000` in `docker-compose.yaml` is dev/E2E-only and is overridden in production.**
   The repo default in `application.yaml` is `5` per 60s; the compose value exists purely so the E2E suite's many
@@ -323,6 +673,17 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Testing
 - **Docker daemon required for tests** — `../gradlew test` uses Testcontainers which requires a running Docker daemon; a missing Docker daemon produces a Docker socket error, not a useful test failure message
 - **Run tests from `bp_back/`** — execute as `../gradlew test` from within `bp_back/`; from the repo root use `./gradlew :bp_back:test`
+- **Always `cleanTest` first: `./gradlew :bp_back:cleanTest :bp_back:test`.** `:bp_back:test` on its own is
+  `UP-TO-DATE`-cacheable — it reports `BUILD SUCCESSFUL`, executes nothing, and leaves the previous run's JUnit XML in
+  place, so the totals you then read are **stale**. That trap fired during Story 7.4's planning pass. `:bp_back:build`
+  does run `check` → `test`, so it is not a substitute for reading the results either.
+- **Read the totals from the JUnit XML, not from the console.** Kotest's console output does not print a summary line;
+  the numbers live in `bp_back/build/test-results/test/TEST-*.xml` (`tests`/`failures`/`errors`/`skipped` on each
+  `<testsuite>`). Suite size for reference: **105 at `73db447`, 113 after Story 7.4, 115 after Story 7.6**
+  (`ListSharingTest` 16 → 18). Treat those as dated — the standing rule is to re-measure, never to quote a remembered
+  number.
+- **A `--tests "com.bagplease.SomeTest"` filter runs the whole Kotest class**, which is the cheap way to iterate on one
+  spec's red/green observation without paying for the full suite (~17 s vs ~1 m 35 s).
 
 #### Git
 - **Branch naming** — feature branches follow `feature/<description>`
@@ -343,7 +704,348 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when technology stack versions change
 - Tech debt items noted inline (subscription auth, `setUpJwt()`, health endpoint) should be removed from this file once resolved
 
-_Last Updated: 2026-07-29 (Epic 6 retro) — added the "a new test is unproven until observed failing" testing convention
+_Last Updated: 2026-08-20 (Story 7.14) — **Bag Please is now an installable PWA, and the two acceptance criteria that
+need a physical Android phone were NOT met and are not claimed.** `vite-plugin-pwa` **1.3.0** installed unflagged
+(exit 0, `+260 packages`, `changed 10` transitive — `@babel/*` 7.29.7→7.29.8, `browserslist`, `caniuse-lite`,
+`electron-to-chromium`, `node-releases`, `update-browserslist-db`, `baseline-browser-mapping`; **no direct dependency
+moved**, verified by diffing every direct entry's resolved version between the stashed and the new lockfile).
+`workbox-build`/`workbox-window` 7.4.1 arrive as the plugin's own dependencies, not as peers to add. Landed: three
+committed PNGs generated from `public/favicon.svg` with `rsvg-convert`; a dark-only manifest; `registerSW({immediate:
+true})` in `src/main.tsx` with the `vite-plugin-pwa/client` triple-slash reference in `src/vite-env.d.ts`; and two
+`header` pins in `routing/Caddyfile`. Gates, all measured this pass: `npm run lint` exit 0 with the `ignores` array
+**unwidened** (no `dev-dist` is produced — `npm run dev` was run and none appeared); `npm run build` exit 0 after
+`rm -rf node_modules/.tmp`, **1299** modules (baseline 1297) with `index-BySjKFSJ.js` **803.39 kB / 241.14 kB gzip**
+against the baseline `index-dd3zm4T-.js` **802.34 / 240.67**, plus a lazily-imported `workbox-window.prod.es5` chunk
+of 5.65 kB and a 0.41 kB manifest — **+6.7 kB shipped**; `docker compose build bp_front` exit 0 (the load-bearing one:
+`npm ci` on musl under `node:26-alpine`); and **two consecutive full Playwright runs at `retries: 0`, 132 passed both
+times** (49.8 s, 50.1 s) with `CI` unset. Split **132 = 65 / 65 / 1 / 1**, re-measured before each run: the six new
+untagged tests in `e2e/pwa.spec.ts` run in both viewport projects, so 120 + 6×2 = 132 and 59 + 6 = 65 per viewport.
+Served surface measured with `curl` on `:2080`: `/manifest.webmanifest` → 200
+`Content-Type: application/manifest+json`, `/sw.js` → 200 `text/javascript; charset=utf-8` with `Cache-Control:
+no-cache` at root scope, `/api/graphiql` → the backend, not the shell. **The Caddy directives are a pin, not a
+repair** — `caddy:2-alpine` v2.11.4 (`sha256:5f5c8640aae0…`) was measured already serving both correctly before they
+landed. **Five of the six new assertions were falsified by breaking the real behaviour** (white `background_color`; a
+191 px icon; `manifest: false`; registration removed; precache emptied so the offline reload died with
+`ERR_INTERNET_DISCONNECTED`), each reddening on **both** projects; the sixth — "no `/api` entry in Cache Storage" —
+could only be falsified at the instrument level and that is filed, not glossed. **AC1/AC9's device half was not
+performed:** `adb devices` prints no device rows and no `google-chrome`/`chromium` binary exists on this host, so no
+WebAPK was installed, no Chrome menu was read and the DevTools Installability panel was never opened. The substitute
+measured every precondition independently (`isSecureContext true` on `http://localhost:2080`, manifest link read off
+the served page, PNG 192 + 512 verified from IHDR bytes, worker `activated` at scope `/` and controlling, fetch
+handler proven by an offline reload it answered) and probed `beforeinstallprompt`, which **did not fire** — recorded
+because it went the unflattering way; it is Chrome-branded heuristics, not a criterion. The device procedure is filed
+in `deferred-work.md`. AC7 was **confirmed, not rebuilt**: `navigation.spec.ts:654` re-run green on both projects, and
+its `:698` launch-history assertion of **2** is a browser artefact (a fresh Playwright page starts on `about:blank`,
+the `goto` is the second entry, and `HomeRedirect`'s `replace` adds none) — an installed launch at `start_url: '/'`
+is **one** deep, so the Android system back gesture exits from home. That is accepted, and on `/admin` for an admin
+the inert title link is by design with the user menu as the live exit. `rule_count` rises 101 → **105**, stated with
+its arithmetic: **four** independently-actionable directives were added, all under the frontend `vite-plugin-pwa`
+entry — verify PWA artefacts from the build output and never let `dist/registerSW.js` appear; keep the worker off
+`/api` with the denylist plus empty `runtimeCaching`; keep both manifest colours `#000000`; and regenerate the icons
+with `rsvg-convert`, the maskable one at ~60% on an opaque `#1C1C1E` field.
+
+_Last Updated: 2026-08-19 (Story 7.13) — **the epic's last dependency major LANDED, and the package that planning
+expected to block it turned out to refuse v17 on paper only.** `graphql` 16.14.2 → **17.0.2** (`latest`; `latest-16` is
+`16.14.2`, so 16 was already at its head), one commit whose `bp_front/` content is one pinned version in
+`package.json` plus the resolved `package-lock.json`. The peer question was settled at **resolution** level, not from
+four peer lines: **42 packages in the lockfile declare a `graphql` peer, 41 admit `^17.0.0`, and exactly one does
+not** — `graphql-config@5.1.6` (`^0.11.0 || … || ^16.0.0`), a **hard dependency** of `@graphql-codegen/cli@7.2.0`
+whose `5.1.6` is already registry `latest`. The same sweep over the baseline lockfile returns **42 peers, 0
+unsatisfied by 16.14.2**, so the unmet peer is new with this bump; `npm ls graphql` now **exits 1** and that is the
+filed steady state. It did **not** turn out to be a functional blocker, and the two facts are separate exactly as the
+spec insisted: `npm install graphql@17.0.2` with **no flags** exits **0** with `npm warn ERESOLVE overriding peer
+dependency` (the Story 7.10 shape), npm nests `graphql-config` under the CLI without changing anything (there is still
+one `graphql` in the tree and it is 17.0.2), and `npm run generate` — the *only* code path `graphql-config` is on
+here — exits 0 and leaves all four `src/__generated__/` files **byte-identical**
+(`graphql.ts` = `27a530103ba703e857d91eaf55dcbf9d`). **Nothing was forced:** no `--legacy-peer-deps`, no `--force`, no
+`overrides`/`resolutions`, no `.npmrc`, not even transiently, and no peer package moved (`@apollo/client` 4.2.11,
+`graphql-ws` 6.2.1, CLI 7.2.0, client-preset 6.1.3 all unchanged; the available `@apollo/client` 4.2.12 patch was
+deliberately **not** swept in). Gates, all measured this pass: `npm run lint` exit 0; `npm run build` exit 0 after
+`rm -rf node_modules/.tmp`, chunk `index-dd3zm4T-.js` **802.34 kB / 240.67 kB gzip** from **1297** modules against the
+baseline `index-D0HEEKre.js` **801.60 kB / 240.42 kB gzip** from **1255** (**+0.74 kB raw, +0.25 kB gzip, +42
+modules** — recorded, not treated as a failure); `docker compose build bp_front` exit 0, which is the load-bearing one
+because it proves `npm ci` survives the ERESOLVE warn on **musl** under `node:26-alpine` and satisfies v17's
+`engines` (`^22 || ^24 || ^25 || >=26`); and the full Playwright suite **120 passed at `retries: 0`**, split
+**59/59/1/1**, identical to the baseline run taken before anything moved. `:bp_back:test` was **not** run and is
+correctly out of gate — no `gradle/` or `bp_back/` path is touched; `graphql-java` is a separate line Story 7.12
+already moved. **S-AC2 was discharged by A/B, not by assertion**, because no green suite can see a rendering
+difference: the baseline `dist` was rebuilt from the stashed lockfile (reproducing `index-D0HEEKre.js` byte-for-byte),
+`docker cp`-ed into the running Caddy container, and the same `/auth` page captured at 1440×900 and 360×740 under both
+bundles — the screenshots are **md5-identical** (`00177dc…` desktop, `615a522…` at 360px) and a computed-style probe
+over `body`/`h4`/`p`/`button`/`input`/`.MuiPaper-root`/`.MuiTextField-root`/`.MuiButton-root` (colour, font-family,
+size, weight, line-height, letter-spacing, margin, padding, radius, shadow, bounding rect) diffs **clean** at both
+widths. Both instruments were **falsified before being trusted**: perturbing a generated file reddens `git status` and
+the next codegen run restores its exact md5, and a one-token background change (`#121212` → `#111213`) changes the
+screenshot md5. A hand pass on `:2080` exercised a query (list renders), a mutation (create list, create category,
+add item, all round-tripping) and a **live subscription** (a check in one tab appears in a second tab with no reload).
+`rule_count` rises 98 → **101**, **corrected at review from the 99 this entry first claimed**, and stated with its
+arithmetic because the counter's own definition is an open ledger item: **three** independently-actionable directives
+were added, not one. (1) The unmet `graphql-config` peer and `npm ls graphql` exit 1 are the deliberate, filed steady
+state and must never be "repaired" with an override. (2) **`npm run dev` loads graphql's `__dev__` build** — 17.0.2
+adds an `exports` map with a `development` condition that Vite's serve mode selects, where 16.14.2 had no `exports`
+field at all — so no gate in this project covers the build the daily inner loop runs; re-check on any graphql major.
+(3) **Read peer support from the resolved tree, not from a package's own peer line**, because `@graphql-codegen/cli`
+advertises `^17.0.0` while shipping a hard dependency that refuses it. The first pass counted only (1) and described
+the rest of the bullet as "evidence, not further rules"; (2) and (3) are imperatives an agent must act on, which is
+what the counter tracks.
+
+**Corrected at review — do not restore the earlier wording of this entry's S-AC2 claim.** It reported the render A/B
+as taken on `/auth` and called S-AC2 discharged; `/auth` is the one route that executes **zero** GraphQL (no Apollo
+hook in `AuthPage.tsx` or `lib/auth/`), so that A/B was near-vacuous for a bump whose whole risk is Apollo's
+parse/print/visit path. Re-done on the shopping view `/list/:id` against a seeded fixture: screenshots md5-identical
+at 1440×900 and 360×740, a 12-selector computed-style probe identical at both, with the 2 non-matching selectors
+named rather than counted as coverage. The falsification claim was also overstated — only the screenshot half was
+falsified, at one viewport, with a perturbation the style probe provably could not see (`rgb(18,18,18)` appears
+nowhere in its output). Re-falsified with `h6{letter-spacing:3px}` + `.MuiChip-root{border-radius:2px}`: both
+instruments redden at both viewports.
+
+Stated rather than glossed, three things this pass did **not** establish: that `graphql-config` code paths other than
+config-loading are v17-safe (only the `codegen.ts` load path was walked); that the +42 modules / +0.74 kB are
+attributable to v17's own module graph rather than to a Rolldown chunking difference — the delta was measured, not
+explained; and that the build is **deterministic**, an absolute this entry first claimed from a single reproduction of
+one content-hash filename with no `cmp` of the contents.
+
+_Last Updated: 2026-08-16 (Story 7.12) — **the epic's highest-risk bump LANDED, at the top ladder rung, with no
+backend source change at all.** `graphql-kotlin` 9.3.0 → **10.2.1** and `kotlin` 2.3.21 → **2.4.10**, one commit,
+whose entire content is two lines of `gradle/libs.versions.toml`. `graphql-kotlin` 10.0.0 moved three things at once —
+Kotlin ≥ 2.3.0, `graphql-java` 23.1 → **25.0**, Jackson 2 → **Jackson 3** — and all three landed: the classpath now
+carries `graphql-java` 25.0, `java-dataloader` 6.0.0, and `tools.jackson.*` **3.1.3** beside the unmoved
+`com.fasterxml.jackson.*` 2.22.1. **Nothing observable moved with them**, and that is measured four independent ways
+rather than inferred from a green compile: the `/api/sdl` capture is **md5-identical** before and after
+(`24f694bc89063ba52c753fc7e1b4615c`), `npm run generate` leaves all four files in `bp_front/src/__generated__/`
+**byte-identical**, the raw `errors[0].message` wrapper prefix and `extensions.code == "FORBIDDEN"` are
+**byte-identical**, and the backend suite (115/0/0/0 from the JUnit XML) plus the four-project Playwright suite
+(**120 passed at `retries: 0`**, split 59/59/1/1) are green. `GQL.kt`, `Routing.kt` and `bp_back/build.gradle.kts`
+compiled **unedited**; `jvmToolchain(25)` is unchanged; `docker compose build bp_back` is exit 0 under
+`gradle:9.6.1-jdk25`. Each of those instruments was **falsified before being trusted** — a one-character nullability
+flip reddens the SDL diff, a perturbed generated file reddens `git status` and is then overwritten back to its exact
+md5 by codegen, and stripping the wrapper or swapping the error code reddens both response diffs. The error-shape check
+exists because the suite structurally cannot make it: `sharing.spec.ts:109` uses `toContainText`, a **substring** match
+that would still pass with the wrapper left un-stripped. `rule_count` rises 95 → **98**, and the count is stated with
+its arithmetic because this file's own counter is under dispute (`deferred-work.md` carries an open item asking `md`
+to rule on what it counts): **three** directives were added, not one — (1) `kotlin-stdlib` tracks the compiler but
+**`kotlin-reflect` tracks KTOR**, so no `kotlin` bump alone heals the split runtime; (2) **Jackson 2 and Jackson 3
+must not be "unified"**, with its own re-check trigger; (3) confirm the serialization-plugin lockstep from
+`./gradlew :bp_back:buildEnvironment`, never from `version.ref` in the catalog. The first is a *correction* of a belief
+this file previously carried: `io.ktor:ktor-server-core-jvm:3.5.2` is the highest request for reflect in the graph and
+nothing injects it the way the Kotlin Gradle Plugin injects stdlib. Story 7.7's ledger entry predicted this story would
+dissolve the skew; that prediction is now measured false (stdlib went 2.4.0 → 2.4.10, reflect stayed 2.3.21), the
+re-check trigger moves to the next **Ktor** bump, and the proposed pin changes target from `kotlin-stdlib` to
+`kotlin-reflect`. **Corrected at review — do not restore the earlier wording, which said "no `kotlin` bump can *ever*
+close the skew" and named only two remedies.** A plain `implementation(kotlin("reflect"))` in
+`bp_back/build.gradle.kts` is a third, and KGP version-aligns it to the compiler automatically; the absolute was one
+observation of current KGP behaviour dressed as a law. **Also added at review, because the original entry filed the
+skew without ever saying whether it was dangerous:** it is measured safe — compiled GQL classes carry metadata
+`mv=[2,4,0]`, the shipped image's `/app/lib` carries `kotlin-reflect-2.3.21.jar` beside `kotlin-stdlib-2.4.10.jar`,
+and graphql-kotlin's schema generation is entirely reflection over exactly those classes, so `install(GraphQL)` would
+throw at boot if reflect 2.3.21 could not read 2.4 metadata. It does not, and the 120-test E2E ran against that image.
+**Nothing was weakened to get here** — no `@Suppress`, no compiler flag, no `force`/`strictly`/`constraints` rule, no
+edited assertion, and the conditional `ktor-serialization-jackson3` catalog entry the spec authorised was **not** added
+because its condition was tested and not met (Gradle lifted that module to the project's own Ktor 3.5.2 on its own).
+Two things this pass did *not* establish, stated rather than glossed: which Jackson mapper actually serialises
+`data`/`errors`, and whether `GQL.kt:130`'s Jackson 2 websocket converter is now vestigial — noted, not deleted.
+**Corrected at review:** the original entry said there was "no distinguishing signal without a code change"; that was
+asserted, not demonstrated, and at least four black-box probes were never tried (non-ASCII/`emoji` escaping,
+`Accept`-header negotiation and 406 behaviour, `Content-Type` charset suffix, field ordering). Filed as a probe, not
+as a closed question. New debt — the un-healed split runtime with its corrected cause, the Jackson 2 + 3 coexistence,
+a new Kotlin 2.4 warning at `UserService.kt:65` (proven new with a stash-back control, because the baseline compile
+was `UP-TO-DATE` and emitted nothing), the measured `/api/graphiql` 401 (which this file's readiness bullet has now
+been corrected for rather than merely flagged), and the review's own findings — chiefly that the error-shape contract
+is **permanently unassertable by any gate in this project**, the untried Jackson probes, and two probe-script writes
+to shared dev state — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-16 (Story 7.11) — **ESLint moved 9 → 10 and, unlike the two stories before it, this one
+LANDED rather than held.** `eslint` 9.39.5 → **10.8.1** and `@eslint/js` 9.39.5 → **10.0.1**, one commit, with every
+plugin unmoved. `rule_count` rises 94 → **95** for the one directive worth an agent's time: **`eslint` and `@eslint/js`
+are two independent version lines in v10 — bump each to its own latest, never align them to one number.** That is not a
+style preference; it is measured in the lockfile. `eslint@9.39.5` pinned `@eslint/js@9.39.5` as a hard dependency,
+`eslint@10.8.1` has no `@eslint/js` dependency at all, and `@eslint/js@10.0.1` declares `eslint: ^10.0.0` as an
+*optional peer*. An agent applying the v9 habit would try to install `@eslint/js@10.8.1`, which does not exist. Two
+further v10 facts are recorded beside the numbers so nobody re-derives them: `@eslint/eslintrc` and its bundled
+`globals@14` are **gone from the tree** (the `.eslintrc` compatibility layer is removed), and
+`js.configs.recommended` gained `no-unassigned-vars`, `no-useless-assignment` and `preserve-caught-error`, all three
+resolving to `error` here and all three currently reporting nothing — so a future edit that trips one is a real finding.
+Story 7.10's forward note ("this hold does not block 7.11") is rewritten from a prediction into a measurement, and its
+surviving half named: any future `typescript-eslint` must still declare a `typescript` peer admitting the held 6.x.
+**No behavioural convention changed and no rule was weakened** — which is the load-bearing claim here, because the
+linter is this project's only static gate over `react-hooks/set-state-in-effect`, the rule that forbids `useEffect`
+state-sync and forces the render-phase-adjustment pattern in all seven dialogs. It was proven **by falsification under
+ESLint 10, not by reading a config**: an injected `useEffect` state-sync in `AuthPage.tsx` made `npm run lint` exit 1
+naming the rule, and an exported non-component **function** in `ConfirmDialog.tsx` made
+`react-refresh/only-export-components` fire. The `const`-shaped probe was re-measured under v10 and is **silent**
+(`allowConstantExport: true`), so it is the vacuous-assertion trap for that check; use the `function` shape. Both
+probes were reverted and the commit contains no `bp_front/src/` or `bp_front/e2e/` path. **Corrected at review — do
+not restore the earlier wording, which read "while the identical shape in `e2e/support/ui.ts` (six exported helpers)
+stayed silent — Story 7.1's split intact".** That inference is invalid:
+`react-refresh/only-export-components` **does not scan `.ts` files at all**
+(`eslint-plugin-react-refresh/index.js:36-40` — early return for `.spec.`, then
+`shouldScan = .jsx || .tsx || checkJS && .js`), and all 14 files matched by the `bp/e2e-playwright` override are
+`.ts`. Measured with a control: a component plus a non-component function appended to the `.ts` file
+`src/lib/lists/homePath.ts`, where the rule resolves to `[2]`, reports **nothing**, while the same shape in the `.tsx`
+file `src/components/StoreField.tsx` reports. So `ui.ts`'s silence proves nothing about the override, and
+`eslint.config.mjs:47` has been **unreachable configuration since Story 7.1** — filed in `deferred-work.md`. The
+`src/` half of that split is genuinely proven; the `e2e/` half rests on `--print-config` alone.
+Also measured at review, because "no rule was weakened" needs the symmetric check and green-lint cannot supply it:
+`@eslint/js`'s `recommended` set goes **61 → 64 rules from 9.39.5 to 10.0.1 with nothing removed and nothing
+downgraded**, the three additions being `no-unassigned-vars`, `no-useless-assignment` and `preserve-caught-error` —
+each then observed *firing* on a purpose-built violation under v10, not merely read out of `--print-config`.
+The linted-file set is byte-identical before and after (52 files), so the `ignores` array still holds — though only
+`dist` and `src/__generated__` of its seven entries carry lintable content, so the other five are untested by that
+comparison. The built chunk is identical by name and size, so nothing reached the shipped artifact. One incidental measurement is filed nowhere but the
+sprint status, deliberately: the bump took `bp_front` from 2 high npm advisories to 1 (eslint 10's transitives carried
+`brace-expansion` past its vulnerable range), leaving only the pre-existing `js-yaml` high that arrives via
+`@graphql-codegen/cli`. Prior entry:
+2026-08-15 (Story 7.10) — **TypeScript's MAJOR is held at 6, and that hold is a directive, not a
+version fact.** `rule_count` rises 93 → **94** for the one rule added: do not bump `typescript` to 7 (patches inside
+6.x stay in scope). The blocker is not a peer range but a **runtime refusal** — `typescript-eslint` throws
+`does not support TS 7.0.` at module load, so `npm install typescript@7.0.2` *succeeds* (npm merely warns
+`ERESOLVE overriding peer dependency` for an explicitly-versioned target) and `npm run lint` then exits 2 having
+linted **zero files**. That inversion is the single most useful thing here: the peer conflict is not what stops you.
+Two further facts recorded because no gate in this project can observe them — **TS 7 ships no JavaScript compiler API
+at all** (`require('typescript')` yields only `version`/`versionMajorMinor`) **and no `tsserver`**, so in-editor type
+intelligence would die silently on the day the bump lands; and **the codebase is already TS-7-clean**
+(`tsc -b --force` under 7.0.2 → exit 0, zero diagnostics, three projects), so the hold is about the linter, not the
+code. **Corrected at review — do not restore the earlier wording:** the sweep behind the hold covered **83 of the 105
+published stable `typescript-eslint` 8.x releases** (the other 22 declare no `typescript` peer) and **none of the 1066
+prereleases**, so the honest claim is "no stable release and neither published prerelease channel admits TS 7", not
+"all 83 releases"; the blocking peer is declared by **8** packages, not nine or twelve (`ts-api-utils` and two
+`cosmiconfig` copies carry open-ended ranges that do *not* block); and the "7.11 is not blocked" assurance is measured
+for `typescript-eslint`'s `eslint` peer **only**. The blocking symptom, the refused side-by-side workaround and the
+re-check trigger live in `deferred-work.md` (NFR-E7-1), not here. Prior entry:
+2026-08-13 (Stories 7.8 + 7.9) — **frontend build-tool versions, plus four operational directives that
+follow from them.** No behavioural convention changed, but the "versions only" framing was **corrected at review**: the
+entries below carry directives, and `rule_count` rises 89 → **93** for the four — a types major tracks the Node major
+that builds the project; a types bump is gated on `npx tsc -b --force`; `vite.config.ts` must not gain a
+`build`/`optimizeDeps`/`esbuild`/`css` block to steer Rolldown; and the resolved `build.target` is re-checked and its
+delta recorded on every future Vite major. The Technology Stack section now records `@types/node` **26.2.0** (Story 7.8, one
+commit alone — the types major must track the Node major that builds the project, and a `tsc -b` gate must be
+`--force`d because build mode caches per project under `node_modules/.tmp/`) and Vite **8.2.1** with
+`@vitejs/plugin-react` **6.0.5** (Story 7.9, both in one commit — plugin 6 peers on `vite ^8.0.0`). The one genuinely
+new fact for an agent is that **Vite 8 is Rolldown-based**: `rolldown` 1.2.4 + `lightningcss` 1.33.0 + `postcss` 8.5.26
+are in, `esbuild` and `rollup` are out of the lockfile entirely, the native bindings are platform-optional packages so
+the musl image build is the only real check, and `vite.config.ts` must not gain a `build`/`optimizeDeps`/`esbuild`/`css`
+block to steer the new bundler. `bp_front/package.json`'s `allowScripts` block was deleted rather than re-pinned,
+because Vite 8 removed the `esbuild` it named from the tree — which closes Story 7.7's ledger entry on that drift. The
+fourth directive is the browser-floor bullet above, which is the one user-visible consequence of this pass and the one
+no gate here can catch. New debt from this pass — chiefly that the `createUserViaUi` "flake" is **size-driven, not
+random**: the admin users query is unpaginated, so the create-user dialog's close time grows with the users table
+(probed at 5015 ms against a 5000 ms assertion at ~5.5k rows) until the suite fails under parallel load. **Corrected at
+review — do not restore the earlier wording:** it is *not* "deterministic", *not* "monotonic", and re-running does
+*not* "always fail to converge" (two full green runs happened at larger row counts than a preceding red one in the same
+pass); and the Vite 7 control run that the first draft credited with settling attribution ran at the largest DB of the
+pass with both sides saturated at 8/8 failures, so it proved nothing. What actually settled it: `md` cleared the
+database and the **unchanged** Vite 8 tree passed twice in a row at `retries: 0`. Also note the E2E rule below still
+said `./db/data`; `md` switched the mongo mount to a named Docker volume (`bag-please_db_data`) on 2026-08-13 and that
+change is now COMMITTED on `epic7-maintenance` (the wording below calling it uncommitted is superseded), so the
+persistence claim holds but the path is stale — filed rather than swept, because that compose change is uncommitted and
+not this story's. All of it lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-12 (Story 7.7) — **dependency versions, plus three operational directives that follow from
+them.** No behavioural convention changed. The
+Technology Stack section now records what actually shipped after the minor/patch sweep: backend Ktor 3.5.2,
+graphql-kotlin 9.3.0, MongoDB driver + bson-kotlinx 5.9.2, Arrow 2.2.3, Logback 1.6.2, Kotest 6.2.4 (Kotlin stays
+**2.3.21** by AC2, Testcontainers 2.0.5 and bcrypt 0.10.2 re-confirmed latest, Gradle wrapper **held** at 9.6.1 because
+`bp_back/Dockerfile:1` pins the build image); frontend Apollo 4.2.11 + rxjs 7.8.2, MUI/icons 9.3.1, graphql 16.14.2,
+graphql-ws 6.2.1, React/react-dom 19.2.8, codegen 7.2.0/6.1.3, `@types/*` refreshed, react-router-dom 7.18.x,
+Playwright 1.62.x, eslint 9.39.5 + typescript-eslint 8.67.0 (TypeScript held at 6.0.3, Vite at 7.3.6,
+`@vitejs/plugin-react` at 5.2.0 — each the newest release inside the major a later story owns). Three notes added
+alongside the numbers, and they are directives rather than facts, which is why the "versions only" framing was
+corrected at review: read installed frontend versions from the **lockfile**, not `package.json`, because
+`bp_front/Dockerfile` runs `npm ci`; a Playwright runner bump needs `npx playwright install chromium`; and read the
+**resolved** Kotlin classpath rather than the catalog, because Arrow 2.2.3 now drags `kotlin-stdlib` to 2.4.0 above the
+2.3.21 compiler. `rule_count` stays 89 because no convention was added or changed. The standing instruction to **re-measure the enum-encoding finding after a driver bump was discharged**: on
+`mongodb 5.9.2` the bare-enum revert of `ListMemberRepository.kt:39` still leaves `ListSharingTest` 18/0/0/0 green
+(raw-BSON assertion included), `EnumCodecProvider` is still in `bson-5.9.2.jar`, and `MongoConnection.kt` still
+installs no custom registry — so that bullet now reads as a two-point measurement, with the re-measure trigger moved to
+the next driver **major**. New debt from this story — the Gradle-wrapper hold, the `typescript-eslint`/TS 7 deadlock
+risk, the pre-existing `allowScripts` `esbuild` drift, the unused `kotest-property`, a **pre-existing**
+`admin.spec.ts` `createUserViaUi` flake that failed the baseline run before any bump moved (which also **falsifies the
+epic's "green at zero retries, stays green" close criterion** until it is fixed), the non-deterministic lists-index
+ordering from `ListStorage.getAll()`, and the review's own findings — the split Kotlin runtime, the silent
+`kotlinx-serialization`/`kotlinx-coroutines` moves under Ktor, four npm advisories, the unverified `wss://` path, the
+unpinned `devices['Pixel 7']` viewport and the un-automated Playwright-browser install — lives in `deferred-work.md`,
+not here (NFR-E7-1). Prior entry:
+2026-08-12 (Story 7.6) — **an enumerated field is an enum in the domain model only; persistence and the
+GraphQL model each keep their own `String`.** Two backend rules added: the mapper-boundary convention generalised from
+`Recurring` to `MemberStatus` (own one-line enum file, constant names byte-identical to the persisted strings, `valueOf`
+on read and `.name` on write, `Mongo*`/`Gql*` both still `String` so the SDL never moves and no migration is needed),
+including the trap that a repository `Updates.set` is a mapper-less write path and a BSON filter must use
+`MemberStatus.PENDING.name` rather than a literal — plus the **measured** correction that passing the enum there was
+*not* a corruption bug on driver `mongodb 5.5.1` (`org.bson.codecs.EnumCodecProvider` is in the default registry, so the
+stored bytes were identical and the persistence test stayed green under that revert), recorded as a dated one-config
+measurement to re-check after Story 7.7's dependency sweep rather than as a law, which is why `.name` stays mandatory for
+explicitness and why the invariant worth pinning is the constant-name identity; and `ListService.deleteList`'s cascade is
+now `items → categories → members → list` before the three `evict*` calls, with the rule that a new child collection gets
+no new count on `DeleteListResult` (schema change) and that a cascade test must count on the raw collection, assert a
+second list's rows survive, **and carry a DECLINED row** on the deleted list (the one status `findActiveByListId` cannot
+see, so the one a status-filtered `deleteMany` would strand — measured `expected:<0L> but was:<1L>`). **Three claims this
+story first wrote and the review then corrected in place, flagged here so the earlier wording is not restored:** the
+cascade ordering is a convention and **not** a partial-failure mitigation (the four deletes share no session, and
+`list_members` has no cache to re-sync, so a throw at the list delete leaves a live list with its memberships
+permanently gone); the `@Volatile` residual is a **correctness** gap, not merely duplicated startup I/O (a stale sync
+snapshot can overwrite a newer cached row and the process never recovers); and *list* deletion no longer leaks
+membership rows but **user deletion still does** (`UserService.adminDeleteUser` has no such cascade). Backend suite size
+refreshed to **115 after Story 7.6** (`ListSharingTest` 16 → 18). New debt — the check-then-act half of the lazy-sync
+race that `@Volatile` does *not* fix (with a `Mutex`-shaped proposal), the `findByListIdAndUserId` unknown-status throw,
+`md`'s standing no-backfill assumption, the two non-equivalent "active member" predicates, and the seven findings
+deferred by this story's code review (user-delete leak, non-transactional cascade, the share-during-delete window,
+AC4's inspection-only ordering, the leaked test `MongoClient`, the frontend's bare status literals, and the
+`sprint-status.yaml` narrative duplication) — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-11 (Story 7.5) — **where `/` resolves to has exactly one implementation**, and an inert control
+means inert-but-PRESENT. Two frontend rules added: `useHomePath(mode)` in `src/lib/lists/homePath.ts` is the single home
+resolver (both `HomeRedirect` and `AppShell` consume it; no consumer re-derives the path), `mode` is a *permission* —
+`'resolve'` may fetch, `'observe'` is **`cache-only`** so the app bar never issues the membership-gated `lists` request —
+the `!data` branch must precede the empty-list check or a cold cache makes the link inert on `/lists` for a user who owns
+lists, and `byCreatedAtAsc` (`Date.parse` difference) is the only legal `createdAt` ordering because
+`Instant.toString()` drops the fractional part at zero nanos (backend-side fixed precision was **rejected**, AR-E7-7);
+and the inert-but-present contract — a `preventDefault()` in the element's own `onClick` (react-router 7 runs the
+caller's handler first and skips its navigation when `defaultPrevented`, and Enter on an anchor dispatches a click, so
+one line covers both), `aria-current="page"` the only added attribute, never a `Button`/`disabled`/`aria-disabled`/
+`tabIndex={-1}`/hidden/unmounted, and never an imperative `navigate()`. E2E counts corrected: the four-project split is
+**59 / 59 / 1 / 1 = 120 tests in 10 files**, measured, and the "`Total: 104` does not prove the routing works" bullet was
+rewritten as **the total proves nothing** — the tag reroutes a test rather than duplicating it, so a dropped tag leaves
+the total unchanged. The prefix registry is unchanged at eight (`nav` already owned this spec). New debt — the
+`/lists`-with-no-lists dead-end under standalone display, the absence of any mechanical guard against a third
+`localeCompare` sort site, the `/admin/*` splat interaction with exact-pathname equality, the cold-cache window where the
+link is briefly live, and one unreproducible cold-start red run whose failure text was not captured — lives in
+`deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-10 (Story 7.4) — an upsert service method **merges the stored row**; it never reconstructs the
+entity from its GraphQL input. Four backend rules added: the merge shape and why the direction is an allowlist
+(`stored.copy(...)`, not `item.copy(addedBy = stored.addedBy, …)`) with the five `ItemInput` fields named and
+`addedBy`/`checkedAt`/`deleted`/`deletedAt` named as server-owned; create-vs-update is discriminated by **existence in
+storage**, never by presence of an id (measured: the id-based form turns 16 of 25 `ItemLifecycleTest` tests red, since
+the client generates UUIDs for new items too); `saveItem`'s two rejections and their deliberate asymmetry (cross-list
+id **always**, category-not-in-list **update branch only** per `md`'s ruling A — 29 test sites across six files is what
+guarding creates would cost), both throwing **before** `itemUpdateChannel.emit`; and the error idiom
+(`IllegalArgumentException`, never a `GraphQL*Exception` — those are imported only by `*/gql` files, so a service
+import is a layering violation — with the `ExceptionWhileDataFetching`/no-`extensions.code` consequence and the
+`either { }` caveat that a thrown exception escapes the block, so an `errors`-only assertion proves nothing about the
+write). Four testing rules added: **`cleanTest` is mandatory** (`:bp_back:test` alone is `UP-TO-DATE`-cacheable — it
+prints `BUILD SUCCESSFUL`, executes nothing and leaves stale JUnit XML), read totals from
+`build/test-results/test/TEST-*.xml`, the suite is **113 after this story (105 at `73db447`)**, and `--tests` filters
+run a whole Kotest class. The E2E prefix registry went from seven to **eight** (`attrib`) and the four-project split is
+now **52 / 52 / 1 / 1 = 106 tests in 10 files**, measured. New debt — the open create-branch category hole, the
+BUG-E6-3a severity downgrade, the declined `BAD_USER_INPUT` shape and the new `checked=false` + non-null `checkedAt`
+state — lives in `deferred-work.md`, not here (NFR-E7-1). Prior entry:
+2026-08-08 (Story 7.3) — the `registrationEnabled` race is **deleted, not retried**. The FR20/FR21
+toggle test is tagged `@registration-toggle` and routed into two new Playwright projects chained behind `chromium` and
+`mobile` with `dependencies`, so its OFF window is exclusive across projects; the `expect(...).toPass()` workaround in
+`support/ui.ts` was deleted in the same change. The "Known race" bullet was replaced with the new invariant
+(registration is ON for the whole run) and its four rules for spec authors; a four-project topology bullet (51/51/1/1 =
+104) and a measured `dependencies`-on-failure bullet ("did not run", exit 1, one failing dependency is enough) were
+added; `global-setup.ts` now consumes `support/api.ts`. Both claims are backed by measurement: three disabled-mechanism
+runs failed 3/5/4 tests inside `registerViaUi`, two consecutive `retries: 0` runs with the mechanism are `104 passed`,
+0 flaky. New debt (no machine gate for the tag; red-run loses toggle coverage; CI still at `retries: 2`) lives in
+`deferred-work.md`, not here. Prior entry:
+2026-08-08 (Story 7.2) — the eight duplicated E2E helpers now live once under `bp_front/e2e/support/`;
+added the "Shared E2E helpers live in `bp_front/e2e/support/`" rules block (two-file split and why `api.ts` must stay
+runner-free, relative imports, the `*.spec.ts`/`.tsx` naming traps, the prefix parameter, support-module ≠ login
+fixture), and corrected the `registrationEnabled` bullet's copy count from four to **five** — `navigation.spec.ts:41`
+was the copy every prior document missed. New debt from that story lives in `deferred-work.md`, not here. Prior entry:
+2026-08-07 (Story 7.1) — `bp_front/e2e/` is now **inside** both frontend quality gates: the "outside both
+quality gates" bullet was replaced with the new reality (third tsconfig project `tsconfig.e2e.json` referenced from the
+solution config; `npm run lint` widened to `eslint .`; `react-refresh/only-export-components` off for `e2e/**`), and the
+residual gap was named — type-aware linting is still not enabled, so an un-awaited assertion still ships undetected. New
+debt from that story lives in `deferred-work.md`, not here. Prior entry:
+2026-07-29 (Epic 6 retro) — added the "a new test is unproven until observed failing" testing convention
 and the `browser.newContext()` viewport trap; added a Deployment section recording that production config is server-only
 by design, the repo-root build-context requirement for both images, and the first production deployment (`0.16.0`);
 closed out the rate-limiter item; refreshed the E2E counts and the `registrationEnabled` decided fix. Prior entry:

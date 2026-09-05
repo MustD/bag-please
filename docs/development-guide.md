@@ -97,7 +97,7 @@ npm install         # dependencies                              (mise run front:
 npm run dev         # Vite dev server on :5173                  (mise run front:dev)
 npm run build       # tsc -b && vite build → dist/              (mise run front:build)
 npm run preview     # preview the built dist/ locally
-npm run lint        # eslint src/                               (mise run front:lint)
+npm run lint        # eslint .   (src/ + e2e/ + root configs)   (mise run front:lint)
 npm run generate    # regenerate GraphQL types (see below)      (mise run front:generate)
 npm run test:e2e    # Playwright E2E                            (mise run front:e2e)
 ```

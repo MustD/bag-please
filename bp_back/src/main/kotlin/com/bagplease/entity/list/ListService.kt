@@ -12,7 +12,7 @@ import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.mongo.UserRepository
 import com.bagplease.features.auth.CallerUsername
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 sealed class ListAuthError {
     data object NotMember : ListAuthError()
@@ -113,9 +113,15 @@ class ListService(
         val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
         ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
 
-        // cascade: items → categories → list (order enables lazy-sync recovery on partial failure)
+        // cascade: items → categories → members → list. The ordering is a CONVENTION, not a safety
+        // property — these are four independent Mongo deletes with no session, so a throw at
+        // listRepository.delete leaves a live list whose children are already gone, and list_members
+        // has no in-memory cache to re-sync from. Neither ordering is failure-safe; only a single
+        // ClientSession transaction would be (filed in deferred-work.md). Do not restore the earlier
+        // "order enables lazy-sync recovery on partial failure" rationale — it had this backwards.
         val deletedItems = itemRepository.deleteAllInList(id)
         val deletedCategories = categoryRepository.deleteAllInList(id)
+        listMemberRepository.deleteAllInList(id)
         listRepository.delete(id)
 
         // evict in-memory caches after MongoDB deletes succeed
@@ -148,8 +154,8 @@ class ListService(
         val targetUser = userRepository.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
         ensure(!list.memberUsernames.contains(username)) { ListAuthError.AlreadyMember(username) }
         val existing = listMemberRepository.findByListIdAndUserId(listId, targetUser.id)
-        if (existing != null && existing.status != "DECLINED") raise(ListAuthError.AlreadyPending(username))
-        listMemberRepository.save(ListMember(listId, targetUser.id, username, "PENDING", Instant.now()))
+        if (existing != null && existing.status != MemberStatus.DECLINED) raise(ListAuthError.AlreadyPending(username))
+        listMemberRepository.save(ListMember(listId, targetUser.id, username, MemberStatus.PENDING, Instant.now()))
         list
     }
 
@@ -159,8 +165,8 @@ class ListService(
         val callerUser = userRepository.findByUsername(caller.value)
             ?: raise(ListAuthError.CallerNotFound)
         val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
-        if (member == null || member.status != "PENDING") raise(ListAuthError.NotPendingInvite)
-        listMemberRepository.save(member.copy(status = "ACCEPTED"))
+        if (member == null || member.status != MemberStatus.PENDING) raise(ListAuthError.NotPendingInvite)
+        listMemberRepository.save(member.copy(status = MemberStatus.ACCEPTED))
         val updatedList = list.copy(
             members = list.members + callerUser.id,
             memberUsernames = list.memberUsernames + caller.value,
@@ -176,8 +182,8 @@ class ListService(
             ?: raise(ListAuthError.CallerNotFound)
         val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
             ?: raise(ListAuthError.NotPendingInvite)
-        ensure(member.status == "PENDING") { ListAuthError.NotPendingInvite }
-        listMemberRepository.save(member.copy(status = "DECLINED"))
+        ensure(member.status == MemberStatus.PENDING) { ListAuthError.NotPendingInvite }
+        listMemberRepository.save(member.copy(status = MemberStatus.DECLINED))
         true
     }
 

@@ -2,11 +2,14 @@ networks:
   bp_network:
     driver: bridge
 
+volumes:
+  db_data:
+
 services:
   mongo:
     image: mongo:8
     volumes:
-      - ./db/data:/data/db
+      - db_data:/data/db
     ports:
       - "127.0.0.1:27217:27017" # loopback only — host-side dev access; host port 27217 avoids conflict with local MongoDB
     networks:

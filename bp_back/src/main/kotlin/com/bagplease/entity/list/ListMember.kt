@@ -7,6 +7,6 @@ data class ListMember(
     val listId: UUID,
     val userId: UUID,
     val username: String,
-    val status: String,
+    val status: MemberStatus,
     val createdAt: Instant,
 )

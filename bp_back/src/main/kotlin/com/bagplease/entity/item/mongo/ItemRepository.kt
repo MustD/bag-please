@@ -38,6 +38,16 @@ class ItemRepository(
     suspend fun getAll(): List<Item> =
         col.find().mapNotNull(MongoItemMapper::mapItemFromMongo).toList()
 
+    /**
+     * Global point read by `_id`, ignoring `listId`. `ItemStorage.getByIdCached` is list-scoped, so it cannot tell
+     * "this id is new" from "this id lives on another list" — a distinction `ItemService.saveItem` needs because
+     * [save]'s filter is `_id` only and an unguarded upsert would silently relocate the item.
+     * The filter uses `id.toString()`: every UUID in this collection is persisted as a String, and a raw-UUID filter
+     * matches nothing without reporting anything.
+     */
+    suspend fun findById(id: UUID): Item? =
+        col.find(Filters.eq(idCol, id.toString())).mapNotNull(MongoItemMapper::mapItemFromMongo).toList().firstOrNull()
+
     suspend fun save(item: Item) {
         val filter = Filters.eq(idCol, item.id.toString())
         val options = UpdateOptions().upsert(true)

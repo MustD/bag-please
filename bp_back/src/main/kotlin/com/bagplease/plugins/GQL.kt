@@ -85,7 +85,7 @@ fun Application.configureGql(
         listMemberRepository = listMemberRepository,
     )
 
-    val itemService = ItemService(itemStorage, listService, itemRepository)
+    val itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
     configureScheduler(itemService)
     val categoryService = CategoryService(categoryStorage, listService)
 

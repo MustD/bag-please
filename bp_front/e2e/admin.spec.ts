@@ -1,5 +1,7 @@
 import {type Browser, expect, type Page, test} from '@playwright/test'
 
+import {uniqueUsername} from './support/ui'
+
 // Admin User Management E2E (Story 5.4). UI-driven only — no API shortcuts for
 // the asserted behaviour (the sole exception is the one-time registration-enable
 // in global-setup.ts). Runs on both the chromium and mobile (Pixel 7) projects
@@ -14,10 +16,6 @@ import {type Browser, expect, type Page, test} from '@playwright/test'
 
 const ADMIN = {username: 'admin', password: 'admin'}
 const DEFAULT_PW = 'e2e-password-123'
-
-function uniqueUsername(label: string, projectName: string): string {
-  return `admin_e2e_${label}_${projectName}_${Date.now()}`
-}
 
 async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/auth')
@@ -54,8 +52,9 @@ async function createUserViaUi(page: Page, username: string, password: string): 
 
 // Drive the registration Switch to a desired state deterministically. Waits for
 // the switch to be enabled (the previous mutation has settled) before reading or
-// clicking, then confirms the resolved state — so it converges even when a
-// concurrent project has left the shared flag in the opposite state.
+// clicking, then confirms the resolved state — so it converges whatever value it
+// finds (a prior run, or the chromium link of the toggle chain, may have left
+// the persisted flag in either state).
 async function setRegistration(page: Page, on: boolean): Promise<void> {
   const input = page.getByTestId('registration-toggle').locator('input')
   await expect(input).toBeEnabled()
@@ -90,7 +89,7 @@ test('FR13/FR14 — admin creates a user via the panel; the new user can log in'
                                                                                          page,
                                                                                          baseURL
                                                                                        }, testInfo) => {
-  const username = uniqueUsername('create', testInfo.project.name)
+  const username = uniqueUsername('admin', 'create', testInfo.project.name)
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
 
@@ -113,7 +112,7 @@ test('FR16/FR17 — admin resets a user password via the confirm dialog; new pas
                                                                                                                 page,
                                                                                                                 baseURL
                                                                                                               }, testInfo) => {
-  const username = uniqueUsername('reset', testInfo.project.name)
+  const username = uniqueUsername('admin', 'reset', testInfo.project.name)
   const newPassword = 'e2e-reset-pw-789'
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
@@ -144,7 +143,7 @@ test('FR16/FR17 — admin resets a user password via the confirm dialog; new pas
 })
 
 test('FR15/FR17 — admin deletes a user via the confirm dialog; the row disappears', async ({page}, testInfo) => {
-  const username = uniqueUsername('delete', testInfo.project.name)
+  const username = uniqueUsername('admin', 'delete', testInfo.project.name)
   await loginAsAdmin(page)
   await createUserViaUi(page, username, DEFAULT_PW)
 
@@ -155,24 +154,33 @@ test('FR15/FR17 — admin deletes a user via the confirm dialog; the row disappe
   await expect(page.getByTestId(`admin-user-row-${username}`)).toHaveCount(0)
 })
 
-test('FR20/FR21 — toggling registration off hides the Register link on /auth; back on restores it', async ({
-                                                                                                             browser,
-                                                                                                             page,
-                                                                                                             baseURL
-                                                                                                           }, testInfo) => {
+// The ONLY test that writes the shared `registrationEnabled` document. The
+// `@registration-toggle` tag is what routes it: playwright.config.ts grepInverts
+// the tag out of `chromium`/`mobile` and grep-selects it into the two
+// `registration-toggle-*` projects, which are chained behind them with
+// `dependencies`. So this body runs only after every register-based spec on both
+// viewports has finished — the OFF window is exclusive ACROSS projects, which is
+// the one thing `test.describe.configure({mode: 'serial'})` cannot give (it
+// serializes within a project; this race was between them). Story 7.3.
+test('FR20/FR21 — toggling registration off hides the Register link on /auth; back on restores it', {
+  tag: '@registration-toggle',
+}, async ({browser, page, baseURL}, testInfo) => {
   await loginAsAdmin(page)
 
-  // Known ON baseline (global-setup enables it, but a concurrent project may
-  // have transiently left it off).
+  // Known ON baseline — still load-bearing, for a NEW reason. The concurrent
+  // project that used to strand the flag is gone, but the chain runs this same
+  // test twice in sequence (registration-toggle-chromium, then -mobile), so if
+  // the chromium copy dies between the OFF flip and its restore, this is what
+  // recovers the flag for the mobile copy.
   await setRegistration(page, true)
 
-  // ⚠️ Shared-flag hazard: setRegistration mutates ONE global backend document
-  // and the two projects run concurrently against the same backend, so the OFF
-  // window can transiently break the register-based specs. Keep it as tight as
-  // possible: pre-create the observer context so ONLY the /auth load+assert sits
-  // inside the OFF window, and restore ON in an inner finally that runs even if
-  // the assertion fails. Residual race is accepted (CI retries heal it) per the
-  // "keep the real end-to-end flip" decision.
+  // The OFF window no longer races anything: `dependencies` guarantees nothing
+  // else is registering while it is open (Story 7.3 deleted the race; the
+  // reload-until-visible retry wrapper in support/ui.ts went with it). The shape
+  // below is kept anyway — pre-create the observer context so only the /auth
+  // load+assert sits inside the window, and restore ON in an inner finally — so
+  // a stranded OFF flag cannot outlive this test and poison the NEXT run's
+  // register-based specs through the persisted ./db/data volume.
   const offCtx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   const offPage = await offCtx.newPage()
   try {
@@ -186,8 +194,10 @@ test('FR20/FR21 — toggling registration off hides the Register link on /auth; 
       // Restore ON immediately — closes the OFF window whatever happened above.
       // Do NOT rethrow (a throw here would mask a failing assertion above), but
       // do NOT swallow silently either: record a genuine restore failure so a
-      // stranded OFF flag — which would break the concurrent register-based
-      // specs — is visible in the report instead of invisible.
+      // stranded OFF flag — which would break the mobile link of the chain and,
+      // via the persisted ./db/data volume, the NEXT run's register-based specs
+      // before global-setup re-enables it — is visible in the report instead of
+      // invisible.
       await setRegistration(page, true).catch((err: unknown) => {
         testInfo.annotations.push({
           type: 'registration-restore-failed',
@@ -211,7 +221,7 @@ test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /a
                                                                                               page,
                                                                                               baseURL
                                                                                             }, testInfo) => {
-  const username = uniqueUsername('nonadmin', testInfo.project.name)
+  const username = uniqueUsername('admin', 'nonadmin', testInfo.project.name)
   // Provision a regular user via the admin panel — deterministic and independent
   // of the shared registration flag the toggle scenario flips. FR31 is a
   // role-gating requirement, satisfied by any role==='user' account.
