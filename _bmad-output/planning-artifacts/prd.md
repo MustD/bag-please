@@ -2,8 +2,10 @@
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: complete
 completedAt: '2026-05-08'
-lastEdited: '2026-07-30'
+lastEdited: '2026-09-05'
 editHistory:
+  - date: '2026-09-05'
+    changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8's closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. Added in the same planning pass per the standing Epic 6/7 retro agreement. All four are frontend-only against the existing schema.'
   - date: '2026-07-30'
     changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
   - date: '2026-07-29'
@@ -680,6 +682,23 @@ to lists and introduces sharing.
   without browser chrome makes FR57's in-app home affordance load-bearing rather than convenient. Scope is
   Chrome-on-Android; iOS Safari's separate install route is not covered. No offline capability is implied — the app
   requires the network exactly as it does in the browser.
+- **FR60:** Anywhere on an item's row in the shopping view toggles that item's checked state, not the checkbox alone —
+  the name, the store chip, the `addedBy` avatar and the space between them are all part of one activation target. The
+  row is a single control to assistive technology as well: one accessible name, one checked state, one tab stop, one
+  keyboard activation, rather than a checkbox with inert siblings beside it.
+- **FR61:** Item filtering and search are available on both list surfaces, with the same controls and the same
+  semantics. The shopping view (`/list/:id`) and the management view (`/lists/:id`) each offer a category filter and a
+  free-text item-name search, combined with AND. The category filter accepts more than one category at a time:
+  selecting two categories shows the items of both, and selecting none shows all. The shopping view keeps its
+  checked-status toggle (All / To buy / Done), which has no meaning while managing a list and is not added there.
+- **FR62:** Categories and the items inside them appear in the same order on both list surfaces — categories ordered by
+  name, items ordered by name within their category, on `/list/:id` and `/lists/:id` alike. A user who arranges a list
+  on one screen and then shops it on the other reads the same sequence in both places.
+- **FR63:** A list member can rename a category from the list management screen. Each category row carries an edit
+  affordance beside its existing add-item and remove controls; activating it opens a dialog pre-filled with the current
+  name, and saving renames the category in place — its items stay attached to it and nothing else about it changes. The
+  rename propagates to other members in real time on the shopping view, as an added or removed category already does.
+  Scope is the name only; a category has no other user-editable attribute and this requirement does not add one.
 
 ### Real-Time Collaboration & Authentication
 
