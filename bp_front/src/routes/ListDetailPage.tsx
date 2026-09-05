@@ -98,7 +98,13 @@ export default function ListDetailPage() {
             mb: 3,
           }}
         >
-          <Typography variant="h4" color="text.primary" noWrap sx={{maxWidth: {xs: 200, sm: 460}}}>
+          <Typography
+            variant="h4"
+            color="text.primary"
+            noWrap
+            sx={{maxWidth: {xs: 200, sm: 460}}}
+            data-testid="list-detail-title"
+          >
             {listName}
           </Typography>
           <Stack direction="row" spacing={1}>
@@ -155,7 +161,13 @@ export default function ListDetailPage() {
                       py: 1.5,
                     }}
                   >
-                    <Typography variant="h6" color="text.primary" noWrap sx={{maxWidth: {xs: 160, sm: 380}}}>
+                    <Typography
+                      variant="h6"
+                      color="text.primary"
+                      noWrap
+                      sx={{maxWidth: {xs: 160, sm: 380}}}
+                      data-testid="category-name"
+                    >
                       {category.name}
                     </Typography>
                     <Box>
@@ -221,7 +233,7 @@ export default function ListDetailPage() {
                               // Narrowed at xs so the name truncates instead of
                               // running under the now-two-control secondary
                               // action at ~360px (Story 6.1).
-                              <Typography noWrap sx={{maxWidth: {xs: 150, sm: 400}}}>
+                              <Typography noWrap sx={{maxWidth: {xs: 150, sm: 400}}} data-testid="item-name">
                                 {item.name}
                               </Typography>
                             }

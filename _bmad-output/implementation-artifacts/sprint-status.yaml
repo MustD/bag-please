@@ -35,7 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-08"
-last_updated: "09-05-2026 12:00"  # Epic 8 sprint planning. Epic 8 (Small UX Fixes From Real Use) added: 7 stories 8.1-8.7 + retrospective, all backlog. TWO reconciliations done in the same pass, both structural rather than status changes: (1) EPIC 3 RESTORED to epics.md -- it was executed from the Epic 2 retro and never written into the epic document, so its four done rows matched nothing and regeneration would have dropped them; the section was reconstructed from the two story files and epic-3-retro-2026-05-18.md, nothing invented. (2) TWENTY renamed keys transplanted at their existing "done" (2-0, 4-4, 5-6, 5-7, 6-1, 6-2, 7-1..7-6, 7-8..7-15) -- this file carried hand-shortened keys while the generator derives them from the story headings; no status moved, only the key spelling. The five action_items rows carrying status "closed" are again LEFT AS THEY ARE: "closed" is this file's own documented vocabulary (see the STATUS VOCABULARY block below), a script/file disagreement to fix in the script, not data to rewrite here.
+last_updated: "09-05-2026 15:00"  # Story 8.1 through bmad-build review: 8-1 in-progress -> review. Epic 8 stays in-progress.
+#   PRIOR: last_updated: "09-05-2026 14:00"  # Story 8.1 implementation started via bmad-build: epic-8 backlog -> in-progress, 8-1 backlog -> in-progress. Nothing else touched.
+#   PRIOR: last_updated: "09-05-2026 12:00"  # Epic 8 sprint planning. Epic 8 (Small UX Fixes From Real Use) added: 7 stories 8.1-8.7 + retrospective, all backlog. TWO reconciliations done in the same pass, both structural rather than status changes: (1) EPIC 3 RESTORED to epics.md -- it was executed from the Epic 2 retro and never written into the epic document, so its four done rows matched nothing and regeneration would have dropped them; the section was reconstructed from the two story files and epic-3-retro-2026-05-18.md, nothing invented. (2) TWENTY renamed keys transplanted at their existing "done" (2-0, 4-4, 5-6, 5-7, 6-1, 6-2, 7-1..7-6, 7-8..7-15) -- this file carried hand-shortened keys while the generator derives them from the story headings; no status moved, only the key spelling. The five action_items rows carrying status "closed" are again LEFT AS THEY ARE: "closed" is this file's own documented vocabulary (see the STATUS VOCABULARY block below), a script/file disagreement to fix in the script, not data to rewrite here.
 #   PRIOR: last_updated: "09-05-2026 12:00" # SS status reconciliation, no epic event. ONE row changed: Epic 7 D1 (merge epic7-maintenance into main) open -> done, verified at the tree rather than self-reported. Nothing else touched; the five action_items rows carrying status "closed" are LEFT AS THEY ARE -- sprint_plan.py warns "missing or unknown status" on each, but "closed" is this file's own documented vocabulary (see the STATUS VOCABULARY block below, introduced at the Epic 6 retro). That is a script/file disagreement to fix in the script, not data to rewrite here.
 #   PRIOR: last_updated: "2026-08-21"  # Epic 7 retrospective. epic-7 -> done, epic-7-retrospective -> done, and TWO action_items rows closed that Epic 7 had actually discharged but never marked: Epic 5's registrationEnabled race (Story 7.3) and Epic 6's B4 shared E2E module (Story 7.2). Epic 6 follow-through measured at 6/6. Nine new Epic 7 action items appended below -- four done in the retro, four as named next-epic story slots, one backlog.
 project: bag-please
@@ -111,8 +113,8 @@ development_status:
   7-15-give-the-dev-auto-warnings-a-measured-verdict: done
   epic-7-retrospective: done
 
-  epic-8: backlog
-  8-1-move-the-mobile-gate-to-the-width-people-actually-use: backlog
+  epic-8: in-progress
+  8-1-move-the-mobile-gate-to-the-width-people-actually-use: review
   8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone: backlog
   8-3-check-off-an-item-by-tapping-its-row: backlog
   8-4-one-filter-and-search-on-both-list-screens: backlog

@@ -90,6 +90,11 @@ export default defineConfig({
   //       2026-08-08 (Story 7.3): 104 = 51 / 51 / 1 / 1
   //       2026-08-10 (Story 7.4): 106 = 52 / 52 / 1 / 1
   //       2026-08-11 (Story 7.5): 120 = 59 / 59 / 1 / 1  (+7 untagged nav tests)
+  //       2026-09-05 (Story 8.1, pre-story baseline): 134 = 66 / 66 / 1 / 1
+  //         — i.e. the 2026-08-11 row above was already stale by 14 before this
+  //         story changed anything; 7 untagged specs had landed unrecorded.
+  //       2026-09-05 (Story 8.1, post): 150 = 74 / 74 / 1 / 1  (+8 untagged
+  //         narrow-viewport tests, +2 runs each, against that 134 baseline)
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
@@ -100,7 +105,20 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      use: {...devices['Pixel 7']},
+      // NFR-E8-1's narrow floor: 320px. The `devices['Pixel 7']` spread is
+      // RETAINED and only `viewport.width` is overridden — the Chrome-on-Android
+      // UA and the touch emulation are what this project exists for (Story 8.3's
+      // scroll guard depends on the latter), and replacing the descriptor would
+      // drop both. Pixel 7's own 412px width was never chosen for a reason
+      // (AR-E8-1); 320 is the width the requirement names.
+      //
+      // The HEIGHT is left at Pixel 7's 839 on purpose. The resulting 320x839 box
+      // is not a real device and is not meant to be: NFR-E8-1 is a requirement
+      // about WIDTH, and a taller-than-life viewport only means less scrolling in
+      // the tests. Do not "correct" the aspect ratio — shrinking the height would
+      // change what every spec in this project sees above the fold, for no
+      // requirement.
+      use: {...devices['Pixel 7'], viewport: {...devices['Pixel 7'].viewport, width: 320}},
       grepInvert: /@registration-toggle/,
     },
     // Runs only after BOTH viewport projects finish → nothing is registering

@@ -2893,3 +2893,11 @@ rather than re-filed.
   untested accidental regression, and proposed reverting it. The residual (a stale tab can edit an invisible row that
   the scheduler hard-deletes within the hour) is the soft-delete-tombstone work the epic already scoped out, not a
   defect in the merge.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `expectNotClipped` compares integer-rounded `scrollWidth`/`clientWidth` with no subpixel tolerance, so fractional text widths could in principle produce 1px false reds in the gate every Epic 8 story reuses.
+  evidence: Plausible because the Pixel 7 descriptor carries `deviceScaleFactor: 2.625` and both properties round up, but no false red was observed in any Story 8.1 run. What would settle it: a 320px run showing `expectNotClipped` red at exactly 1px on text that is visibly not truncated. Adding a tolerance before that would guard undemonstrated state and blunt the epic's only geometry gate.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `data-testid={`item-row-${item.name}`}` (`bp_front/src/routes/ListDetailPage.tsx:193`) is not unique — one list holding two same-named items in different categories makes `getByTestId('item-row-X')` match twice and trip Playwright strict mode.
+  evidence: Verified at the cited line. Pre-existing since Story 6.1, not caused or exposed by Story 8.1, and every narrow-viewport scenario uses unique names. Keying the testid by `item.id` would fix it but touches selectors several shipped specs depend on, so it wants its own story.
