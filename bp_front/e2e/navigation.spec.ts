@@ -1,5 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {expectNoHorizontalOverflow, NARROW_FLOOR_PX} from './support/layout'
+
 import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // Global Navigation E2E (Story 6.2, FR57 — with FR38/FR56 for the home-resolution
@@ -286,6 +288,12 @@ test('NFR-E6-2 — at 360px the title link and username chip both stay inside a 
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
 
+  // 360px is a SPECIFIC WIDTH THIS TEST OWNS, not "the floor" — NFR-E8-1's floor
+  // is 320 and is covered by narrow-viewport.spec.ts, which asserts the app-bar
+  // chip there with `expectInsideViewport`. Kept at 360 because in the retargeted
+  // `mobile` project this call now WIDENS the viewport, and dropping to 320 would
+  // change what this NFR-E6-2 test measures without anyone having measured the
+  // result first.
   await page.setViewportSize({width: 360, height: 800})
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId('list-shopping-page')).toBeVisible()
@@ -298,6 +306,9 @@ test('NFR-E6-2 — at 360px the title link and username chip both stay inside a 
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }))
+  // `clientWidth` is read here because the chip bound below needs the number.
+  // The overflow ASSERTION itself uses the shared helper (NFR-E8-5) — see the
+  // end of this test.
 
   // The chip is not pushed off-screen by the title link's flex growth. Bound by
   // the real clientWidth, not a hardcoded 360 — a classic scrollbar narrows the
@@ -325,7 +336,7 @@ test('NFR-E6-2 — at 360px the title link and username chip both stay inside a 
   expect(barBox.height).toBeLessThanOrEqual(72)
 
   // …and the page does not scroll horizontally.
-  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth)
+  await expectNoHorizontalOverflow(page)
 })
 
 // ─── Story 7.5 ─────────────────────────────────────────────────────────────
@@ -477,8 +488,10 @@ test('FR57 — activating the title link while already home moves nothing: no UR
   // index already ran the query, but asserted rather than assumed.
   await expect(page.getByTestId('app-bar-home')).toHaveAttribute('aria-current', 'page')
 
-  // Short viewport (the 360px precedent above) so there is something to scroll.
-  await page.setViewportSize({width: 360, height: 400})
+  // Short viewport so there is something to scroll. Only the HEIGHT matters here;
+  // the width is set to NFR-E8-1's floor rather than repeating a literal, since
+  // no assertion below depends on it.
+  await page.setViewportSize({width: NARROW_FLOOR_PX, height: 400})
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
   const scrollBefore = await page.evaluate(() => window.scrollY)
   // Non-vacuity: without a real scroll offset the "scroll unmoved" assertion

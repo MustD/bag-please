@@ -1,6 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 
 import {gql, loginApi} from './support/api'
+import {expectNoHorizontalOverflow} from './support/layout'
 import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
 // Item Editing E2E (Story 6.1, FR40 + FR44). Every asserted behaviour is
@@ -379,7 +380,7 @@ test('FR40 — a co-member (not the owner) can edit, and the change lands live o
   }
 })
 
-test('FR40 — at ~360px both item controls fit, the name truncates, and the page does not scroll sideways', async ({page}, testInfo) => {
+test('FR40 — at ~360px both item controls fit, the name wraps, and the page does not scroll sideways', async ({page}, testInfo) => {
   const username = uniqueUsername('item_editing', 'narrow', testInfo.project.name)
   const listName = `Narrow ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
@@ -390,8 +391,13 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   await addCategory(page, categoryName)
   await addItem(page, categoryName, longName)
 
-  // Narrow to the ~360px floor. Uses the `page` fixture (not a hand-built
-  // context) so the rest of the project's `use` block still applies.
+  // 360px is a SPECIFIC WIDTH THIS TEST OWNS, not "the floor" — NFR-E8-1's floor
+  // is 320 and is covered by narrow-viewport.spec.ts, which asserts these same
+  // controls there with `expectInsideViewport`. Kept at 360 because in the
+  // retargeted `mobile` project this call now WIDENS the viewport, and dropping
+  // to 320 would change what this FR40 test measures without anyone having
+  // measured the result first. Uses the `page` fixture (not a hand-built context)
+  // so the rest of the project's `use` block still applies.
   await page.setViewportSize({width: 360, height: 760})
   const row = page.getByTestId(`item-row-${longName}`)
   const edit = row.getByTestId('edit-item-button')
@@ -403,29 +409,73 @@ test('FR40 — at ~360px both item controls fit, the name truncates, and the pag
   await expect(edit).toHaveAttribute('aria-label', `Edit item ${longName}`)
   await expect(remove).toHaveAttribute('aria-label', `Remove item ${longName}`)
 
-  // Both sit fully inside the viewport, and neither overlaps the name.
-  const nameBox = (await row.locator('p').first().boundingBox())!
+  // Both sit fully inside the viewport, and neither overlaps the name. Bound by
+  // the real clientWidth rather than a hardcoded 360 — a classic scrollbar
+  // narrows the content box and would make a hardcoded bound looser than
+  // intended, the same reasoning navigation.spec.ts applies to the app-bar chip.
+  //
+  // The name is reached by `item-name` (added in Story 8.1), not by
+  // `locator('p').first()`: Story 8.2 rewrites this element, and a structural
+  // path would break there for a selector reason that reads as a layout
+  // regression.
+  const name = row.getByTestId('item-name')
+  const clientWidth = await page.evaluate(() => document.documentElement.clientWidth)
+  const nameBox = (await name.boundingBox())!
   const editBox = (await edit.boundingBox())!
   const removeBox = (await remove.boundingBox())!
-  expect(editBox.x + editBox.width).toBeLessThanOrEqual(360)
-  expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(360)
+  expect(editBox.x + editBox.width).toBeLessThanOrEqual(clientWidth)
+  expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(clientWidth)
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(editBox.x)
 
-  // The name truncates rather than wrapping.
-  const nameMetrics = await row.locator('p').first().evaluate(el => ({
-    truncated: el.scrollWidth > el.clientWidth,
-    whiteSpace: getComputedStyle(el).whiteSpace,
-    textOverflow: getComputedStyle(el).textOverflow,
-  }))
-  expect(nameMetrics.truncated).toBe(true)
-  expect(nameMetrics.whiteSpace).toBe('nowrap')
-  expect(nameMetrics.textOverflow).toBe('ellipsis')
+  // The name WRAPS rather than truncating on one line (Story 8.2, UX-DR-E8-2).
+  //
+  // Until 8.2 these lines asserted `truncated`/`nowrap`/`ellipsis` — report #2's
+  // defect encoded as a requirement, filed in deferred-work.md as owed by this
+  // story. The replacement is the same claim inverted.
+  //
+  // NOT `expectNotClipped` here, deliberately. `longName` is PATHOLOGICAL by
+  // construction (an "extra long" phrase plus a 13-digit uniqueness suffix), and
+  // at 360px it wants three lines — so it is the case the two-line bound exists
+  // FOR: the name may not grow without limit beside the controls. Measured
+  // 2026-09-05 against the fix: scrollHeight 66 vs clientHeight 44, i.e. the
+  // clamp holding a three-line name to two. `expectNotClipped` is asserted in
+  // narrow-viewport.spec.ts, at the 320px FLOOR, on a name that fits the bound —
+  // that is where AC1's "fully readable" claim lives, and duplicating it here on
+  // a name chosen to exceed the bound would only assert the bound away.
+  // Asserted as OUTCOMES, not as the CSS that produces them: `white-space` and
+  // `-webkit-line-clamp` are one implementation of the bound, and pinning them
+  // would fail a correct future change to another. Counting lines needs a numeric
+  // line-height, so that is checked rather than allowed to poison the arithmetic
+  // with NaN.
+  const nameMetrics = await name.evaluate(el => {
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight)
+    return {
+      lineHeight,
+      clippedHorizontally: el.scrollWidth > el.clientWidth,
+      boundedVertically: el.scrollHeight > el.clientHeight,
+      lines: el.clientHeight / lineHeight,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }
+  })
+  expect(
+    Number.isFinite(nameMetrics.lineHeight),
+    'line-height must resolve to a number for the line count to mean anything',
+  ).toBe(true)
+  // Not truncated on its line — the ellipsis report #2 described is gone.
+  expect(nameMetrics.clippedHorizontally, 'the name must not be clipped horizontally').toBe(false)
+  // Actually wrapped, not merely short enough to fit.
+  expect(Math.round(nameMetrics.lines), 'the name must wrap onto more than one line').toBeGreaterThan(1)
+  // Actually bounded: this name wants a third line and does not get one. Measured
+  // 2026-09-05 at scrollHeight 66 vs clientHeight 44.
+  expect(
+    nameMetrics.boundedVertically,
+    `this pathological name must be truncated by the bound (scrollHeight ${nameMetrics.scrollHeight}, clientHeight ${nameMetrics.clientHeight})`,
+  ).toBe(true)
 
-  // The document does not scroll horizontally.
-  const overflows = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  )
-  expect(overflows).toBe(false)
+  // The document does not scroll horizontally. Uses the shared helper rather than
+  // a second inline copy of the same measurement (NFR-E8-5).
+  await expectNoHorizontalOverflow(page)
 
   // The edit control still works at this width.
   await openEditDialog(page, longName)

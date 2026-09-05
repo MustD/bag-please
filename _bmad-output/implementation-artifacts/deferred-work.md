@@ -2893,3 +2893,98 @@ rather than re-filed.
   untested accidental regression, and proposed reverting it. The residual (a stale tab can edit an invisible row that
   the scheduler hard-deletes within the hour) is the soft-delete-tombstone work the epic already scoped out, not a
   defect in the merge.
+
+## Deferred from: Story 8.2 — a long name and a full header fit on a narrow phone (2026-09-05)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone.md`
+  summary: The app bar's username chip (`bp_front/src/components/AppShell.tsx`, `noWrap` + `maxWidth: {xs: 140, sm:
+  220}`) is one of at least FOUR instances of the construct still standing after Story 8.2 removed three from
+  `/lists/:id` — see the entry below for the other three — and it still truncates a long username at the 320px floor.
+  AC4 required it be measured rather than pass silently; it is **left as shipped**, with the measurement here.
+  (Corrected at the Story 8.2 review, which called this "the FOURTH instance" and so read as an exhaustive audit.)
+  evidence: Measured 2026-09-05 at 320px (Pixel 7 descriptor at the floor, production image on :2080) with the 42-char
+  username `averyveryverylongusernameindeed_1788637389`. The chip BOX is fine — x 120.6, width 180, right edge 300.6 ≤
+  clientWidth 320, and `document.documentElement.scrollWidth === clientWidth === 320` — so NFR-E8-1's "inside the
+  viewport" and "no horizontal scroll" clauses both hold, and `narrow-viewport.spec.ts` already asserts the first with
+  `expectInsideViewport`. What is NOT fine is the TEXT: `scrollWidth 369 > clientWidth 140`, i.e. the username is an
+  ellipsis. Not fixed here for a structural reason, not an oversight: on `/lists/:id` the fix was to give the title its
+  own row, and the app bar has no second row to give — of the 320px bar, the home link takes ~120px and the avatar +
+  gap 40, leaving the 140px cap as very nearly the room that exists. Removing the cap the way the three list-detail
+  caps were removed would widen the menu button past the bar. Any real fix is a different treatment (elide in the
+  middle, drop to the avatar alone below `sm`, or move identity out of the bar) and wants its own story with a UX
+  ruling. AR-E8-3 kept it out of automatic scope for this reason.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone.md`
+  summary: `bp_front/e2e/item-attribution.spec.ts` (FR45/FR58, chromium) flaked once during Story 8.2's verification —
+  `getByTestId('shopping-item-addedby-<renamed item>')` was not found within the 5s expect timeout after an edit by a
+  co-member.
+  evidence: Observed 2026-09-05 in one full `--retries=0` run; the same spec passed on an immediate isolated re-run and
+  in the following full run (151 passed, 15 skipped, 0 failed). The testid is on the SHOPPING view (`/list/:id`), which
+  Story 8.2 does not touch — the story's diff is confined to `/lists/:id`, the narrow-viewport spec and the FR40 case —
+  so this is not caused or exposed by the change. Recorded rather than retried away because CI runs at `retries: 2` and
+  would absorb it silently. What would settle it: a `--repeat-each` pass over that spec showing whether the miss is a
+  live-update propagation race (the testid is keyed by the item NAME, so it changes with the rename) or ordinary
+  timeout noise.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone.md`
+  summary: The `noWrap` + fixed-`xs`-cap census is not complete, and the epic's floor audit should not be read as
+  finished. `bp_front/src/routes/ListsPage.tsx:195` (the list name on `/lists`, `maxWidth: {xs: 200, sm: 420}`) and
+  `bp_front/src/routes/AdminPage.tsx:200` (the username cell, `{xs: 140, sm: 260}`) are the same construct Story 8.2
+  removed from `/lists/:id`, and neither is named in `epics.md`, `epic-8-context.md` or any story spec.
+  evidence: Measured at the Story 8.2 review, at 320px against the production image: the `/lists` row name is
+  `scrollWidth 380 > clientWidth 200` with `white-space: nowrap` — a clipped list name on the first screen an
+  authenticated user sees. The suite does not catch it: the only test that visits `/lists` at the floor is
+  `[P1] no route scrolls horizontally at the floor`, which asserts `expectNoHorizontalOverflow` alone, and a clipped
+  element does not widen its ancestors (AR-E8-3a). `/admin` is not visited at the floor at all. Not fixed in Story 8.2
+  because both screens are outside its frozen scope (`ListDetailPage.tsx` plus the two specs), and, like the app-bar
+  chip, each wants its own scoping decision rather than a fix smuggled into a story that was not asked for it. The
+  cheap version is one `expectNotClipped` per screen at the floor; the fix is then the same cap removal Story 8.2 did.
+  `ListShoppingPage.tsx:275/400/421` use `maxWidth: '100%'` and `:451` a 100px attribution chip — a different case, and
+  deliberately not lumped in here.
+
+## Deferred from: code review of 8-1-move-the-mobile-gate-to-the-width-people-actually-use (2026-09-05)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `expectNotClipped` compares integer-rounded `scrollWidth`/`clientWidth` with no subpixel tolerance, so
+  fractional text widths could in principle produce 1px false reds in the gate every Epic 8 story reuses.
+  evidence: Plausible because the Pixel 7 descriptor carries `deviceScaleFactor: 2.625` and both properties round up,
+  but no false red was observed in any Story 8.1 run, including a `--repeat-each=2` pass over the whole `mobile`
+  project (160/160 green, 2026-09-05). What would settle it: a 320px run showing `expectNotClipped` red at exactly 1px
+  on text that is visibly not truncated. Adding a tolerance before that would guard undemonstrated state and blunt the
+  epic's only geometry gate.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: ``data-testid={`item-row-${item.name}`}`` in `bp_front/src/routes/ListDetailPage.tsx` is not unique — one
+  list holding two same-named items in different categories makes `getByTestId('item-row-X')` match twice and trip
+  Playwright strict mode.
+  evidence: Verified against the rendering of the item row (cited by testid rather than line number, which moved once
+  inside Story 8.1 already). Pre-existing since Story 6.1, not caused or exposed by Story 8.1, and every
+  narrow-viewport scenario uses unique names. Keying the testid by `item.id` would fix it but touches selectors
+  several shipped specs depend on, so it wants its own story.
+
+- ~~source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`~~
+  **CLOSED 2026-09-05 by Story 8.2**, which owed this change and made it: the FR40 @360 assertions no longer encode the
+  defect. They now assert the outcome — the name is not clipped horizontally, it really wrapped (more than one line),
+  and it really is bounded (the clamp truncating this deliberately pathological name, which carries a 13-digit
+  uniqueness suffix and wants three lines at 360px). The "fully readable" claim lives at the 320px floor in
+  `narrow-viewport.spec.ts`, on names that fit the bound. Original entry follows; its `source_spec` is the struck line
+  above.
+  summary: `bp_front/e2e/item-editing.spec.ts` (FR40, the ~360px case) asserts `whiteSpace === 'nowrap'`,
+  `textOverflow === 'ellipsis'` and `truncated === true` on the item name — it encodes report #2's DEFECT as a
+  requirement, so a CORRECT Story 8.2 fix turns it red.
+  evidence: Verified in the spec. UX-DR-E8-2 commits Story 8.2 to wrapping the item name to at most two lines instead
+  of truncating, which makes all three assertions false. This is a planned update owed by Story 8.2, not a regression:
+  without it, 8.2 will see a red in a spec it does not otherwise touch and read it as one. A `FOR STORY 8.2` comment
+  now sits on those lines; this row is what makes the obligation visible outside the file. Not fixed in 8.1 because
+  the replacement assertion depends on the layout 8.2 delivers.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
+  summary: `bp_front/e2e/navigation.spec.ts` (NFR-E6-2) and `bp_front/e2e/item-editing.spec.ts` (FR40) each call
+  `page.setViewportSize({width: 360})`, which in the retargeted `mobile` project now WIDENS the viewport rather than
+  narrowing it — so neither assertion runs at NFR-E8-1's floor.
+  evidence: Verified at both call sites. Story 8.1 closed the coverage gap by ADDING floor-level assertions in
+  `narrow-viewport.spec.ts` (the app-bar chip and home link, and the item row's edit/remove controls, all via
+  `expectInsideViewport`) rather than by changing the two existing tests, because dropping them to 320 would change
+  what they measure without anyone having measured the result first — which is exactly what AR-E8-2a forbids. Whether
+  the 360px cases should survive at all is a question for Story 8.2, which rewrites both surfaces. Their comments now
+  say 360 is a width those tests own, not "the floor".
