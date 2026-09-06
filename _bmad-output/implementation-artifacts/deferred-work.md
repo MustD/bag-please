@@ -2898,10 +2898,15 @@ rather than re-filed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone.md`
   summary: The app bar's username chip (`bp_front/src/components/AppShell.tsx`, `noWrap` + `maxWidth: {xs: 140, sm:
-  220}`) is one of at least FOUR instances of the construct still standing after Story 8.2 removed three from
-  `/lists/:id` — see the entry below for the other three — and it still truncates a long username at the 320px floor.
-  AC4 required it be measured rather than pass silently; it is **left as shipped**, with the measurement here.
-  (Corrected at the Story 8.2 review, which called this "the FOURTH instance" and so read as an exhaustive audit.)
+  220}`) is one of THREE instances of the construct still standing after Story 8.2 removed three from `/lists/:id` —
+  the other two are `ListsPage.tsx:195` and `AdminPage.tsx:200`, in the entry below — and it still truncates a long
+  username at the 320px floor. AC4 required it be measured rather than pass silently; it is **left as shipped**, with
+  the measurement here.
+  (Corrected twice. The Story 8.2 review called this "the FOURTH instance", which read as an exhaustive audit; the
+  correction then said "at least FOUR … see the entry below for the other three" while that entry names TWO. Verified
+  by grep at review Pass 2, 2026-09-06: `noWrap` with a fixed pixel cap survives at exactly three sites —
+  `AppShell.tsx:192`, `ListsPage.tsx:195`, `AdminPage.tsx:200`. `ListShoppingPage.tsx:451` is a fourth `noWrap` +
+  numeric cap and is discussed, unresolved, in the entry below.)
   evidence: Measured 2026-09-05 at 320px (Pixel 7 descriptor at the floor, production image on :2080) with the 42-char
   username `averyveryverylongusernameindeed_1788637389`. The chip BOX is fine — x 120.6, width 180, right edge 300.6 ≤
   clientWidth 320, and `document.documentElement.scrollWidth === clientWidth === 320` — so NFR-E8-1's "inside the
@@ -2919,7 +2924,10 @@ rather than re-filed.
   `getByTestId('shopping-item-addedby-<renamed item>')` was not found within the 5s expect timeout after an edit by a
   co-member.
   evidence: Observed 2026-09-05 in one full `--retries=0` run; the same spec passed on an immediate isolated re-run and
-  in the following full run (151 passed, 15 skipped, 0 failed). The testid is on the SHOPPING view (`/list/:id`), which
+  in the following full run (151 passed, 15 skipped, 0 failed — an INTERMEDIATE state, recorded mid-review: it is
+  neither the 162 of the pre-review suite nor the 168 = 83/83/1/1 the story finished at, because only two of the three
+  review-added tests existed when it ran; labelled at review Pass 2, where the unplaceable count was queried).
+  The testid is on the SHOPPING view (`/list/:id`), which
   Story 8.2 does not touch — the story's diff is confined to `/lists/:id`, the narrow-viewport spec and the FR40 case —
   so this is not caused or exposed by the change. Recorded rather than retried away because CI runs at `retries: 2` and
   would absorb it silently. What would settle it: a `--repeat-each` pass over that spec showing whether the miss is a
@@ -2935,12 +2943,20 @@ rather than re-filed.
   `scrollWidth 380 > clientWidth 200` with `white-space: nowrap` — a clipped list name on the first screen an
   authenticated user sees. The suite does not catch it: the only test that visits `/lists` at the floor is
   `[P1] no route scrolls horizontally at the floor`, which asserts `expectNoHorizontalOverflow` alone, and a clipped
-  element does not widen its ancestors (AR-E8-3a). `/admin` is not visited at the floor at all. Not fixed in Story 8.2
+  element does not widen its ancestors (AR-E8-3a). `/admin` IS visited at the floor — `e2e/admin.spec.ts` carries no
+  project guard and the `mobile` project renders at 320px (`playwright.config.ts`, `PIXEL_7_AT_FLOOR`) — but it makes
+  no layout assertion there, so the cap is unmeasured rather than unreached. (Corrected at review Pass 2: this line
+  read "`/admin` is not visited at the floor at all", which would send a future story looking for a missing route
+  instead of a missing assertion.) Not fixed in Story 8.2
   because both screens are outside its frozen scope (`ListDetailPage.tsx` plus the two specs), and, like the app-bar
   chip, each wants its own scoping decision rather than a fix smuggled into a story that was not asked for it. The
   cheap version is one `expectNotClipped` per screen at the floor; the fix is then the same cap removal Story 8.2 did.
-  `ListShoppingPage.tsx:275/400/421` use `maxWidth: '100%'` and `:451` a 100px attribution chip — a different case, and
-  deliberately not lumped in here.
+  `ListShoppingPage.tsx:275/400/421` use `maxWidth: '100%'` and `:451` a 100px attribution chip. Called "a different
+  case, and deliberately not lumped in here" — a claim review Pass 2 flagged as asserted rather than measured, and it
+  is carried into the Pass 2 deferral below: `:451` is `noWrap` with a hard `maxWidth: 100`, the same construct with a
+  numeric cap, on the screen users spend the most time on, and `:421` is `noWrap` + `maxWidth: '100%'` inside a
+  `minWidth: 0` flex box, which clips by exactly report #2's mechanism without a numeric cap. Neither has been measured
+  at 320px.
 
 ## Deferred from: code review of 8-1-move-the-mobile-gate-to-the-width-people-actually-use (2026-09-05)
 
@@ -2988,3 +3004,36 @@ rather than re-filed.
   what they measure without anyone having measured the result first — which is exactly what AR-E8-2a forbids. Whether
   the 360px cases should survive at all is a question for Story 8.2, which rewrites both surfaces. Their comments now
   say 360 is a width those tests own, not "the floor".
+
+## Deferred from: code review of spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone (2026-09-06)
+
+Review Pass 2, four layers. Five entries routed `defer`; the full triage lives in the spec's `### Review Findings`.
+
+- **`epic-8-context.md`'s recompile dropped Story 8.4/8.5 contract detail that Pass 1 did not restore.** Verified by
+  grep: "case-insensitive name search, combined by AND" (the 8.4 filter/search conjunction) and "The group is absent
+  when there are no orphans" (the 8.5 `Uncategorized` group) are present at `456500b` and return zero hits now. Pass 1
+  restored the `## Reports` index and the 8.2/8.3 UX bullets only. Stories 8.4 and 8.5 now have less contract to build
+  from than before the story that shipped none of it. Fix edits a planning document, so it is out of Story 8.2's scope.
+- **NFR-E8-1 was loosened in `epic-8-context.md:55` by the story that needed the carve-out.** Prior wording was "no
+  control is clipped"; it now reads "no text is clipped **except where a story has measured the clipping and recorded
+  the decision to keep it**", with Story 8.2 named as the standing example. Three caps remain: `AppShell.tsx:192`
+  (audited), `ListsPage.tsx:195` (measured at `380 > 200`, but the recorded decision is "not in scope", not a
+  keep-decision), `AdminPage.tsx:200` (unmeasured). Either the constraint carries a "known exceptions, pending audit"
+  list naming all three, or the two screens go through the audit.
+- **`/lists` and `/admin` clip at the floor with no assertion holding the debt visible.** `/lists` is reached at the
+  floor only by the route sweep, which asserts `expectNoHorizontalOverflow(page)` and nothing element-level — green at
+  `320 === 320` while the list name is an ellipsis at `scrollWidth 380 > clientWidth 200`. `/admin` is rendered at the
+  floor on every run by `admin.spec.ts` (no project guard) but carries no layout assertion at all. Neither Typography
+  has a `data-testid`, so no spec can target them today. Belongs with the scoping story this file already asks for.
+- **`ListShoppingPage.tsx:421/:451` are dismissed as "a different case" without a measurement.** `:451` is `noWrap`
+  with a hard `maxWidth: 100` — the same construct with a numeric cap — on the screen users spend the most time on;
+  `:421` is `noWrap` + `maxWidth: '100%'` inside a `minWidth: 0` flex box, which clips by exactly report #2's
+  mechanism without a numeric cap. Both are ruled out of scope on a one-line claim rather than the measurement this
+  file demands of everything else. Measure both at 320px and file the numbers, or drop the framing.
+- **`LONG_ITEM_NAME` may sit on the two-line boundary with no recorded margin — medium, UNVERIFIED.** The floor item
+  test's only load-bearing assertion is now `expectNotClipped`'s height branch, and a 41-character name in the ~190px
+  the row leaves at 320px is plausibly close to exactly two lines; a small font-metric or padding change would flip it
+  red for a reason unrelated to the defect it guards. It fits today (the suite is green), but nothing records by how
+  much — `item-editing.spec.ts` records `66 vs 44` at 360px and there is no equivalent at the floor. **What would
+  settle it:** measure `scrollHeight`/`clientHeight` for `LONG_ITEM_NAME` at 320px and record the margin, or pick a
+  name with slack.

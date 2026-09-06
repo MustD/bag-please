@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-09-05'
 status: 'done' # draft | ready-for-dev | in-progress | in-review | done
 route: 'dispatch'
-review_loop_iteration: 1
+review_loop_iteration: 2
 context: []
 baseline_commit: '456500bbfd8acc7144d1715c9d2b9640f1f2e834'
 ---
@@ -31,7 +31,21 @@ no new test infrastructure.
 - Convert `narrow-viewport.spec.ts`'s three inverted `rejects.toThrow` defect assertions back to plain
   `await expectNotClipped(...)`, keeping each test's identity and report-# reference.
 - Observe every new/converted assertion failing against the pre-fix layout before accepting it (NFR-E8-6).
-- Desktop widths (`sm` and up) render as they do today.
+- ~~Desktop widths (`sm` and up) render as they do today.~~ **RENEGOTIATED (md, 2026-09-06, at review Pass 2 — the
+  frozen block's own escape clause, exercised rather than worked around.)** Desktop widths keep their ROW STRUCTURE —
+  title and buttons side by side above `sm` — but the `sm` caps go with the `xs` ones. The original wording was written
+  believing the defect was narrow-only; it is not. At 1280px the pre-fix title clipped at `scrollWidth 619 >
+  clientWidth 460`, truncating long list names on a desktop screen with ~800px of empty row beside them, and the item
+  name ellipsised on one line where it now wraps to two. Removing all three caps rather than retuning them is what
+  AR-E8-3 asks for, and the `[P1]` above-the-breakpoint test's `expectNotClipped` line — observed red pre-fix at that
+  1280px measurement — is the only assertion in the suite that would catch a narrow-only fix leaving the desktop cap in
+  place. Accepting the change means accepting one row-height increase on desktop lists whose item names exceed a line.
+- Observing a NEW assertion failing pre-fix is required only where the assertion CAN fail pre-fix. **RATIFIED (md,
+  2026-09-06, review Pass 2.)** NFR-E8-6 as written is unqualified, and several assertions this story adds are guards
+  that held before the fix by construction — a guard cannot be observed red against a layout it already satisfied.
+  Such an assertion is exempt WHEN IT IS LABELLED AS A GUARD at its call site, which this story's are. The exemption
+  does not reach an assertion that merely was not run red: Pass 1's patch-entry-3 assertions are not guards, and are
+  red-phased at Pass 2 rather than excused.
 - **Decision (user, 2026-09-05): the header wraps at the `xs` breakpoint**, not on a fit test. Below `sm` the title
   takes its own full-width row and the button `Stack` takes the row beneath it, on every phone width. Chosen over
   natural flex wrap because the break point would otherwise be a function of the list name's longest word, and a
@@ -294,3 +308,92 @@ box is not the text box, that comparison silently passes on a clipped name.
 
 **Manual checks:**
 - `/lists/:id` at 320px and at desktop width, with a long list, category and item name.
+
+### Review Findings
+
+Pass 2 (2026-09-06) — four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor.
+34 raw findings → 2 decision-needed, 8 patch, 5 defer, 19 rejected.
+
+**Decision needed**
+
+- [x] [Review][Decision] **RESOLVED (md, 2026-09-06): option (a) — ratify.** The desktop change is accepted as the correct
+      reading of AR-E8-3, and the frozen "Always" line is renegotiated accordingly; the `sm` caps stay deleted and the
+      `[P1]` `expectNotClipped` line keeps its place as the only assertion that would catch a narrow-only fix. Becomes
+      a patch: amend the frozen line with the renegotiation and its attribution. — The three `sm` caps were deleted, so desktop rendering changed, against a frozen "Always" — Frozen Boundaries say "Desktop widths (`sm` and up) render as they do today", but the diff removes `sm: 460` (title), `sm: 380` (category) and `sm: 400` (item) along with the `xs` ones. The item name now wraps to two lines at desktop where it ellipsised on one — a row-height change on every desktop list — and the new `[P1]` test was observed RED pre-fix at 1280px (`scrollWidth 619 > clientWidth 460`), which is itself proof desktop renders differently. The deviation is argued well under AR-E8-3 and recorded in the Implementation Notes, but the frozen block may only change "unless human renegotiates" and no renegotiation is on record. Options: (a) ratify the desktop change and amend the frozen line; (b) restore the `sm` caps and narrow the fix to `xs`.
+- [x] [Review][Decision] **RESOLVED (md, 2026-09-06): option 1 — ratify guards as exempt, AND red-phase patch entry 3.**
+      A new assertion explicitly labelled as a guard is outside NFR-E8-6, because a guard cannot be observed red against
+      the layout it already held for; that exemption is recorded in the frozen block. Pass 1 patch entry 3's four
+      assertions are NOT guards and CAN be red-phased, so they are, against a build carrying the specific defect each
+      claims to catch. Becomes two patches. — NFR-E8-6 ("observe **every** new/converted assertion failing against the pre-fix layout") was not met for several new assertions — The frozen "Always" is unqualified, but the diff's own comments label new assertions as guards that "held BEFORE Story 8.2 too" (`narrow-viewport.spec.ts` — the four AC2 button assertions on the long-title test; the `nameBox.x + width <= editBox.x` check on the item-row controls test; the geometry half of the `[P1]` desktop test), and Pass 1's patch entry 3 — `expectInsideViewport` on the name element plus `expectNoHorizontalOverflow(page)` added to both floor tests — records no red observation at all, unlike entries 1, 2, 4, 5 and 6. Two layers converged. Options: (a) ratify "a guard that held pre-fix is exempt from NFR-E8-6 when labelled as such"; (b) red-phase the assertions from patch entry 3 against a build carrying the specific defect each claims to catch.
+
+**Patch**
+
+- [x] [Review][Patch] The SHORT-title floor test is hollow, and its comment states a claim this story's own measurement disproves [bp_front/e2e/narrow-viewport.spec.ts:333-347] — Its only assertion is `expectNotClipped(listTitle(page))`. Post-fix the title carries no `overflow: hidden`, so `scrollWidth === clientWidth` by construction (`e2e/support/layout.ts` says exactly this in its header). Pass 1 finding #1 measured that restoring the pre-fix single-row header with `noWrap` still off collapses the title to 68 × 504 — `68 === 68`, `504 === 504`, page `320 === 320` — with every assertion green. Pass 1 patched the long-title test with button-row geometry but left this one untouched, while its comment at :341-342 claims it "is the assertion that fails if the header ever goes back to sharing one row at `xs`". That is false by the sibling test's own measurement. Fix: give it the same button-row geometry, or correct the comment to say what it actually gates (the re-introduction of `noWrap`).
+- [x] [Review][Patch] `overflowWrap: 'anywhere'` is applied to three elements and gated on one [bp_front/src/routes/ListDetailPage.tsx:184,241] — The unbreakable-name test (`narrow-viewport.spec.ts:287`) creates only a list, so it exercises `list-detail-title` alone. `grep -rnoE "[A-Za-z]{26,}" bp_front/e2e` returns exactly one unbreakable name in the whole suite. Delete `overflowWrap` from the category name and a one-word category overflows its flex row and widens the document (the title's own measurement: `760 > 288`, page `776 > 320`); delete it from the item name and the name is silently clipped, since the clamp keeps `overflow: hidden`. Neither regression fails anything — every other fixture name is multi-word and wraps on its spaces regardless. Fix: add a category and an item with an unbreakable name at the floor, with the same three assertions the title case already gets.
+- [x] [Review][Patch] Nothing at the 320px floor asserts the two-line clamp actually bounds anything [bp_front/e2e/narrow-viewport.spec.ts:214] — The clamp's failure mode (a name wanting a third line) is asserted only in `item-editing.spec.ts` at ~360px. At the floor — the width NFR-E8-1 is written about, and where a name most easily needs a third line — the item test asserts only `expectNotClipped`, i.e. that the name *fits*. Fix: one item whose name exceeds the bound at 320px, asserted `scrollHeight > clientHeight`.
+- [x] [Review][Patch] The breakpoint half of the desktop test checks geometry only [bp_front/e2e/narrow-viewport.spec.ts:596-620] — After each `setViewportSize` it asserts y-ordering and x-adjacency and nothing else, so a header that clips its title or overflows the document exactly at 599/600px — the two widths where the layout changes — ships green. Fix: `expectNotClipped(listTitle(page))` and `expectNoHorizontalOverflow(page)` after each resize.
+- [x] [Review][Patch] `Number.isFinite(lineHeight)` admits `0`, and the line count becomes `Infinity` [bp_front/e2e/item-editing.spec.ts:445-460] — Pass 1 patch 6 added the guard so a computed `normal` "fails loudly instead of counting `NaN` lines", but `Number.isFinite(0)` is `true`, `clientHeight / 0` is `Infinity`, and `Math.round(Infinity) > 1` passes — the wrap assertion then measures nothing. Fix: assert `lineHeight` is `> 0`.
+- [x] [Review][Patch] The `noWrap` + fixed-cap census miscounts itself, in the entry that exists to correct the census [_bmad-output/implementation-artifacts/deferred-work.md:2901-2904] — It says the chip "is one of at least FOUR instances … see the entry below for the other three", and the entry below names two (`ListsPage.tsx:195`, `AdminPage.tsx:200`); `ListShoppingPage.tsx:451` is waved off separately. Verified by grep. Fix: correct the count and the cross-reference.
+- [x] [Review][Patch] The `/admin` claim in the new deferral is wrong on its stated reason [_bmad-output/implementation-artifacts/deferred-work.md] — It states "`/admin` is not visited at the floor at all". It is: `bp_front/e2e/admin.spec.ts` carries no project guard and the `mobile` project renders at 320px (`playwright.config.ts` `PIXEL_7_AT_FLOOR`), so `/admin` is rendered at the floor on every run. What is absent is any layout assertion there. The conclusion holds; the reason does not, and a future story will look for a missing route rather than a missing assertion. Also in the same file: the flake entry quotes "151 passed, 15 skipped" = 166, which matches neither recorded suite state (162 pre-review, 168 final) — label it as the intermediate state it was.
+- [x] [Review][Patch] Two readability corrections in the new tests [bp_front/e2e/narrow-viewport.spec.ts] — (a) In the `[P1]` desktop test, "`md`'s ruling was that the buttons take their own row BELOW `sm`" reads as the `md` breakpoint in a test whose adjacent lines discuss moving `flexDirection` from `sm` to `md`; write "the user's ruling (2026-09-05)". (b) The four new `(await …boundingBox())!` sites assert non-null with `!`, so a detached or hidden element raises a `TypeError` instead of the diagnosable message `expectInsideViewport` already produces; add `expect(box, '<label>').not.toBeNull()`.
+
+**Deferred**
+
+- [x] [Review][Defer] `epic-8-context.md`'s recompile dropped Story 8.4/8.5 contract detail that Pass 1 did not restore [_bmad-output/implementation-artifacts/epic-8-context.md] — deferred: verified by grep — "case-insensitive name search, combined by AND" and "The group is absent when there are no orphans" are present at `456500b` and return zero hits now. Pass 1 restored the `## Reports` index and the 8.2/8.3 UX bullets only. Fix edits a planning document, so it is routed out of this story per the review's own rule.
+- [x] [Review][Defer] NFR-E8-1 was loosened in `epic-8-context.md:55` by the story that needed the carve-out [_bmad-output/implementation-artifacts/epic-8-context.md:55] — deferred: prior wording was "no control is clipped"; it now reads "no text is clipped **except where a story has measured the clipping and recorded the decision to keep it**", with Story 8.2 named as the standing example. Three caps remain: `AppShell.tsx:192` (audited), `ListsPage.tsx:195` (measured, but the recorded decision is "not in scope", not a keep-decision), `AdminPage.tsx:200` (unmeasured). Either the constraint needs a "known exceptions, pending audit" list naming all three, or the two screens need the audit. Fix edits a planning document.
+- [x] [Review][Defer] `/lists` and `/admin` have a measured clipping defect and gain no assertion holding the debt visible [bp_front/src/routes/ListsPage.tsx:195, bp_front/src/routes/AdminPage.tsx:200] — deferred: pre-verified by the verification-gap layer. `/lists` is reached at the floor only by the route sweep, which asserts `expectNoHorizontalOverflow(page)` and nothing element-level — green at `320 === 320` while the name is an ellipsis at `scrollWidth 380 > clientWidth 200`. Neither Typography has a testid, so no spec can target them. Both screens are outside this story's frozen scope; belongs with the scoping story `deferred-work.md` already asks for.
+- [x] [Review][Defer] `ListShoppingPage.tsx:421/:451` are dismissed as "a different case" without the measurement the same ledger demands of everything else [bp_front/src/routes/ListShoppingPage.tsx:421,451] — deferred: `:451` is `noWrap` with a hard `maxWidth: 100` — the same construct with a numeric cap — on the screen users spend the most time on; `:421` is `noWrap` + `maxWidth: '100%'` inside a `minWidth: 0` flex box, which clips by exactly report #2's mechanism without a numeric cap. Settle it by measuring both at 320px and filing the numbers, or drop the "deliberately not lumped in" framing.
+- [x] [Review][Defer] `LONG_ITEM_NAME` may sit on the two-line boundary with no recorded margin — **medium, unverified** [bp_front/e2e/narrow-viewport.spec.ts:69,214] — deferred: the floor item test's only load-bearing assertion is now the height branch, and a 41-character name in the ~190px the row leaves at 320px is plausibly close to exactly two lines; a small font-metric or padding change would then flip it red for a reason unrelated to the defect it guards. It fits in two lines today (the suite is green), but the margin is unrecorded — `item-editing.spec.ts` records `66 vs 44` at 360px and nothing records the equivalent at the floor. What would settle it: measure `scrollHeight`/`clientHeight` for `LONG_ITEM_NAME` at 320px and record the margin, or pick a name with slack.
+
+**Rejected**
+
+- `false` — "The long-category floor test cannot fail" (blind-hunter): overstated. `expectNotClipped` on `category-name` goes red the moment a `noWrap` + cap is reinstated, which is the regression the test names, and Pass 1 already measured it red at `scrollWidth 341 > clientWidth 160`. The test additionally carries `expectInsideViewport` on the name and on both IconButtons plus `expectNoHorizontalOverflow`. The adjacency assertion asked for is unnecessary: the row is `display: flex; justifyContent: space-between` with a `flexShrink: 0` icon box, so the name cannot run under the controls. (The narrower true claim — that `overflowWrap` is ungated there — is patched above.)
+- `false` — "The category row diverges from its own task line 'same treatment'" (acceptance-auditor): the frozen "Always" bounds the ITEM name at two lines and requires only `expectNotClipped` for the category; the un-clamped heading is the frozen intent executed, not a deviation from it. Already settled as Pass 1 #19.
+- `low` — Clamp the title, and clamp the category name (edge-case-hunter ×2): vertical growth scrolls, which is what a page does; NFR-E8-1 is about horizontal overflow, clipping and off-screen controls. Same rejection as Pass 1 #19, and clamping the category would trade an ellipsis for a vertical clip, which the frozen intent argues against by name.
+- `low` — Derive `SM_BREAKPOINT_PX` from the theme (edge-case-hunter): the theme declares no custom breakpoints (verified, and the constant's comment records the verification); importing app source into the e2e tree adds coupling to guard state never demonstrated.
+- `low` — Subtract padding before dividing `clientHeight` by `lineHeight` (edge-case-hunter): the Typography carries no vertical padding today; the guard is for state not demonstrated.
+- `low` — Restore `edge="end"` on the remove-item IconButton (edge-case-hunter): Pass 1 removed it deliberately so the item row's right inset matches the category row's on the same screen. Restoring it to match `ListsPage`/`PendingInvites` re-creates what Pass 1 fixed, and 12px of cross-screen inset is cosmetic.
+- `low` — "Two divergent item-row layout patterns in the codebase" (edge-case-hunter, own confidence `low`): no named harm — the flex-sibling row is the intended shape and the reason is documented at the call site.
+- `low` — Nest a `test.describe('Story 8.2: …')` inside the 8.1 describe (blind-hunter): Pass 1 #17 weighed the naming friction; the fix restructures the file and changes every new test's reported path for one comment block's worth of clarity.
+- `low` — Four spec-record inconsistencies, **all verified, rejected only because the fix edits the spec under review** (acceptance-auditor). Listed so they are not lost: (1) the Pass 1 triage header says "31 findings" and the table has 23 rows; (2) "Patch evidence — the **seven** `patch` entries above" while 15 rows carry verdict `patch` (the other eight are doc/record patches, excluded without saying so); (3) Implementation Notes still describe the FR40 @360 replacement as `whiteSpace !== 'nowrap'` / `-webkit-line-clamp === '2'` / `1 < lines <= 2`, none of which is in the shipped file after Pass 1 patch 6; (4) the "Green after" line still reports 162 / 149 / 13, superseded 60 lines later by 168 / 152 / 16. Worth correcting at close by hand.
+- `low` — "The AppShell chip audit has no acceptance criterion" (acceptance-auditor): true, and the only fix renumbers this build's ACs. Same rejection as Pass 1 #21.
+
+### Review Pass 2 — patch evidence (2026-09-06)
+
+`review_loop_iteration` → `2`. Ten patches applied: the eight routed by triage plus the two md's rulings created. No
+loopback; no code was reverted and re-derived.
+
+**The red phase, run against rebuilt production images rather than reasoned.** Five defect builds. Two assertions went
+red as intended, two more were reached only by isolating them, and — the part worth keeping — **three assertions were
+discovered to be unfalsifiable, one of which was mine**:
+
+| assertion | defect build | result |
+| --- | --- | --- |
+| `expectNoHorizontalOverflow` on the long-ITEM floor test (Pass 1 patch 3) | `minWidth: 240` on both names | **RED** — `page scrolls horizontally (documentElement scrollWidth 352 > clientWidth 320)` |
+| `expectNoHorizontalOverflow` on the long-CATEGORY floor test (Pass 1 patch 3) | same, with the row's two control assertions isolated | **RED** — `352 > 320` |
+| `expectInsideViewport` on the item name and on the category name (Pass 1 patch 3) | `minWidth: 400` | **UNFALSIFIABLE** — the fixture broke first (`add-item-submit` click intercepted by the dialog title), and no weaker defect reaches them: the name is the LEFTMOST box on its row, so every control to its right leaves the viewport first and an earlier assertion always fires. |
+| short-title button-row geometry (**new**) | header `flexDirection: 'row'` at every width | **RED** — `the buttons must take their OWN ROW below even a short title (title bottom 203.06, button top 142.83)` |
+| the two-line bound at the floor (**new**) | `WebkitLineClamp` deleted | **RED** — `a name past the bound must be held to two lines (scrollHeight 110, clientHeight 110)` |
+| boundary `expectNotClipped` at 599/600px (**new**) | title's `noWrap` + `maxWidth: {xs: 200, sm: 460}` restored, the test's own 1280px clip check isolated | **RED** — `text is clipped horizontally: "Weekly big shop for the whole household" (scrollWidth 619 > clientWidth 200)` |
+| unbreakable ITEM name (**new**) | `overflowWrap` deleted from the item name | **RED** — `the unbreakable word must BREAK, not be clipped mid-word (scrollWidth 390 > clientWidth 176)` |
+| unbreakable CATEGORY name (**new**) | `overflowWrap` deleted from the category name | **UNFALSIFIABLE, kept and labelled** — the element has no `overflow: hidden`, so it simply GROWS to fit the word (`scrollWidth === clientWidth`, nothing clipped, page check green with the item step removed). |
+
+**Two assertions I added were wrong, and the red phase is what said so** — neither would have been caught by reading:
+
+1. `expectInsideViewport` on the unbreakable category and item names **passed with the guard deleted**. Neither name can
+   leave the viewport: the item sits behind the clamp's `overflow: hidden`, and the category's box is pinned by its flex
+   row while the text spills invisibly. Containment cannot see this defect at all. Replaced with the WIDTH branch, which
+   is the half `overflowWrap` actually owns — and which duly went red at `390 > 176`.
+2. `expectNotClipped` on the unbreakable ITEM name **failed on the clean build** (`scrollHeight 66 > clientHeight 44`).
+   An unbreakable word long enough to exercise `overflowWrap` cannot also fit the two-line bound at the floor, so the
+   full helper was asserting the bound away. Narrowed to the width branch, with the reasoning recorded at the call site.
+
+**A finding the red phase produced rather than confirmed.** Pass 1's `expectInsideViewport(itemName)` and
+`expectInsideViewport(categoryName)` cannot fail for any defect that leaves their own fixture usable. They are guards,
+not evidence, and are now labelled as such under the exemption md ratified. The containment claim that CAN fail on this
+screen is the one the item-row controls test already makes — `nameBox.x + width <= editBox.x`.
+
+**Gates, on the restored tree.** `npm run lint` exit 0; `npm run build` exit 0; `git diff --stat bp_back/` empty. Full
+suite `npx playwright test --retries=0` against a freshly rebuilt production image: **152 passed, 16 skipped,
+0 failed** (1.2m) = **168 = 83 / 83 / 1 / 1**, unchanged from Story 8.2's close — Pass 2 added no `test()` block, only
+assertions inside existing ones, so `playwright.config.ts`'s structural-invariant row needs no new entry.

@@ -458,10 +458,15 @@ test('FR40 — at ~360px both item controls fit, the name wraps, and the page do
       clientHeight: el.clientHeight,
     }
   })
+  // `> 0`, not merely finite: `Number.isFinite(0)` is `true`, and a computed
+  // line-height of 0 makes `lines` Infinity, which sails through the "wrapped
+  // onto more than one line" assertion below while measuring nothing at all.
+  // Corrected at review Pass 2 — the finite check alone did not do the job its
+  // own comment claimed.
   expect(
-    Number.isFinite(nameMetrics.lineHeight),
-    'line-height must resolve to a number for the line count to mean anything',
-  ).toBe(true)
+    nameMetrics.lineHeight,
+    'line-height must resolve to a positive number for the line count to mean anything',
+  ).toBeGreaterThan(0)
   // Not truncated on its line — the ellipsis report #2 described is gone.
   expect(nameMetrics.clippedHorizontally, 'the name must not be clipped horizontally').toBe(false)
   // Actually wrapped, not merely short enough to fit.

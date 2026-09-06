@@ -58,6 +58,18 @@ import {
 //
 // Cited by testid, not by line number: the numbers have moved in both stories.
 // ─────────────────────────────────────────────────────────────────────────────
+// `boundingBox()` returns null for a detached or hidden element, and the bare
+// non-null assertion the geometry blocks used to carry turned that into a
+// `TypeError` on a property of null — a stack trace where the reader needs a
+// sentence. Named per element so the failure says WHICH box was missing, the
+// same courtesy `expectInsideViewport` already extends (support/layout.ts).
+// Added at review Pass 2.
+async function boxOf(locator: Locator, label: string): Promise<{x: number; y: number; width: number; height: number}> {
+  const box = await locator.boundingBox()
+  expect(box, `${label} has no bounding box`).not.toBeNull()
+  return box!
+}
+
 const listTitle = (page: Page): Locator => page.getByTestId('list-detail-title')
 const categoryName = (page: Page, name: string): Locator =>
   page.getByTestId(`category-row-${name}`).getByTestId('category-name')
@@ -70,6 +82,14 @@ const LONG_LIST_NAME = 'Weekly big shop for the whole household'
 const LONG_CATEGORY_NAME = 'Refrigerated dairy and chilled desserts'
 const LONG_ITEM_NAME = 'Semi-skimmed organic milk two litre bottle'
 
+// PAST the two-line bound at the floor, deliberately — the counterpart to
+// LONG_ITEM_NAME, which fits inside it. Added at review Pass 2: the clamp is the
+// half of the fix that can fail vertically, and nothing at 320px asserted it
+// held. Long enough that no plausible font-metric change brings it under two
+// lines in the ~190px the item row leaves at the floor.
+const OVERLONG_ITEM_NAME =
+  'Semi-skimmed organic milk two litre bottle with an extra long descriptive suffix that cannot fit'
+
 // ONE UNBREAKABLE WORD — the only name in this file with no space to wrap on.
 // Every other name here is multi-word, so the `overflowWrap: 'anywhere'` Story
 // 8.2 put on the three names is exercised by NOTHING else: those wrap on their
@@ -78,6 +98,18 @@ const LONG_ITEM_NAME = 'Semi-skimmed organic milk two litre bottle'
 // back at `normal` the title is `scrollWidth 760 > clientWidth 288` and the page
 // `776 > 320` — a real NFR-E8-1 violation that would otherwise ship green.
 const UNBREAKABLE_LIST_NAME = 'Supercalifragilisticexpialidociousaurusrexinatorium'
+
+// The SAME shape for the other two elements `overflowWrap: 'anywhere'` was
+// applied to. Review Pass 2: the property is on three elements and, until now,
+// was exercised on one — `grep -rnoE "[A-Za-z]{26,}" e2e` returned exactly one
+// unbreakable name in the whole suite. Every other fixture name here is
+// multi-word and wraps on its spaces with or without the property, so deleting
+// it from the category or item name shipped green: the category one-worder
+// widens the document (the title's own measurement was `scrollWidth 760 >
+// clientWidth 288`, page `776 > 320`), and the item one-worder is silently
+// clipped, because the two-line clamp keeps `overflow: hidden`.
+const UNBREAKABLE_CATEGORY_NAME = 'Refrigeratedpasteurisedhomogenisedchilleddairy'
+const UNBREAKABLE_ITEM_NAME = 'Semiskimmedorganichomogenisedmilktwolitrebottle'
 
 // MUI's default `sm`, which is the breakpoint ListDetailPage's header stacks
 // below (the theme declares no custom `breakpoints`, verified 2026-09-05). Named
@@ -228,6 +260,23 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // control checks elsewhere in this file can see that.
     await expectInsideViewport(itemName(page, LONG_ITEM_NAME), 'the item name')
     await expectNoHorizontalOverflow(page)
+
+    // THE BOUND ITSELF, at the floor — added at review Pass 2. Until now the
+    // clamp's failure mode (a name wanting a third line) was asserted only in
+    // item-editing.spec.ts at ~360px, so the width NFR-E8-1 is actually written
+    // about, and the width where a name most easily needs a third line, had no
+    // assertion that the bound holds at all. `expectNotClipped` above is the
+    // opposite claim: that this name FITS. Delete `WebkitLineClamp` and the name
+    // below grows a third line with nothing to stop it.
+    await addItem(page, LONG_CATEGORY_NAME, OVERLONG_ITEM_NAME)
+    const bound = await itemName(page, OVERLONG_ITEM_NAME).evaluate(el => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(
+      bound.scrollHeight,
+      `a name past the bound must be held to two lines (scrollHeight ${bound.scrollHeight}, clientHeight ${bound.clientHeight})`,
+    ).toBeGreaterThan(bound.clientHeight)
   })
 
   test('[P0] a long list title is fully readable at the floor (report #3)', async ({page}, testInfo) => {
@@ -263,9 +312,9 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // 320`, both buttons inside with their labels. Every line above stays GREEN
     // while the squeeze is on screen; without the geometry below these two tests
     // gate the re-introduction of `noWrap` and nothing else.
-    const titleBox = (await listTitle(page).boundingBox())!
-    const addCategoryBox = (await addCategory.boundingBox())!
-    const addItemBox = (await addItem.boundingBox())!
+    const titleBox = await boxOf(listTitle(page), 'the list title')
+    const addCategoryBox = await boxOf(addCategory, 'the add-category button')
+    const addItemBox = await boxOf(addItem, 'the add-item button')
     expect(
       addCategoryBox.y,
       `the buttons must take their OWN ROW below the title (title bottom ${titleBox.y + titleBox.height}, button top ${addCategoryBox.y})`,
@@ -293,14 +342,64 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // ruling was to wrap the header at `xs` rather than on a natural flex wrap.
     // Nothing else in this suite exercises `overflowWrap: 'anywhere'`: every
     // other name is multi-word (see UNBREAKABLE_LIST_NAME for the measurement).
+    //
+    // ALL THREE elements, added at review Pass 2. The property was applied to
+    // three and gated on one; the item name is the riskier target of the two
+    // that were uncovered, because it sits in a flex row beside two IconButtons
+    // at the floor and its `maxWidth` cap used to be the only thing keeping it
+    // off them.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await registerViaUi(page, uniqueUsername('narrow', 'unbreakable', testInfo.project.name), PASSWORD)
     await openListsViaMenu(page)
     await createListAndOpen(page, UNBREAKABLE_LIST_NAME)
+    await addCategory(page, UNBREAKABLE_CATEGORY_NAME)
+    await addItem(page, UNBREAKABLE_CATEGORY_NAME, UNBREAKABLE_ITEM_NAME)
 
     await expectNotClipped(listTitle(page))
     await expectInsideViewport(listTitle(page), 'the list title')
+
+    // WIDTH is the falsifiable claim for both names below, and this was
+    // established by running the red phase rather than by reasoning. Review
+    // Pass 2 first asserted `expectInsideViewport` on each — and BOTH passed
+    // with `overflowWrap` deleted from the element under test, because neither
+    // name can leave the viewport: the item name sits behind the clamp's
+    // `overflow: hidden`, and the category name's box is pinned by its flex row
+    // while the text spills invisibly. Containment therefore cannot see this
+    // defect at all. What `overflowWrap: 'anywhere'` actually guarantees is that
+    // the word BREAKS instead of being clipped mid-word, which is the width
+    // branch — `scrollWidth > clientWidth` the moment the guard is removed. That
+    // holds for the ITEM, and its assertion below was observed red exactly so.
+    //
+    // The CATEGORY line is a GUARD, labelled per the NFR-E8-6 exemption md
+    // ratified on 2026-09-06, because Pass 2 tried and failed to make it fail.
+    // The category name carries no `overflow: hidden`, so with `overflowWrap`
+    // deleted the element simply GROWS to fit the word: `scrollWidth ===
+    // clientWidth` still, nothing clipped, and with the item step removed the
+    // page check passes too. Keep the assertion — it still catches a future
+    // `noWrap` or cap on this element — but do not read it as evidence that
+    // `overflowWrap` is load-bearing here.
+    await expectNotClipped(categoryName(page, UNBREAKABLE_CATEGORY_NAME))
+
+    // The item takes the WIDTH BRANCH ALONE, not `expectNotClipped`. An
+    // unbreakable word long enough to exercise `overflowWrap` cannot also fit
+    // the two-line bound in the ~190px the row leaves at the floor, so the full
+    // helper fails on HEIGHT (`scrollHeight 66 > clientHeight 44` on a clean
+    // build) — the clamp doing its job. Asserting "not clipped" on a name chosen
+    // to exceed the bound would assert the bound away, the same reasoning
+    // item-editing.spec.ts records for its own pathological name. The width half
+    // is the part `overflowWrap` owns, and it is the part that goes red.
+    const unbreakableItem = await itemName(page, UNBREAKABLE_ITEM_NAME).evaluate(el => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }))
+    expect(
+      unbreakableItem.scrollWidth,
+      `the unbreakable word must BREAK, not be clipped mid-word (scrollWidth ${unbreakableItem.scrollWidth} > clientWidth ${unbreakableItem.clientWidth})`,
+    ).toBeLessThanOrEqual(unbreakableItem.clientWidth)
+
+    // One page check for all three: the document is a single measurement, and
+    // any of the three escaping its row shows up here.
     await expectNoHorizontalOverflow(page)
   })
 
@@ -338,12 +437,32 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // titles truncate", it was EVERY title truncating. The squeeze was a
     // flex-distribution result — the two header buttons taking the row — which is
     // why relaxing a `maxWidth` could not have discharged it, and why this case
-    // is kept separate from the long-title one above: it is the assertion that
-    // fails if the header ever goes back to sharing one row at `xs`.
+    // is kept separate from the long-title one above.
+    //
+    // CORRECTED AT REVIEW PASS 2. This comment used to claim the case "is the
+    // assertion that fails if the header ever goes back to sharing one row at
+    // `xs`". That was false, by the measurement the sibling test's own comment
+    // records: with the single-row header restored and `noWrap` merely left off,
+    // the title collapses to report #3's 68px column and `expectNotClipped`
+    // reads `68 === 68` / `504 === 504` — green while the squeeze is on screen.
+    // Post-fix the title carries no `overflow: hidden` at all, so BOTH branches
+    // of `expectNotClipped` are equalities by construction (support/layout.ts
+    // says exactly this in its header) and the line below gates only the
+    // re-introduction of `noWrap`. The geometry underneath is what makes the
+    // claim true — the same shape as the long-title test, kept here because
+    // THIS is the case that says the squeeze hit every title, not just long ones.
     test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
 
     await shortListAtFloor(page, testInfo, 'shorttitle')
     await expectNotClipped(listTitle(page))
+
+    const shortTitleBox = await boxOf(listTitle(page), 'the short list title')
+    const shortAddCategory = page.getByTestId('add-category-button')
+    const shortAddCategoryBox = await boxOf(shortAddCategory, 'the add-category button')
+    expect(
+      shortAddCategoryBox.y,
+      `the buttons must take their OWN ROW below even a short title (title bottom ${shortTitleBox.y + shortTitleBox.height}, button top ${shortAddCategoryBox.y})`,
+    ).toBeGreaterThanOrEqual(shortTitleBox.y + shortTitleBox.height)
   })
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -526,8 +645,8 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // flex siblings instead, so this is the assertion that the flex row really
     // does the job the hardcoded cap was doing. A guard, not evidence: it held
     // pre-fix as well — by the cap.
-    const nameBox = (await itemName(page, LONG_ITEM_NAME).boundingBox())!
-    const editBox = (await row.getByTestId('edit-item-button').boundingBox())!
+    const nameBox = await boxOf(itemName(page, LONG_ITEM_NAME), 'the item name')
+    const editBox = await boxOf(row.getByTestId('edit-item-button'), 'the item edit control')
     expect(
       nameBox.x + nameBox.width,
       'the item name must not run under its controls',
@@ -543,7 +662,8 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
   test('[P1] above the breakpoint the header keeps title and buttons on one row', async ({
     page,
   }, testInfo) => {
-    // `md`'s ruling was that the buttons take their own row BELOW `sm`. The cost
+    // The user's ruling (2026-09-05) was that the buttons take their own row
+    // BELOW `sm`. The cost
     // accepted was one row of vertical space on phones — not on every screen, and
     // the GEOMETRY half of this test is what holds the fix to that. It catches a
     // `flexDirection: 'column'` written without a breakpoint, which is the
@@ -576,8 +696,8 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
 
     // Shares one row: beside, and vertically overlapping.
     const oneRow = async (label: string) => {
-      const title = (await listTitle(page).boundingBox())!
-      const addCategory = (await page.getByTestId('add-category-button').boundingBox())!
+      const title = await boxOf(listTitle(page), 'the list title')
+      const addCategory = await boxOf(page.getByTestId('add-category-button'), 'the add-category button')
       expect(addCategory.x, `${label}: the buttons sit beside the title, not beneath it`).toBeGreaterThanOrEqual(
         title.x + title.width,
       )
@@ -592,15 +712,25 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // `flexDirection` from `sm` to `md` leaves BOTH green while putting the
     // two-row header on every tablet. Asserted from both sides of the one
     // breakpoint the fix names.
+    // Clipping and page overflow at BOTH boundary widths, added at review Pass 2.
+    // The geometry below says which row things are on; it cannot see a title
+    // clipped by a reinstated cap, nor a header that widens the document at
+    // exactly the width where the layout changes — the two widths least covered
+    // by everything else in this file, which all measure 320px or the project's
+    // own viewport.
     await page.setViewportSize({width: SM_BREAKPOINT_PX - 1, height: 900})
-    const belowTitle = (await listTitle(page).boundingBox())!
-    const belowButton = (await page.getByTestId('add-category-button').boundingBox())!
+    await expectNotClipped(listTitle(page))
+    await expectNoHorizontalOverflow(page)
+    const belowTitle = await boxOf(listTitle(page), 'the list title below sm')
+    const belowButton = await boxOf(page.getByTestId('add-category-button'), 'the add-category button below sm')
     expect(
       belowButton.y,
       `just below sm (${SM_BREAKPOINT_PX - 1}px) the buttons take their own row`,
     ).toBeGreaterThanOrEqual(belowTitle.y + belowTitle.height)
 
     await page.setViewportSize({width: SM_BREAKPOINT_PX, height: 900})
+    await expectNotClipped(listTitle(page))
+    await expectNoHorizontalOverflow(page)
     await oneRow(`at sm (${SM_BREAKPOINT_PX}px)`)
   })
 })
