@@ -1236,7 +1236,10 @@ entry is superseded by the Stories 7.8+7.9 size-driven entry. Both are in the ar
   single unwrapped line is also not reviewable by diff — any edit rewrites the whole line. This is the established
   house convention across Epics 5–8, so changing it is a process decision, not a story fix. **Partially eased
   2026-09-07:** `project-context.md` was retired, removing one of the drifting copies; the ledger/sprint-status pair
-  remains, and Story 8.2's entry is itself a ~6,000-character single line.
+  remains, and Story 8.2's entry is itself a ~6,000-character single line. **Further eased 2026-09-07:** every Epic 1–7
+  `done` entry was reduced to a `# <date> (<commit>)` stub (98,171 → 30,887 bytes), so the duplicated narrative for
+  closed epics now lives only in the specs and epic retros. Epic 8's entries are untouched while the epic is in flight,
+  so the underlying convention is unchanged and this entry stays open.
 
 ## Deferred from: code review of 7-5-home-resolution-and-inert-home-link (2026-08-11)
 
