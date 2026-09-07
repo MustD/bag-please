@@ -145,6 +145,13 @@ export default defineConfig({
   //         (An earlier draft of this row said "+4 untagged tests, +2 runs each",
   //         which is 8 runs and was wrong in both terms — caught at review. The
   //         arithmetic to check is tests x 2 = the delta in the total.)
+  //       2026-09-07 (Story 8.3): 192 = 95 / 95 / 1 / 1  (+12 untagged FR60 tests
+  //         at +2 runs each = +24 runs, against that 168), OF WHICH 18 ARE SKIPS
+  //         — 17 in chromium (the 15 mobile-only narrow-viewport tests plus the
+  //         two FR60 tests that need the Pixel 7 projects' touch emulation: the
+  //         touch-scroll guard and the pointercancel guard) and 1 in mobile (the
+  //         above-the-breakpoint header test). Count them per project: the two
+  //         columns are equal while 18 of the runs never execute.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

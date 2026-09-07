@@ -253,11 +253,12 @@ test('FR57 — the shopping view\'s item rows still offer check-off only', async
   const row = page.getByTestId(`shopping-item-${itemName}`)
   await expect(row).toBeVisible()
 
-  // Check-off is the row's only affordance: the checkbox is present and works…
-  const checkbox = page.getByTestId(`shopping-item-checkbox-${itemName}`).getByRole('checkbox')
-  await expect(checkbox).toBeVisible()
-  await checkbox.click()
-  await expect(checkbox).toBeChecked()
+  // Check-off is the row's only affordance — and since Story 8.3 the row IS that
+  // affordance: it carries role=checkbox + aria-checked itself, so the dedicated
+  // `shopping-item-checkbox-<name>` testid is gone and this is the row locator.
+  await expect(row).toHaveRole('checkbox')
+  await row.click()
+  await expect(row).toBeChecked()
 
   // …and no management control leaked onto this surface (AR-E6-5).
   await expect(page.getByTestId('remove-item-button')).toHaveCount(0)

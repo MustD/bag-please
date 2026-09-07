@@ -1,10 +1,9 @@
-import {type ChangeEvent, type MouseEvent, useEffect, useMemo, useState} from 'react'
+import {type MouseEvent, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
-import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
@@ -21,6 +20,8 @@ import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import CheckBoxIcon from '@mui/icons-material/CheckBox'
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import {
   CategoriesQuery,
@@ -47,6 +48,196 @@ interface Group {
   key: string
   name: string
   items: ReadonlyArray<ListItemType>
+}
+
+// How far a pointer may travel between down and up and still count as a tap
+// (Story 8.3, FR60). A tap and the first moments of a scroll are the SAME
+// gesture on a touch screen, so activation cannot be "pointer went down here" —
+// it has to be "pointer went down and came back up without going anywhere".
+const MOVE_TOLERANCE_PX = 10
+
+interface ShoppingItemRowProps {
+  item: ListItemType
+  onToggle: (item: ListItemType, nextChecked: boolean) => void
+}
+
+// One shopping row, and — since Story 8.3 (FR60) — ONE CONTROL. The row element
+// itself is the checkbox: it carries the role, the accessible name, the checked
+// state and the only tab stop. There is deliberately no interactive element
+// inside it (the MUI `Checkbox` that used to live here always renders a real
+// `<input>`, which would be a control nested in a control: two tab stops, two
+// names, two states). The visible box is now a presentational icon.
+//
+// This is a component rather than inline JSX purely because `down` is per-row
+// state and hooks cannot be called inside the `groups.map` callback.
+//
+// Activation is pointer-based with a movement threshold, plus a keyboard
+// handler. `onClick` is deliberately NOT also attached: a `click` still fires
+// after a moved touch, so it would both double-fire alongside `onPointerUp` and
+// defeat the scroll guard. `touch-action` is left at its default so the row
+// still scrolls.
+function ShoppingItemRow({item, onToggle}: ShoppingItemRowProps) {
+  const down = useRef<{x: number; y: number} | null>(null)
+  const descriptionId = useId()
+
+  // `role="checkbox"` makes the row's children PRESENTATIONAL, and the
+  // author-supplied `aria-label` displaces name-from-content on top of that — so
+  // the store chip and the `addedBy` name, which used to be plain row content
+  // beside a labelled checkbox, would otherwise be announced by nothing at all.
+  // They come back as the row's accessible DESCRIPTION, which is computed from a
+  // separate traversal and so leaves the accessible NAME exactly
+  // `Toggle ${item.name}` (an assertion pins that string).
+  const descriptionParts = [
+    item.store ? `Store: ${item.store}` : null,
+    item.addedBy ? `Added by ${item.addedBy}` : null,
+  ].filter((part): part is string => part !== null)
+
+  return (
+    <Box
+      data-testid={`shopping-item-${item.name}`}
+      role="checkbox"
+      aria-checked={item.checked}
+      aria-label={`Toggle ${item.name}`}
+      aria-describedby={descriptionParts.length > 0 ? descriptionId : undefined}
+      tabIndex={0}
+      onPointerDown={e => {
+        // Primary button, primary pointer only. The MUI Checkbox this replaced
+        // answered only to a primary activation; without these guards a
+        // right-click, a middle-click or a second simultaneous finger toggles
+        // the item.
+        if (e.button !== 0 || !e.isPrimary) return
+        // Capture, so `pointerdown` and `pointerup` are strictly paired on THIS
+        // row. Without it a gesture that starts here and is released elsewhere
+        // leaves `down.current` populated, and a later stray `pointerup` on this
+        // row is then measured against that stale origin.
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          // The pointer is already gone; the `!start` guard below still holds.
+        }
+        down.current = {x: e.clientX, y: e.clientY}
+      }}
+      onPointerCancel={() => {
+        down.current = null
+      }}
+      onPointerUp={e => {
+        if (e.button !== 0 || !e.isPrimary) return
+        const start = down.current
+        down.current = null
+        if (!start) return
+        // Moved too far: this was a scroll (or a drag), not a tap.
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > MOVE_TOLERANCE_PX) return
+        onToggle(item, !item.checked)
+      }}
+      onClick={e => {
+        // ONLY the synthetic click. Assistive technology and voice control
+        // activate a control by dispatching a bare `click` with no pointer
+        // sequence at all, which the pointer handlers above cannot see; such a
+        // click has `detail === 0`, while every click generated by a real mouse
+        // or finger has `detail >= 1`. Gating on that is what lets this coexist
+        // with `onPointerUp` without double-firing, and leaves the scroll guard
+        // untouched (a moved touch produces no click, and would be `detail 1`
+        // if it did).
+        if (e.detail !== 0) return
+        onToggle(item, !item.checked)
+      }}
+      onKeyDown={e => {
+        if (e.key !== ' ' && e.key !== 'Enter') return
+        // A held key autorepeats; one activation per press, not per repeat.
+        if (e.repeat) return
+        // Ctrl/Meta/Alt + Space or Enter belongs to the browser or the OS.
+        if (e.ctrlKey || e.metaKey || e.altKey) return
+        // Space would otherwise scroll the page under the focused row.
+        e.preventDefault()
+        onToggle(item, !item.checked)
+      }}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        py: 1,
+        cursor: 'pointer',
+        userSelect: 'none',
+        '&:focus-visible': {
+          outline: '2px solid',
+          outlineColor: 'primary.main',
+          outlineOffset: '-2px',
+        },
+      }}
+    >
+      {/* Presentational only — the state it shows lives on the row above. */}
+      {item.checked ? (
+        <CheckBoxIcon
+          color="primary"
+          data-testid={`shopping-item-indicator-${item.name}`}
+          sx={{m: 1, flexShrink: 0}}
+        />
+      ) : (
+        <CheckBoxOutlineBlankIcon
+          color="action"
+          data-testid={`shopping-item-indicator-${item.name}`}
+          sx={{m: 1, flexShrink: 0}}
+        />
+      )}
+      <Box sx={{flexGrow: 1, minWidth: 0}}>
+        <Typography
+          noWrap
+          color="text.primary"
+          sx={{
+            textDecoration: item.checked ? 'line-through' : 'none',
+            opacity: item.checked ? 0.6 : 1,
+          }}
+        >
+          {item.name}
+        </Typography>
+        {item.store && (
+          <Chip
+            size="small"
+            variant="outlined"
+            icon={<StorefrontIcon/>}
+            label={item.store}
+            data-testid={`shopping-item-store-${item.name}`}
+            sx={{mt: 0.5}}
+          />
+        )}
+      </Box>
+      {item.addedBy && (
+        <Stack
+          direction="row"
+          spacing={0.75}
+          data-testid={`shopping-item-addedby-${item.name}`}
+          sx={{alignItems: 'center', flexShrink: 0}}
+        >
+          <Avatar sx={{width: 24, height: 24, fontSize: '0.75rem'}}>
+            {item.addedBy.charAt(0).toUpperCase()}
+          </Avatar>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{maxWidth: 100}}>
+            {item.addedBy}
+          </Typography>
+        </Stack>
+      )}
+      {descriptionParts.length > 0 && (
+        <Box
+          component="span"
+          id={descriptionId}
+          sx={{
+            // `width: 1` here would be MUI's 0-1 shorthand for 100%, which put a
+            // full-width box at the span's static position and scrolled the page
+            // horizontally at the 320px floor. Pixels, explicitly.
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+            clip: 'rect(0 0 0 0)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {descriptionParts.join('. ')}
+        </Box>
+      )}
+    </Box>
+  )
 }
 
 // List shopping view (Story 5.6, FR36/FR40/FR44/FR45/FR49/FR52/FR53). Items
@@ -234,8 +425,7 @@ export default function ListShoppingPage() {
     return <Navigate to="/lists" replace/>
   }
 
-  const handleToggle = async (item: ListItemType, event: ChangeEvent<HTMLInputElement>) => {
-    const nextChecked = event.target.checked
+  const handleToggle = async (item: ListItemType, nextChecked: boolean) => {
     setActionError(null)
     try {
       if (nextChecked) {
@@ -244,8 +434,8 @@ export default function ListShoppingPage() {
         await uncheckItem({variables: {id: item.id, listId}})
       }
     } catch (err) {
-      // The normalized cache is untouched on failure, so the checkbox reverts to
-      // the server state automatically; surface the reason inline.
+      // The normalized cache is untouched on failure, so the row's indicator
+      // reverts to the server state automatically; surface the reason inline.
       setActionError(graphqlErrorMessage(err))
     }
   }
@@ -405,55 +595,11 @@ export default function ListShoppingPage() {
                 <Divider/>
                 <Stack divider={<Divider/>}>
                   {group.items.map(item => (
-                    <Box
+                    <ShoppingItemRow
                       key={item.id}
-                      data-testid={`shopping-item-${item.name}`}
-                      sx={{display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1}}
-                    >
-                      <Checkbox
-                        checked={item.checked}
-                        onChange={e => void handleToggle(item, e)}
-                        slotProps={{input: {'aria-label': `Toggle ${item.name}`}}}
-                        data-testid={`shopping-item-checkbox-${item.name}`}
-                      />
-                      <Box sx={{flexGrow: 1, minWidth: 0}}>
-                        <Typography
-                          noWrap
-                          color="text.primary"
-                          sx={{
-                            textDecoration: item.checked ? 'line-through' : 'none',
-                            opacity: item.checked ? 0.6 : 1,
-                          }}
-                        >
-                          {item.name}
-                        </Typography>
-                        {item.store && (
-                          <Chip
-                            size="small"
-                            variant="outlined"
-                            icon={<StorefrontIcon/>}
-                            label={item.store}
-                            data-testid={`shopping-item-store-${item.name}`}
-                            sx={{mt: 0.5}}
-                          />
-                        )}
-                      </Box>
-                      {item.addedBy && (
-                        <Stack
-                          direction="row"
-                          spacing={0.75}
-                          data-testid={`shopping-item-addedby-${item.name}`}
-                          sx={{alignItems: 'center', flexShrink: 0}}
-                        >
-                          <Avatar sx={{width: 24, height: 24, fontSize: '0.75rem'}}>
-                            {item.addedBy.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Typography variant="caption" color="text.secondary" noWrap sx={{maxWidth: 100}}>
-                            {item.addedBy}
-                          </Typography>
-                        </Stack>
-                      )}
-                    </Box>
+                      item={item}
+                      onToggle={(target, nextChecked) => void handleToggle(target, nextChecked)}
+                    />
                   ))}
                 </Stack>
               </Paper>

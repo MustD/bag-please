@@ -213,9 +213,10 @@ test('FR40 — editing a checked item keeps it checked (full-document upsert reg
 
   // Check it off through the shopping UI.
   await page.goto(`/list/${listId}`)
-  const checkbox = page.getByTestId(`shopping-item-${before}`).getByRole('checkbox')
-  await checkbox.click()
-  await expect(checkbox).toBeChecked()
+  // Since Story 8.3 the row IS the checkbox — no checkbox descendant to reach.
+  const row = page.getByTestId(`shopping-item-${before}`)
+  await row.click()
+  await expect(row).toBeChecked()
 
   // Rename it from the management screen. `saveItem` is a full-document upsert,
   // so a payload missing `checked`/`store` would silently un-check the item and
@@ -230,7 +231,7 @@ test('FR40 — editing a checked item keeps it checked (full-document upsert reg
 
   // Still checked, still carrying its store.
   await page.goto(`/list/${listId}`)
-  await expect(page.getByTestId(`shopping-item-${after}`).getByRole('checkbox')).toBeChecked()
+  await expect(page.getByTestId(`shopping-item-${after}`)).toBeChecked()
   await expect(page.getByTestId(`shopping-item-store-${after}`)).toHaveText('Aldi')
 })
 

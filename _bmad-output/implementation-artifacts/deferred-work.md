@@ -195,10 +195,18 @@ at `e4c54dc`; a 2026-09-07 re-measure over the current tree is given where it mo
   anything else — see the archive). The rest — the inlined flow, the third password literal, the label-less username
   shape — stays OPEN on its own merits.
 
-- **Shopping-checkbox selector split.** 9 sites reach the checkbox as `shopping-item-<name>` +
-  `getByRole('checkbox')`; `navigation.spec.ts:316` alone uses a dedicated `shopping-item-checkbox-<name>` testid. Not
-  duplication so much as an inconsistency that a future helper would have to pick a side on. **Story 8.3 (check off an
-  item by tapping its row) will touch exactly this surface** — decide the side there rather than after.
+- ~~**Shopping-checkbox selector split.**~~ **CLOSED 2026-09-07 by Story 8.3 (`spec-8-3-check-off-an-item-by-tapping-its-row.md`).**
+  The split was: 9 sites reaching the checkbox as `shopping-item-<name>` + `getByRole('checkbox')`, and one dedicated
+  `shopping-item-checkbox-<name>` testid in `navigation.spec.ts`. **Decision: ONE selector — the row.** Story 8.3 made
+  the row element itself the control (`role="checkbox"` + `aria-checked` + the `Toggle <name>` accessible name on the
+  element carrying `data-testid="shopping-item-<name>"`), so the question dissolved rather than being settled by taste:
+  the MUI `Checkbox` is gone, there is no `<input>` left inside the row to reach, and the
+  `shopping-item-checkbox-<name>` testid was deleted. Counted off the diff, not estimated: **10 sites** —
+  `shopping.spec.ts` x7 (`:31`, `:43`, `:46`, `:47`, `:83`, `:192`, `:198` in the pre-change file),
+  `item-editing.spec.ts` x2 (`:216`, `:233`), `navigation.spec.ts` x1 (`:257` — that is where the dedicated
+  `shopping-item-checkbox-<name>` testid lived; the `:316` in the original entry above was already stale when it was
+  written). **Each site was visited, not sed'd** — a descendant `getByRole('checkbox')` now matches nothing, and in
+  `toHaveCount(0)`-shaped phrasings that would have passed silently instead of failing.
 
 - **`lists.spec.ts`'s four inline `addCategory`/`addItem` blocks are NOT a cleanup candidate — leave them.** Two are
   deliberately *weaker* than the shared helper (they omit the dialog assertions) and one is deliberately *stronger* (it
@@ -1833,8 +1841,12 @@ Archived — and **never infer production config from this repo**.
   (Corrected twice. The Story 8.2 review called this "the FOURTH instance", which read as an exhaustive audit; the
   correction then said "at least FOUR … see the entry below for the other three" while that entry names TWO. Verified
   by grep at review Pass 2 and again 2026-09-07: `noWrap` with a fixed pixel cap survives at exactly three sites —
-  `AppShell.tsx:192`, `ListsPage.tsx:195`, `AdminPage.tsx:200`. `ListShoppingPage.tsx:451` is a fourth `noWrap` +
-  numeric cap and is discussed, unresolved, in the entry below.)
+  `AppShell.tsx:192`, `ListsPage.tsx:195`, `AdminPage.tsx:200`. `ListShoppingPage.tsx:215` is a fourth `noWrap` +
+  numeric cap and is discussed, unresolved, in the entry below. **Re-measured 2026-09-07 after Story 8.3:** that
+  construct — the `addedBy` attribution `Typography`, `noWrap` + `maxWidth: 100` — moved from `:451` to `:215` when
+  the row was extracted into the `ShoppingItemRow` component, and `:451` is now the back link. Every
+  `ListShoppingPage.tsx` line number below this point in the file was written pre-8.3; the constructs, not the
+  numbers, are what the entries are about.)
   evidence: Measured 2026-09-05 at 320px (Pixel 7 descriptor at the floor, production image on :2080) with the 42-char
   username `averyveryverylongusernameindeed_1788637389`. The chip BOX is fine — x 120.6, width 180, right edge 300.6 ≤
   clientWidth 320, and `document.documentElement.scrollWidth === clientWidth === 320` — so NFR-E8-1's "inside the
@@ -1878,9 +1890,11 @@ Archived — and **never infer production config from this repo**.
   instead of a missing assertion.) Not fixed in Story 8.2 because both screens are outside its frozen scope, and, like
   the app-bar chip, each wants its own scoping decision rather than a fix smuggled into a story that was not asked for
   it. The cheap version is one `expectNotClipped` per screen at the floor; the fix is then the same cap removal Story
-  8.2 did. `ListShoppingPage.tsx:275/400/421` use `maxWidth: '100%'` and `:451` a 100px attribution chip. Called "a
+  8.2 did. `ListShoppingPage.tsx:275/400/421` use `maxWidth: '100%'` and `:451` a 100px attribution chip
+  (post-8.3: the attribution is `:215`, and the two surviving `maxWidth: '100%'` sites are `:464` and `:588`). Called "a
   different case, and deliberately not lumped in here" — a claim review Pass 2 flagged as asserted rather than
-  measured, and carried into the Pass 2 deferral below: `:451` is `noWrap` with a hard `maxWidth: 100`, the same
+  measured, and carried into the Pass 2 deferral below: `:451` (post-8.3 `:215`) is `noWrap` with a hard
+  `maxWidth: 100`, the same
   construct with a numeric cap, on the screen users spend the most time on, and `:421` is `noWrap` + `maxWidth: '100%'`
   inside a `minWidth: 0` flex box, which clips by exactly report #2's mechanism without a numeric cap. Neither has been
   measured at 320px.
@@ -1942,8 +1956,9 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   `320 === 320` while the list name is an ellipsis at `scrollWidth 380 > clientWidth 200`. `/admin` is rendered at the
   floor on every run by `admin.spec.ts` (no project guard) but carries no layout assertion at all. Neither Typography
   has a `data-testid`, so no spec can target them today. Belongs with the scoping story this file already asks for.
-- **`ListShoppingPage.tsx:421/:451` are dismissed as "a different case" without a measurement.** `:451` is `noWrap`
-  with a hard `maxWidth: 100` — the same construct with a numeric cap — on the screen users spend the most time on;
+- **`ListShoppingPage.tsx:421/:451` are dismissed as "a different case" without a measurement.** `:451` — **`:215`
+  since Story 8.3 moved the row into `ShoppingItemRow`; `:451` is now the back link** — is `noWrap` with a hard
+  `maxWidth: 100`, the same construct with a numeric cap, on the screen users spend the most time on;
   `:421` is `noWrap` + `maxWidth: '100%'` inside a `minWidth: 0` flex box, which clips by exactly report #2's
   mechanism without a numeric cap. Both are ruled out of scope on a one-line claim rather than the measurement this
   file demands of everything else. Measure both at 320px and file the numbers, or drop the framing.
