@@ -1,56 +1,40 @@
-# generated: 2026-05-08
-# last_updated: 2026-08-16
-# project: bag-please
-# project_key: NOKEY
-# tracking_system: file-system
-# story_location: _bmad-output/implementation-artifacts
-#
 # STATUS DEFINITIONS:
 # ==================
 # Epic Status:
 #   - backlog: Epic not yet started
 #   - in-progress: Epic actively being worked on
 #   - done: All stories in epic completed
-#
-# Epic Status Transitions:
-#   - backlog → in-progress: Automatically when first story is created (via create-story)
-#   - in-progress → done: Manually when all stories reach 'done' status
-#
+
 # Story Status:
 #   - backlog: Story only exists in epic file
-#   - ready-for-dev: Story file created in stories folder
+#   - ready-for-dev: Story file created, ready for development
 #   - in-progress: Developer actively working on implementation
-#   - review: Ready for code review (via Dev's code-review workflow)
+#   - review: Implementation complete, ready for review
 #   - done: Story completed
-#
+
 # Retrospective Status:
 #   - optional: Can be completed but not required
 #   - done: Retrospective has been completed
-#
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
 # WORKFLOW NOTES:
 # ===============
-# - Epic transitions to 'in-progress' automatically when first story is created
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
 # - Stories can be worked in parallel if team capacity allows
-# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
-
-generated: "2026-05-08"
-last_updated: "2026-09-06"  # Story 8.2 code-review Pass 2 closed: 8-2 review -> done. Epic 8 stays in-progress.
-#   PRIOR: last_updated: "2026-09-05 18:00"  # Story 8.2 through bmad-build review: 8-2 in-progress -> review. Epic 8 stays in-progress. Reconciled WITH the spec frontmatter rather than after it.
-#   PRIOR: last_updated: "2026-09-05 17:00"  # Story 8.2 implementation started via bmad-build: 8-2 backlog -> in-progress. epic-8 was already in-progress; nothing else touched.
-#   PRIOR: last_updated: "2026-09-05 16:00"  # Story 8.1 close-out after the bmad-review pass: 8-1 review -> done. Epic 8 stays in-progress. The story's own frontmatter had already said `done` while this file said `review` -- the two are now reconciled, and the review that justifies `done` is recorded as Pass 2 in the spec's Review Triage Log. DATE FORMAT: back to ISO 8601 (YYYY-MM-DD). The three rows below were written "09-05-2026", which is neither this file's prior convention nor unambiguous -- a reader cannot tell 5 September from 9 May. Their text is left verbatim; only this row's format is corrected, and future rows follow it.
-#   PRIOR: last_updated: "09-05-2026 15:00"  # Story 8.1 through bmad-build review: 8-1 in-progress -> review. Epic 8 stays in-progress.
-#   PRIOR: last_updated: "09-05-2026 14:00"  # Story 8.1 implementation started via bmad-build: epic-8 backlog -> in-progress, 8-1 backlog -> in-progress. Nothing else touched.
-#   PRIOR: last_updated: "09-05-2026 12:00"  # Epic 8 sprint planning. Epic 8 (Small UX Fixes From Real Use) added: 7 stories 8.1-8.7 + retrospective, all backlog. TWO reconciliations done in the same pass, both structural rather than status changes: (1) EPIC 3 RESTORED to epics.md -- it was executed from the Epic 2 retro and never written into the epic document, so its four done rows matched nothing and regeneration would have dropped them; the section was reconstructed from the two story files and epic-3-retro-2026-05-18.md, nothing invented. (2) TWENTY renamed keys transplanted at their existing "done" (2-0, 4-4, 5-6, 5-7, 6-1, 6-2, 7-1..7-6, 7-8..7-15) -- this file carried hand-shortened keys while the generator derives them from the story headings; no status moved, only the key spelling. The five action_items rows carrying status "closed" are again LEFT AS THEY ARE: "closed" is this file's own documented vocabulary (see the STATUS VOCABULARY block below), a script/file disagreement to fix in the script, not data to rewrite here.
-#   PRIOR: last_updated: "09-05-2026 12:00" # SS status reconciliation, no epic event. ONE row changed: Epic 7 D1 (merge epic7-maintenance into main) open -> done, verified at the tree rather than self-reported. Nothing else touched; the five action_items rows carrying status "closed" are LEFT AS THEY ARE -- sprint_plan.py warns "missing or unknown status" on each, but "closed" is this file's own documented vocabulary (see the STATUS VOCABULARY block below, introduced at the Epic 6 retro). That is a script/file disagreement to fix in the script, not data to rewrite here.
-#   PRIOR: last_updated: "2026-08-21"  # Epic 7 retrospective. epic-7 -> done, epic-7-retrospective -> done, and TWO action_items rows closed that Epic 7 had actually discharged but never marked: Epic 5's registrationEnabled race (Story 7.3) and Epic 6's B4 shared E2E module (Story 7.2). Epic 6 follow-through measured at 6/6. Nine new Epic 7 action items appended below -- four done in the retro, four as named next-epic story slots, one backlog.
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: '2026-05-08'
+last_updated: 09-08-2026 19:23
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
-
 development_status:
-  # Epic 1: User Authentication, Session Management & Identity
   epic-1: done
   1-1-user-entity-registration-backend: done
   1-2-login-token-system-session-security-backend: done
@@ -60,7 +44,6 @@ development_status:
   1-6-e2e-test-infrastructure-auth-flow-coverage: done
   epic-1-retrospective: done
 
-  # Epic 2: Admin User Management & Application Configuration
   epic-2: done
   2-0-remove-userstorage-simplify-userservice-to-direct-mongodb: done
   2-1-applicationconfig-entity-registration-toggle-backend: done
@@ -69,13 +52,11 @@ development_status:
   2-4-registration-toggle-ui-adaptive-login-screen: done
   epic-2-retrospective: done
 
-  # Epic 3: Technical Foundation
   epic-3: done
   3-1-deferred-work-triage-high-priority-fixes: done
   3-2-e2e-test-coverage-admin-panel: done
   epic-3-retrospective: done
 
-  # Epic 4: Personal Lists & Sharing
   epic-4: done
   4-1-list-entity-backend-crud-authorization-migration: done
   4-2-websocket-auth-per-list-subscription-scoping: done
@@ -87,7 +68,6 @@ development_status:
   4-8-frontend-lists-tab-list-management-bpavatar: done
   epic-4-retrospective: done
 
-  # Epic 5: Frontend Reframe — Vite + MUI + Caddy rebuild (backend untouched)
   epic-5: done
   5-1-foundation-vite-mui-caddy-apollo-shell: done
   5-2-authentication: done
@@ -98,54 +78,40 @@ development_status:
   5-7-sharing-membership: done
   epic-5-retrospective: done
 
-  # Epic 6: Item Editing & Home Navigation — frontend-only, backend frozen (AR-E6-0)
-  # Block added retroactively at the Epic 6 retrospective: the dev-auto flow does not own
-  # sprint tracking, so neither story was ever recorded here. This is the Epic 5 agreement
-  # ("sprint-status.yaml is reconciled at story close, whichever dev workflow ran") being
-  # enforced after the fact — see Epic 6 action item A2.
   epic-6: done
   6-1-edit-an-item-name-category-store-with-suggestions: done
   6-2-back-to-home-back-to-lists-navigation: done
   epic-6-retrospective: done
 
-  # Epic 7: Item Integrity, a Trustworthy Test Suite & Dependency Currency
-  # Block created at epic OPEN (2026-07-30), not retroactively — the implementation-readiness
-  # review found Epic 7 entirely absent from this file, which is Epic 6 action item A2
-  # recurring verbatim. The Epic 5 agreement ("reconciled at story close, whichever dev
-  # workflow ran") cannot create a block that never existed at open, so the epic and all
-  # fifteen story keys are registered up front. Story order is the epic's design, not a
-  # preference — each step gates the next (see the Epic 7 story-order rationale in epics.md).
-  epic-7: done  # 2026-08-21 (8116f26); epic-7-retro-2026-08-21.md
+  epic-7: done
   7-1-bring-the-e2e-suite-inside-the-frontend-quality-gates: done
   7-2-extract-one-shared-e2e-support-module: done
   7-3-delete-the-registrationenabled-race: done
   7-4-an-item-edit-modifies-the-stored-item-instead-of-reconstruct: done
-  7-5-resolve-home-correctly-and-make-the-home-link-inert-when-alr: done  # 2026-08-11 (7533d1d)
-  7-6-backend-safety-fixes-riding-the-same-unfreeze: done  # 2026-08-12 (6e4c38e)
-  7-7-minor-and-patch-dependency-sweep: done  # 2026-08-12 (899da7e)
-  7-8-types-node-25-26: done  # 2026-08-13 (6ce8e91)
-  7-9-vite-7-8-with-vitejs-plugin-react-5-6: done  # 2026-08-13 (9efa85c)
-  7-10-typescript-6-7: done  # 2026-08-15 (8874a1f); held back, not bumped
-  7-11-eslint-9-10: done  # 2026-08-16 (8078627)
-  7-12-graphql-kotlin-9-10-with-kotlin: done  # 2026-08-16 (f796948)
-  7-13-graphql-16-17: done  # 2026-08-19 (9f9e36c)
-  7-14-install-bag-please-as-a-real-app: done  # 2026-08-20 (53ad4a3)
-  7-15-give-the-dev-auto-warnings-a-measured-verdict: done  # 2026-08-21 (6cbd004)
-  epic-7-retrospective: done  # 2026-08-21 (8116f26)
+  7-5-resolve-home-correctly-and-make-the-home-link-inert-when-alr: done
+  7-6-backend-safety-fixes-riding-the-same-unfreeze: done
+  7-7-minor-and-patch-dependency-sweep: done
+  7-8-types-node-25-26: done
+  7-9-vite-7-8-with-vitejs-plugin-react-5-6: done
+  7-10-typescript-6-7: done
+  7-11-eslint-9-10: done
+  7-12-graphql-kotlin-9-10-with-kotlin: done
+  7-13-graphql-16-17: done
+  7-14-install-bag-please-as-a-real-app: done
+  7-15-give-the-dev-auto-warnings-a-measured-verdict: done
+  epic-7-retrospective: done
 
   epic-8: in-progress
   8-1-move-the-mobile-gate-to-the-width-people-actually-use: done
-  8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone: done  # 2026-09-06, closed at code-review Pass 2 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 34 raw findings -> 2 decision-needed, 8 patch, 5 defer, 19 rejected). Both decisions went to md and both were RATIFIED rather than worked around, which is the point: (1) the story deleted the `sm` caps too, so DESKTOP RENDERING CHANGED against a frozen "Always" -- the pre-fix title clipped at `scrollWidth 619 > clientWidth 460` at 1280px, truncating long list names on a desktop screen with ~800px of empty row beside them, so the constraint was written believing a defect was narrow-only when it was not; the frozen line is struck through and renegotiated in place, at the cost of one row-height increase on desktop lists whose item names exceed a line. (2) NFR-E8-6's unqualified "observe EVERY new assertion failing pre-fix" now exempts an assertion LABELLED as a guard, since a guard cannot be red against a layout it already satisfied -- but the exemption explicitly does not cover an assertion that merely was not run, and Pass 1's patch-entry-3 assertions were red-phased rather than excused. THE RED PHASE PAID FOR ITSELF, five defect builds against rebuilt production images: two of patch-entry-3's four assertions went red (`page scrolls horizontally, 352 > 320`, both floor tests), and the other two -- `expectInsideViewport` on the item and category names -- are UNFALSIFIABLE and now labelled as guards: the name is the LEFTMOST box on its row, so every control to its right leaves the viewport first and an earlier assertion always fires, while any defect strong enough to push the name itself off-screen breaks the fixture's add-item dialog instead. FOUR NEW ASSERTIONS RED: short-title button-row geometry (`title bottom 203.06, button top 142.83`), the two-line bound at the floor (`scrollHeight 110, clientHeight 110` with the clamp deleted), the boundary clip check at 599px (`619 > 200`), and the unbreakable ITEM name (`scrollWidth 390 > clientWidth 176`). TWO ASSERTIONS I ADDED WERE WRONG AND ONLY THE RED PHASE SAID SO: `expectInsideViewport` on the unbreakable names PASSED with the guard deleted (the item sits behind the clamp's `overflow: hidden`, the category's box is pinned by its flex row while the text spills invisibly -- containment cannot see this defect), and `expectNotClipped` on the unbreakable ITEM name FAILED on the clean build at `scrollHeight 66 > clientHeight 44`, because a word long enough to exercise `overflowWrap` cannot also fit the two-line bound -- it was asserting the bound away. Both narrowed to the width branch, which is the half `overflowWrap` actually owns. Other patches: the SHORT-title test was hollow and its comment claimed the opposite of what Pass 1 had measured; nothing at the floor asserted the clamp bounds anything; the boundary half checked geometry only; `Number.isFinite(lineHeight)` admits 0 (making `lines` Infinity); and three factual corrections in `deferred-work.md` (the census said "at least FOUR ... see the entry below for the other three" while that entry names TWO -- grep says exactly three sites survive; "/admin is not visited at the floor at all" is false, it is visited and merely unasserted; and an unplaceable 166-test count labelled as the intermediate state it was). FIVE DEFERRALS, all filed with evidence: `epic-8-context.md`'s recompile dropped Story 8.4/8.5 contract detail Pass 1 did not restore (the filter/search AND-conjunction, the orphan group's absence clause); NFR-E8-1 was loosened in that same file by the story that needed the carve-out, naming itself as precedent, while three unaudited caps already violate the tightened wording; `/lists` and `/admin` clip at the floor with no assertion holding the debt visible; `ListShoppingPage.tsx:421/:451` are ruled "a different case" without the measurement this ledger demands of everything else; and `LONG_ITEM_NAME` may sit on the two-line boundary with no recorded margin (medium, UNVERIFIED -- settle by measuring it). Four verified spec-record inconsistencies are listed under Rejected rather than fixed, because the review's own rule forbids a finding whose fix edits the spec under review: the Pass 1 triage header says "31 findings" over 23 rows, "the seven patch entries" over 15 patch rows, the Implementation Notes still describe FR40 assertions Pass 1 replaced, and the "Green after" line still reports the superseded 162/149/13. Worth a hand correction at the epic retro. GATES on the restored tree: lint 0, build 0, `git diff --stat bp_back/` empty, and a full `--retries=0` run against a freshly rebuilt production image at 152 passed / 16 skipped / 0 failed = 168 = 83/83/1/1 -- UNCHANGED, because Pass 2 added no `test()` block, only assertions inside existing ones.
-  8-3-check-off-an-item-by-tapping-its-row: backlog
-  8-4-one-filter-and-search-on-both-list-screens: backlog
+  8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone: done
+  8-3-check-off-an-item-by-tapping-its-row: done
+  8-4-one-filter-and-search-on-both-list-screens: done
   8-5-the-same-list-reads-the-same-way-on-both-screens: backlog
   8-6-rename-a-category-instead-of-destroying-it: backlog
   8-7-write-down-the-design-this-app-actually-has: backlog
   epic-8-retrospective: optional
-# STATUS VOCABULARY: open | in-progress | done | closed
-#   closed = deliberately retired without being executed, with a recorded reason.
-#            Introduced at the Epic 6 retro, where Epic 5's action items came back 0/7
-#            and four of them were retired rather than carried a third time.
+
+# Action items committed during retrospectives (section created by the retrospective workflow)
 action_items:
   - epic: 7
     action: "Re-check typescript-eslint for TypeScript 7 support before any future
@@ -157,7 +123,7 @@ action_items:
   - epic: 4
     action: "Gradle MCP evaluation — adopt or formally close"
     owner: "Winston"
-    status: closed  # Epic 6 retro: retired after slipping 5x (Epics 2-5). The wrapper has since moved to Gradle 9.6.1, so the original evaluation question is stale. Not carried forward.
+    status: done  # Epic 6 retro: retired after slipping 5x (Epics 2-5). The wrapper has since moved to Gradle 9.6.1, so the original evaluation question is stale. Not carried forward.
   - epic: 4
     action: "Enforce E2E requirement at story creation time"
     owner: "Amelia"
@@ -173,7 +139,7 @@ action_items:
       refresh -> refresh-fail -> /auth?expired=1), orphaned across the 5.4 -> 5.5
       workflow handoff"
     owner: "md"
-    status: closed  # Epic 6 retro: closed by decision. The wiring exists and was hand-verified; automated coverage is deliberately not pursued.
+    status: done  # Epic 6 retro: closed by decision. The wiring exists and was hand-verified; automated coverage is deliberately not pursued.
   - epic: 5
     action: "Fix the shared registrationEnabled E2E race at the source instead of
       relying on CI retries: 2"
@@ -183,17 +149,17 @@ action_items:
     action: "Lower KTOR_RATE_LIMIT_ATTEMPTS for a production profile — 6000 in docker-compose.yaml
       disables the auth limiter in the deployed stack"
     owner: "Winston"
-    status: closed  # Epic 6 retro: production runs a separate compose/env held on the server only (deliberate, for security). The 6000 value is dev/E2E-only as intended. Nothing to change in this repo.
+    status: done  # Epic 6 retro: production runs a separate compose/env held on the server only (deliberate, for security). The 6000 value is dev/E2E-only as intended. Nothing to change in this repo.
   - epic: 5
     action: "Validate the FR47 migration path against a production DB snapshot, idempotent
       on re-run (open since Epic 4)"
     owner: "md"
-    status: closed  # Epic 6 retro: discharged by the real deployment. The migration ran against production data and succeeded; it is idempotent via the app_migrations 'epic4-list-seed' record and cannot re-run. Unvalidated but also unrepeatable — carrying it further was theatre.
+    status: done  # Epic 6 retro: discharged by the real deployment. The migration ran against production data and succeeded; it is idempotent via the app_migrations 'epic4-list-seed' record and cannot re-run. Unvalidated but also unrepeatable — carrying it further was theatre.
   - epic: 5
     action: "Inspect the dev-auto 'warnings: [oversized]' signal carried by all three
       spec files before the next dev-auto run"
     owner: "Amelia"
-    status: closed  # Story 7.15 (2026-08-21) discharged it with a measured, mixed verdict, encoded in _bmad/custom/bmad-dev-auto.toml as workflow.persistent_facts (read at SKILL.md activation Step 3, before the warning is stamped). `oversized` was mis-calibrated -- it fired on 6 of 6 specs at 1.70x-3.72x the 1600 ceiling and none was ever trimmed -- and is recalibrated to 6000 tokens on the planning-authored body. `multiple-goals` is NOT recalibrated: 1/1 correct, and an on_complete hook now forces the terminal result to name both goals. Spec size does not predict review findings (Spearman rho = 0.000). Closed at review of Story 7.15: this row was left open by the story's first pass, which closed only deferred-work.md -- the retro ledger being the thing that drove the slip count.
+    status: done  # Story 7.15 (2026-08-21) discharged it with a measured, mixed verdict, encoded in _bmad/custom/bmad-dev-auto.toml as workflow.persistent_facts (read at SKILL.md activation Step 3, before the warning is stamped). `oversized` was mis-calibrated -- it fired on 6 of 6 specs at 1.70x-3.72x the 1600 ceiling and none was ever trimmed -- and is recalibrated to 6000 tokens on the planning-authored body. `multiple-goals` is NOT recalibrated: 1/1 correct, and an on_complete hook now forces the terminal result to name both goals. Spec size does not predict review findings (Spearman rho = 0.000). Closed at review of Story 7.15: this row was left open by the story's first pass, which closed only deferred-work.md -- the retro ledger being the thing that drove the slip count.
 
   # --- Epic 6 ---
   # Recording change (Epic 6 retro): Epic 5's items went 0/7 while its *agreements* largely held.
