@@ -159,6 +159,21 @@ export default defineConfig({
   //         the 2026-09-07 row plus the new mobile-only floor case for the
   //         category filter) and 1 in mobile (the above-the-breakpoint header
   //         test). Measured with the command above on the post-fix build.
+  //       2026-09-08 (Story 8.5): 214 = 106 / 106 / 1 / 1  (+5 untagged FR62 tests
+  //         at +2 runs each = +10 runs, against that 204: the by-name ordering
+  //         comparison across both screens, the orphaned-item `Uncategorized`
+  //         group on /lists/:id, and THREE duplicate-name ordering tests in the
+  //         new `e2e/order.spec.ts`), OF WHICH 19 ARE SKIPS — UNCHANGED from the
+  //         Story 8.4 row, 18 in chromium and 1 in mobile, because none of the
+  //         five carries a project guard. Counts measured with the command above
+  //         on the post-fix build; the skip SPLIT read off a `--reporter=json`
+  //         run rather than inferred from the total.
+  //         `order.spec.ts` is the file's first spec with NO `page` fixture — it
+  //         asserts the exported `groupItemsByCategory` directly, because the
+  //         duplicate-name case it covers is unobservable through name-keyed
+  //         testids. It still collects in both viewport projects (it is
+  //         untagged), so it obeys the +2-runs-per-test rule above and costs no
+  //         browser; do not read "2 projects" here as duplicated browser work.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

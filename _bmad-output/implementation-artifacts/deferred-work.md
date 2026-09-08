@@ -357,9 +357,17 @@ decision rather than fixing an oversight.
   copies call `byCreatedAtAsc`, and `grep -rn "createdAt.localeCompare" bp_front/src/` is zero — but that is a
   measurement, not a guard. `grep -rn "localeCompare" bp_front/src/` still returns legitimate *name* sorts, so a blanket
   ban is not the answer. The real guard is a lint rule scoped to the `createdAt` property, or a convention that any
-  timestamp ordering imports the shared comparator. **Story 8.5 ("the same list reads the same way on both screens")
-  adds a shared ordering comparator and is the natural place to land the guard alongside it.** The cost of rediscovery
-  is one more ~1-in-1000 wrong-list bug.
+  timestamp ordering imports the shared comparator. ~~**Story 8.5 ("the same list reads the same way on both screens")
+  adds a shared ordering comparator and is the natural place to land the guard alongside it.**~~ The cost of
+  rediscovery is one more ~1-in-1000 wrong-list bug.
+  **STILL OPEN after Story 8.5 (2026-09-08), and the routing above is half-discharged.** 8.5 landed the *module* half
+  — `bp_front/src/lib/lists/order.ts` now holds `byCreatedAtAsc` and the new `byName`, so "any ordering imports the
+  shared comparator" is a real convention with a real home — but it did **not** land the lint rule, which was outside
+  its AC scope and explicitly on its `Never` list. So the convention exists and nothing enforces it. What is left is
+  unchanged in substance: a rule scoped to the `createdAt` property (a blanket `localeCompare` ban is still wrong —
+  `order.ts:69` and `StoreField.tsx:37` are legitimate name sorts). **No story is named for it**; naming one ahead of
+  a story that has a real reason to be in the lint config is the mis-routing pattern this file has already recorded
+  twice.
 
 - **The observe mode is cache-only, so on a cold `Lists` cache the link is briefly LIVE on the very route it resolves
   to** — one wasted click in a window measured in milliseconds, after which the answer is known and the link goes
@@ -1541,11 +1549,13 @@ link, the non-transactional cascade, the widened `eslint .` glob) are cross-refe
   on `mode === 'resolve'`. Filed rather than patched because it is speculative about upstream behaviour. Pairs with the
   unreachable-`error`-branch entry under the 7.5 review above.
 
-- **`byCreatedAtAsc` and `useHomePath` share a module, so a pure sort helper drags in `useQuery` + `useAuth`.**
-  `homePath.ts` is imported by `ListShoppingPage.tsx:36` for the comparator alone. Design nit; the single-source
-  requirement (AR-E7-8) is about the *home path*, not the comparator, so a `lib/lists/order.ts` split would not violate
-  it. No runtime cost today. **Story 8.5 introduces the shared ordering comparator for both list screens and is the
-  natural moment to do the split** — otherwise a third consumer imports the auth hook to sort.
+- ~~**`byCreatedAtAsc` and `useHomePath` share a module, so a pure sort helper drags in `useQuery` + `useAuth`.**~~
+  **CLOSED — DELIVERED by Story 8.5 (`spec-8-5-the-same-list-reads-the-same-way-on-both-screens.md`, 2026-09-08).**
+  `byCreatedAtAsc` now lives in `bp_front/src/lib/lists/order.ts` with its full comment block; `homePath.ts` imports
+  it and re-exports nothing, so there is one import path and `useHomePath` is otherwise untouched.
+  `ListShoppingPage.tsx` imports the comparator from `order.ts` and no longer reaches into `homePath.ts` at all.
+  The split was made exactly as this entry predicted it should be — a `lib/lists/order.ts` module — and AR-E7-8 is
+  unaffected, since it is about the home path and not the comparator.
 
 - **The new backend tests are calibrated against the rate limiter's exact 5-per-60 s budget.** `ItemLifecycleTest.kt`
   and `ListSharingTest.kt` carry comments naming their auth-call ceilings ("A third here would return 429";
@@ -2002,3 +2012,53 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   much — `item-editing.spec.ts` records `66 vs 44` at 360px and there is no equivalent at the floor. **What would
   settle it:** measure `scrollHeight`/`clientHeight` for `LONG_ITEM_NAME` at 320px and record the margin, or pick a
   name with slack.
+
+## Deferred from: Story 8.5 — the same list reads the same way on both screens (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-the-same-list-reads-the-same-way-on-both-screens.md`
+  status: **OPEN — the orphan CAUSE. Story 8.5 filed it rather than fixing it (its AC6 forbade the fix).**
+  summary: `ListDetailPage`'s remove-category confirm is a CLIENT-SIDE delete loop over the items that client happens
+  to hold, so any item added by another client since the last refetch survives its category and is left pointing at a
+  dangling category id.
+  evidence: `bp_front/src/routes/ListDetailPage.tsx` — the confirm handler runs
+  `for (const item of items.filter(i => i.category === target.id)) await deleteItem(...)` and then `deleteCategory`.
+  `items` is this render's Apollo data, and `/lists/:id` is refetch-driven with no subscription (AR-E8-6), so the set
+  is stale by construction whenever anyone else has written. **Reachable through the UI with ONE user and no API
+  shortcut**, which is how Story 8.5's `FR62 — an item orphaned by a category removal…` spec in
+  `bp_front/e2e/lists.spec.ts` produces its fixture: tab A opens the list, tab B adds two items to a category tab A
+  has already loaded, tab A removes that category and deletes only the item it knew about. The loop is also not atomic
+  — a failure partway leaves items deleted and the category intact.
+  **Why 8.5 did not fix it:** making the delete a single server-side cascade is a backend change, and the AR-E8-0
+  backend freeze holds for the rest of Epic 8 — nothing else in the epic needs it unfrozen. It would also do nothing
+  for orphans already in the data, which is the half users feel. **What 8.5 DID deliver is the mitigation, not the
+  fix:** orphans are now visible and recoverable on `/lists/:id` in the synthetic `Uncategorized` group, with each
+  orphaned item's own edit and remove controls. Before that they were visible on `/list/:id` and unreachable
+  everywhere, i.e. recoverable only with database access.
+  **Shape of the real fix:** `deleteCategory` cascades to the category's items server-side, in `ItemService`/
+  `CategoryService`, and the client loop is deleted. Pairs with the standing "`Item.category` has no schema-level
+  referential integrity" entry under the Story 7.4 section — same missing invariant, other end.
+  **One rough edge on the mitigation, recorded here rather than patched:** `EditItemDialog` seeds `categoryId` from
+  `item.category`, so an orphan's dialog opens with a BLANK `Select` (the stored id is out of range; MUI's warning is
+  dev-only and the E2E runs the production build). Picking a category is the recovery and it works — that is AC4 and
+  it is asserted. But saving WITHOUT touching the Select hits the dialog's `nothingChanged` guard and closes silently,
+  leaving the orphan orphaned with no feedback. Out of Story 8.5's scope: no AC covers it, and `EditItemDialog.tsx`
+  edits are routed by the standing entry above to "the first story that actually edits that file".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-the-same-list-reads-the-same-way-on-both-screens.md`
+  status: **DECIDED 2026-09-08 — closed by decision. Settles the question Story 8.4 deferred to 8.5.**
+  summary: ~~Whether the shared category filter should offer an `Uncategorized` OPTION, so the synthetic bucket is
+  reachable through the filter on both screens.~~ **Decision: NO. Not built, and it should not be built in this
+  shape.**
+  evidence: Story 8.4 left three findings pointing at one gap — selecting any category always hides orphaned items,
+  and no menu option selects them — and asked Story 8.5 to settle it "while it is in that code". 8.5 was in that code
+  and settled it as no. **Why:** (1) no AC and no bug report asks for it — 8.5's ACs ask that orphans be *visible and
+  recoverable*, which the `Uncategorized` group delivers on both screens, and a filter option is a different feature;
+  (2) the mechanism does not work as posed. An option would have to put a synthetic id into
+  `ItemFilterValue.categoryIds`, and `useItemFilter`'s stale-selection prune (`itemFilter.ts`) drops **every** id not
+  present in `categories` on the render after it is set — so the selection would visibly clear itself. Making it work
+  means either exempting a magic id from the prune (a special case in the one predicate both screens share, which is
+  the drift NFR-E8-5 exists to prevent) or widening `ItemFilterValue` with a separate `includeUncategorized` flag,
+  which is a new field one of the two screens would carry for the other's benefit — the same anti-pattern
+  `itemFilter.ts`'s own header records for `CheckedFilter`. **If it is ever picked up**, it wants the flag shape, its
+  own story, and a reason better than symmetry: the search box already reaches orphans by name on both screens (8.5
+  asserts exactly that), so the residual gap is only "narrow to orphans with no term in mind".

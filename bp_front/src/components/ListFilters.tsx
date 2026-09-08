@@ -10,6 +10,7 @@ import TextField from '@mui/material/TextField'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import type {CheckedFilter, ItemFilterValue} from '@/lib/lists/itemFilter'
+import {byName} from '@/lib/lists/order'
 
 interface ListFiltersProps {
   categories: ReadonlyArray<{id: string; name: string}>
@@ -55,7 +56,14 @@ export default function ListFilters({
   // a hardcoded id would make the label point at the wrong control.
   const labelId = useId()
 
-  const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name))
+  // THE shared name comparator (Story 8.5, AC3) — the same one `order.ts` groups
+  // by, so the menu and the closed control's summary below read in one sequence.
+  // Deliberately `byName` and NOT the grouping function's `byNameThenId`: the id
+  // tiebreak exists to make the RENDERED LIST total against an unstable backend
+  // order, and a menu of choices has no such requirement. The consequence, so it
+  // is not discovered as a surprise: two categories with the SAME name can order
+  // differently here than in the list underneath.
+  const sorted = [...categories].sort(byName)
 
   const handleCategory = (event: SelectChangeEvent<string[]>) => {
     // A `multiple` Select hands the handler an ARRAY, so the "All categories"

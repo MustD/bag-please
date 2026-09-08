@@ -106,7 +106,7 @@ development_status:
   8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone: done
   8-3-check-off-an-item-by-tapping-its-row: done
   8-4-one-filter-and-search-on-both-list-screens: done
-  8-5-the-same-list-reads-the-same-way-on-both-screens: backlog
+  8-5-the-same-list-reads-the-same-way-on-both-screens: done
   8-6-rename-a-category-instead-of-destroying-it: backlog
   8-7-write-down-the-design-this-app-actually-has: backlog
   epic-8-retrospective: optional

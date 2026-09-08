@@ -27,21 +27,10 @@ import {
   ListsQuery,
   UncheckItemMutation,
 } from '@/lib/lists/listsQueries'
-import {byCreatedAtAsc} from '@/lib/lists/homePath'
+import {byCreatedAtAsc, groupItemsByCategory, type ItemGroup} from '@/lib/lists/order'
 import {type CheckedFilter, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
 import {graphqlErrorMessage, isForbiddenError} from '@/lib/admin/adminErrors'
 import ListFilters from '@/components/ListFilters'
-
-const UNCATEGORIZED = '__uncategorized__'
-
-// A displayable group: a real category, or the synthetic "Uncategorized" bucket
-// for items whose category id has no local match (live category deletion, or a
-// realtime item arriving in a not-yet-known category) so items never vanish.
-interface Group {
-  key: string
-  name: string
-  items: ReadonlyArray<ListItemType>
-}
 
 // How far a pointer may travel between down and up and still count as a tap
 // (Story 8.3, FR60). A tap and the first moments of a scroll are the SAME
@@ -362,39 +351,15 @@ export default function ListShoppingPage() {
     [items, filter, checkedFilter],
   )
 
-  // Group filtered items by category (sorted by name); items whose category id
-  // has no local match fall into the synthetic "Uncategorized" bucket.
-  const groups = useMemo<Group[]>(() => {
-    const known = new Set(categories.map(c => c.id))
-    const byCategory = new Map<string, ListItemType[]>()
-    const uncategorized: ListItemType[] = []
-    for (const item of filteredItems) {
-      if (known.has(item.category)) {
-        const bucket = byCategory.get(item.category) ?? []
-        bucket.push(item)
-        byCategory.set(item.category, bucket)
-      } else {
-        uncategorized.push(item)
-      }
-    }
-    const sortByName = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name)
-    const result: Group[] = [...categories]
-      .sort(sortByName)
-      .map(category => ({
-        key: category.id,
-        name: category.name,
-        items: (byCategory.get(category.id) ?? []).sort(sortByName),
-      }))
-      .filter(group => group.items.length > 0)
-    if (uncategorized.length > 0) {
-      result.push({
-        key: UNCATEGORIZED,
-        name: 'Uncategorized',
-        items: [...uncategorized].sort(sortByName),
-      })
-    }
-    return result
-  }, [categories, filteredItems])
+  // Grouping and ordering come from `lib/lists/order.ts` (Story 8.5, FR62) — the
+  // SAME function /lists/:id renders, so the two screens cannot drift back into
+  // reading one list two ways. `keepEmpty: false` is this screen's half of the
+  // one deliberate difference: a category with nothing to buy is noise while
+  // shopping, whatever the filter says.
+  const groups = useMemo<ItemGroup<ListCategory, ListItemType>[]>(
+    () => groupItemsByCategory(categories, filteredItems, {keepEmpty: false}),
+    [categories, filteredItems],
+  )
 
   const loading = itemsResult.loading || categoriesResult.loading
   const queryError = itemsResult.error ?? categoriesResult.error

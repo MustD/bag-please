@@ -431,3 +431,250 @@ test('FR61 — an EMPTY category is kept on /lists/:id while nothing filters, dr
   await expect(page.getByTestId('filter-category')).toContainText('All categories')
   await expect(page.getByTestId(`shopping-group-${empty}`)).toHaveCount(0)
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 8.5 (FR62) — the same list reads the same way on both screens.
+//
+// Both specs below read the SEQUENCE out of the DOM rather than trusting either
+// component's source, and neither adds a testid: everything they need is
+// already rendered. That is deliberate — a testid added for an ordering
+// assertion would be a second place ordering is described.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The management screen names each group with `data-testid="category-name"`.
+// The shopping view names its groups only through the group card's own testid,
+// so the sequence there is read off the ATTRIBUTE.
+async function shoppingGroupNames(page: Page): Promise<string[]> {
+  return page
+    .locator('[data-testid^="shopping-group-"]')
+    .evaluateAll(els => els.map(el => (el.getAttribute('data-testid') ?? '').slice('shopping-group-'.length)))
+}
+
+// Item names inside ONE shopping group. Story 8.3 (FR60) made the row itself the
+// checkbox and its children presentational, so the accessible name
+// (`Toggle <name>`) is where the item name is readable — not a text node.
+async function shoppingItemNames(page: Page, groupName: string): Promise<string[]> {
+  const labels = await page
+    .getByTestId(`shopping-group-${groupName}`)
+    .getByRole('checkbox')
+    .evaluateAll(els => els.map(el => el.getAttribute('aria-label') ?? ''))
+  return labels.map(label => label.replace(/^Toggle /, ''))
+}
+
+test('FR62 — categories and items read in the SAME by-name order on /lists/:id and /list/:id', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'order', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Order ${stamp}`
+  // Prefixed so the EXPECTED sequence is legible in the assertion instead of
+  // being a function of `Date.now()`. Created Z → M → A, i.e. deliberately
+  // against the order both screens must render.
+  const catA = `A Produce ${stamp}`
+  const catM = `M Bakery ${stamp}`
+  const catZ = `Z Dairy ${stamp}`
+  // The three items that probe ITEM order all live in one category; the other
+  // two categories get one item each only because the shopping view hides empty
+  // groups always (the AC5 asymmetry), and a hidden group cannot be compared.
+  const itemA = `A Anchovies ${stamp}`
+  const itemM = `M Muffins ${stamp}`
+  const itemZ = `Z Ziti ${stamp}`
+  const soleProduce = `Sole produce ${stamp}`
+  const soleDairy = `Sole dairy ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, catZ)
+  await addCategory(page, catM)
+  await addCategory(page, catA)
+  await addItem(page, catM, itemZ)
+  await addItem(page, catM, itemM)
+  await addItem(page, catM, itemA)
+  await addItem(page, catA, soleProduce)
+  await addItem(page, catZ, soleDairy)
+
+  // MANAGEMENT. Before this story it rendered raw query order — i.e. creation
+  // order, Z → M → A — and the same list read two different ways.
+  const managementCategories = await page.getByTestId('category-name').allTextContents()
+  expect(managementCategories, 'categories on /lists/:id ascend by name').toEqual([catA, catM, catZ])
+  const managementItems = await page
+    .getByTestId(`category-row-${catM}`)
+    .getByTestId('item-name')
+    .allTextContents()
+  expect(managementItems, 'items on /lists/:id ascend by name').toEqual([itemA, itemM, itemZ])
+
+  // SHOPPING. Compared against the sequences just read, not against a second
+  // copy of the expectation: "identical on both screens" is the requirement.
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(page.getByTestId(`shopping-group-${catA}`)).toBeVisible()
+  expect(await shoppingGroupNames(page), 'both screens order categories alike').toEqual(managementCategories)
+  expect(await shoppingItemNames(page, catM), 'both screens order items alike').toEqual(managementItems)
+})
+
+test('FR62 — an item orphaned by a category removal is reachable in an Uncategorized group on /lists/:id', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'orphan', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Orphan ${stamp}`
+  const keep = `Keep ${stamp}`
+  const doomed = `Doomed ${stamp}`
+  const known = `Known ${stamp}`
+  const strandedEdit = `Stranded edit ${stamp}`
+  const strandedGone = `Stranded gone ${stamp}`
+  // Added only AFTER the last real category is removed below, so the edit
+  // recovery still has somewhere to move an orphan to.
+  const rehome = `Rehome ${stamp}`
+  // A real category whose name sorts AFTER "Uncategorized", kept NON-EMPTY so the
+  // shopping view (which hides empty groups) renders it too. Without it the
+  // "appended last" rule is asserted only where alphabetical placement happens to
+  // agree, and re-sorting the whole array with the group comparator instead of
+  // pushing the bucket would keep every assertion below green.
+  const zLast = `Z Last ${stamp}`
+  const zItem = `Zebra cakes ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, keep)
+  await addCategory(page, doomed)
+  await addCategory(page, zLast)
+  await addItem(page, doomed, known)
+  await addItem(page, zLast, zItem)
+
+  // THE PRODUCER, and it has to be this one. Remove-category deletes the items
+  // the removing CLIENT can see and then the category, so a single-tab "add a
+  // category, add an item, remove the category" strands nothing at all and a
+  // test written to that sequence would assert nothing. The real producer is the
+  // stale-client-set race (AR-E8-7a): a second tab adds items this tab has never
+  // seen, and — /lists/:id being refetch-driven with no subscription (AR-E8-6) —
+  // the removal loop walks the stale set. One user, one context, two tabs.
+  const other = await page.context().newPage()
+  await other.goto(`/lists/${listId}`)
+  await expect(other.getByTestId('list-detail-page')).toBeVisible()
+  await addItem(other, doomed, strandedEdit)
+  await addItem(other, doomed, strandedGone)
+  await other.close()
+
+  // THE FIXTURE'S PREMISE, asserted rather than assumed. If this tab had
+  // refetched at any point since the second tab's writes it would now hold the
+  // strays, the removal loop would take them too, and nothing would be orphaned —
+  // and the spec would then fail somewhere below as a confusing false negative
+  // about the `Uncategorized` group instead of here, about its own setup.
+  await expect(page.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
+  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
+
+  await page.getByTestId(`category-row-${doomed}`).getByTestId('remove-category-button').click()
+  await expect(page.getByTestId('remove-category-dialog')).toBeVisible()
+  await page.getByTestId('remove-category-dialog-confirm').click()
+  await expect(page.getByTestId('remove-category-dialog')).toHaveCount(0)
+  await expect(page.getByTestId(`category-row-${doomed}`)).toHaveCount(0)
+  // The one item this tab knew about went with the category; the two it did not
+  // know about now point at an id that no longer exists.
+  await expect(page.getByTestId(`item-row-${known}`)).toHaveCount(0)
+
+  // AC4 — the orphans are VISIBLE on the only screen that can edit or delete
+  // them, in a synthetic group, positioned LAST.
+  const uncategorized = page.getByTestId('category-row-Uncategorized')
+  await expect(uncategorized).toBeVisible()
+  // APPENDED LAST, not sorted among the real categories — and asserted as the
+  // FULL sequence, because `Uncategorized` falls between `Keep …` and `Z Last …`
+  // alphabetically. A `.last()` check would pass either way.
+  await expect(page.getByTestId('category-name')).toHaveText([keep, zLast, 'Uncategorized'])
+  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
+  await expect(uncategorized.getByTestId(`item-row-${strandedGone}`)).toBeVisible()
+  // NO category-level controls: there is no category to add into or to remove.
+  // Each ITEM keeps its own working pair, asserted by using them below.
+  await expect(uncategorized.getByTestId('add-item-in-category-button')).toHaveCount(0)
+  await expect(uncategorized.getByTestId('remove-category-button')).toHaveCount(0)
+
+  // The shopping view has bucketed orphans since Story 5.6. Asserting it here is
+  // what makes "the same list reads the same way" a COMPARISON rather than a
+  // one-sided claim about the screen this story changed.
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  // `keep` is empty, so the shopping view drops it (the AC5 asymmetry) and the
+  // sequence here is the `Z …` category followed by the bucket — again the full
+  // sequence, again because 'Uncategorized' would sort BEFORE `Z Last …`.
+  const shoppingGroups = await shoppingGroupNames(page)
+  expect(shoppingGroups, 'Uncategorized is appended last on the shopping view too').toEqual([zLast, 'Uncategorized'])
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+
+  // A search matching ONLY an orphan reaches it. Before this story the same
+  // search rendered `list-detail-no-matches` over an item that exists.
+  await page.getByTestId('filter-search').fill(strandedEdit)
+  await expect(page.getByTestId('list-detail-no-matches')).toHaveCount(0)
+  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
+  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
+  await page.getByTestId('filter-search').fill('')
+
+  // A REAL category selected, orphans present — and this is the TRIPWIRE for a
+  // recorded decision, not just a behaviour check. There is deliberately no
+  // `Uncategorized` OPTION in the filter (decided NO by this story; the
+  // mechanism is in deferred-work.md — a synthetic id in
+  // `ItemFilterValue.categoryIds` is deleted by `useItemFilter`'s prune on the
+  // next render), so narrowing to any real category hides the orphans. If that
+  // option is ever added, this assertion is what says a decision is being
+  // reversed rather than a gap being filled.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${keep}`).click()
+  })
+  await expect(uncategorized).toHaveCount(0)
+  await expect(page.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
+  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
+  // Cleared, they come back — without this the assertion above would also be
+  // satisfied by a screen that had simply stopped rendering the bucket.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId('filter-category-option-all').click()
+  })
+  await expect(uncategorized).toBeVisible()
+  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
+
+  // ZERO categories, orphans still present. Removing the last real category
+  // leaves a list holding items and no categories at all — and the pre-8.5 gate
+  // (`categories.length === 0`) would have shown the "No categories yet"
+  // onboarding card OVER two items that are right there. Branching on
+  // `groups.length` is what makes this corner hold.
+  for (const doomedName of [keep, zLast]) {
+    await page.getByTestId(`category-row-${doomedName}`).getByTestId('remove-category-button').click()
+    await expect(page.getByTestId('remove-category-dialog')).toBeVisible()
+    await page.getByTestId('remove-category-dialog-confirm').click()
+    await expect(page.getByTestId('remove-category-dialog')).toHaveCount(0)
+    await expect(page.getByTestId(`category-row-${doomedName}`)).toHaveCount(0)
+  }
+  await expect(page.getByTestId('list-detail-empty')).toHaveCount(0)
+  await expect(uncategorized).toBeVisible()
+  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
+  await expect(uncategorized.getByTestId(`item-row-${strandedGone}`)).toBeVisible()
+  // The filter row survives a categoryless list. Its mount guard is
+  // `categories.length > 0 || items.length > 0` for exactly this state; with the
+  // second half missing, the ONLY control that reaches these items — the search
+  // box used a few lines above — would not be rendered at all.
+  await expect(page.getByTestId('list-detail-filters')).toBeVisible()
+  await expect(page.getByTestId('filter-search')).toBeVisible()
+
+  // Give the recovery somewhere to go.
+  await addCategory(page, rehome)
+
+  // RECOVERY, half one: re-home the orphan through the row's own edit control.
+  // The dialog opens with a blank category (the stored id is out of range),
+  // which is the right affordance — "pick a category" — and picking one is the
+  // recovery this story exists to make possible.
+  await uncategorized.getByTestId(`item-row-${strandedEdit}`).getByTestId('edit-item-button').click()
+  await expect(page.getByTestId('edit-item-dialog')).toBeVisible()
+  await page.getByTestId('edit-item-dialog').getByRole('combobox').click()
+  await page.getByTestId(`edit-item-category-option-${rehome}`).click()
+  await page.getByTestId('edit-item-submit').click()
+  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
+  await expect(page.getByTestId(`category-row-${rehome}`).getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
+  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
+
+  // RECOVERY, half two: delete the other one — and once no orphan remains the
+  // synthetic group is ABSENT, not rendered empty.
+  await uncategorized.getByTestId(`item-row-${strandedGone}`).getByTestId('remove-item-button').click()
+  await expect(page.getByTestId('remove-item-dialog')).toBeVisible()
+  await page.getByTestId('remove-item-dialog-confirm').click()
+  await expect(page.getByTestId('remove-item-dialog')).toHaveCount(0)
+  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
+  await expect(uncategorized).toHaveCount(0)
+  await expect(page.getByTestId('category-name')).toHaveText([rehome])
+})

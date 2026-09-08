@@ -1,39 +1,16 @@
 import {useQuery} from '@apollo/client/react'
 import {ListsQuery} from '@/lib/lists/listsQueries'
 import {useAuth} from '@/lib/auth/AuthContext'
+// The comparator MOVED to `lib/lists/order.ts` (Story 8.5): a pure sort helper
+// has no business dragging `useQuery` + `useAuth` behind it into every module
+// that only wants to sort. Imported, not re-exported — one import path.
+import {byCreatedAtAsc} from '@/lib/lists/order'
 
 // Where `/` resolves to, in ONE place (Story 7.5, FR38/FR57). Both consumers —
 // HomeRedirect, which performs the redirect, and AppShell's title link, which
 // only decorates the answer — read it from here. AppShell must never re-derive
 // it (AR-E6-7 / AR-E7-8): two implementations of "which list is home" is the
 // defect class this hook exists to close.
-
-// Numeric createdAt ordering. `Instant.toString()` drops the fractional part
-// entirely at zero nanos, so a whole-second value like `…:05Z` sorts AFTER a
-// sub-second `…:05.100Z` under localeCompare ('Z' 0x5A > '.' 0x2E) even though
-// it is genuinely 100ms older — which is how `/` occasionally opened the wrong
-// list (FR38). Parsing to epoch milliseconds removes the precision dependency
-// without touching the wire format (AR-E7-7 rejects a backend change here).
-// The comparator must stay TOTAL (review patch, 2026-08-11). Two ways it would
-// not be, both introduced by moving from string to numeric compare:
-//   1. `createdAt` is `String` on the wire, so nothing in the type system
-//      guarantees `Instant.toString()`. An unparseable value makes `Date.parse`
-//      return NaN, and a comparator that returns NaN yields an
-//      implementation-defined ordering — the whole array, not just the bad row.
-//      Unparseable values are pushed to the end instead.
-//   2. `Date.parse` truncates to milliseconds, where the lexicographic compare
-//      it replaces saw nanoseconds. Two lists created inside the same
-//      millisecond therefore tie; `id` breaks the tie so `/` resolves to the
-//      same list on every load rather than following the backend's map order.
-export function byCreatedAtAsc(a: {id: string, createdAt: string}, b: {id: string, createdAt: string}): number {
-  const ta = Date.parse(a.createdAt)
-  const tb = Date.parse(b.createdAt)
-  if (Number.isNaN(ta) || Number.isNaN(tb)) {
-    if (Number.isNaN(ta) && Number.isNaN(tb)) return a.id.localeCompare(b.id)
-    return Number.isNaN(ta) ? 1 : -1
-  }
-  return ta - tb || a.id.localeCompare(b.id)
-}
 
 // `mode` decides whether this consumer may ISSUE the membership-gated lists
 // request:
