@@ -3,7 +3,17 @@ import {randomUUID} from 'node:crypto'
 import {expect, test, type Page} from '@playwright/test'
 
 import {gql, loginApi} from './support/api'
-import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+import {
+  addCategory,
+  addItem,
+  countGraphqlRequests,
+  createListAndOpen,
+  openListsViaMenu,
+  PASSWORD,
+  registerViaUi,
+  uniqueUsername,
+  withCategoryMenu,
+} from './support/ui'
 
 // List View / Shopping / Real-Time E2E (Story 5.6). UI-driven only for every
 // asserted behaviour; the sole non-UI use is test SETUP that seeds a second
@@ -72,14 +82,19 @@ test('reframe 7.1 — category, checked-status and search filters each narrow th
   await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
   await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
 
-  // Category filter: pick Produce → only Bananas remains.
-  await page.getByTestId('filter-category').click()
-  await page.getByTestId(`filter-category-option-${produce}`).click()
+  // Category filter: pick Produce → only Bananas remains. Since Story 8.4 the
+  // Select is `multiple` and its menu STAYS OPEN after a selection, so the
+  // dismissal is explicit — without it the next `filter-checked-*` click below
+  // lands on the menu backdrop and silently does nothing.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${produce}`).click()
+  })
   await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
   await expect(page.getByTestId(`shopping-item-${bread}`)).toHaveCount(0)
   // Reset to all categories.
-  await page.getByTestId('filter-category').click()
-  await page.getByTestId('filter-category-option-all').click()
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId('filter-category-option-all').click()
+  })
   await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
 
   // Checked-status filter: check Bananas, then "To buy" hides it (Bread remains),
@@ -149,18 +164,30 @@ test('FR36 — the switcher changes the active list (header + URL) and resets fi
   // Open list A's shopping view and filter to its only category.
   await page.goto(`/list/${listAId}`)
   await expect(page.getByTestId('shopping-header')).toContainText(listA)
-  await page.getByTestId('filter-category').click()
-  await page.getByTestId(`filter-category-option-${catA}`).click()
+  // Same explicit dismissal as above — the `multiple` menu does not self-close
+  // (Story 8.4), and the search field below is unreachable behind its backdrop.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${catA}`).click()
+  })
   await expect(page.getByTestId(`shopping-item-${itemA}`)).toBeVisible()
+  // …and a search term and a checked-status choice on top of it, so the reset
+  // below is asserted over ALL THREE controls rather than the category alone.
+  await page.getByTestId('filter-search').fill(itemA)
+  await page.getByTestId('filter-checked-checked').click()
+  await expect(page.getByTestId('shopping-no-matches')).toBeVisible()
 
   // Switch to list B via the switcher chip: URL + header follow the active list,
-  // and the category filter (A's category id) is reset so B's items are NOT
-  // hidden as "no matches".
+  // and the category filter (A's category id), the search term and the
+  // checked-status toggle are ALL reset so B's items are NOT hidden as
+  // "no matches".
   await page.getByTestId(`switcher-chip-${listB}`).click()
   await expect(page).toHaveURL(/\/list\/[^/]+$/)
   await expect(page.getByTestId('shopping-header')).toContainText(listB)
   await expect(page.getByTestId(`shopping-item-${itemB}`)).toBeVisible()
   await expect(page.getByTestId('shopping-no-matches')).toHaveCount(0)
+  await expect(page.getByTestId('filter-category')).toContainText('All categories')
+  await expect(page.getByTestId('filter-search')).toHaveValue('')
+  await expect(page.getByTestId('filter-checked-all')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('FR52 — a check by one member appears live in another member\'s view without a refresh', async ({browser, page, baseURL}, testInfo) => {
@@ -811,4 +838,193 @@ test('FR60 — a bare synthetic click, with no pointer events at all, toggles th
   await expect(row).not.toBeChecked()
   await page.waitForTimeout(500)
   expect(toggles()).toBe(2)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 8.4 — One Filter and Search, on Both List Screens (FR61).
+//
+// The category filter selects a SET of categories, not one, and the same filter
+// unit is mounted on the management screen (see lists.spec.ts for that half).
+//
+// THE MENU NO LONGER SELF-CLOSES — see `withCategoryMenu` in ./support/ui.ts,
+// which owns that fact for all three specs that drive this control. Every
+// interaction below goes through it, including the two pre-existing specs above,
+// which were migrated for exactly this reason. A spec here that "just works"
+// without the dismissal is suspect: it is almost certainly clicking the backdrop
+// rather than the control it names.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// SETUP ONLY — the id of an item created through the UI, needed to address
+// `deleteItem`. The counterpart to `categoryIdOf` above.
+async function itemIdOf(token: string, listId: string, itemName: string): Promise<string> {
+  const {getItems} = await gql<{getItems: Array<{id: string; name: string}>}>(
+    `query { getItems(listId: "${listId}") { id name } }`,
+    token,
+  )
+  const match = getItems.find(i => i.name === itemName)
+  if (!match) throw new Error(`No item ${itemName} on list ${listId}`)
+  return match.id
+}
+
+test('FR61 — the category filter selects SEVERAL categories at once, and "All categories" clears them', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'multicat', testInfo.project.name)
+  const listName = `MultiCat ${Date.now()}`
+  const produce = `Produce ${Date.now()}`
+  const bakery = `Bakery ${Date.now()}`
+  const dairy = `Dairy ${Date.now()}`
+  const bananas = `Bananas ${Date.now()}`
+  const bread = `Bread ${Date.now()}`
+  const milk = `Milk ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, produce)
+  await addCategory(page, bakery)
+  await addCategory(page, dairy)
+  await addItem(page, produce, bananas)
+  await addItem(page, bakery, bread)
+  await addItem(page, dairy, milk)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+
+  // THE DEFECT (report #4): two aisles cannot be worked together. Pick both, in
+  // ONE menu session — the second click is only reachable because the menu stays
+  // open, which is itself part of the fix.
+  await withCategoryMenu(page, async () => {
+    // CHECKBOXES IN THE MENU, and they track the selection (AC1). Without this
+    // the whole suite stays green if each option is a plain text label: the
+    // items would still filter, the summary would still read correctly, and the
+    // user would have no way to see what is currently picked while the menu is
+    // open. Asserted on the real control, so a decorative glyph does not pass.
+    const produceOption = page.getByTestId(`filter-category-option-${produce}`)
+    const dairyOption = page.getByTestId(`filter-category-option-${dairy}`)
+    await expect(produceOption.getByRole('checkbox')).not.toBeChecked()
+    await produceOption.click()
+    await expect(produceOption.getByRole('checkbox')).toBeChecked()
+    await page.getByTestId(`filter-category-option-${bakery}`).click()
+    // …and an UNCHOSEN one stays unchecked, so "checked" is not just "rendered".
+    await expect(dairyOption.getByRole('checkbox')).not.toBeChecked()
+  })
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${milk}`)).toHaveCount(0)
+
+  // The CLOSED control summarises both chosen names as text. Asserted with the
+  // chip-count line below because "summary, not a chip row" is a ruling
+  // (UX-DR-E8-4) that a chip implementation would satisfy on the text alone —
+  // a Chip renders its label as text too.
+  const control = page.getByTestId('filter-category')
+  await expect(control).toContainText(produce)
+  await expect(control).toContainText(bakery)
+  await expect(control).not.toContainText(dairy)
+  await expect(control.locator('.MuiChip-root')).toHaveCount(0)
+
+  // "All categories" is still the clearing affordance, and an EMPTY selection
+  // means ALL — not none.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId('filter-category-option-all').click()
+  })
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${milk}`)).toBeVisible()
+  await expect(control).toContainText('All categories')
+})
+
+test('FR61 — deleting ONE selected category live prunes that id and leaves the other selection standing', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'prune', testInfo.project.name)
+  const listName = `Prune ${Date.now()}`
+  const produce = `Produce ${Date.now()}`
+  const bakery = `Bakery ${Date.now()}`
+  const dairy = `Dairy ${Date.now()}`
+  const bananas = `Bananas ${Date.now()}`
+  const bread = `Bread ${Date.now()}`
+  const milk = `Milk ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, produce)
+  await addCategory(page, bakery)
+  await addCategory(page, dairy)
+  await addItem(page, produce, bananas)
+  await addItem(page, bakery, bread)
+  await addItem(page, dairy, milk)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${produce}`).click()
+    await page.getByTestId(`filter-category-option-${bakery}`).click()
+  })
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
+
+  // SETUP ONLY — a concurrent member removing the category. Driven through the
+  // API because the acting party is deliberately NOT this browser: the behaviour
+  // under test is what THIS page does when a CategoryUpdates event arrives for a
+  // category it currently has selected. The item goes first, so the deleted
+  // category cannot leave an orphan that reappears in the "Uncategorized" group
+  // and masks the assertion below.
+  const token = await loginApi(username, PASSWORD)
+  const breadId = await itemIdOf(token, listId, bread)
+  const bakeryId = await categoryIdOf(token, listId, bakery)
+  await gql(`mutation { deleteItem(id: "${breadId}", listId: "${listId}") { id } }`, token)
+  await gql(`mutation { deleteCategory(id: "${bakeryId}", listId: "${listId}") { id } }`, token)
+
+  // The deleted category leaves the selection…
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toHaveCount(0)
+  const control = page.getByTestId('filter-category')
+  await expect(control).not.toContainText(bakery)
+  // …and the OTHER selection survives. This is the whole point: the shipped
+  // single-id prune reset the filter outright, so the user lost the chilled
+  // aisle because someone else tidied up the bakery one.
+  await expect(control).toContainText(produce)
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${milk}`)).toHaveCount(0)
+  await expect(page.getByTestId('shopping-no-matches')).toHaveCount(0)
+})
+
+// GUARD (NFR-E8-6 exemption): AC6 is PRESERVED behaviour — Story 5.6 already
+// filtered client-side, so this holds against the pre-fix build too. It exists
+// because widening the filter to a set and sharing it across two screens is
+// exactly the change that invites a `refetch` "to be safe", and nothing else in
+// the suite would notice one.
+test('FR61 — filtering issues ZERO GraphQL requests and shows no loading state', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'nonet', testInfo.project.name)
+  const listName = `NoNet ${Date.now()}`
+  const produce = `Produce ${Date.now()}`
+  const bakery = `Bakery ${Date.now()}`
+  const bananas = `Bananas ${Date.now()}`
+  const bread = `Bread ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, produce)
+  await addCategory(page, bakery)
+  await addItem(page, produce, bananas)
+  await addItem(page, bakery, bread)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toBeVisible()
+  // Let the page's own initial traffic finish BEFORE the counter is attached, or
+  // this measures the load rather than the filtering.
+  await page.waitForTimeout(1000)
+
+  const requests = countGraphqlRequests(page)
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${produce}`).click()
+  })
+  await expect(page.getByTestId(`shopping-item-${bread}`)).toHaveCount(0)
+  await page.getByTestId('filter-search').fill('ban')
+  await expect(page.getByTestId(`shopping-item-${bananas}`)).toBeVisible()
+  await page.getByTestId('filter-search').fill('zzz-no-match')
+  await expect(page.getByTestId('shopping-no-matches')).toBeVisible()
+
+  // No round trip, and no loading state at any point — the spinner branch would
+  // have had to render for a query to be in flight.
+  await page.waitForTimeout(1000)
+  expect(requests()).toBe(0)
+  await expect(page.getByTestId('shopping-loading')).toHaveCount(0)
 })

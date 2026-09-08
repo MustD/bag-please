@@ -13,6 +13,7 @@ import {
   PASSWORD,
   registerViaUi,
   uniqueUsername,
+  withCategoryMenu,
 } from './support/ui'
 
 // Story 8.1 — Move the Mobile Gate to the Width People Actually Use.
@@ -732,5 +733,64 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectNotClipped(listTitle(page))
     await expectNoHorizontalOverflow(page)
     await oneRow(`at sm (${SM_BREAKPOINT_PX}px)`)
+  })
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 8.4, AC7 — the multi-select category filter at the floor.
+  //
+  // The control this story adds is the first on either list screen whose closed
+  // state grows with the user's input: every selected category lengthens the
+  // summary. A chip row would have grown it VERTICALLY (a line per selection);
+  // the summary grows it HORIZONTALLY, which is the axis NFR-E8-1 is about — so
+  // "several categories selected, at 320px" is the case that has to be measured
+  // rather than reasoned about.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the category filter and its open menu stay inside the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'filter', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    await createListAndOpen(page, LONG_LIST_NAME)
+    // THREE long categories, not one: the summary is the concatenation of every
+    // selected name, so a single short selection would measure nothing. These are
+    // the same over-length fixtures the rest of the file uses, for the same
+    // reason — a name that fits proves nothing about a name that does not.
+    await addCategory(page, LONG_CATEGORY_NAME)
+    await addCategory(page, UNBREAKABLE_CATEGORY_NAME)
+    await addCategory(page, 'Veg')
+    await addItem(page, LONG_CATEGORY_NAME, LONG_ITEM_NAME)
+
+    const control = page.getByTestId('filter-category')
+    // The closed control, empty. `getByRole('combobox')` reaches MUI's rendered
+    // value element — the box the summary text actually occupies, which is what
+    // the third clause of NFR-E8-1 is about; measuring the outer control would
+    // measure the border, not the text.
+    const summary = control.getByRole('combobox')
+    await expectInsideViewport(control, 'the category filter control')
+    await expectInsideViewport(summary, 'the category filter summary')
+    await expectNoHorizontalOverflow(page)
+
+    // OPEN, with several categories present. A menu is portalled to the body and
+    // positioned by MUI, so it is the one part of this control that can widen the
+    // document without the control itself moving. Opened and dismissed through
+    // the shared `withCategoryMenu`, so this file cannot drift from the other two
+    // on how the persistent menu is closed.
+    await withCategoryMenu(page, async () => {
+      await expectNoHorizontalOverflow(page)
+      await expectInsideViewport(
+        page.getByTestId(`filter-category-option-${LONG_CATEGORY_NAME}`),
+        'the long category menu option',
+      )
+      await page.getByTestId(`filter-category-option-${LONG_CATEGORY_NAME}`).click()
+      await page.getByTestId(`filter-category-option-${UNBREAKABLE_CATEGORY_NAME}`).click()
+      await expectNoHorizontalOverflow(page)
+    })
+
+    // CLOSED, carrying the two-name summary — the state the story creates and the
+    // one the floor has never seen.
+    await expect(summary).toContainText(LONG_CATEGORY_NAME)
+    await expectInsideViewport(control, 'the category filter control with a selection')
+    await expectInsideViewport(summary, 'the category filter summary with a selection')
+    await expectNoHorizontalOverflow(page)
   })
 })

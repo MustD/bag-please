@@ -95,3 +95,58 @@ export async function addItem(page: Page, categoryName: string, itemName: string
   await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
   await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 8.4 (FR61) — the shared category filter, and the ONE fact every spec
+// that drives it has to know.
+//
+// THE MENU NO LONGER SELF-CLOSES. A single MUI Select closes on selection; the
+// `multiple` one this story ships deliberately does not, so several categories
+// can be picked without reopening it. Every interaction therefore needs an
+// explicit dismissal, and without it the NEXT click silently lands on the menu
+// backdrop instead of the control it names — a failure that reads as "the app
+// ignored my click".
+//
+// That fact lives here once. Three specs drive this menu (shopping, lists,
+// narrow-viewport); three copies of the dismissal would mean the next change to
+// how the menu closes has to be made in three places, which is the duplication
+// NFR-E8-5 is about — the same rule that put the filter itself in one module.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Open the category menu, run `body` against it, and dismiss it. The
+// post-condition is asserted, so a body that closes the menu itself (or a future
+// Select that goes back to self-closing) cannot leave this passing by accident.
+export async function withCategoryMenu(page: Page, body: () => Promise<void>): Promise<void> {
+  await page.getByTestId('filter-category').click()
+  await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+  await body()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+}
+
+// Count GraphQL round trips (AC6). EVERY POST to the endpoint, not a named
+// operation, so a `refetch` introduced under any name is caught. Attach it only
+// AFTER the page's own load has settled, or it measures the load rather than the
+// filtering; read it after a settle, so a late request cannot land behind the
+// read. Mirrors `countToggleRequests` in shopping.spec.ts, which stays there
+// because it is specific to the FR60 check/uncheck mutations.
+export function countGraphqlRequests(page: Page): () => number {
+  let calls = 0
+  page.on('request', r => {
+    if (r.method() === 'POST' && r.url().includes('/api/graphql')) calls++
+  })
+  return () => calls
+}
+
+// Count WebSockets opened from here on (AC6's other half). A GraphQL
+// SUBSCRIPTION rides `graphql-ws` and registers ZERO POSTs, so the request
+// counter above is blind to one — and "the management screen gains no
+// `subscribeToMore`" (AR-E8-6) would otherwise be discharged by construction
+// rather than asserted. `/lists/:id` stays refetch-driven by Story 6.1's design.
+export function countWebSockets(page: Page): () => number {
+  let sockets = 0
+  page.on('websocket', () => {
+    sockets++
+  })
+  return () => sockets
+}

@@ -152,6 +152,13 @@ export default defineConfig({
   //         touch-scroll guard and the pointercancel guard) and 1 in mobile (the
   //         above-the-breakpoint header test). Count them per project: the two
   //         columns are equal while 18 of the runs never execute.
+  //       2026-09-08 (Story 8.4): 204 = 101 / 101 / 1 / 1  (+6 untagged FR61 tests
+  //         at +2 runs each = +12 runs, against that 192: three shopping-side
+  //         cases, two management-side cases, and the floor case for the
+  //         multi-select), OF WHICH 19 ARE SKIPS — 18 in chromium (the 17 from
+  //         the 2026-09-07 row plus the new mobile-only floor case for the
+  //         category filter) and 1 in mobile (the above-the-breakpoint header
+  //         test). Measured with the command above on the post-fix build.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

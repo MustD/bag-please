@@ -1,4 +1,4 @@
-import {type MouseEvent, useEffect, useId, useMemo, useRef, useState} from 'react'
+import {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
@@ -8,16 +8,9 @@ import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import FormControl from '@mui/material/FormControl'
-import InputLabel from '@mui/material/InputLabel'
 import Link from '@mui/material/Link'
-import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
-import Select, {type SelectChangeEvent} from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
-import ToggleButton from '@mui/material/ToggleButton'
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
@@ -35,9 +28,9 @@ import {
   UncheckItemMutation,
 } from '@/lib/lists/listsQueries'
 import {byCreatedAtAsc} from '@/lib/lists/homePath'
+import {type CheckedFilter, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
 import {graphqlErrorMessage, isForbiddenError} from '@/lib/admin/adminErrors'
-
-type CheckedFilter = 'all' | 'unchecked' | 'checked'
+import ListFilters from '@/components/ListFilters'
 
 const UNCATEGORIZED = '__uncategorized__'
 
@@ -342,45 +335,32 @@ export default function ListShoppingPage() {
     }
   }, [activeList, headerLabel])
 
-  const [categoryFilter, setCategoryFilter] = useState('')
   const [checkedFilter, setCheckedFilter] = useState<CheckedFilter>('all')
-  const [search, setSearch] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // Switching lists via the chip row re-renders this same route element in place
-  // (no unmount), so the filter state would otherwise carry over — a category id
-  // from the previous list matches nothing here, leaving the view stuck on
-  // "no matches". Reset filters when the active list changes (render-phase
-  // adjustment, not a syncing effect — project lint forbids set-state-in-effect).
-  const [prevListId, setPrevListId] = useState(listId)
-  if (listId !== prevListId) {
-    setPrevListId(listId)
-    setCategoryFilter('')
-    setCheckedFilter('all')
-    setSearch('')
-  }
-  // Drop a category filter that no longer matches any current category (e.g. the
-  // selected one was deleted live via a CategoryUpdates event) so the MUI Select
-  // never holds an out-of-range value that silently hides every item.
-  if (categoryFilter && !categories.some(c => c.id === categoryFilter)) {
-    setCategoryFilter('')
-  }
+  // Category selection + search live in the SHARED unit, together with both
+  // render-phase adjustments the page used to carry inline (Story 8.4): the
+  // list-switch reset, and the prune of selected categories that no longer
+  // exist. The checked-status toggle stays here because it is shopping-only —
+  // `useItemFilter`'s callback resets it alongside the rest on a list switch.
+  const [filter, setFilter] = useItemFilter(listId, categories, () => setCheckedFilter('all'))
 
   const [checkItem] = useMutation(CheckItemMutation)
   const [uncheckItem] = useMutation(UncheckItemMutation)
 
-  // Client-side filters combined with AND: category (by id), checked status, and
-  // a case-insensitive name search.
-  const filteredItems = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    return items.filter(item => {
-      if (categoryFilter && item.category !== categoryFilter) return false
-      if (checkedFilter === 'checked' && !item.checked) return false
-      if (checkedFilter === 'unchecked' && item.checked) return false
-      if (term && !item.name.toLowerCase().includes(term)) return false
-      return true
-    })
-  }, [items, categoryFilter, checkedFilter, search])
+  // Client-side filters combined with AND. Category and name search come from the
+  // shared predicate (the definition /lists/:id uses too); checked status is
+  // AND-ed on top of it here, because it exists on this screen only.
+  const filteredItems = useMemo(
+    () =>
+      items.filter(item => {
+        if (!matchesItemFilter(item, filter)) return false
+        if (checkedFilter === 'checked' && !item.checked) return false
+        if (checkedFilter === 'unchecked' && item.checked) return false
+        return true
+      }),
+    [items, filter, checkedFilter],
+  )
 
   // Group filtered items by category (sorted by name); items whose category id
   // has no local match fall into the synthetic "Uncategorized" bucket.
@@ -440,10 +420,6 @@ export default function ListShoppingPage() {
     }
   }
 
-  const handleCheckedFilter = (_event: MouseEvent<HTMLElement>, value: CheckedFilter | null) => {
-    if (value !== null) setCheckedFilter(value)
-  }
-
   return (
     <Box data-testid="list-shopping-page" sx={{flexGrow: 1, py: {xs: 3, sm: 4}}}>
       <Container maxWidth="md">
@@ -494,62 +470,16 @@ export default function ListShoppingPage() {
           </Stack>
         )}
 
-        {/* Filters: category + checked-status + free-text search (combined AND). */}
-        <Stack
-          direction={{xs: 'column', sm: 'row'}}
-          spacing={2}
-          data-testid="shopping-filters"
-          sx={{mb: 3, alignItems: {sm: 'center'}}}
-        >
-          <FormControl size="small" sx={{minWidth: 180}}>
-            <InputLabel id="shopping-category-filter-label">Category</InputLabel>
-            <Select
-              labelId="shopping-category-filter-label"
-              label="Category"
-              value={categoryFilter}
-              onChange={(e: SelectChangeEvent) => setCategoryFilter(e.target.value)}
-              data-testid="filter-category"
-            >
-              <MenuItem value="" data-testid="filter-category-option-all">
-                All categories
-              </MenuItem>
-              {[...categories]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(category => (
-                  <MenuItem
-                    key={category.id}
-                    value={category.id}
-                    data-testid={`filter-category-option-${category.name}`}
-                  >
-                    {category.name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            color="primary"
-            value={checkedFilter}
-            onChange={handleCheckedFilter}
-            aria-label="Filter by checked status"
-            data-testid="filter-checked"
-          >
-            <ToggleButton value="all" data-testid="filter-checked-all">All</ToggleButton>
-            <ToggleButton value="unchecked" data-testid="filter-checked-unchecked">To buy</ToggleButton>
-            <ToggleButton value="checked" data-testid="filter-checked-checked">Done</ToggleButton>
-          </ToggleButtonGroup>
-
-          <TextField
-            size="small"
-            label="Search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            sx={{flexGrow: 1}}
-            slotProps={{htmlInput: {'data-testid': 'filter-search'}}}
-          />
-        </Stack>
+        {/* Filters: category + checked-status + free-text search (combined AND).
+            ONE definition, shared with the management screen (Story 8.4). */}
+        <ListFilters
+          testId="shopping-filters"
+          categories={categories}
+          value={filter}
+          onChange={setFilter}
+          checkedFilter={checkedFilter}
+          onCheckedFilter={setCheckedFilter}
+        />
 
         {actionError && (
           <Alert severity="error" role="alert" data-testid="shopping-action-error" sx={{mb: 2}}>

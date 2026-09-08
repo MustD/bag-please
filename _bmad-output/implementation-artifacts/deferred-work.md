@@ -1366,8 +1366,17 @@ entry is superseded by the Stories 7.8+7.9 size-driven entry. Both are in the ar
   developer is pointed at a fixed bug — and, worse, the `checked`/`recurring` carry-forward those comments justify is
   now the only thing keeping the desync in the Story 7.4 section from being reachable, so a reader who deletes the
   carry-forward as obsolete opens a real hole. Should be picked up by the first story allowed to touch
-  `bp_front/src/` — **Epic 8 stories qualify**, and Story 8.4 (filter/search on both list screens) is the first that
-  goes near this component.
+  `bp_front/src/` — **Epic 8 stories qualify.**
+  **UNROUTED 2026-09-08 by Story 8.4 — still OPEN, now with NO named story.** The routing above named Story 8.4 as
+  "the first that goes near this component". That was wrong on the facts: 8.4 adds `ListFilters.tsx` and
+  `itemFilter.ts` and edits the two route components, and does not open `EditItemDialog.tsx` at all (`git diff
+  --stat` for the story lists neither that file nor any of its call paths). Re-pointing it at Story 8.6 was
+  considered and rejected on the same evidence: 8.6's `Files:` line (`epics.md:2058`) lists only a new rename dialog
+  and `ListDetailPage.tsx`, and its `Reuses:` line says it MIRRORS `EditItemDialog`'s form conventions rather than
+  editing it — so 8.6 would decline on exactly the grounds 8.4 did, and naming it would just move the wrong routing
+  one story down the sprint. **Correct routing: the first story that actually edits `EditItemDialog.tsx`, whichever
+  that turns out to be.** Guessing which story that is, ahead of a story that has a real reason to be in the file, is
+  what produced two bad routings already.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
   summary: `ItemRepository.findById` is an existence check built on a mapper that can return null, so AC3's guard
@@ -1914,14 +1923,31 @@ that change and made it. Archived.
   epic's only geometry gate.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
-  summary: ``data-testid={`item-row-${item.name}`}`` in `bp_front/src/routes/ListDetailPage.tsx` is not unique — one
-  list holding two same-named items in different categories makes `getByTestId('item-row-X')` match twice and trip
-  Playwright strict mode.
-  evidence: Verified against the rendering of the item row (cited by testid rather than line number, which moved once
-  inside Story 8.1 already; still `ListDetailPage.tsx:227` on 2026-09-07). Pre-existing since Story 6.1, not caused or
-  exposed by Story 8.1, and every narrow-viewport scenario uses unique names. Keying the testid by `item.id` would fix
-  it but touches selectors several shipped specs depend on, so it wants its own story. **Story 8.4 (filter and search
-  on both list screens) will select item rows by name** — decide there.
+  status: **DECIDED 2026-09-08 — closed by decision, superseded by the OPEN entry below.**
+  summary: ~~Whether ``data-testid={`item-row-${item.name}`}`` should be re-keyed by `item.id`.~~
+  **Decided by Story 8.4 (`spec-8-4-one-filter-and-search-on-both-list-screens.md`). Decision: KEEP the
+  name-keyed testids; do NOT re-key by `item.id` in this story.** The original question — whether
+  ``data-testid={`item-row-${item.name}`}`` in `ListDetailPage.tsx` should become id-keyed — was routed here because
+  8.4 selects item rows by name. It does: the two new FR61 management-side specs in `lists.spec.ts` address rows as
+  `item-row-<name>` throughout, and so does every FR61 assertion on the shopping side (`shopping-item-<name>`).
+  **Why keep:** Epic 8's own contract keys BOTH surfaces by name (that is what makes a shopping-side and a
+  management-side assertion about the same item comparable at all), and the FR61 filter is a filter over the item
+  NAME — a spec that filters by name and then asserts by id reads as two unrelated facts. **The defect is real and
+  stays real:** one list holding two same-named items in different categories still makes `getByTestId('item-row-X')`
+  match twice and trip Playwright strict mode. Re-keying touches selectors several shipped specs depend on and every
+  site must be visited rather than sed'd (the Story 8.3 selector-split closure above is the worked example of what
+  that costs), so it remains its own story — **re-filed as OPEN below, no longer blocked on a decision.**
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-one-filter-and-search-on-both-list-screens.md`
+  status: **OPEN — wants its own story.**
+  summary: `item-row-<name>` and `shopping-item-<name>` are not unique; two same-named items in different categories
+  on one list trip Playwright strict mode on both list screens.
+  evidence: Carried forward from the entry immediately above with its decision applied: the testids stay name-keyed for now, and the non-uniqueness is
+  the thing to fix. Two same-named items in different categories on one list break `getByTestId` strict mode on both
+  screens. Not reachable through the UI's own flows today (nothing stops it; nothing in the suite creates it), and
+  every scenario in the suite uses `Date.now()`-suffixed names, which is why this has never fired. A fix must re-key
+  BOTH surfaces together and visit each of the ~30 call sites; a partial re-key would leave the two screens keyed
+  differently, which is the drift class Epic 8 exists to remove.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`
   summary: `bp_front/e2e/navigation.spec.ts` (NFR-E6-2) and `bp_front/e2e/item-editing.spec.ts` (FR40) each call

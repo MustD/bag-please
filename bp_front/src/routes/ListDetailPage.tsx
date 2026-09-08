@@ -29,11 +29,13 @@ import {
   type ListItem as ListItemType,
   ListsQuery,
 } from '@/lib/lists/listsQueries'
+import {isItemFilterActive, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
 import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import AddCategoryDialog from '@/components/AddCategoryDialog'
 import AddItemDialog from '@/components/AddItemDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import EditItemDialog from '@/components/EditItemDialog'
+import ListFilters from '@/components/ListFilters'
 
 // List detail / management surface (Story 5.5, FR46/FR51). Renders the list's
 // categories and, under each, its items — with add-category / add-item overlays
@@ -60,6 +62,24 @@ export default function ListDetailPage() {
   const error = categoriesResult.error ?? itemsResult.error
 
   const refetch = () => Promise.all([categoriesResult.refetch(), itemsResult.refetch()])
+
+  // The SAME filter unit the shopping view mounts (Story 8.4, FR61) — no
+  // checked-status toggle is passed, so none is rendered: "checked" is a shopping
+  // concept and this is the management screen (UX-DR-E8-7). Filtering is purely
+  // client-side over the Apollo cache this page already holds; nothing here
+  // refetches, so the page stays refetch-driven exactly as Story 6.1 designed it.
+  const [filter, setFilter] = useItemFilter(listId, categories)
+  const filterActive = isItemFilterActive(filter)
+
+  // A category is HIDDEN only while a filter is active and nothing in it
+  // matches. With no filter, an empty category still renders with its
+  // "No items yet." row and its add-item affordance — the deliberate difference
+  // from the shopping view, which hides empty groups always.
+  const visibleCategories = categories.filter(
+    category =>
+      !filterActive ||
+      items.some(item => item.category === category.id && matchesItemFilter(item, filter)),
+  )
 
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
   const [addItemOpen, setAddItemOpen] = useState(false)
@@ -140,6 +160,20 @@ export default function ListDetailPage() {
           </Stack>
         </Box>
 
+        {/* NOT gated on `loading`. `notifyOnNetworkStatusChange` defaults to
+            TRUE in Apollo Client 4, so every `refetch()` after an add/edit/delete
+            flips `loading` back on — a `!loading` gate would unmount the whole
+            filter row mid-interaction. `categories.length > 0` already keeps it
+            hidden through the initial load, when there are no categories yet. */}
+        {!error && categories.length > 0 && (
+          <ListFilters
+            testId="list-detail-filters"
+            categories={categories}
+            value={filter}
+            onChange={setFilter}
+          />
+        )}
+
         {error ? (
           <Alert severity="info" role="alert" data-testid="list-detail-notice">
             {graphqlErrorMessage(error)}
@@ -157,10 +191,18 @@ export default function ListDetailPage() {
               Add a category first, then add items under it.
             </Typography>
           </Paper>
+        ) : visibleCategories.length === 0 ? (
+          <Paper data-testid="list-detail-no-matches" sx={{p: {xs: 3, sm: 4}, textAlign: 'center'}}>
+            <Typography variant="body2" color="text.secondary">
+              No items match the current filters.
+            </Typography>
+          </Paper>
         ) : (
           <Stack spacing={2}>
-            {categories.map(category => {
-              const categoryItems = items.filter(item => item.category === category.id)
+            {visibleCategories.map(category => {
+              const categoryItems = items.filter(
+                item => item.category === category.id && matchesItemFilter(item, filter),
+              )
               return (
                 <Paper key={category.id} data-testid={`category-row-${category.name}`}>
                   <Box
