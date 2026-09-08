@@ -92,7 +92,7 @@ export default function ListFilters({
           displayEmpty
           labelId={labelId}
           label="Category"
-          value={value.categoryIds as string[]}
+          value={[...value.categoryIds]}
           onChange={handleCategory}
           // The closed control SUMMARISES the selection as text. This is the
           // "not a chip row" ruling made concrete: one line, ellipsised by MUI's

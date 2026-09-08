@@ -275,6 +275,16 @@ test('FR61 — /lists/:id offers the same multi-select category filter and name 
   const bagels = `Bagels ${Date.now()}`
   const bread = `Bread ${Date.now()}`
   const milk = `Milk ${Date.now()}`
+  // AR-E8-6's other half: this screen must not gain a `subscribeToMore`. A
+  // subscription rides `graphql-ws`, so it opens a WEBSOCKET and registers zero
+  // POSTs — the request counter below cannot see one. Attached BEFORE the page
+  // is ever mounted, and deliberately NOT where the request counter is: a
+  // subscription is registered in a mount-time effect (that is how
+  // ListShoppingPage does it), so its socket would open before any listener
+  // attached after the page has rendered, and the assertion would pass by
+  // construction — the very failure mode this line exists to remove. Nothing
+  // else in this flow opens a socket, so a correct build still counts zero.
+  const sockets = countWebSockets(page)
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
   await createListAndOpen(page, listName)
@@ -293,13 +303,6 @@ test('FR61 — /lists/:id offers the same multi-select category filter and name 
   await expect(page.getByTestId('list-detail-filters')).toBeVisible()
   await page.waitForTimeout(1000)
   const requests = countGraphqlRequests(page)
-  // AR-E8-6's other half: this screen must not gain a `subscribeToMore`. A
-  // subscription rides `graphql-ws`, so it opens a WEBSOCKET and registers zero
-  // POSTs — the request counter above cannot see one. Without this line "no
-  // subscription here" is discharged by construction rather than asserted, and
-  // the shared filter component silently acquiring one would be invisible.
-  const sockets = countWebSockets(page)
-
   // Two categories at once — the same widening the shopping view got.
   await withCategoryMenu(page, async () => {
     await page.getByTestId(`filter-category-option-${produce}`).click()

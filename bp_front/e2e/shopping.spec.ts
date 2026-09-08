@@ -899,8 +899,15 @@ test('FR61 — the category filter selects SEVERAL categories at once, and "All 
     // open. Asserted on the real control, so a decorative glyph does not pass.
     const produceOption = page.getByTestId(`filter-category-option-${produce}`)
     const dairyOption = page.getByTestId(`filter-category-option-${dairy}`)
+    const allOption = page.getByTestId('filter-category-option-all')
+    // The sentinel row reports the CURRENT state too: an empty selection is the
+    // unfiltered default, so "All categories" reads as checked until something
+    // is picked. Without this the row could hardcode either state and the menu
+    // would misreport whether the view is filtered at all, invisibly.
+    await expect(allOption.getByRole('checkbox')).toBeChecked()
     await expect(produceOption.getByRole('checkbox')).not.toBeChecked()
     await produceOption.click()
+    await expect(allOption.getByRole('checkbox')).not.toBeChecked()
     await expect(produceOption.getByRole('checkbox')).toBeChecked()
     await page.getByTestId(`filter-category-option-${bakery}`).click()
     // …and an UNCHOSEN one stays unchecked, so "checked" is not just "rendered".
@@ -915,8 +922,15 @@ test('FR61 — the category filter selects SEVERAL categories at once, and "All 
   // (UX-DR-E8-4) that a chip implementation would satisfy on the text alone —
   // a Chip renders its label as text too.
   const control = page.getByTestId('filter-category')
-  await expect(control).toContainText(produce)
-  await expect(control).toContainText(bakery)
+  // Asserted as the WHOLE string, in order, not by containment: the summary is
+  // built from the same alphabetical array the menu renders, so that the closed
+  // control and the checked options read in ONE sequence. Bakery was clicked
+  // second and still comes first here — a summary mapped in selection order
+  // would satisfy every containment check while drifting from the menu.
+  // ...on the combobox itself, not the FormControl root: the root's text also
+  // carries the outlined label's legend ("Category"), which is why the rest of
+  // this file reaches for `toContainText` here.
+  await expect(control.getByRole('combobox')).toHaveText(`${bakery}, ${produce}`)
   await expect(control).not.toContainText(dairy)
   await expect(control.locator('.MuiChip-root')).toHaveCount(0)
 

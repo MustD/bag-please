@@ -1940,13 +1940,20 @@ that change and made it. Archived.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-4-one-filter-and-search-on-both-list-screens.md`
   status: **OPEN — wants its own story.**
-  summary: `item-row-<name>` and `shopping-item-<name>` are not unique; two same-named items in different categories
-  on one list trip Playwright strict mode on both list screens.
+  summary: `item-row-<name>`, `shopping-item-<name>` and `filter-category-option-<name>` are not unique; two
+  same-named items in different categories — or two same-named categories on one list — trip Playwright strict mode
+  on both list screens.
   evidence: Carried forward from the entry immediately above with its decision applied: the testids stay name-keyed for now, and the non-uniqueness is
   the thing to fix. Two same-named items in different categories on one list break `getByTestId` strict mode on both
   screens. Not reachable through the UI's own flows today (nothing stops it; nothing in the suite creates it), and
-  every scenario in the suite uses `Date.now()`-suffixed names, which is why this has never fired. A fix must re-key
-  BOTH surfaces together and visit each of the ~30 call sites; a partial re-key would leave the two screens keyed
+  every scenario in the suite uses `Date.now()`-suffixed names, which is why this has never fired.
+  Story 8.4 added a THIRD name-keyed family with the shared filter — `filter-category-option-<name>` in
+  `bp_front/src/components/ListFilters.tsx`, addressed by name from `lists.spec.ts`, `shopping.spec.ts` and
+  `narrow-viewport.spec.ts` — and it belongs in THIS entry rather than a separate one: a re-key that fixed the item
+  rows and left the filter options name-keyed would leave the two screens' selectors inconsistent again, which is the
+  thing this entry exists to prevent. (`add-item-category-option-<name>` predates Story 8.4 and has the same shape;
+  the sweep should take it too.) A fix must re-key
+  ALL of these surfaces together and visit each of the ~35 call sites; a partial re-key would leave the two screens keyed
   differently, which is the drift class Epic 8 exists to remove.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-1-move-the-mobile-gate-to-the-width-people-actually-use.md`

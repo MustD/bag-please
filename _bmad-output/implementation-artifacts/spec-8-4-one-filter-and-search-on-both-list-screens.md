@@ -235,6 +235,41 @@ Four layers (blind-hunter, edge-case-hunter, verification-gap, intent-alignment)
   - `[low]` `[patch]` verification-gap: the `shopping-filters` comment claim is untrue and the testid is asserted nowhere — same finding as the edge-case row above; fixed once.
   - `[low]` `[reject]` verification-gap: no spec covers adding an item under an active filter — same claim as the edge-case row above, rejected on the same reasoning.
 
+### 2026-09-08 — Review pass (follow-up)
+
+Four layers (blind-hunter, edge-case-hunter, verification-gap, intent-alignment) against the diff since
+`d5eb675`, re-staged from the patched tree of the first pass. Rows already settled in the pass above are
+marked `carried` and were neither re-verified nor re-fixed.
+
+- verdicts: 26 findings — high 0, medium 2, low 23, false 1, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` blind-hunter: `countWebSockets` is attached after `/lists/:id` has mounted and settled, but a `subscribeToMore` registers its socket in a mount-time effect (the shape `ListShoppingPage.tsx` uses), so AR-E8-6's guard could never fail — fixed: the counter is attached at the top of the test, before the first navigation; suite still green, so a correct build still counts zero.
+  - `[low]` `[reject]` blind-hunter: carried — the prune cannot tell "category deleted" from "categories not loaded", so a transient empty `categories` wipes the selection; rejected in the pass above on the refutation that Apollo retains `data` across a refetch and both screens render an error surface on a failed query.
+  - `[low]` `[patch]` blind-hunter: this story added a THIRD name-keyed testid family (`filter-category-option-<name>`) while the OPEN ledger entry it wrote enumerates only `item-row-<name>` and `shopping-item-<name>`, so the eventual re-key would leave the filter options inconsistent — fixed: the entry now names the filter family (and `add-item-category-option-<name>`) and its call-site estimate is raised.
+  - `[low]` `[reject]` blind-hunter: the un-routed `EditItemDialog` ledger item has no owner and could survive Epic 8 unnoticed — its OPEN status in the ledger IS the carrier; the pass above removed a routing that was wrong on the facts, and re-naming a story that has no reason to open the file is the defect that was just fixed, twice.
+  - `[low]` `[reject]` blind-hunter: carried — adding an item under an active filter produces nothing visible; rejected in the pass above (the user's own term sits in the field above the panel, and the fix adds behaviour the intent does not ask for).
+  - `[low]` `[reject]` blind-hunter: carried — the live prune is asserted only on the shopping screen though the management screen reaches it by refetch; rejected in the pass above (one shared hook, already covered).
+  - `[low]` `[reject]` blind-hunter: carried — the two fixed `waitForTimeout(1000)` sleeps bracketing each AC6 counter; rejected in the pass above (the failure mode is a false RED, and `networkidle` never settles against this app's open `graphql-ws` connection).
+  - `[low]` `[reject]` blind-hunter: `expect(control.locator('.MuiChip-root')).toHaveCount(0)` pins UX-DR-E8-4 to a MUI-internal class that a major could rename, turning the assertion silently green — a MUI major is a deliberate sweep (Stories 7.7-7.13 are the worked examples), and the proposed structural substitutes (child-element counts) are more brittle than the class name, not less.
+  - `[low]` `[reject]` blind-hunter: `countToggleRequests` (shopping) and the shared `countGraphqlRequests` are near-duplicates that a predicate parameter would unify — the pass above moved the genuinely triplicated helpers into `e2e/support/ui.ts` and left this one local WITH that reason recorded; it filters on `postData()` for two named mutations, which is a different question from "did anything round-trip", and one caller does not carry a shared helper's parameter.
+  - `[low]` `[patch]` blind-hunter: `value={value.categoryIds as string[]}` casts away the `readonly` the value type deliberately declares — fixed: `[...value.categoryIds]`. The same finding's second half (an unbounded `join(', ')` summary and no `MenuProps` height cap) is rejected: MUI's Menu paper already caps at `calc(100% - 96px)`, and the summary's ellipsis is asserted inside the viewport at the 320px floor.
+  - `[low]` `[reject]` edge-case: carried — the prune wipes the selection when `categories` is transiently empty; same claim and same refutation as the blind-hunter row above.
+  - `[false]` `[reject]` edge-case: `handleCategory`'s `raw.split(',')` would fragment an id containing a comma — the branch is unreachable: a `multiple` MUI `Select` always hands the handler an array (the string branch exists for the native/single case), and category ids are 24-character hex ObjectIds, which cannot contain a comma.
+  - `[low]` `[reject]` edge-case: carried — `checkedFilter` passed without `onCheckedFilter` renders a dead toggle; rejected in the pass above (both call sites correct; the fix adds type complexity for an unreachable caller mistake).
+  - `[low]` `[reject]` edge-case: deleting the LAST category while a search term is held unmounts the filter row and keeps the term, so a later added category lands behind a stale filter — the term is visible in the search field the moment the row returns, and `list-detail-no-matches` names the cause; the fix adds a state guard for a sequence (empty every category, mid-search, then re-add) no user flow walks.
+  - `[low]` `[reject]` edge-case: carried — adding an item or category while a filter is active shows nothing; same claim and refutation as the blind-hunter row above.
+  - `[low]` `[defer]` edge-case: carried — the synthetic `Uncategorized` bucket is unreachable through the filter; already recorded in frontmatter `deferred` by the pass above and owned by Story 8.5 AC4. Not re-added.
+  - `[low]` `[reject]` edge-case: the ledger says the `EditItemDialog` item is UNROUTED where the spec's task said "re-route to Story 8.6" — the deviation is the pass above's own patch, made because 8.6 declines on its `Files:`/`Reuses:` lines; same reasoning as the blind-hunter row.
+  - `[medium]` `[patch]` verification-gap: pre-verified — the AR-E8-6 websocket assertion is attached after mount and is discharged by construction; same root cause as the blind-hunter row above, fixed once.
+  - `[low]` `[patch]` verification-gap: pre-verified — the closed summary is built from `sorted` so it reads in menu order, but the only assertions on it are order-blind `toContainText` calls, so mapping the raw prop instead would keep every test green; fixed: the multi-select test now asserts the combobox's whole text (`Bakery …, Produce …`, the reverse of the click order).
+  - `[low]` `[patch]` verification-gap: pre-verified — the "All categories" row's checkbox (`checked={categoryIds.length === 0}`) has its state asserted nowhere, so it could hardcode either value and misreport whether the view is filtered; fixed: checked at idle and unchecked after the first selection, inside the existing menu block.
+  - `[low]` `[reject]` intent-alignment: selecting a category that currently holds NO items hides that category and its add-item affordance on `/lists/:id`, and no test picks that input — the intent's own edge-case matrix settles it ("Filter active on `/lists/:id`, category empty of matches | Any selection or term active | That category's card is NOT rendered"), so the shipped reading is the specified one, not a gap.
+  - `[low]` `[reject]` intent-alignment: the 320px floor case for the new control runs at the management mount only, while the shopping mount is the wider three-control row — at the floor `ListFilters` is `direction="column"`, so the category control is geometrically identical on both mounts; the shopping row cannot be wider than the one already measured.
+  - `[low]` `[reject]` intent-alignment: the shared prune, the list-switch reset and the trim each have single-surface evidence — one definition, one mount's worth of coverage each is the intended consequence of sharing the unit; the same claim as the blind-hunter prune-coverage row, rejected on the same reasoning.
+  - `[low]` `[reject]` intent-alignment: the filter menu is alphabetical while `/lists/:id` renders cards in raw query order, a new asymmetry introduced by sharing the unit — the intent's Never list forbids reordering either screen in this story (Story 8.5 owns the shared comparator), so the only fix available here is the one the intent excludes.
+  - `[low]` `[reject]` intent-alignment: carried — the AC6 counter spec passed pre-fix and is labelled a GUARD rather than claimed as a red; recorded as an explicit NFR-E8-6 exemption in Implementation Notes, which is the practice Story 8.3 established.
+  - `[low]` `[reject]` intent-alignment: carried — the change edits `deferred-work.md`, making routing decisions about other stories; the pass above already patched that to leave the item unrouted, and the ledger edits themselves are the story's own task list.
+
 ## Design Notes
 
 **Why the "All categories" item stays a `MenuItem` with `value=""`.** Two shipped specs click
@@ -509,3 +544,68 @@ item (Epic 7 action `D4`) stays OPEN and is the reason the margin is thin.
   long names is bounded by the same CSS but was not measured.
 - **The `Uncategorized` interaction is deferred, not absent** — a user who filters after a member deletes a
   non-empty category will not see the orphaned items. Story 8.5 is the next story in that code.
+
+---
+
+## Auto Run Result — follow-up review pass (2026-09-08)
+
+Re-dispatched against the `done` spec, so this is a fresh review of the shipped change, not a resumption.
+`review_loop_iteration` reset to 0; no implementation pass ran, and no code was re-derived.
+
+### Findings
+
+Four layers reported 26 findings: high 0, medium 2, low 23, false 1, maybe-false 0. Eleven rows were carried from
+the first pass's triage log and neither re-verified nor re-fixed. Full rows above.
+
+**Patched — 4 entries** (1 medium, 3 low):
+
+- `bp_front/e2e/lists.spec.ts` — the AR-E8-6 websocket guard (medium; two layers, one root cause) was attached after
+  the page had mounted, so a `subscribeToMore` registered in a mount-time effect would have opened its socket before
+  the listener existed and the assertion would have passed regardless. The counter now attaches at the top of the
+  test, before the first navigation.
+- `bp_front/e2e/shopping.spec.ts` — the closed summary's order is now asserted as whole text on the combobox
+  (`Bakery …, Produce …`, the reverse of the click order), replacing order-blind `toContainText` calls; and the "All
+  categories" row's checkbox is asserted checked at idle and unchecked after the first selection.
+- `bp_front/src/components/ListFilters.tsx` — `value={[...value.categoryIds]}` instead of casting away the
+  `readonly` the value type declares.
+- `_bmad-output/implementation-artifacts/deferred-work.md` — the OPEN testid-uniqueness entry now names the third
+  name-keyed family this story introduced (`filter-category-option-<name>`, plus the pre-existing
+  `add-item-category-option-<name>`), so a future re-key sweeps them together.
+
+**Deferred — 0 new.** The `Uncategorized` finding recurred from two layers and is already recorded in frontmatter
+`deferred`; it was not added a second time.
+
+**Rejected, with reasons:** the eleven carried rows keep the first pass's refutations. Newly rejected: the
+`.MuiChip-root` class assertion (a MUI major is a deliberate sweep in this repo, and the structural substitutes are
+more brittle); `countToggleRequests` vs `countGraphqlRequests` (a postData predicate on two named mutations is a
+different question from "did anything round-trip", and the local helper carries that reason); the stale search term
+after every category is deleted (the term is visible the moment the row returns); the empty-category selection on
+`/lists/:id` hiding its add affordance (the intent's edge-case matrix specifies exactly that); the floor case running
+at the management mount only (at 320px the row is a column, so both mounts are geometrically identical); the
+alphabetical menu against raw card order (the only fix is the reordering the intent's Never list forbids in this
+story); and the un-routed `EditItemDialog` ledger item (its OPEN status is the carrier; naming a story with no reason
+to open the file is the defect just removed). **False, 1:** `raw.split(',')` cannot fragment an id — the string
+branch is unreachable for a `multiple` Select, and hex ObjectIds contain no commas.
+
+### Follow-up review recommended: false
+
+This was itself a follow-up pass, where only a patched `high` would justify another. None was patched (high 0,
+medium 1, low 3), so the work has converged.
+
+### Verification
+
+Re-run after the patches, against a rebuilt production image on :2080:
+
+- `npx playwright test --retries=0 --workers=2` — **204 tests: 185 passed, 19 skipped, 0 failed.**
+- `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c` — **101 / 101 / 1 / 1**, unchanged;
+  the patches tightened existing assertions and added no test, so `playwright.config.ts`'s count row still holds.
+- `npm run lint` — exit 0. `npm run build` (`tsc -b && vite build`) — exit 0.
+- `git diff --stat bp_back/` — empty.
+
+### Residual risks
+
+- **The websocket guard is now correctly placed but still only structurally verified** — it counts zero on a build
+  with no subscription, and the reasoning for why it would count one is the mount-time-effect shape
+  `ListShoppingPage` uses. Nothing in the suite deliberately adds a subscription to prove it fails.
+- The first pass's residual risks are unchanged: the admin panel's load headroom (`D4`), the unmeasured many-long-names
+  summary, and the deferred `Uncategorized` interaction owned by Story 8.5.
