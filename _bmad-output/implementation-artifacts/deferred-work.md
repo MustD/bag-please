@@ -2062,3 +2062,47 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   `itemFilter.ts`'s own header records for `CheckedFilter`. **If it is ever picked up**, it wants the flag shape, its
   own story, and a reason better than symmetry: the search box already reaches orphans by name on both screens (8.5
   asserts exactly that), so the residual gap is only "narrow to orphans with no term in mind".
+
+## Deferred from: Story 8.6 — rename a category instead of destroying it (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-rename-a-category-instead-of-destroying-it.md`
+  status: **OPEN — recorded, deliberately not guarded.**
+  summary: A rename can produce TWO categories with the same name on one list. `EditCategoryDialog` validates the new
+  name for presence and length only; there is no collision check against the list's other categories, and none was
+  added.
+  evidence: `bp_front/src/components/EditCategoryDialog.tsx` — `validate()` is a copy of `AddCategoryDialog`'s
+  (required + `NAME_MAX`), and the add dialog has never checked for collisions either, so duplicate names were already
+  reachable before this story. Both list surfaces key their rows by NAME
+  (`category-row-${group.name}`, `shopping-group-${group.name}`), so two same-named categories give two rows with the
+  SAME testid — which is why `e2e/order.spec.ts` (Story 8.5) asserts the duplicate-name ordering case against the
+  exported `groupItemsByCategory` rather than through the DOM.
+  **Why 8.6 did not fix it:** category names are not unique — not in the schema, not in `CategoryService`, not in the
+  add path — and making a rename reject a name the ADD dialog accepts would put the constraint in one of the two
+  places that create categories. Uniqueness is a data rule and it belongs server-side, alongside the missing
+  `Item.category` referential integrity already filed under Story 7.4. AR-E8-0's backend freeze holds for the rest of
+  Epic 8.
+  **Shape of the real fix:** a uniqueness rule in `CategoryService.saveCategory` (per list, case-folded), surfaced by
+  both dialogs through the inline `*-category-error` alert they already render for a rejected save.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-rename-a-category-instead-of-destroying-it.md`
+  status: **DECIDED 2026-09-08 — not a bug. Recorded so it is not "fixed" later by someone who meets it cold.**
+  summary: A rename saved against a category another member has already REMOVED recreates it, empty.
+  evidence: `saveCategory` is an upsert keyed on a client-supplied id, so the save writes `{id, name, listId}` back
+  whether or not the document still exists. Asserted both ways by
+  `FR63 — a stale rename RECREATES a category another tab removed, empty and not an error` in
+  `bp_front/e2e/lists.spec.ts`: on the SAVER's `/lists/:id` the recreation is an ordinary row with its "No items yet."
+  line (its items went with the original removal), and on the OBSERVER's `/list/:id` it is **not** a shopping group —
+  that view hides empty groups always (Story 8.5 AC5) — but its filter option is present, delivered by the existing
+  `CategoryUpdates` subscription.
+  **Why it is left alone:** the alternative is a client-side existence check before every save, which is a race
+  dressed as a guard (the category can be removed between the check and the write) and which would make the honest
+  outcome — an empty category the user can remove in one click — into an error the user cannot act on. The missing
+  shopping group is likewise by design; do not "fix" it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-rename-a-category-instead-of-destroying-it.md`
+  status: **OPEN — carried forward from Story 8.5, still uncovered.**
+  summary: The Story 8.5 note that an ORPHANED item's `EditItemDialog` closes silently when submitted without
+  touching the category `Select` (the `nothingChanged` guard fires, the orphan stays orphaned, no feedback) stays
+  OPEN. Story 8.4 routed `EditItemDialog.tsx` edits to "the first story that actually edits that file"; Story 8.6 is
+  not that story — it added `EditCategoryDialog.tsx` and changed `EditItemDialog.tsx` by zero lines, and no AC of its
+  own covers the item dialog.

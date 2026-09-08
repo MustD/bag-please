@@ -35,6 +35,7 @@ import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import AddCategoryDialog from '@/components/AddCategoryDialog'
 import AddItemDialog from '@/components/AddItemDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import EditCategoryDialog from '@/components/EditCategoryDialog'
 import EditItemDialog from '@/components/EditItemDialog'
 import ListFilters from '@/components/ListFilters'
 
@@ -100,6 +101,7 @@ export default function ListDetailPage() {
   const [removeCategoryTarget, setRemoveCategoryTarget] = useState<ListCategory | null>(null)
   const [removeItemTarget, setRemoveItemTarget] = useState<ListItemType | null>(null)
   const [editItemTarget, setEditItemTarget] = useState<ListItemType | null>(null)
+  const [editCategoryTarget, setEditCategoryTarget] = useState<ListCategory | null>(null)
 
   const [deleteCategory] = useMutation(DeleteCategoryMutation)
   const [deleteItem] = useMutation(DeleteItemMutation)
@@ -282,6 +284,20 @@ export default function ListDetailPage() {
                           <AddIcon fontSize="small"/>
                         </IconButton>
                       </Tooltip>
+                      {/* Renaming (Story 8.6, FR63) sits BETWEEN add-item and
+                          remove, so the destructive control stays last. Before
+                          it, correcting a mistyped name meant removing the
+                          category — and its items with it. `category` is the
+                          narrowed binding from above, not `group.category`. */}
+                      <Tooltip title="Rename category">
+                        <IconButton
+                          aria-label={`Rename category ${group.name}`}
+                          onClick={() => setEditCategoryTarget(category)}
+                          data-testid="edit-category-button"
+                        >
+                          <EditOutlinedIcon fontSize="small"/>
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Remove category">
                         <IconButton
                           color="error"
@@ -393,6 +409,18 @@ export default function ListDetailPage() {
         listId={listId}
         categories={categories}
         onClose={() => setEditItemTarget(null)}
+        onSaved={() => {
+          void refetch().catch(() => {})
+        }}
+      />
+
+      {/* Category renaming (Story 8.6). Same refetch-driven contract as the
+          item dialog above: no subscribeToMore is added here, and the shopping
+          view's existing per-list category subscription carries a rename to
+          other members live. */}
+      <EditCategoryDialog
+        category={editCategoryTarget}
+        onClose={() => setEditCategoryTarget(null)}
         onSaved={() => {
           void refetch().catch(() => {})
         }}

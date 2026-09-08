@@ -419,8 +419,13 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectNotClipped(categoryName(page, LONG_CATEGORY_NAME))
 
     // The row's own controls, which the removed cap used to reserve space for.
+    // THREE of them since Story 8.6 (FR63) put a rename control between the
+    // other two — the exact shape support/layout.ts names as the one this row is
+    // expected to break, which is why the third control is asserted HERE rather
+    // than in a second floor test for the same row (NFR-E8-5: one test owns it).
     const row = page.getByTestId(`category-row-${LONG_CATEGORY_NAME}`)
     await expectInsideViewport(row.getByTestId('add-item-in-category-button'), 'the add-item-in-category control')
+    await expectInsideViewport(row.getByTestId('edit-category-button'), 'the rename-category control')
     await expectInsideViewport(row.getByTestId('remove-category-button'), 'the remove-category control')
 
     // …and the name's own box, plus the page. Same reasoning as the item name:

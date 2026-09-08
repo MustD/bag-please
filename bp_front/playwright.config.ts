@@ -174,6 +174,17 @@ export default defineConfig({
   //         testids. It still collects in both viewport projects (it is
   //         untagged), so it obeys the +2-runs-per-test rule above and costs no
   //         browser; do not read "2 projects" here as duplicated browser work.
+  //       2026-09-09 (Story 8.6): 224 = 111 / 111 / 1 / 1  (+5 untagged FR63 tests
+  //         at +2 runs each = +10 runs, against that 214: the rename golden path,
+  //         the dialog's validation/trim/reopen case, the live-propagation
+  //         two-actor case, the stale-rename resurrection, and the revoked-member
+  //         rejection), OF WHICH 19 ARE SKIPS — UNCHANGED from the Story 8.5 row,
+  //         18 in chromium and 1 in mobile, because none of the five carries a
+  //         project guard and the story's floor coverage EXTENDED the existing
+  //         mobile-only category-row test rather than adding a second one
+  //         (NFR-E8-5: one test owns that row). Counts measured with the command
+  //         above on the post-fix build; the skip SPLIT read off a
+  //         `--reporter=json` run, not inferred.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

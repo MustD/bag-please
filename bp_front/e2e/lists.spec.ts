@@ -1,5 +1,6 @@
 import {expect, type Page, test} from '@playwright/test'
 
+import {gql, loginApi} from './support/api'
 import {
   addCategory,
   addItem,
@@ -585,6 +586,10 @@ test('FR62 — an item orphaned by a category removal is reachable in an Uncateg
   // Each ITEM keeps its own working pair, asserted by using them below.
   await expect(uncategorized.getByTestId('add-item-in-category-button')).toHaveCount(0)
   await expect(uncategorized.getByTestId('remove-category-button')).toHaveCount(0)
+  // …and no RENAME control either (Story 8.6, FR63). The synthetic bucket has no
+  // category behind it, so there is no name to save. Asserted in the ONE test
+  // that already owns this fixture rather than re-producing an orphan elsewhere.
+  await expect(uncategorized.getByTestId('edit-category-button')).toHaveCount(0)
 
   // The shopping view has bucketed orphans since Story 5.6. Asserting it here is
   // what makes "the same list reads the same way" a COMPARISON rather than a
@@ -677,4 +682,508 @@ test('FR62 — an item orphaned by a category removal is reachable in an Uncateg
   await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
   await expect(uncategorized).toHaveCount(0)
   await expect(page.getByTestId('category-name')).toHaveText([rehome])
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 8.6 (FR63) — rename a category instead of destroying it.
+//
+// Before this story the only way to fix a mistyped category name was the remove
+// control, whose own confirm reads "Items in this category are removed with it.
+// This cannot be undone." — so correcting "Diary" to "Dairy" cost the aisle.
+// The rename saves through the SAME `saveCategory` upsert the add dialog uses,
+// so the whole story is frontend: no backend change, no schema change.
+//
+// THE LOCATOR RULE FOR EVERY SPEC BELOW (AC7). Both surfaces key their rows by
+// NAME (`category-row-${name}`, `shopping-group-${name}`), so a locator built
+// from the OLD name is dead the instant the mutation lands. Re-query with the
+// NEW name after each save and assert the old testid is gone; never hold one
+// across a save.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Capture the CategoryInput of every saveCategory this page sends. Not a
+// substitute for the behaviour under test — the rename is driven entirely
+// through the dialog; this only reads the payload the app chose to send, which
+// is the one thing AC3 is about and the DOM cannot show. `"SaveCategory"`
+// (quoted) matches Apollo's operationName field, not the query text. Attach it
+// AFTER setup, so `addCategory`'s own upserts are not collected.
+type CategoryInput = {id: string; name: string; listId: string}
+
+function captureCategorySaves(page: Page): () => CategoryInput[] {
+  const sent: CategoryInput[] = []
+  page.on('request', req => {
+    if (req.method() !== 'POST' || !req.url().includes('/api/graphql')) return
+    const body = req.postData() ?? ''
+    if (!body.includes('"SaveCategory"')) return
+    const parsed = JSON.parse(body) as {variables?: {category?: CategoryInput}}
+    if (parsed.variables?.category) sent.push(parsed.variables.category)
+  })
+  return () => sent
+}
+
+// The other half of AC2, and the reason it is not enough to compare the sent
+// `listId` against the id parsed out of the URL: those two agree today, so an
+// implementation that took `listId` from `useParams` — the exact mistake AC2
+// exists to prevent — would satisfy a URL comparison unchanged. The value the
+// payload must carry is the one the QUERY returned for this row, so that is
+// what gets captured. Response bodies arrive asynchronously, hence the promise
+// list rather than a plain array.
+function captureLoadedCategories(page: Page): () => Promise<CategoryInput[]> {
+  const pending: Promise<CategoryInput[]>[] = []
+  page.on('response', res => {
+    const req = res.request()
+    if (req.method() !== 'POST' || !req.url().includes('/api/graphql')) return
+    if (!(req.postData() ?? '').includes('"Categories"')) return
+    pending.push(
+      res
+        .json()
+        .then(body => (body as {data?: {getCategories?: CategoryInput[]}}).data?.getCategories ?? [])
+        .catch(() => []),
+    )
+  })
+  return async () => (await Promise.all(pending)).flat()
+}
+
+// `submit` drives the dialog's TWO submission paths. The default clicks the
+// button; 'enter' presses Enter from the name field, which only works because
+// the dialog's content is a native <form> with a `type="submit"` button — an
+// explicit convention of this dialog (AC3) that moving submission onto the
+// button's `onClick` would silently break while every click-driven rename here
+// stayed green.
+async function renameCategory(
+  page: Page,
+  from: string,
+  to: string,
+  submit: 'button' | 'enter' = 'button',
+): Promise<void> {
+  await page.getByTestId(`category-row-${from}`).getByTestId('edit-category-button').click()
+  await expect(page.getByTestId('edit-category-dialog')).toBeVisible()
+  // Pre-filled with the CURRENT name (AC1): a rename starts from what is there,
+  // not from an empty box the user has to retype.
+  await expect(page.getByTestId('edit-category-name')).toHaveValue(from)
+  await page.getByTestId('edit-category-name').fill(to)
+  if (submit === 'enter') {
+    await page.getByTestId('edit-category-name').press('Enter')
+  } else {
+    await page.getByTestId('edit-category-submit').click()
+  }
+  await expect(page.getByTestId('edit-category-dialog')).toHaveCount(0)
+}
+
+test('FR63 — renaming a category keeps its items and its list, and survives a reload', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'rename', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Rename ${stamp}`
+  const otherListName = `Untouched ${stamp}`
+  const typo = `Diary ${stamp}`
+  const fixed = `Dairy ${stamp}`
+  const fixedAgain = `Dairy aisle ${stamp}`
+  const otherCategory = `Other list category ${stamp}`
+  const milk = `Milk ${stamp}`
+  const cheese = `Cheese ${stamp}`
+  // A NEIGHBOUR that the rename sorts THROUGH: `Dairy … < Deli … < Diary …`, so
+  // the corrected name moves from second place to first. Without it every
+  // fixture here holds one category and a regression that stopped re-sorting
+  // after a rename — breaking Story 8.5's "the same list reads the same way on
+  // both screens" contract — would have nothing to sort against. It carries an
+  // item because the shopping view hides empty groups always, and a hidden
+  // group cannot appear in a sequence comparison.
+  const neighbour = `Deli ${stamp}`
+  const salami = `Salami ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, typo)
+  await addItem(page, typo, milk)
+  await addItem(page, typo, cheese)
+  await addCategory(page, neighbour)
+  await addItem(page, neighbour, salami)
+
+  // A SECOND list on the same account, with its own category. `saveCategory`
+  // `$set`s `listId` unconditionally server-side, so a payload carrying the
+  // wrong list would move the category and strand its items behind a dangling
+  // id — a failure that is invisible on the screen doing the rename. This list
+  // is what makes it visible.
+  await openListsViaMenu(page)
+  const otherListId = await createListAndOpen(page, otherListName)
+  await addCategory(page, otherCategory)
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+
+  const saves = captureCategorySaves(page)
+  const loaded = captureLoadedCategories(page)
+
+  // AC1 — the control sits BETWEEN add-item and remove-category, so the
+  // destructive one stays last. Filtered to the category-level controls: the
+  // item rows below carry their own edit/remove pair.
+  const controlOrder = await page
+    .getByTestId(`category-row-${typo}`)
+    .locator('button[data-testid]')
+    .evaluateAll(els =>
+      els
+        .map(el => el.getAttribute('data-testid') ?? '')
+        .filter(id =>
+          id === 'add-item-in-category-button' ||
+          id === 'edit-category-button' ||
+          id === 'remove-category-button',
+        ),
+    )
+  expect(controlOrder, 'rename sits between add-item and remove-category').toEqual([
+    'add-item-in-category-button',
+    'edit-category-button',
+    'remove-category-button',
+  ])
+
+  // AC2 — the rename itself. The row re-renders under the new name with both
+  // items still attached, and the old row is gone rather than duplicated (a
+  // fresh UUID would leave TWO rows here, which is the cheap half of AC3).
+  // The pre-rename order, read rather than assumed: `Deli …` sorts before
+  // `Diary …`.
+  await expect(page.getByTestId('category-name')).toHaveText([neighbour, typo])
+
+  await renameCategory(page, typo, fixed)
+  const renamed = page.getByTestId(`category-row-${fixed}`)
+  await expect(renamed).toBeVisible()
+  await expect(page.getByTestId(`category-row-${typo}`)).toHaveCount(0)
+  await expect(renamed.getByTestId(`item-row-${milk}`)).toBeVisible()
+  await expect(renamed.getByTestId(`item-row-${cheese}`)).toBeVisible()
+  // …and the renamed row has MOVED: the list re-sorts on the new name instead of
+  // keeping the row where the old one put it.
+  await expect(page.getByTestId('category-name')).toHaveText([fixed, neighbour])
+
+  // A SECOND rename, because "the id is the loaded category's own" is a claim
+  // about STABILITY: one payload cannot distinguish a preserved id from a
+  // freshly minted one, two identical ids can.
+  await renameCategory(page, fixed, fixedAgain)
+  await expect(page.getByTestId(`category-row-${fixedAgain}`)).toBeVisible()
+  await expect(page.getByTestId(`category-row-${fixed}`)).toHaveCount(0)
+  await expect(page.getByTestId('category-name')).toHaveText([fixedAgain, neighbour])
+
+  // AC3 — the payload shape. A complete CategoryInput each time: the SAME id
+  // (never a fresh UUID), the trimmed new name, and the list the category was
+  // loaded from.
+  const sent = saves()
+  expect(sent.map(c => c.name), 'each save carries the trimmed new name').toEqual([fixed, fixedAgain])
+  expect(sent[0].id, 'the second rename reuses the first\'s id — no fresh UUID').toBe(sent[1].id)
+  // The `listId` is compared against the one the CATEGORIES QUERY returned for
+  // this row, not against the id in the URL. The two agree today, which is
+  // exactly why the URL is the wrong reference: a dialog that read `listId` off
+  // `useParams` would pass a URL comparison while carrying a value that has
+  // nothing to do with the entity it is saving.
+  const loadedRows = await loaded()
+  const queried = loadedRows.filter(c => c.id === sent[0].id)
+  expect(queried.length, 'the renamed row was actually loaded by the Categories query').toBeGreaterThan(0)
+  expect(
+    sent.map(c => c.listId),
+    'each save carries the listId the query returned for this category',
+  ).toEqual([queried[0].listId, queried[0].listId])
+
+  // It is a real write, not a cache illusion.
+  await page.reload()
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  const afterReload = page.getByTestId(`category-row-${fixedAgain}`)
+  await expect(afterReload).toBeVisible()
+  await expect(afterReload.getByTestId(`item-row-${milk}`)).toBeVisible()
+  await expect(afterReload.getByTestId(`item-row-${cheese}`)).toBeVisible()
+
+  // BOTH SCREENS still read the same way after a rename (Story 8.5's FR62
+  // contract). Compared against the sequence just read off the management
+  // screen rather than against a second copy of the expectation.
+  const managementOrder = await page.getByTestId('category-name').allTextContents()
+  expect(managementOrder, 'the rename re-sorted the management screen').toEqual([fixedAgain, neighbour])
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(page.getByTestId(`shopping-group-${fixedAgain}`)).toBeVisible()
+  expect(await shoppingGroupNames(page), 'both screens order the renamed category alike').toEqual(managementOrder)
+
+  // AC3's other half — the second list is exactly as it was.
+  await page.goto(`/lists/${otherListId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await expect(page.getByTestId('category-name')).toHaveText([otherCategory])
+  await expect(page.getByTestId(`category-row-${fixedAgain}`)).toHaveCount(0)
+})
+
+test('FR63 — the rename dialog validates like the add dialog, trims, clears its errors on reopen, and no-ops an unchanged submit', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'renamevalid', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Validate ${stamp}`
+  const original = `Bakery ${stamp}`
+  const trimmed = `Bakery aisle ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  await createListAndOpen(page, listName)
+  await addCategory(page, original)
+
+  const saves = captureCategorySaves(page)
+
+  // EMPTY — validate-on-submit, inline field error, dialog stays open, and no
+  // request goes out at all.
+  await page.getByTestId(`category-row-${original}`).getByTestId('edit-category-button').click()
+  await expect(page.getByTestId('edit-category-dialog')).toBeVisible()
+  await page.getByTestId('edit-category-name').fill('')
+  await page.getByTestId('edit-category-submit').click()
+  await expect(page.getByTestId('edit-category-dialog')).toBeVisible()
+  await expect(page.getByTestId('edit-category-dialog').getByText('Name is required')).toBeVisible()
+  expect(saves(), 'an invalid name sends no mutation').toHaveLength(0)
+
+  // OVER-LONG, in TWO layers, because they fail differently.
+  //
+  // Layer one is the cap: the field carries `maxLength=100`, which the browser
+  // enforces on typing AND on paste — and Playwright's `fill` honours it too —
+  // so 101 characters in leaves 100 characters held.
+  await expect(page.getByTestId('edit-category-name')).toHaveAttribute('maxlength', '100')
+  await page.getByTestId('edit-category-name').fill('x'.repeat(101))
+  await expect(page.getByTestId('edit-category-name')).toHaveValue('x'.repeat(100))
+  expect(saves(), 'nothing is sent while the dialog is still open').toHaveLength(0)
+
+  // Layer two is the submit-time length check BEHIND that cap, which mirrors
+  // AddCategoryDialog's. `fill` can never reach it, so the value is written
+  // through React's own input plumbing instead — the native value setter plus a
+  // real `input` event, which is what a controlled MUI TextField listens to.
+  // That is not a user gesture and is not pretending to be one: it is the only
+  // way to drive a branch whose whole job is to hold when the attribute does
+  // not (an autofill, an extension, a future field that drops `maxLength`). The
+  // ASSERTED behaviour is still the component's own — inline error, dialog open,
+  // no mutation.
+  await page.getByTestId('edit-category-name').evaluate((el, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    setter.call(el, value)
+    el.dispatchEvent(new Event('input', {bubbles: true}))
+  }, 'y'.repeat(101))
+  await expect(page.getByTestId('edit-category-name')).toHaveValue('y'.repeat(101))
+  await page.getByTestId('edit-category-submit').click()
+  await expect(page.getByTestId('edit-category-dialog')).toBeVisible()
+  await expect(
+    page.getByTestId('edit-category-dialog').getByText('Name must be 100 characters or fewer'),
+  ).toBeVisible()
+  expect(saves(), 'an over-long name sends no mutation either').toHaveLength(0)
+
+  // Cancel closes without saving, and the row is untouched.
+  await page.getByTestId('edit-category-cancel').click()
+  await expect(page.getByTestId('edit-category-dialog')).toHaveCount(0)
+  await expect(page.getByTestId(`category-row-${original}`)).toBeVisible()
+  expect(saves(), 'cancel sends no mutation').toHaveLength(0)
+
+  // REOPENED, and asserted WHILE IT IS OPEN. The seeding block re-seeds the
+  // name and clears both error slots on every closed→open transition; without
+  // that clearing, this dialog would come back carrying the length error left
+  // over from the abandoned attempt above. Asserting it after a close instead
+  // would prove nothing at all — MUI unmounts the dialog's children, so no
+  // error element can exist once it is shut, whatever the component does.
+  await page.getByTestId(`category-row-${original}`).getByTestId('edit-category-button').click()
+  await expect(page.getByTestId('edit-category-dialog')).toBeVisible()
+  await expect(page.getByTestId('edit-category-name')).toHaveValue(original)
+  await expect(page.getByTestId('edit-category-dialog').getByText('Name is required')).toHaveCount(0)
+  await expect(
+    page.getByTestId('edit-category-dialog').getByText('Name must be 100 characters or fewer'),
+  ).toHaveCount(0)
+  await expect(page.getByTestId('edit-category-error')).toHaveCount(0)
+  await page.getByTestId('edit-category-cancel').click()
+  await expect(page.getByTestId('edit-category-dialog')).toHaveCount(0)
+
+  // WHITESPACE — padded input, trimmed row. The stored name is what the row
+  // testid is keyed on, so a surviving space would fail this locator. Submitted
+  // with ENTER from the name field, which is the convention the dialog's native
+  // <form> exists for: every other rename in this file clicks the button, so
+  // moving submission onto the button's `onClick` would leave the whole suite
+  // green with the keyboard path broken.
+  await renameCategory(page, original, `   ${trimmed}   `, 'enter')
+  await expect(page.getByTestId(`category-row-${trimmed}`)).toBeVisible()
+  await expect(page.getByTestId(`category-row-${original}`)).toHaveCount(0)
+  expect(saves().map(c => c.name), 'the padded name is trimmed before it is sent').toEqual([trimmed])
+
+  // UNCHANGED — permitted, and it sends NOTHING. `saveCategory` is a
+  // full-document upsert, so resending the open-time name is not inert under
+  // concurrency: it would write this dialog's stale name back over a co-member's
+  // rename that landed while it sat open. The same `nothingChanged`
+  // short-circuit EditItemDialog carries, for the same reason, and the dialog
+  // still closes exactly as a successful save does.
+  await renameCategory(page, trimmed, trimmed)
+  await expect(page.getByTestId(`category-row-${trimmed}`)).toBeVisible()
+  expect(saves().map(c => c.name), 'an unchanged submit sends no mutation').toEqual([trimmed])
+})
+
+test('FR63 — a rename lands live on another member\'s shopping view, with no subscription on /lists/:id', async ({browser, page, baseURL}, testInfo) => {
+  const owner = uniqueUsername('lists', 'renameowner', testInfo.project.name)
+  const member = uniqueUsername('lists', 'renamemember', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Shared rename ${stamp}`
+  const typo = `Diary ${stamp}`
+  const fixed = `Dairy ${stamp}`
+  const milk = `Milk ${stamp}`
+
+  // The OBSERVER sits on the `page` fixture, whose /list/:id rendering is what
+  // the mandatory mobile gate must cover: browser.newContext() does NOT inherit
+  // the project's `use` block, so a hand-built context would silently observe at
+  // a desktop viewport on the mobile project. The co-member renames in the
+  // hand-built context — which also makes the renamer a NON-owner, since editing
+  // a category is a member right.
+  await registerViaUi(page, owner, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, typo)
+  await addItem(page, typo, milk)
+
+  const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    const memberPage = await ctx.newPage()
+    await registerViaUi(memberPage, member, PASSWORD)
+
+    // SETUP ONLY (the sharing UI is Story 5.7's subject, not this story's): make
+    // `member` an accepted member through the backend shareList + acceptInvite
+    // mutations with each user's own API token. Not the asserted behaviour.
+    const ownerToken = await loginApi(owner, PASSWORD)
+    const memberToken = await loginApi(member, PASSWORD)
+    await gql(`mutation { shareList(listId: "${listId}", username: "${member}") { id } }`, ownerToken)
+    await gql(`mutation { acceptInvite(listId: "${listId}") { id } }`, memberToken)
+
+    // The owner parks on the shopping view and never reloads from here.
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    await expect(page.getByTestId(`shopping-group-${typo}`)).toBeVisible()
+
+    // AC4's other half, asserted rather than assumed: the MANAGEMENT screen
+    // opens no WebSocket. The live update below is delivered by the shopping
+    // view's existing per-list category subscription — this story adds no
+    // `subscribeToMore` to /lists/:id, which stays refetch-driven (AR-E8-6).
+    const sockets = countWebSockets(memberPage)
+    await memberPage.goto(`/lists/${listId}`)
+    await expect(memberPage.getByTestId('list-detail-page')).toBeVisible()
+    await renameCategory(memberPage, typo, fixed)
+    await expect(memberPage.getByTestId(`category-row-${fixed}`)).toBeVisible()
+    expect(sockets(), '/lists/:id opens no WebSocket — it gains no subscription').toBe(0)
+
+    // The owner sees the new group name WITHOUT reloading, item intact.
+    await expect(page.getByTestId(`shopping-group-${fixed}`)).toBeVisible()
+    await expect(page.getByTestId(`shopping-group-${typo}`)).toHaveCount(0)
+    await expect(page.getByTestId(`shopping-group-${fixed}`).getByTestId(`shopping-item-${milk}`)).toBeVisible()
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('FR63 — a stale rename RECREATES a category another tab removed, empty and not an error', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'renamestale', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Stale ${stamp}`
+  const doomed = `Doomed ${stamp}`
+  const resurrected = `Resurrected ${stamp}`
+  const item = `Yoghurt ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, doomed)
+  await addItem(page, doomed, item)
+
+  // `saveCategory` is an UPSERT with a client-supplied id, so a rename saved
+  // against a category someone else has already removed RECREATES it — empty,
+  // because its items went with the original removal. That is the documented
+  // outcome, not a bug to guard: there is deliberately no client-side existence
+  // check, and nothing here asserts the save fails.
+  //
+  // The stale saver is produced UI-only, one user, two tabs in one context.
+  // Tab A (this one) is refetch-driven with no subscription, so it stays stale
+  // until it acts.
+  const other = await page.context().newPage()
+  await other.goto(`/lists/${listId}`)
+  await expect(other.getByTestId('list-detail-page')).toBeVisible()
+  await other.getByTestId(`category-row-${doomed}`).getByTestId('remove-category-button').click()
+  await expect(other.getByTestId('remove-category-dialog')).toBeVisible()
+  await other.getByTestId('remove-category-dialog-confirm').click()
+  await expect(other.getByTestId('remove-category-dialog')).toHaveCount(0)
+  await expect(other.getByTestId(`category-row-${doomed}`)).toHaveCount(0)
+
+  // Tab B parks on the SHOPPING view, where the resurrection arrives over the
+  // existing category subscription with no reload.
+  await other.goto(`/list/${listId}`)
+  await expect(other.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(other.getByTestId(`shopping-group-${doomed}`)).toHaveCount(0)
+
+  // THE FIXTURE'S PREMISE, asserted rather than assumed: tab A still shows the
+  // removed category. If /lists/:id ever gains a subscription this fails HERE,
+  // at its own setup, instead of misreporting further down.
+  await expect(page.getByTestId(`category-row-${doomed}`)).toBeVisible()
+
+  // The stale save. It succeeds: the dialog closes (renameCategory awaits that)
+  // rather than holding an inline error, and the row below is the proof.
+  await renameCategory(page, doomed, resurrected)
+
+  // On the SAVER's management screen the recreation is a plain row with the
+  // empty-category line: the item is gone, it went with the removal.
+  const recreated = page.getByTestId(`category-row-${resurrected}`)
+  await expect(recreated).toBeVisible()
+  await expect(recreated.getByText('No items yet.')).toBeVisible()
+  await expect(page.getByTestId(`item-row-${item}`)).toHaveCount(0)
+  await expect(page.getByTestId(`category-row-${doomed}`)).toHaveCount(0)
+
+  // On the OBSERVER's shopping surface it is NOT a group — that view hides
+  // empty groups always (Story 8.5 AC5), and an empty resurrection has nothing
+  // to show. Its observable surface there is the category FILTER, whose options
+  // come from the array the subscription just upserted. Do not "fix" the missing
+  // group; the hiding is by design.
+  await expect(other.getByTestId(`shopping-group-${resurrected}`)).toHaveCount(0)
+  await withCategoryMenu(other, async () => {
+    await expect(other.getByTestId(`filter-category-option-${resurrected}`)).toBeVisible()
+    await expect(other.getByTestId(`filter-category-option-${doomed}`)).toHaveCount(0)
+  })
+  await other.close()
+})
+
+test('FR63 — a rejected rename keeps the dialog open and shows the backend message inline', async ({browser, page, baseURL}, testInfo) => {
+  const owner = uniqueUsername('lists', 'renamerevoker', testInfo.project.name)
+  const member = uniqueUsername('lists', 'renamerevoked', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Revoked rename ${stamp}`
+  const original = `Frozen ${stamp}`
+  const attempted = `Freezer ${stamp}`
+
+  await registerViaUi(page, owner, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, original)
+
+  const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    const memberPage = await ctx.newPage()
+    await registerViaUi(memberPage, member, PASSWORD)
+
+    // SETUP ONLY: seed accepted membership so the member can reach the list.
+    const ownerToken = await loginApi(owner, PASSWORD)
+    const memberToken = await loginApi(member, PASSWORD)
+    await gql(`mutation { shareList(listId: "${listId}", username: "${member}") { id } }`, ownerToken)
+    await gql(`mutation { acceptInvite(listId: "${listId}") { id } }`, memberToken)
+
+    await memberPage.goto(`/lists/${listId}`)
+    await expect(memberPage.getByTestId('list-detail-page')).toBeVisible()
+    await memberPage.getByTestId(`category-row-${original}`).getByTestId('edit-category-button').click()
+    await expect(memberPage.getByTestId('edit-category-dialog')).toBeVisible()
+    await memberPage.getByTestId('edit-category-name').fill(attempted)
+
+    // Membership is revoked while the dialog sits open, so the save is rejected
+    // server-side. The same mechanism item-editing.spec.ts uses, and the only
+    // realistic way to reach the mutation's catch branch — the branch every form
+    // convention this dialog inherits exists to protect.
+    await gql(`mutation { removeMember(listId: "${listId}", username: "${member}") { id } }`, ownerToken)
+
+    await memberPage.getByTestId('edit-category-submit').click()
+
+    // The dialog stays OPEN with the backend's own message inline — never a
+    // toast, and never a silent close that would read as success.
+    const alert = memberPage.getByTestId('edit-category-error')
+    await expect(alert).toBeVisible()
+    await expect(alert).toHaveAttribute('role', 'alert')
+    await expect(alert).not.toBeEmpty()
+    await expect(memberPage.getByTestId('edit-category-dialog')).toBeVisible()
+
+    // The owner's copy still carries the ORIGINAL name — the rejected rename
+    // changed nothing.
+    await page.goto(`/lists/${listId}`)
+    await expect(page.getByTestId('list-detail-page')).toBeVisible()
+    await expect(page.getByTestId(`category-row-${original}`)).toBeVisible()
+    await expect(page.getByTestId(`category-row-${attempted}`)).toHaveCount(0)
+  } finally {
+    await ctx.close()
+  }
 })
