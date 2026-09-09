@@ -2106,3 +2106,95 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   OPEN. Story 8.4 routed `EditItemDialog.tsx` edits to "the first story that actually edits that file"; Story 8.6 is
   not that story — it added `EditCategoryDialog.tsx` and changed `EditItemDialog.tsx` by zero lines, and no AC of its
   own covers the item dialog.
+
+## Deferred from: Story 8.7 — write down the design this app actually has (2026-09-09)
+
+All four entries below are **measurement corrections and recorded inconsistencies, not fixes**. Story 8.7 ships no
+code (`git diff --stat bp_front/src/ bp_front/e2e/ bp_back/` is empty at
+`3af2d575e852ca186467c67a051e5ddc77a6fe6d`); it re-measured every figure it needed rather than copying one, and these
+are the places where the measurement disagreed with what was already written down.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-write-down-the-design-this-app-actually-has.md`
+  status: **CORRECTION — supersedes the census TOTAL ("exactly three") in the Story 8.2 entry above. A scoping
+  call, not a miscount.**
+  summary: `noWrap` with a NUMERIC `maxWidth` cap should be counted at **four** sites, not three. The fourth is
+  `bp_front/src/routes/ListShoppingPage.tsx:197` (the `addedBy` attribution, `maxWidth: 100`) — a site the earlier
+  entry had **already identified as a fourth** and then excluded from its own count, routing it to a neighbouring
+  entry instead.
+  evidence: Re-measured 2026-09-09 at `3af2d575e852ca186467c67a051e5ddc77a6fe6d` with `grep -rn 'noWrap' bp_front/src`.
+  The four numeric-cap sites: `AppShell.tsx:192-193` (`{xs: 140, sm: 220}`), `ListsPage.tsx:195`
+  (`{xs: 200, sm: 420}`), `AdminPage.tsx:200` (`{xs: 140, sm: 260}`), `ListShoppingPage.tsx:197` (`100`). Three
+  further `noWrap` sites carry no numeric cap and clip by the `minWidth: 0` flex mechanism instead:
+  `ListShoppingPage.tsx:167` (item name), `:406` (page header), `:485` (group heading).
+  **What exactly is superseded, quoted in full** so this is not read as catching a bad grep. The Story 8.2 entry
+  above (`deferred-work.md:1860-1868`, this sentence at `:1862-1864`) says: *"Verified by grep at review Pass 2 and
+  again 2026-09-07: `noWrap` with a fixed pixel cap survives at exactly three sites — `AppShell.tsx:192`,
+  `ListsPage.tsx:195`, `AdminPage.tsx:200`. `ListShoppingPage.tsx:215` **is a fourth `noWrap` + numeric cap** and is
+  discussed, unresolved, in the entry below."* The grep was right and the fourth site was named. What is superseded
+  is the **total**: the census excluded a site it had itself identified, on the judgement that it belonged to a
+  different discussion. That judgement is what this entry reverses — a `noWrap` with a hard numeric cap is the same
+  construct wherever it sits, and a census that names four sites while totalling three is read by the next author as
+  "three".
+  **The old entry's anchor has drifted again, for the second time.** `ListShoppingPage.tsx:215` was itself a
+  2026-09-07 correction of `:451` after Story 8.3 extracted `ShoppingItemRow`; at this commit the construct — the
+  `addedBy` attribution `Typography`, `noWrap` + `maxWidth: 100` — is at **`:197`**, and `:215` now lands on the
+  visually-hidden description span, which is unrelated code. Follow the construct, not the number. Recorded, not
+  fixed:
+  each cap still wants its own scoping decision (AR-E8-3), and Story 8.7 changes no code. Written in
+  `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` §7.1 with the correction named there too.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-write-down-the-design-this-app-actually-has.md`
+  status: **OPEN — four `custom.bp.*` tokens are declared and unconsumed.**
+  summary: `bp_front/src/theme.ts` declares SIX `custom.bp.*` tokens and only **two** have a consumer. `bg2`
+  (`#0E0E10`, `theme.ts:74`), `card2` (`#2C2C2E`, `:75`), `sheetBg` (`#1C1C1E`, `:77`) and `stripe`
+  (`rgba(255,255,255,0.03)`, `:79`) are read by nothing in `src/`.
+  evidence: Measured 2026-09-09 — `grep -rn 'custom\.bp' bp_front/src | grep -v 'src/theme.ts'` returns exactly two
+  hits: `AppShell.tsx:102` (`navBg`) and `WelcomeBanner.tsx:37` (`accentSoft`). The namespace is also typed into MUI's
+  `Theme` by the module augmentation at `theme.ts:5-24`, so all six carry type weight regardless of use, and
+  `sheetBg` is byte-identical to `palette.background.paper` (`theme.ts:34`) so it would add no surface value even if
+  adopted. This corrects an implicit reading rather than a stated figure: `epics.md:1247-1251` (UX-DR-E8-11) says the
+  closing story documents the deployed design "including the `custom.bp.*` tokens in `theme.ts`", which reads as a
+  namespace in use; two-thirds of it is not. The four tokens name a two-tier surface system and a zebra-stripe
+  treatment the app does not have. **Not fixed** because UX-DR-E8-11 freezes the visual language for Epic 8 and
+  because the decision is a product one — adopt them or delete them — not a cleanup. Recorded in `DESIGN.md` §3 and
+  §11.2.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-write-down-the-design-this-app-actually-has.md`
+  status: **OPEN — three visual inconsistencies, measured and recorded, deliberately not fixed.**
+  summary: (1) An item name truncates two different ways on the two list screens. (2) A list row responds to a tap
+  three different ways across the app. (3) Three surfaces deviate from the inline-`Alert` idiom every other surface
+  follows.
+  evidence: All measured 2026-09-09 at `3af2d575e852ca186467c67a051e5ddc77a6fe6d`.
+  **(1) Item-name truncation.** `/lists/:id` clamps to two lines then ellipsises — `display: '-webkit-box'`,
+  `WebkitLineClamp: 2`, `overflowWrap: 'anywhere'` at `ListDetailPage.tsx:338-349`. `/list/:id` uses a single-line
+  `noWrap` inside a `minWidth: 0` flex box at `ListShoppingPage.tsx:166-175`. Same entity, two mechanisms. Neither is
+  wrong for its screen (a two-line clamp costs vertical room on the screen users scroll most), which is why this is
+  recorded rather than harmonised — but nothing states the difference is deliberate, so a future reader cannot tell
+  design from drift.
+  **(2) Row interactivity.** Three implementations: a `ListItemButton` covering the row body on `/lists`
+  (`ListsPage.tsx:189-192`); a plain `ListItem` that is NOT interactive, with per-control `IconButton`s, on
+  `/lists/:id` (`ListDetailPage.tsx:330-373`); and a `Box role="checkbox" tabIndex={0}` with a pointer-pair gesture
+  handler as the whole control on `/list/:id` (`ListShoppingPage.tsx:61-223`). A fourth shape sits alongside them —
+  the switcher `Chip` with a conditional `onClick` (`ListShoppingPage.tsx:424-432`). The third is the deliberate one
+  (FR60, and AR-E8-8a closes it as an extension surface); the first two have simply never been compared.
+  **(3) Alert idiom deviations.** The convention is an `<Alert severity="error" role="alert">` rendered in the
+  surface that caused the error (23 `role="alert"` occurrences in `src/`). Three sites do something else:
+  `AuthPage.tsx:283-293` and `ChangePasswordPage.tsx:193-203` render a bare `<Typography role="alert" color="error">`
+  instead of an `Alert`; `AdminPage.tsx:155-165` renders `<Alert severity="success" role="status" onClose=…>` — the
+  only `role="status"` in `src/` and the only dismissible alert outside `WelcomeBanner`. The first two are consistent
+  with each other (both are the 360px form column, both written to the Story 5.2 conventions) and inconsistent with
+  everything else; the third is arguably the CORRECT one, which would make the success-shaped `role="alert"` uses the
+  ones out of step. **Not fixed** because all three are outside Story 8.7's scope (it ships no code) and because (3)
+  in particular is a decision about which idiom wins, not a mechanical sweep. Recorded in `DESIGN.md` §7 and
+  `EXPERIENCE.md` §6.2.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-write-down-the-design-this-app-actually-has.md`
+  status: **NOTE — where the current design contract now lives.**
+  summary: `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` and `EXPERIENCE.md` are the authoritative
+  description of the deployed design as of `3af2d575e852ca186467c67a051e5ddc77a6fe6d`. Both stale UX specifications
+  now carry a SUPERSEDED banner above their title and are otherwise unchanged.
+  evidence: `git diff --stat` on `ux-design-specification.md` and `ux-design-specification-epic-4.md` shows 4
+  insertions each and zero deletions; both files still exist, and their YAML frontmatter is intact (the banner sits
+  between the closing `---` and the `#` title). Anyone writing a future story against the app's design should read
+  the two new documents rather than either stale spec, and should expect their line anchors to drift — the construct
+  named beside each number is the claim, not the number.
