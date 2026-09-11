@@ -65,12 +65,6 @@ run = "docker compose down"
 description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up mongo bp_back"
 
-# -- Ai infra ---
-
-[tasks."skill-validate"]
-description = "Tessl skill validation, takes path to skill as argument"
-run = "npx tessl review run $@"
-
 # --- Update / maintenance ---
 
 [tasks."update:bmad"]
