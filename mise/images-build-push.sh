@@ -2,17 +2,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/project.env"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$ROOT_DIR/project.env"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Error: $ENV_FILE not found. Copy project.example.env and fill in your image names."
   exit 1
 fi
 
-# shellcheck source=project.env
+# shellcheck source=/dev/null
 source "$ENV_FILE"
 
-VERSION=$(grep '^version=' "$SCRIPT_DIR/gradle.properties" | cut -d'=' -f2)
+VERSION=$(grep '^version=' "$ROOT_DIR/gradle.properties" | cut -d'=' -f2)
 if [[ -z "$VERSION" ]]; then
   echo "Error: could not read version from gradle.properties"
   exit 1
@@ -26,16 +27,16 @@ fi
 echo "Building version $VERSION"
 
 docker build \
-  -f bp_back/Dockerfile \
+  -f "$ROOT_DIR/bp_back/Dockerfile" \
   -t "$DOCKER_IMAGE_BACK:$VERSION" \
   -t "$DOCKER_IMAGE_BACK:latest" \
-  .
+  "$ROOT_DIR"
 
 docker build \
-  -f bp_front/Dockerfile \
+  -f "$ROOT_DIR/bp_front/Dockerfile" \
   -t "$DOCKER_IMAGE_FRONT:$VERSION" \
   -t "$DOCKER_IMAGE_FRONT:latest" \
-  .
+  "$ROOT_DIR"
 
 echo "Pushing version $VERSION"
 

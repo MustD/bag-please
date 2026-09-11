@@ -68,6 +68,11 @@
     "allow_concurrent_runs": false,
     "reveal": "always"
   },
+  {
+    "label": "images:build-push",
+    "command": "mise run images:build-push",
+    "reveal": "always"
+  },
   // --- Update / maintenance ---
   {
     "label": "update:mise-tools",

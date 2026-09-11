@@ -66,6 +66,10 @@ run = "docker compose down"
 description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up mongo bp_back"
 
+[tasks."images:build-push"]
+description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"
+run = "./mise/images-build-push.sh"
+
 # --- Update / maintenance ---
 [tasks."update:mise-tools"]
 description = "Update Mise tools"
