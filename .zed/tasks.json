@@ -70,6 +70,11 @@
   },
   // --- Update / maintenance ---
   {
+    "label": "update:mise-tools",
+    "command": "mise run update:mise-tools",
+    "reveal": "always"
+  },
+  {
     "label": "update:bmad",
     "command": "mise run update:bmad",
     "reveal": "always"

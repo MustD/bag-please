@@ -2,6 +2,7 @@
 # Tool versions match the project (backend jvmToolchain(25), Vite + React 19 frontend).
 
 [tools]
+gradle = "9"
 java = "temurin-25"
 node = "26"
 
@@ -9,15 +10,15 @@ node = "26"
 
 [tasks."back:build"]
 description = "Build the backend without tests"
-run = "./gradlew :bp_back:build -xtest"
+run = "gradle :bp_back:build -xtest"
 
 [tasks."back:run"]
 description = "Run the backend in dev mode (continuous build)"
-run = "./gradlew :bp_back:run -t"
+run = "gradle :bp_back:run -t"
 
 [tasks."back:test"]
-description = "Run all backend tests"
-run = "./gradlew :bp_back:test"
+description = "Run all backend tests (one line per test + a pass/fail summary)"
+run = "./mise/back_test.sh"
 
 # --- Frontend (Vite + React 19 SPA, dev server on :5173) ---
 
@@ -53,29 +54,32 @@ run = "npm run test:e2e"
 
 # --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
 
-[tasks."up"]
+[tasks."docker:up"]
 description = "Build & start everything (frontend[Caddy] + mongo + back) on :2080"
 run = "docker compose up --build"
 
-[tasks."down"]
+[tasks."docker:down"]
 description = "Stop everything (frontend[Caddy] + mongo + back) on :2080"
 run = "docker compose down"
 
-[tasks."infra"]
+[tasks."docker:back"]
 description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up mongo bp_back"
 
 # --- Update / maintenance ---
+[tasks."update:mise-tools"]
+description = "Update Mise tools"
+run = "mise upgrade"
 
 [tasks."update:bmad"]
 description = "Update BMad Method (core + modules) by re-running the installer"
 run = "npx bmad-method install"
 
-[tasks."update:front"]
+[tasks."update:front-ls"]
 description = "List available frontend npm dependency updates (does not modify files)"
 dir = "bp_front"
 run = "npx npm-check-updates --format group"
 
-[tasks."gradle:dependencyUpdates"]
+[tasks."update:back-ls"]
 description = "List available Gradle dependency updates (does not modify files)"
 run = "./gradlew dependencyUpdates"
