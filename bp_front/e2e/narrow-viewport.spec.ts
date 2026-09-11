@@ -1,10 +1,5 @@
-import {expect, test, type Locator, type Page, type TestInfo} from '@playwright/test'
-import {
-  expectInsideViewport,
-  expectNoHorizontalOverflow,
-  expectNotClipped,
-  NARROW_FLOOR_PX,
-} from './support/layout'
+import {expect, type Locator, type Page, test, type TestInfo} from '@playwright/test'
+import {expectInsideViewport, expectNoHorizontalOverflow, expectNotClipped, NARROW_FLOOR_PX,} from './support/layout'
 import {
   addCategory,
   addItem,
@@ -364,7 +359,12 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // established by running the red phase rather than by reasoning. Review
     // Pass 2 first asserted `expectInsideViewport` on each — and BOTH passed
     // with `overflowWrap` deleted from the element under test, because neither
-    // name can leave the viewport: the item name sits behind the clamp's
+    // name can leave the viewport. READ THAT NARROWLY: it says containment is
+    // the wrong assertion FOR A CLIPPING DEFECT, not that the containment helper
+    // is inert. The helper's own falsifiability now lives in the three controls
+    // above ("expectInsideViewport is capable of failing …"), added at the Epic 8
+    // retrospective; this paragraph is not evidence either way. The item name
+    // sits behind the clamp's
     // `overflow: hidden`, and the category name's box is pinned by its flex row
     // while the text spills invisibly. Containment therefore cannot see this
     // defect at all. What `overflowWrap: 'anywhere'` actually guarantees is that
@@ -585,6 +585,128 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     })
 
     await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // AC4 — expectInsideViewport, the THIRD helper, and its falsifiability.
+  //
+  // Added at the Epic 8 retrospective (2026-09-11, finding F3). This helper
+  // gates NFR-E8-1's third clause alone — neither sibling can see a control
+  // pushed off-screen, because a clipped control widens no ancestor and is not a
+  // text element — and it shipped Story 8.1 with NO control of its own. It was
+  // then wrong in two ways that both failed OPEN (support/layout.ts explains
+  // each), and `:363-372` below records the one time anyone tried to make it go
+  // red: it passed. One control per failure mode, so a helper that gates the
+  // epic's headline requirement cannot again be green because it is inert.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] expectInsideViewport is capable of failing HORIZONTALLY', async ({page}, testInfo) => {
+    // THE PROBE GOES OFF THE LEFT EDGE, NOT THE RIGHT, and that is load-bearing.
+    //
+    // A probe at `left: NARROW_FLOOR_PX * 2` does not work, and the reason is a
+    // real property of the assertion rather than a quirk of the probe: pushing
+    // an element past the right edge WIDENS THE DOCUMENT, and under this
+    // project's mobile emulation Chromium then grows the VISUAL VIEWPORT to
+    // match. Measured while writing this control: with the probe at `left:640`,
+    // `documentElement.clientWidth` stayed 320 but `window.innerWidth` became
+    // 690, and the IntersectionObserver that backs `toBeInViewport` reported
+    // `intersectionRatio === 1` — correctly, because the element genuinely was
+    // inside the viewport it had just enlarged. The probe created the condition
+    // it meant to test.
+    //
+    // A NEGATIVE offset cannot do that: it does not extend `scrollWidth`, so the
+    // viewport stays at the floor and the element is honestly outside it.
+    //
+    // The consequence for the helper is worth stating, because it is the one
+    // place `expectInsideViewport` is weaker than it looks: on a page that
+    // ALREADY overflows horizontally, containment is measured against the grown
+    // viewport. That is why it does not subsume `expectNoHorizontalOverflow` —
+    // the two compose, and neither replaces the other.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await page.goto('/auth')
+    await withProbe(
+      page,
+      'position:absolute;top:0;left:-100px;width:50px;height:50px;background:red;',
+      '',
+      async probe => {
+        // Non-vacuity: the probe must really lie off the left edge, or the throw
+        // below could come from any unrelated failure.
+        const box = await probe.boundingBox()
+        expect(box!.x + box!.width, 'the horizontal probe must end left of the viewport').toBeLessThan(0)
+        // And it must be inside vertically, so the throw can only come from the
+        // axis under test.
+        const clientHeight = await page.evaluate(() => document.documentElement.clientHeight)
+        expect(box!.y, 'the horizontal probe must not also be below the fold').toBeLessThan(clientHeight)
+        await expect(expectInsideViewport(probe, 'probe')).rejects.toThrow(/not fully inside the viewport/)
+      },
+    )
+  })
+
+  test('[P1] expectInsideViewport is capable of failing VERTICALLY', async ({page}, testInfo) => {
+    // THE AXIS THAT WAS NEVER ASSERTED AT ALL. The pre-retrospective helper
+    // compared `x` and `x + width` only, so this probe — a control shoved far
+    // below the fold, the literal shape of "pushed off-screen" on a phone —
+    // PASSED. If this test ever goes green-by-passing again, the y axis has been
+    // dropped a second time.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await page.goto('/auth')
+    await withProbe(
+      page,
+      'position:absolute;left:0;top:5000px;width:50px;height:50px;background:red;',
+      '',
+      async probe => {
+        const box = await probe.boundingBox()
+        const clientHeight = await page.evaluate(() => document.documentElement.clientHeight)
+        expect(box!.y, 'the vertical probe must start below the fold').toBeGreaterThan(clientHeight)
+        // And it must be INSIDE the viewport horizontally, so the throw can only
+        // come from the axis under test.
+        const clientWidth = await page.evaluate(() => document.documentElement.clientWidth)
+        expect(box!.x, 'the vertical probe must not also be off the right edge').toBeLessThan(clientWidth)
+        await expect(expectInsideViewport(probe, 'probe')).rejects.toThrow(/not fully inside the viewport/)
+      },
+    )
+  })
+
+  test('[P1] expectInsideViewport is capable of failing inside a CLIPPING ANCESTOR', async ({page}, testInfo) => {
+    // The second failure mode, and the one the helper's own header names as the
+    // reason it exists: Story 8.6 adds a third control to the category row, and
+    // a control clipped away by an `overflow: hidden` ancestor is unreachable
+    // while keeping a bounding box squarely INSIDE the viewport.
+    //
+    // The non-vacuity check below is the whole point of this control: it asserts
+    // that a pure bounding-box comparison — in BOTH axes, i.e. strictly stronger
+    // than the helper this replaced — would PASS on this probe. Only an
+    // intersection-based check can see it.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await page.goto('/auth')
+    await page.evaluate(() => {
+      const clip = document.createElement('div')
+      clip.id = 'atdd-clip'
+      clip.style.cssText = 'position:absolute;top:0;left:0;width:50px;height:50px;overflow:hidden;'
+      const inner = document.createElement('div')
+      inner.setAttribute('data-testid', 'atdd-clipped-probe')
+      inner.style.cssText = 'position:absolute;top:0;left:120px;width:40px;height:40px;background:red;'
+      clip.appendChild(inner)
+      document.body.appendChild(clip)
+    })
+    try {
+      const probe = page.getByTestId('atdd-clipped-probe')
+      const box = await probe.boundingBox()
+      const view = await page.evaluate(() => ({
+        w: document.documentElement.clientWidth,
+        h: document.documentElement.clientHeight,
+      }))
+      expect(box!.x, 'the clipped probe must lie inside the viewport horizontally').toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width, 'the clipped probe must lie inside the viewport horizontally').toBeLessThanOrEqual(view.w)
+      expect(box!.y, 'the clipped probe must lie inside the viewport vertically').toBeGreaterThanOrEqual(0)
+      expect(box!.y + box!.height, 'the clipped probe must lie inside the viewport vertically').toBeLessThanOrEqual(view.h)
+      await expect(expectInsideViewport(probe, 'probe')).rejects.toThrow(/not fully inside the viewport/)
+    } finally {
+      await page.evaluate(() => document.getElementById('atdd-clip')?.remove())
+    }
   })
 
   // ───────────────────────────────────────────────────────────────────────────

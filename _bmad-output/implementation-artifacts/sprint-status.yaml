@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: 09-08-2026 19:23
+last_updated: 09-11-2026 07:30
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -109,7 +109,7 @@ development_status:
   8-5-the-same-list-reads-the-same-way-on-both-screens: done
   8-6-rename-a-category-instead-of-destroying-it: done
   8-7-write-down-the-design-this-app-actually-has: done
-  epic-8-retrospective: optional
+  epic-8-retrospective: done
 
 # Action items committed during retrospectives (section created by the retrospective workflow)
 action_items:
@@ -305,3 +305,94 @@ action_items:
       is deliberately not blocking anything"
     owner: "md"
     status: open  # backlog, not a story slot -- routed here by md at the Epic 7 retrospective
+  - id: "epic-8-retro-item-31-f1-the-shopping-screen-list-id-still-tru"
+    epic: 8
+    action: "F1 - the shopping screen /list/:id still truncates item names at the
+      320px floor (measured 2026-09-11: scrollWidth 410 vs clientWidth 71, nowrap/hidden/ellipsis).
+      Story 8.2 fixed /lists/:id only. Either wrap/clamp it as 8.2 did, or record
+      the decision to keep truncation with the measured numbers. Add an expectNotClipped
+      assertion for that route either way - the floor route sweep covers it with the
+      document-level check alone, which AR-E8-3a says is green while the defect is
+      on screen."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-32-f2-filtering-lists-id-to-an-empty-catego"
+    epic: 8
+    action: "F2 - filtering /lists/:id to an EMPTY category drops its card and every
+      add-item affordance (observed live). ListDetailPage keepEmpty: !filterActive.
+      Keep a category rendered when explicitly selected, e.g. keepEmpty or filter.categoryIds.includes(group.key).
+      Cover it in the FR61 empty-category spec, which today selects only the stocked
+      category."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-33-f4-long_item_name-two-line-clamp-measure"
+    epic: 8
+    action: "F4 - LONG_ITEM_NAME two-line clamp measured at exactly 320px: scrollHeight
+      44 === clientHeight 44, a ZERO pixel margin. Give the fixture real headroom
+      or assert the margin, so the epic load-bearing AC4 assertion does not sit on
+      a knife edge."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-34-f5-uncategorized-is-not-a-reserved-categ"
+    epic: 8
+    action: "F5 - Uncategorized is not a reserved category name and Story 8.6 made
+      colliding with it a one-click action; both list screens key row testids by NAME.
+      Reserve the name, or key testids off group.key instead of group.name (also covers
+      the accepted duplicate-name case)."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-35-f19-supersede-the-stale-bmad-build-auto"
+    epic: 8
+    action: "F19 - supersede the stale bmad-build-auto-result-8-4-followup-review.md,
+      which reads status: blocked at HEAD while the follow-up review demonstrably
+      completed (spec-8-4 Review Triage Log, 34 findings, patches at aa8fe52). Give
+      the build-auto loop a resume path that reconciles the result artifact it wrote
+      at the halt. RECURRENCE of Epic 6 action item A3."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-36-f20-the-e2e-webserver-races-docker-compo"
+    epic: 8
+    action: "F20 - the E2E webServer races: docker compose up -d --build returns before
+      Caddy serves, and Playwright treats the early process exit as fatal (observed
+      this session: exit 1, zero tests run). Make it wait for readiness."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-37-process-treat-the-epic-spec-cross-story"
+    epic: 8
+    action: "PROCESS - treat the epic spec Cross-Story Dependencies section as an
+      input to the TEST PLAN, not only to story ordering. Where it names an interaction
+      between two stories, the later story carries an acceptance criterion for it.
+      Both F1 and F2 are cross-story boundary defects that this rule would have caught,
+      and both were predicted in prose by the epic that shipped them."
+    owner: "John"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-38-process-observed-failing-is-a-gate-not-a"
+    epic: 8
+    action: "PROCESS - observed failing is a GATE, not a note. F3 shipped unfalsified
+      because a failed falsifiability attempt was recorded as a comment and the work
+      proceeded."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-39-f19b-untrack-idea-datasources-xml-or-git"
+    epic: 8
+    action: "F19b - untrack .idea/dataSources.xml (or gitignore it); a tracked IDE
+      file halted the unattended build loop mid-epic."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-8-retro-item-40-f21-git_evidence-py-attributed-zero-of-1"
+    epic: 8
+    action: "F21 - git_evidence.py attributed ZERO of 16 commits: it matches story
+      ids spelled 8-1 while this project commit subjects spell them (Story 8.1, FR60).
+      Fix the matching or the commit convention."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"

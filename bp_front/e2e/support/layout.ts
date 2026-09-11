@@ -96,18 +96,42 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 // Assert an interactive control lies fully inside the viewport.
 //
 // NFR-E8-1's third clause, and the one neither helper above can discharge — see
-// the header. Measured against the real `clientWidth` rather than
-// `NARROW_FLOOR_PX`, because a classic scrollbar narrows the content box and a
-// hardcoded bound would be looser than intended; the same reasoning
-// navigation.spec.ts already applies to the app-bar chip.
+// the header.
+//
+// REWRITTEN at the Epic 8 retrospective (2026-09-11, finding F3). The first
+// implementation compared `boundingBox()` against
+// `document.documentElement.clientWidth` by hand, and was wrong in two ways that
+// both failed OPEN — it passed while the defect it names was on screen:
+//
+//   1. IT MEASURED ONE AXIS. Only `x` and `x + width` were asserted, so a
+//      control pushed off the TOP or BOTTOM of the screen satisfied a helper
+//      whose whole job is "no interactive control is pushed off-screen".
+//   2. IT MEASURED THE WRONG BOX. `clientWidth` is the VIEWPORT. A control
+//      clipped away by a scrolled `overflow: hidden` ANCESTOR keeps a bounding
+//      box squarely inside the viewport and is nonetheless unreachable — and
+//      that is precisely the shape this helper exists for, since Story 8.6 adds
+//      a third control to an already-crowded category row.
+//
+// It was also the only one of the three helpers with no falsifiability control,
+// and `narrow-viewport.spec.ts` records at the Story 8.2 review that when it WAS
+// tried against a deliberately broken layout it passed anyway. All three defects
+// are one defect: nothing ever proved it could fail. It now has three controls,
+// one per failure mode, in that spec beside its siblings'.
+//
+// `toBeInViewport({ratio: 1})` replaces the hand-rolled geometry and closes both
+// gaps at once, because Playwright backs it with an IntersectionObserver: the
+// intersection rect is clipped by every intermediate `overflow` ancestor as well
+// as by the viewport, and it is computed in BOTH axes. `ratio: 1` is what makes
+// it "fully inside" rather than the default "touching at all" — the default
+// `ratio: 0` would pass for a control one pixel of which is on screen, which is
+// the same failing-open this rewrite exists to end.
+//
+// It also auto-retries, where the old one-shot `boundingBox()` read whatever
+// geometry happened to exist at that instant.
 export async function expectInsideViewport(locator: Locator, label: string): Promise<void> {
-  await expect(locator).toBeVisible()
-  const box = await locator.boundingBox()
-  expect(box, `${label} has no bounding box`).not.toBeNull()
-  const clientWidth = await locator.page().evaluate(() => document.documentElement.clientWidth)
-  expect(box!.x, `${label} is pushed off the left edge (x ${box!.x})`).toBeGreaterThanOrEqual(0)
-  expect(
-    box!.x + box!.width,
-    `${label} is pushed off the right edge (right ${box!.x + box!.width} > clientWidth ${clientWidth})`,
-  ).toBeLessThanOrEqual(clientWidth)
+  await expect(locator, `${label} is not visible`).toBeVisible()
+  await expect(
+    locator,
+    `${label} is not fully inside the viewport (pushed off an edge, or clipped away by an ancestor)`,
+  ).toBeInViewport({ratio: 1})
 }
