@@ -1,26 +1,20 @@
-import {type ChangeEvent, type MouseEvent, useEffect, useMemo, useState} from 'react'
+import {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
-import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import FormControl from '@mui/material/FormControl'
-import InputLabel from '@mui/material/InputLabel'
 import Link from '@mui/material/Link'
-import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
-import Select, {type SelectChangeEvent} from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
-import ToggleButton from '@mui/material/ToggleButton'
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import CheckBoxIcon from '@mui/icons-material/CheckBox'
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import {
   CategoriesQuery,
@@ -33,20 +27,199 @@ import {
   ListsQuery,
   UncheckItemMutation,
 } from '@/lib/lists/listsQueries'
-import {byCreatedAtAsc} from '@/lib/lists/homePath'
+import {byCreatedAtAsc, groupItemsByCategory, type ItemGroup} from '@/lib/lists/order'
+import {type CheckedFilter, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
 import {graphqlErrorMessage, isForbiddenError} from '@/lib/admin/adminErrors'
+import ListFilters from '@/components/ListFilters'
 
-type CheckedFilter = 'all' | 'unchecked' | 'checked'
+// How far a pointer may travel between down and up and still count as a tap
+// (Story 8.3, FR60). A tap and the first moments of a scroll are the SAME
+// gesture on a touch screen, so activation cannot be "pointer went down here" —
+// it has to be "pointer went down and came back up without going anywhere".
+const MOVE_TOLERANCE_PX = 10
 
-const UNCATEGORIZED = '__uncategorized__'
+interface ShoppingItemRowProps {
+  item: ListItemType
+  onToggle: (item: ListItemType, nextChecked: boolean) => void
+}
 
-// A displayable group: a real category, or the synthetic "Uncategorized" bucket
-// for items whose category id has no local match (live category deletion, or a
-// realtime item arriving in a not-yet-known category) so items never vanish.
-interface Group {
-  key: string
-  name: string
-  items: ReadonlyArray<ListItemType>
+// One shopping row, and — since Story 8.3 (FR60) — ONE CONTROL. The row element
+// itself is the checkbox: it carries the role, the accessible name, the checked
+// state and the only tab stop. There is deliberately no interactive element
+// inside it (the MUI `Checkbox` that used to live here always renders a real
+// `<input>`, which would be a control nested in a control: two tab stops, two
+// names, two states). The visible box is now a presentational icon.
+//
+// This is a component rather than inline JSX purely because `down` is per-row
+// state and hooks cannot be called inside the `groups.map` callback.
+//
+// Activation is pointer-based with a movement threshold, plus a keyboard
+// handler. `onClick` is deliberately NOT also attached: a `click` still fires
+// after a moved touch, so it would both double-fire alongside `onPointerUp` and
+// defeat the scroll guard. `touch-action` is left at its default so the row
+// still scrolls.
+function ShoppingItemRow({item, onToggle}: ShoppingItemRowProps) {
+  const down = useRef<{x: number; y: number} | null>(null)
+  const descriptionId = useId()
+
+  // `role="checkbox"` makes the row's children PRESENTATIONAL, and the
+  // author-supplied `aria-label` displaces name-from-content on top of that — so
+  // the store chip and the `addedBy` name, which used to be plain row content
+  // beside a labelled checkbox, would otherwise be announced by nothing at all.
+  // They come back as the row's accessible DESCRIPTION, which is computed from a
+  // separate traversal and so leaves the accessible NAME exactly
+  // `Toggle ${item.name}` (an assertion pins that string).
+  const descriptionParts = [
+    item.store ? `Store: ${item.store}` : null,
+    item.addedBy ? `Added by ${item.addedBy}` : null,
+  ].filter((part): part is string => part !== null)
+
+  return (
+    <Box
+      data-testid={`shopping-item-${item.name}`}
+      role="checkbox"
+      aria-checked={item.checked}
+      aria-label={`Toggle ${item.name}`}
+      aria-describedby={descriptionParts.length > 0 ? descriptionId : undefined}
+      tabIndex={0}
+      onPointerDown={e => {
+        // Primary button, primary pointer only. The MUI Checkbox this replaced
+        // answered only to a primary activation; without these guards a
+        // right-click, a middle-click or a second simultaneous finger toggles
+        // the item.
+        if (e.button !== 0 || !e.isPrimary) return
+        // Capture, so `pointerdown` and `pointerup` are strictly paired on THIS
+        // row. Without it a gesture that starts here and is released elsewhere
+        // leaves `down.current` populated, and a later stray `pointerup` on this
+        // row is then measured against that stale origin.
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          // The pointer is already gone; the `!start` guard below still holds.
+        }
+        down.current = {x: e.clientX, y: e.clientY}
+      }}
+      onPointerCancel={() => {
+        down.current = null
+      }}
+      onPointerUp={e => {
+        if (e.button !== 0 || !e.isPrimary) return
+        const start = down.current
+        down.current = null
+        if (!start) return
+        // Moved too far: this was a scroll (or a drag), not a tap.
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > MOVE_TOLERANCE_PX) return
+        onToggle(item, !item.checked)
+      }}
+      onClick={e => {
+        // ONLY the synthetic click. Assistive technology and voice control
+        // activate a control by dispatching a bare `click` with no pointer
+        // sequence at all, which the pointer handlers above cannot see; such a
+        // click has `detail === 0`, while every click generated by a real mouse
+        // or finger has `detail >= 1`. Gating on that is what lets this coexist
+        // with `onPointerUp` without double-firing, and leaves the scroll guard
+        // untouched (a moved touch produces no click, and would be `detail 1`
+        // if it did).
+        if (e.detail !== 0) return
+        onToggle(item, !item.checked)
+      }}
+      onKeyDown={e => {
+        if (e.key !== ' ' && e.key !== 'Enter') return
+        // A held key autorepeats; one activation per press, not per repeat.
+        if (e.repeat) return
+        // Ctrl/Meta/Alt + Space or Enter belongs to the browser or the OS.
+        if (e.ctrlKey || e.metaKey || e.altKey) return
+        // Space would otherwise scroll the page under the focused row.
+        e.preventDefault()
+        onToggle(item, !item.checked)
+      }}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        py: 1,
+        cursor: 'pointer',
+        userSelect: 'none',
+        '&:focus-visible': {
+          outline: '2px solid',
+          outlineColor: 'primary.main',
+          outlineOffset: '-2px',
+        },
+      }}
+    >
+      {/* Presentational only — the state it shows lives on the row above. */}
+      {item.checked ? (
+        <CheckBoxIcon
+          color="primary"
+          data-testid={`shopping-item-indicator-${item.name}`}
+          sx={{m: 1, flexShrink: 0}}
+        />
+      ) : (
+        <CheckBoxOutlineBlankIcon
+          color="action"
+          data-testid={`shopping-item-indicator-${item.name}`}
+          sx={{m: 1, flexShrink: 0}}
+        />
+      )}
+      <Box sx={{flexGrow: 1, minWidth: 0}}>
+        <Typography
+          noWrap
+          color="text.primary"
+          sx={{
+            textDecoration: item.checked ? 'line-through' : 'none',
+            opacity: item.checked ? 0.6 : 1,
+          }}
+        >
+          {item.name}
+        </Typography>
+        {item.store && (
+          <Chip
+            size="small"
+            variant="outlined"
+            icon={<StorefrontIcon/>}
+            label={item.store}
+            data-testid={`shopping-item-store-${item.name}`}
+            sx={{mt: 0.5}}
+          />
+        )}
+      </Box>
+      {item.addedBy && (
+        <Stack
+          direction="row"
+          spacing={0.75}
+          data-testid={`shopping-item-addedby-${item.name}`}
+          sx={{alignItems: 'center', flexShrink: 0}}
+        >
+          <Avatar sx={{width: 24, height: 24, fontSize: '0.75rem'}}>
+            {item.addedBy.charAt(0).toUpperCase()}
+          </Avatar>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{maxWidth: 100}}>
+            {item.addedBy}
+          </Typography>
+        </Stack>
+      )}
+      {descriptionParts.length > 0 && (
+        <Box
+          component="span"
+          id={descriptionId}
+          sx={{
+            // `width: 1` here would be MUI's 0-1 shorthand for 100%, which put a
+            // full-width box at the span's static position and scrolled the page
+            // horizontally at the 320px floor. Pixels, explicitly.
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+            clip: 'rect(0 0 0 0)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {descriptionParts.join('. ')}
+        </Box>
+      )}
+    </Box>
+  )
 }
 
 // List shopping view (Story 5.6, FR36/FR40/FR44/FR45/FR49/FR52/FR53). Items
@@ -151,79 +324,42 @@ export default function ListShoppingPage() {
     }
   }, [activeList, headerLabel])
 
-  const [categoryFilter, setCategoryFilter] = useState('')
   const [checkedFilter, setCheckedFilter] = useState<CheckedFilter>('all')
-  const [search, setSearch] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // Switching lists via the chip row re-renders this same route element in place
-  // (no unmount), so the filter state would otherwise carry over — a category id
-  // from the previous list matches nothing here, leaving the view stuck on
-  // "no matches". Reset filters when the active list changes (render-phase
-  // adjustment, not a syncing effect — project lint forbids set-state-in-effect).
-  const [prevListId, setPrevListId] = useState(listId)
-  if (listId !== prevListId) {
-    setPrevListId(listId)
-    setCategoryFilter('')
-    setCheckedFilter('all')
-    setSearch('')
-  }
-  // Drop a category filter that no longer matches any current category (e.g. the
-  // selected one was deleted live via a CategoryUpdates event) so the MUI Select
-  // never holds an out-of-range value that silently hides every item.
-  if (categoryFilter && !categories.some(c => c.id === categoryFilter)) {
-    setCategoryFilter('')
-  }
+  // Category selection + search live in the SHARED unit, together with both
+  // render-phase adjustments the page used to carry inline (Story 8.4): the
+  // list-switch reset, and the prune of selected categories that no longer
+  // exist. The checked-status toggle stays here because it is shopping-only —
+  // `useItemFilter`'s callback resets it alongside the rest on a list switch.
+  const [filter, setFilter] = useItemFilter(listId, categories, () => setCheckedFilter('all'))
 
   const [checkItem] = useMutation(CheckItemMutation)
   const [uncheckItem] = useMutation(UncheckItemMutation)
 
-  // Client-side filters combined with AND: category (by id), checked status, and
-  // a case-insensitive name search.
-  const filteredItems = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    return items.filter(item => {
-      if (categoryFilter && item.category !== categoryFilter) return false
-      if (checkedFilter === 'checked' && !item.checked) return false
-      if (checkedFilter === 'unchecked' && item.checked) return false
-      if (term && !item.name.toLowerCase().includes(term)) return false
-      return true
-    })
-  }, [items, categoryFilter, checkedFilter, search])
+  // Client-side filters combined with AND. Category and name search come from the
+  // shared predicate (the definition /lists/:id uses too); checked status is
+  // AND-ed on top of it here, because it exists on this screen only.
+  const filteredItems = useMemo(
+    () =>
+      items.filter(item => {
+        if (!matchesItemFilter(item, filter)) return false
+        if (checkedFilter === 'checked' && !item.checked) return false
+        if (checkedFilter === 'unchecked' && item.checked) return false
+        return true
+      }),
+    [items, filter, checkedFilter],
+  )
 
-  // Group filtered items by category (sorted by name); items whose category id
-  // has no local match fall into the synthetic "Uncategorized" bucket.
-  const groups = useMemo<Group[]>(() => {
-    const known = new Set(categories.map(c => c.id))
-    const byCategory = new Map<string, ListItemType[]>()
-    const uncategorized: ListItemType[] = []
-    for (const item of filteredItems) {
-      if (known.has(item.category)) {
-        const bucket = byCategory.get(item.category) ?? []
-        bucket.push(item)
-        byCategory.set(item.category, bucket)
-      } else {
-        uncategorized.push(item)
-      }
-    }
-    const sortByName = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name)
-    const result: Group[] = [...categories]
-      .sort(sortByName)
-      .map(category => ({
-        key: category.id,
-        name: category.name,
-        items: (byCategory.get(category.id) ?? []).sort(sortByName),
-      }))
-      .filter(group => group.items.length > 0)
-    if (uncategorized.length > 0) {
-      result.push({
-        key: UNCATEGORIZED,
-        name: 'Uncategorized',
-        items: [...uncategorized].sort(sortByName),
-      })
-    }
-    return result
-  }, [categories, filteredItems])
+  // Grouping and ordering come from `lib/lists/order.ts` (Story 8.5, FR62) — the
+  // SAME function /lists/:id renders, so the two screens cannot drift back into
+  // reading one list two ways. `keepEmpty: false` is this screen's half of the
+  // one deliberate difference: a category with nothing to buy is noise while
+  // shopping, whatever the filter says.
+  const groups = useMemo<ItemGroup<ListCategory, ListItemType>[]>(
+    () => groupItemsByCategory(categories, filteredItems, {keepEmpty: false}),
+    [categories, filteredItems],
+  )
 
   const loading = itemsResult.loading || categoriesResult.loading
   const queryError = itemsResult.error ?? categoriesResult.error
@@ -234,8 +370,7 @@ export default function ListShoppingPage() {
     return <Navigate to="/lists" replace/>
   }
 
-  const handleToggle = async (item: ListItemType, event: ChangeEvent<HTMLInputElement>) => {
-    const nextChecked = event.target.checked
+  const handleToggle = async (item: ListItemType, nextChecked: boolean) => {
     setActionError(null)
     try {
       if (nextChecked) {
@@ -244,14 +379,10 @@ export default function ListShoppingPage() {
         await uncheckItem({variables: {id: item.id, listId}})
       }
     } catch (err) {
-      // The normalized cache is untouched on failure, so the checkbox reverts to
-      // the server state automatically; surface the reason inline.
+      // The normalized cache is untouched on failure, so the row's indicator
+      // reverts to the server state automatically; surface the reason inline.
       setActionError(graphqlErrorMessage(err))
     }
-  }
-
-  const handleCheckedFilter = (_event: MouseEvent<HTMLElement>, value: CheckedFilter | null) => {
-    if (value !== null) setCheckedFilter(value)
   }
 
   return (
@@ -304,62 +435,16 @@ export default function ListShoppingPage() {
           </Stack>
         )}
 
-        {/* Filters: category + checked-status + free-text search (combined AND). */}
-        <Stack
-          direction={{xs: 'column', sm: 'row'}}
-          spacing={2}
-          data-testid="shopping-filters"
-          sx={{mb: 3, alignItems: {sm: 'center'}}}
-        >
-          <FormControl size="small" sx={{minWidth: 180}}>
-            <InputLabel id="shopping-category-filter-label">Category</InputLabel>
-            <Select
-              labelId="shopping-category-filter-label"
-              label="Category"
-              value={categoryFilter}
-              onChange={(e: SelectChangeEvent) => setCategoryFilter(e.target.value)}
-              data-testid="filter-category"
-            >
-              <MenuItem value="" data-testid="filter-category-option-all">
-                All categories
-              </MenuItem>
-              {[...categories]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(category => (
-                  <MenuItem
-                    key={category.id}
-                    value={category.id}
-                    data-testid={`filter-category-option-${category.name}`}
-                  >
-                    {category.name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            color="primary"
-            value={checkedFilter}
-            onChange={handleCheckedFilter}
-            aria-label="Filter by checked status"
-            data-testid="filter-checked"
-          >
-            <ToggleButton value="all" data-testid="filter-checked-all">All</ToggleButton>
-            <ToggleButton value="unchecked" data-testid="filter-checked-unchecked">To buy</ToggleButton>
-            <ToggleButton value="checked" data-testid="filter-checked-checked">Done</ToggleButton>
-          </ToggleButtonGroup>
-
-          <TextField
-            size="small"
-            label="Search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            sx={{flexGrow: 1}}
-            slotProps={{htmlInput: {'data-testid': 'filter-search'}}}
-          />
-        </Stack>
+        {/* Filters: category + checked-status + free-text search (combined AND).
+            ONE definition, shared with the management screen (Story 8.4). */}
+        <ListFilters
+          testId="shopping-filters"
+          categories={categories}
+          value={filter}
+          onChange={setFilter}
+          checkedFilter={checkedFilter}
+          onCheckedFilter={setCheckedFilter}
+        />
 
         {actionError && (
           <Alert severity="error" role="alert" data-testid="shopping-action-error" sx={{mb: 2}}>
@@ -405,55 +490,11 @@ export default function ListShoppingPage() {
                 <Divider/>
                 <Stack divider={<Divider/>}>
                   {group.items.map(item => (
-                    <Box
+                    <ShoppingItemRow
                       key={item.id}
-                      data-testid={`shopping-item-${item.name}`}
-                      sx={{display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1}}
-                    >
-                      <Checkbox
-                        checked={item.checked}
-                        onChange={e => void handleToggle(item, e)}
-                        slotProps={{input: {'aria-label': `Toggle ${item.name}`}}}
-                        data-testid={`shopping-item-checkbox-${item.name}`}
-                      />
-                      <Box sx={{flexGrow: 1, minWidth: 0}}>
-                        <Typography
-                          noWrap
-                          color="text.primary"
-                          sx={{
-                            textDecoration: item.checked ? 'line-through' : 'none',
-                            opacity: item.checked ? 0.6 : 1,
-                          }}
-                        >
-                          {item.name}
-                        </Typography>
-                        {item.store && (
-                          <Chip
-                            size="small"
-                            variant="outlined"
-                            icon={<StorefrontIcon/>}
-                            label={item.store}
-                            data-testid={`shopping-item-store-${item.name}`}
-                            sx={{mt: 0.5}}
-                          />
-                        )}
-                      </Box>
-                      {item.addedBy && (
-                        <Stack
-                          direction="row"
-                          spacing={0.75}
-                          data-testid={`shopping-item-addedby-${item.name}`}
-                          sx={{alignItems: 'center', flexShrink: 0}}
-                        >
-                          <Avatar sx={{width: 24, height: 24, fontSize: '0.75rem'}}>
-                            {item.addedBy.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Typography variant="caption" color="text.secondary" noWrap sx={{maxWidth: 100}}>
-                            {item.addedBy}
-                          </Typography>
-                        </Stack>
-                      )}
-                    </Box>
+                      item={item}
+                      onToggle={(target, nextChecked) => void handleToggle(target, nextChecked)}
+                    />
                   ))}
                 </Stack>
               </Paper>

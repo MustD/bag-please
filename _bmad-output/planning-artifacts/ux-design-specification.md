@@ -12,6 +12,10 @@ inputDocuments:
   - docs/data-models-bp_back.md
 ---
 
+> **SUPERSEDED.** This specification describes a design that no longer ships. It is retained for history and is not
+> authoritative. Current design: `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` and `EXPERIENCE.md`
+> (Story 8.7, Epic 8). Stopped being accurate at: **Epic 5** — the Next.js app it describes was replaced.
+
 # UX Design Specification bag-please
 
 **Author:** md

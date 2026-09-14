@@ -11,6 +11,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-design-specification.md
 ---
 
+> **SUPERSEDED.** This specification never described the shipped app: its Today · Lists · Household bottom-tab design
+> was not deployed. It is retained for history and is not authoritative. Current design:
+> `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` and `EXPERIENCE.md` (Story 8.7, Epic 8). The
+> deployed design diverged from it for good at **Epic 5**, which replaced the frontend this spec was written against
+> with the single-top-app-bar SPA that ships today.
+
 # UX Design Specification bag-please — Epic 4: Personal Lists & Sharing
 
 **Author:** md

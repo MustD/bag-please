@@ -1,4 +1,36 @@
 import {defineConfig, devices} from '@playwright/test'
+import {NARROW_FLOOR_PX} from './e2e/support/layout'
+
+// NFR-E8-1's narrow floor has ONE definition, in e2e/support/layout.ts, and is
+// imported here rather than repeated as a literal (NFR-E8-5). Without the
+// import the AC2 test — `expect(viewport?.width).toBe(NARROW_FLOOR_PX)` — would
+// be comparing 320 against a coincidentally equal 320 instead of asserting the
+// config against the requirement.
+//
+// Shared by BOTH Pixel 7 projects. The `devices['Pixel 7']` spread is RETAINED
+// and only the WIDTHS are overridden — the Chrome-on-Android UA and the touch
+// emulation are what these projects exist for (Story 8.3's scroll guard depends
+// on the latter), and replacing the descriptor would drop both. Pixel 7's own
+// 412px width was never deliberately chosen (AR-E8-1); 320 is the width the
+// requirement names.
+//
+// `screen` is set alongside `viewport`: Pixel 7's screen is 412x915, so
+// overriding the viewport alone leaves `window.screen.width` and every
+// `max-device-width` query reporting 412 while `innerWidth` is 320 — a split the
+// app could branch on. It is pinned to the viewport box rather than to the real
+// 915 height because Playwright's `DeviceDescriptor` type does not expose the
+// descriptor's own screen, and no requirement depends on the screen HEIGHT.
+//
+// The HEIGHTS are left at Pixel 7's own on purpose. The resulting box is not a
+// real device and is not meant to be: NFR-E8-1 is a requirement about WIDTH, and
+// a taller-than-life viewport only means less scrolling in the tests. Do not
+// "correct" the aspect ratio — shrinking the height would change what every spec
+// in these projects sees above the fold, for no requirement.
+const PIXEL_7_AT_FLOOR = {
+  ...devices['Pixel 7'],
+  viewport: {...devices['Pixel 7'].viewport, width: NARROW_FLOOR_PX},
+  screen: {width: NARROW_FLOOR_PX, height: devices['Pixel 7'].viewport.height},
+}
 
 // E2E runs against the PRODUCTION image (built Vite SPA served by Caddy on
 // :2080), not the dev server — this closes the "green on dev, broken in the
@@ -90,6 +122,69 @@ export default defineConfig({
   //       2026-08-08 (Story 7.3): 104 = 51 / 51 / 1 / 1
   //       2026-08-10 (Story 7.4): 106 = 52 / 52 / 1 / 1
   //       2026-08-11 (Story 7.5): 120 = 59 / 59 / 1 / 1  (+7 untagged nav tests)
+  //       2026-09-05 (Story 8.1, pre-story baseline): 134 = 66 / 66 / 1 / 1
+  //         — i.e. the 2026-08-11 row above was already stale by 14 before this
+  //         story changed anything; 7 untagged specs had landed unrecorded.
+  //       2026-09-05 (Story 8.1, post-review): 162 = 80 / 80 / 1 / 1  (+14
+  //         untagged narrow-viewport tests, +2 runs each, against that 134
+  //         baseline), OF WHICH 13 ARE CHROMIUM SKIPS — every narrow-viewport
+  //         test but the config assertion is `test.skip(project !== 'mobile')`,
+  //         so the two columns stay equal while 13 of the chromium ones never
+  //         execute. Record the skip count on every future row: Epic 8 adds more
+  //         mobile-only specs, and without it the equal-counts invariant reads
+  //         green as the meaning drains out.
+  //       2026-09-05 (Story 8.2): 168 = 83 / 83 / 1 / 1  (+3 untagged tests at +2
+  //         runs each = +6 runs, against that 162: a long-category-name case at
+  //         the floor, an unbreakable-single-word case at the floor, and the
+  //         header's above-the-breakpoint case), OF WHICH 16 ARE SKIPS — 15 in
+  //         chromium (the mobile-only narrow-viewport tests) and, for the first
+  //         time, 1 in MOBILE: the above-the-breakpoint header test is the file's
+  //         only assertion above `sm`, so it inverts the usual guard and skips on
+  //         `mobile` instead. The equal-counts invariant therefore no longer
+  //         implies the skips are all on one side; count them per project.
+  //         (An earlier draft of this row said "+4 untagged tests, +2 runs each",
+  //         which is 8 runs and was wrong in both terms — caught at review. The
+  //         arithmetic to check is tests x 2 = the delta in the total.)
+  //       2026-09-07 (Story 8.3): 192 = 95 / 95 / 1 / 1  (+12 untagged FR60 tests
+  //         at +2 runs each = +24 runs, against that 168), OF WHICH 18 ARE SKIPS
+  //         — 17 in chromium (the 15 mobile-only narrow-viewport tests plus the
+  //         two FR60 tests that need the Pixel 7 projects' touch emulation: the
+  //         touch-scroll guard and the pointercancel guard) and 1 in mobile (the
+  //         above-the-breakpoint header test). Count them per project: the two
+  //         columns are equal while 18 of the runs never execute.
+  //       2026-09-08 (Story 8.4): 204 = 101 / 101 / 1 / 1  (+6 untagged FR61 tests
+  //         at +2 runs each = +12 runs, against that 192: three shopping-side
+  //         cases, two management-side cases, and the floor case for the
+  //         multi-select), OF WHICH 19 ARE SKIPS — 18 in chromium (the 17 from
+  //         the 2026-09-07 row plus the new mobile-only floor case for the
+  //         category filter) and 1 in mobile (the above-the-breakpoint header
+  //         test). Measured with the command above on the post-fix build.
+  //       2026-09-08 (Story 8.5): 214 = 106 / 106 / 1 / 1  (+5 untagged FR62 tests
+  //         at +2 runs each = +10 runs, against that 204: the by-name ordering
+  //         comparison across both screens, the orphaned-item `Uncategorized`
+  //         group on /lists/:id, and THREE duplicate-name ordering tests in the
+  //         new `e2e/order.spec.ts`), OF WHICH 19 ARE SKIPS — UNCHANGED from the
+  //         Story 8.4 row, 18 in chromium and 1 in mobile, because none of the
+  //         five carries a project guard. Counts measured with the command above
+  //         on the post-fix build; the skip SPLIT read off a `--reporter=json`
+  //         run rather than inferred from the total.
+  //         `order.spec.ts` is the file's first spec with NO `page` fixture — it
+  //         asserts the exported `groupItemsByCategory` directly, because the
+  //         duplicate-name case it covers is unobservable through name-keyed
+  //         testids. It still collects in both viewport projects (it is
+  //         untagged), so it obeys the +2-runs-per-test rule above and costs no
+  //         browser; do not read "2 projects" here as duplicated browser work.
+  //       2026-09-09 (Story 8.6): 224 = 111 / 111 / 1 / 1  (+5 untagged FR63 tests
+  //         at +2 runs each = +10 runs, against that 214: the rename golden path,
+  //         the dialog's validation/trim/reopen case, the live-propagation
+  //         two-actor case, the stale-rename resurrection, and the revoked-member
+  //         rejection), OF WHICH 19 ARE SKIPS — UNCHANGED from the Story 8.5 row,
+  //         18 in chromium and 1 in mobile, because none of the five carries a
+  //         project guard and the story's floor coverage EXTENDED the existing
+  //         mobile-only category-row test rather than adding a second one
+  //         (NFR-E8-5: one test owns that row). Counts measured with the command
+  //         above on the post-fix build; the skip SPLIT read off a
+  //         `--reporter=json` run, not inferred.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
@@ -100,7 +195,9 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      use: {...devices['Pixel 7']},
+      // Renders at NFR-E8-1's floor — see PIXEL_7_AT_FLOOR above for why the
+      // descriptor is kept and only the widths are overridden.
+      use: PIXEL_7_AT_FLOOR,
       grepInvert: /@registration-toggle/,
     },
     // Runs only after BOTH viewport projects finish → nothing is registering
@@ -131,7 +228,11 @@ export default defineConfig({
     // the requirement. Filed in the ledger.
     {
       name: 'registration-toggle-mobile',
-      use: {...devices['Pixel 7']},
+      // Retargeted to the floor with the `mobile` project (Story 8.1). Leaving it
+      // on the bare 412px descriptor would have made "the suite renders at the
+      // floor in a normal run" (NFR-E8-2) untrue of the admin-panel half, and put
+      // two Pixel 7 projects in this file at two different widths.
+      use: PIXEL_7_AT_FLOOR,
       grep: /@registration-toggle/,
       dependencies: ['registration-toggle-chromium'],
       fullyParallel: false,

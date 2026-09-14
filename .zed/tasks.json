@@ -52,42 +52,46 @@
   },
   // --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
   {
-    "label": "up",
-    "command": "mise run up",
-    "reveal": "always",
-    "allow_concurrent_runs": false
-  },
-  {
-    "label": "down",
-    "command": "mise run down",
+    "label": "docker:up",
+    "command": "mise run docker:up",
+    "allow_concurrent_runs": false,
     "reveal": "always"
   },
   {
-    "label": "infra",
-    "command": "mise run infra",
-    "reveal": "always",
-    "allow_concurrent_runs": false
+    "label": "docker:down",
+    "command": "mise run docker:down",
+    "reveal": "always"
   },
-  // --- Ai infra ---
   {
-    "label": "skill-validate",
-    "command": "mise run skill-validate",
+    "label": "docker:back",
+    "command": "mise run docker:back",
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "images:build-push",
+    "command": "mise run images:build-push",
     "reveal": "always"
   },
   // --- Update / maintenance ---
+  {
+    "label": "update:mise-tools",
+    "command": "mise run update:mise-tools",
+    "reveal": "always"
+  },
   {
     "label": "update:bmad",
     "command": "mise run update:bmad",
     "reveal": "always"
   },
   {
-    "label": "update:front",
-    "command": "mise run update:front",
+    "label": "update:front-ls",
+    "command": "mise run update:front-ls",
     "reveal": "always"
   },
   {
-    "label": "gradle:dependencyUpdates",
-    "command": "mise run gradle:dependencyUpdates",
+    "label": "update:back-ls",
+    "command": "mise run update:back-ls",
     "reveal": "always"
   }
 ]

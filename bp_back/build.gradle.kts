@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.gradle.api.tasks.testing.logging.TestLogging
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -56,4 +60,22 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+
+    // One line per test instead of a wall of application logs. The `quiet` block is the
+    // one that matters: `back:test` runs gradle with -q, and test logging is configured
+    // per log level, so events set only on the default (lifecycle) level would be hidden.
+    testLogging {
+        fun TestLogging.testList() {
+            events(
+                TestLogEvent.PASSED,
+                TestLogEvent.FAILED,
+                TestLogEvent.SKIPPED,
+            )
+            exceptionFormat = TestExceptionFormat.SHORT
+            showStandardStreams = false
+            showStackTraces = false
+        }
+        testList()
+        quiet { testList() }
+    }
 }
