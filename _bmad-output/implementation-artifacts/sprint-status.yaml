@@ -119,7 +119,7 @@ action_items:
       from: Story 7.10'). Story 7.10 closed done as a HELD-BACK major, so no story
       status will resurface this on its own."
     owner: "Amelia"
-    status: open  # filed at Story 7.10 review: the hold is correct today but nothing in the workflow re-examines it. Check dist-tags AND release notes, not @latest alone; confirm behaviourally (npm run lint must lint a non-zero number of files), since the refusal is a runtime check rather than a peer range.
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, deferred-work second pass): the ledger entry this row tracked was archived to deferred-work-archive.md (second 2026-09-15 addendum) and the work is not scheduled. Original note -- filed at Story 7.10 review: the hold is correct today but nothing in the workflow re-examines it. Check dist-tags AND release notes, not @latest alone; confirm behaviourally (npm run lint must lint a non-zero number of files), since the refusal is a runtime check rather than a peer range.
   - epic: 4
     action: "Gradle MCP evaluation — adopt or formally close"
     owner: "Winston"
@@ -228,7 +228,7 @@ action_items:
     action: "C3 — FR42 (one-timer) / FR43 (recurring) item UI: held in backlog pending
       a requirements reconsideration by md, not scheduled"
     owner: "md"
-    status: open  # backlog, blocked on C1 and on md revisiting the requirements
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, deferred-work second pass): the ledger entry this row tracked was archived to deferred-work-archive.md (second 2026-09-15 addendum) and the work is not scheduled. Was: backlog, blocked on C1 and on md revisiting the requirements.
   - epic: 7
     action: "A1 — sprint-status reconciled at retro: epic-7 -> done, epic-7-retrospective
       -> done, and the two stale rows (Epic 5 registrationEnabled race, Epic 6 B4)
@@ -270,7 +270,7 @@ action_items:
       the finding Story 7.15 proved against `oversized`. Either run them, or recalibrate
       the flag the way 7.15 recalibrated its own"
     owner: "Amelia"
-    status: open  # next-epic story slot
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, Epic 9 scoping): the 15 Epic 7 follow-up reviews will not be run -- Epic 7 is merged and in production. Ledger entry moved to deferred-work-archive.md (Addendum, 2026-09-15).
   - epic: 7
     action: "D3 — make the recalibrated 6000-token spec budget mechanically effective,
       or close the verdict. step-02-plan.md instruction 6 still hardcodes 'exceeds
@@ -279,7 +279,7 @@ action_items:
       effective. Concrete observable: the next dev-auto spec either carries an oversized
       stamp measured against 6000 or it does not"
     owner: "md"
-    status: open  # next-epic story slot; the real fixes (fork the skill, or upstream a spec_token_budget key) are md's call, not an unattended run's
+    status: done  # CLOSED AS MOOT 2026-09-15 (md, Epic 9 scoping): the bmad-dev-auto skill was retired and replaced by bmad-build / bmad-build-auto, so there is no step-02-plan.md budget left to make effective. The five Story 7.15 review entries moved to deferred-work-archive.md (Addendum, 2026-09-15).
   - epic: 7
     action: "D4 — stop the createUserViaUi assertion degrading again on the E2E side.
       md routed the AdminUsers pagination fix to backlog as a product feature request,
@@ -288,7 +288,7 @@ action_items:
       at 5497 rows, and clearing the database only restarted the clock. Per-run data
       hygiene, or the assertion is on a timer"
     owner: "Murat"
-    status: open  # next-epic story slot -- deliberately NOT folded into the pagination backlog item
+    status: open  # ROUTED TO EPIC 9 (2026-09-15): ships with the FR13 pagination story as its gate half -- per-run E2E data hygiene is still owed on its own, pagination alone does not stop the table growing
   - epic: 7
     action: "D5 — run the E2E suite through the TLS edge domain (E2E_BASE_URL=https://bag-please.localhost)
       against the service worker. Chromium refuses serviceWorker.register() on an
@@ -297,14 +297,14 @@ action_items:
       here, four of the seven tests in e2e/pwa.spec.ts fail in a configuration the
       root CLAUDE.md advertises as supported. Untested in EITHER direction"
     owner: "Murat"
-    status: open  # next-epic story slot
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, deferred-work second pass): the ledger entry this row tracked was archived to deferred-work-archive.md (second 2026-09-15 addendum) and the work is not scheduled. Was: next-epic story slot.
   - epic: 7
     action: "AdminUsers pagination — BACKLOG feature request by md's decision at the
       Epic 7 retro. The unpaginated query is a real product defect for any admin with
       a large user table, not only a test-harness problem; it is not scheduled and
       is deliberately not blocking anything"
     owner: "md"
-    status: open  # backlog, not a story slot -- routed here by md at the Epic 7 retrospective
+    status: open  # SCHEDULED IN EPIC 9 (2026-09-15) as FR13 amended (20 per page, username ascending); close when that story is done
   - id: "epic-8-retro-item-31-f1-the-shopping-screen-list-id-still-tru"
     epic: 8
     action: "F1 - the shopping screen /list/:id still truncates item names at the
@@ -315,7 +315,7 @@ action_items:
       document-level check alone, which AR-E8-3a says is green while the defect is
       on screen."
     owner: "Amelia"
-    status: open
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, deferred-work second pass): the ledger entry this row tracked was archived to deferred-work-archive.md (second 2026-09-15 addendum) and the work is not scheduled.
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-32-f2-filtering-lists-id-to-an-empty-catego"
     epic: 8
@@ -325,7 +325,7 @@ action_items:
       Cover it in the FR61 empty-category spec, which today selects only the stocked
       category."
     owner: "Amelia"
-    status: open
+    status: open  # ROUTED TO EPIC 9 (2026-09-15): rides the FR61 filter confirm-control story
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-33-f4-long_item_name-two-line-clamp-measure"
     epic: 8
@@ -334,7 +334,7 @@ action_items:
       or assert the margin, so the epic load-bearing AC4 assertion does not sit on
       a knife edge."
     owner: "Amelia"
-    status: open
+    status: done  # CLOSED BY DECISION 2026-09-15 (md, deferred-work second pass): the ledger entry this row tracked was archived to deferred-work-archive.md (second 2026-09-15 addendum) and the work is not scheduled.
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-34-f5-uncategorized-is-not-a-reserved-categ"
     epic: 8
@@ -343,7 +343,7 @@ action_items:
       Reserve the name, or key testids off group.key instead of group.name (also covers
       the accepted duplicate-name case)."
     owner: "Amelia"
-    status: open
+    status: open  # ROUTED TO EPIC 9 (2026-09-15): rides the FR61 filter confirm-control story
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-35-f19-supersede-the-stale-bmad-build-auto"
     epic: 8
@@ -361,7 +361,7 @@ action_items:
       Caddy serves, and Playwright treats the early process exit as fatal (observed
       this session: exit 1, zero tests run). Make it wait for readiness."
     owner: "Amelia"
-    status: open
+    status: open  # ROUTED TO EPIC 9 (2026-09-15): own E2E-harness-readiness story, together with a backend health endpoint
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-37-process-treat-the-epic-spec-cross-story"
     epic: 8
@@ -386,7 +386,7 @@ action_items:
     action: "F19b - untrack .idea/dataSources.xml (or gitignore it); a tracked IDE
       file halted the unattended build loop mid-epic."
     owner: "md"
-    status: open
+    status: open  # ROUTED TO EPIC 9 (2026-09-15): own small-cleanups story; still tracked at 2026-09-15
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-40-f21-git_evidence-py-attributed-zero-of-1"
     epic: 8

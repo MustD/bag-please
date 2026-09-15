@@ -1,11 +1,13 @@
 ---
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
-status: complete
+status: final
 completedAt: '2026-05-08'
-lastEdited: '2026-09-05'
+lastEdited: '2026-09-15'
 editHistory:
+  - date: '2026-09-15'
+    changes: 'Epic 9 planning pass from docs/feedback.md (md''s own use plus other users'' feedback relayed by md). Added FR66 (users send free-text feedback from the account menu) and FR67 (admin reviews and deletes feedback — the triage point into project planning), with FR56 amended so the admin''s restricted scope includes feedback review. FR44 amended: an item carries zero or more stores instead of one, as groundwork for a future single-store shopping mode (Phase 3); FR69 preserves every existing store value across the change. Added FR68 (floating quick-add button on the shopping view, reusing the management screen''s add-item dialog) because adding an item currently requires going to list management. FR13 amended with pagination, FR57 with a home entry in the account menu, FR61 with a confirm control that closes the category filter menu, which covers most of a phone screen. Fast-path draft; every inferred detail (user page size 20 by username, 2000-character feedback invisible to its sender, admin does not send feedback, feedback survives user deletion, case-insensitive store names, confirm-only-closes filter menu, no-categories guidance in quick-add) confirmed by md on 2026-09-15.'
   - date: '2026-09-05'
-    changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8's closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. All four are frontend-only against the existing schema.'
+    changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8''s closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. All four are frontend-only against the existing schema.'
   - date: '2026-07-30'
     changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
   - date: '2026-07-29'
@@ -512,8 +514,36 @@ to lists and introduces sharing.
 - Sepia/dark theme variants
 - Store suggestion chips pre-populated from existing item data
 
+### Epic 9 — User Feedback Pass (Planned)
+
+**Source:** `docs/feedback.md` — md's own use of the running app, plus other users' feedback relayed by md.
+
+- In-app feedback: users send it, the admin reviews and deletes it (FR66, FR67; FR56 amended)
+- Items carry several stores; every existing store value preserved (FR44 amended, FR69)
+- Floating quick-add button on the shopping view (FR68)
+- Admin user list pagination (FR13 amended)
+- Confirm control on the category filter menu (FR61 amended)
+- Home entry in the account menu (FR57 amended)
+
+**Carried in from deferred work** (triaged by md on 2026-09-15; the index lives at the top of
+`_bmad-output/implementation-artifacts/deferred-work.md`, "Routed to Epic 9"):
+
+- With FR13: per-run E2E data hygiene (Epic 7 action D4), plus the clipped username column on `/admin` at the 320px
+  floor
+- With FR44/FR69 (edits `EditItemDialog` and `saveItem`): correct its stale comments; an orphaned item's dialog no
+  longer closes silently; `saveItem` stamps `checkedAt` when it checks an item
+- With FR61: keep an explicitly selected empty category visible (F2); reserve or de-key the `Uncategorized` name (F5)
+- With FR57: the empty `/lists` dead end; the cold-start home-link question; `useHomePath` error-branch order
+- Backend, riding the Epic 9 unfreeze: deleting a category deletes its items server-side; deleting a user removes their
+  list memberships
+- Own story: E2E startup waits for real readiness, with a backend health endpoint (F20)
+- Own story: small cleanups — untrack `.idea/dataSources.xml`, type-check `codegen.ts`, sweep stale `./db/data` paths,
+  drop the redundant `Unit` in `UserService`, gitignore `dev-dist/`, delete the dead `ListStorage.delete()`, adopt
+  or delete the four unused `custom.bp.*` theme tokens
+
 ### Phase 3 — Growth (Post-Epic 4)
 
+- Store mode: while shopping in one store, show only the items available there (builds on multi-store FR44)
 - User status: active / suspended (soft-disable without deletion)
 - Self-service password reset via admin or email
 - Password complexity requirements
@@ -567,7 +597,10 @@ to lists and introduces sharing.
 
 ### Admin User Management
 
-- **FR13:** Admin can view a list of all registered user accounts
+- **FR13:** Admin can view a list of all registered user accounts. The list is paginated: one page shows at most 20
+  users in a stable order (username, ascending), with controls to move between pages and a display of the total user
+  count. Creating or deleting a user keeps the admin on a valid page — deleting the only user on the last page moves
+  back one page. *(Amended 2026-09-15: previously an unpaginated list.)*
 - **FR14:** Admin can create a new user account with a username and initial password
 - **FR15:** Admin can delete a user account
 - **FR16:** Admin can reset any user's password
@@ -582,6 +615,20 @@ to lists and introduces sharing.
 - **FR21:** System hides the registration option from the login screen when public registration is disabled
 - **FR22:** Application configuration changes take effect immediately without requiring a service restart
 - **FR23:** Application configuration is persisted as a runtime entity in the database
+
+### User Feedback
+
+- **FR66:** A regular user can send feedback — an idea, a feature request, or a problem — from any authenticated
+  screen. The account menu carries a Feedback entry that opens a form with a single free-text field (required, at most
+  2000 characters). Submitting stores the entry with the submitter's username and the submission time,
+  confirms that it was sent, and returns the user to the screen they came from; cancelling sends nothing. A user does
+  not see, edit, or delete feedback after sending it. The admin account's menu does not show the Feedback entry (FR56).
+- **FR67:** The admin can review user feedback in the admin area: all entries, newest first, each showing its text,
+  the submitter's username, and the submission time. Feedback text is displayed as plain text, never interpreted as
+  markup. The admin can delete an entry after explicit confirmation (as FR17 requires for other destructive admin
+  actions); deletion is permanent. This is the triage point — the admin carries what is worth keeping into the
+  project's own planning outside the app, then deletes the entry; feedback has no status, reply, or tagging in the
+  app. Deleting a user account does not delete that user's feedback.
 
 ### Security & Access Control
 
@@ -602,7 +649,8 @@ to lists and introduces sharing.
 
 ### List Management
 
-- **FR34:** User can create a named shopping list with an emoji icon and an optional description
+- **FR34:** User can create a named shopping list with an emoji icon. *(Amended 2026-09-15: the optional list
+  description is dropped by decision — it was never implemented, and its deferred-work entry is archived.)*
 - **FR35:** User can view all lists they own or are a member of
 - **FR36:** User can switch between lists using a chip-row switcher in the shopping view; the active list is always
   visible in the chip row, the toolbar title, and the URL
@@ -638,8 +686,13 @@ to lists and introduces sharing.
   configured in the item editor; the hourly background scheduler (FR54) restores recurring items whose cadence has
   elapsed since check-off: weekly = 7 days, biweekly = 14 days, monthly = 30 days; each cycle produces exactly one
   restoration regardless of how many cycles have been missed; restored items have `checked: false`
-- **FR44:** User can optionally specify a store for an item; the item editor surfaces pre-populated store
-  suggestions derived from existing item data
+- **FR44:** User can assign an item to zero, one, or several stores, since the same item can often be bought in more
+  than one place. Both the add-item and edit-item dialogs offer a multi-value store field that suggests stores derived
+  from existing item data and also accepts a new store name. Store names are trimmed; names differing only in letter
+  case count as the same store and are not held twice on one item. A store is thus recognised consistently across
+  items — the groundwork for showing only one store's items while shopping there (Phase 3). The shopping-view item row
+  shows every store the item carries, and all of them stay inside the row's single check target (FR60). *(Amended
+  2026-09-15: previously a single optional store.)*
 - **FR45:** Each item displays the username of the user who added it (`addedBy`) as an avatar or label on the item
   row in the shopping view
 - **FR54:** A background scheduler service runs every hour; it performs two tasks: (a) restores recurring items
@@ -666,9 +719,13 @@ to lists and introduces sharing.
   `listId` are migrated to a default list (`name: "Groceries"`, `emoji: "🛒"`) owned by the most recently created
   non-admin user in the database; if no non-admin users exist, startup fails with a descriptive error; the
   migration writes a completion record to `app_migrations` and does not re-run on subsequent startups
-- **FR56:** The admin account is restricted to user management and application configuration only; admin callers
-  are rejected by all list-related GQL operations (`createList`, `lists`, `items`, `categories`, `shareList`,
-  `deleteList`, and all subscription operations); the admin cannot create, own, view, or be a member of any list
+- **FR56:** The admin account is restricted only to user management, application configuration, and reviewing user
+  feedback (FR67); admin callers are rejected by all list-related GQL operations (`createList`, `lists`, `items`,
+  `categories`, `shareList`, `deleteList`, and all subscription operations); the admin cannot create, own, view, or be
+  a member of any list, and does not send feedback (FR66). *(Amended 2026-09-15: feedback review added.)*
+- **FR69:** No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
+  as its only store, and an item without one has no stores. The conversion runs once, on the first startup of the
+  release that ships multi-store items, and does not re-run.
 
 ### Navigation & UX
 
@@ -688,11 +745,13 @@ to lists and introduces sharing.
 - **FR51:** All item creation and editing occurs in bottom sheet overlays without navigating away from the
   shopping view; the create-list sheet contains a name field (required) and a description field (optional);
   closing any sheet returns the user to their exact scroll position
-- **FR57:** From any authenticated screen the user can return to the application home destination in one action:
-  the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
-  oldest list by creation date, the lists index when they own none, the admin area for the admin account); the shopping
-  view additionally offers a back-to-lists affordance matching the list management screen's existing back link. No
-  screen is a navigational dead end requiring the browser back button.
+- **FR57:** From any authenticated screen the user can return to the application home destination in one action: the
+  "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
+  oldest list by creation date, the lists index when they own none, the admin area for the admin account); the
+  shopping view additionally offers a back-to-lists affordance matching the list management screen's existing back
+  link. No screen is a navigational dead end requiring the browser back button. The account menu also carries a Home
+  entry that goes to the same destination as the title link, for users who look for navigation in the menu rather
+  than on the title; on the home route the Home entry simply closes the menu. *(Amended 2026-09-15: menu entry added.)*
 - **FR59:** The application is installable from Chrome on Android as a real standalone app rather than a bookmark
   shortcut: the browser menu offers "Install app", and the installed app has its own launcher icon, its own entry in
   the task switcher, and runs with no browser URL bar. Chrome builds a WebAPK only when HTTPS, a linked web app
@@ -706,13 +765,16 @@ to lists and introduces sharing.
   row is a single control to assistive technology as well: one accessible name, one checked state, one tab stop, one
   keyboard activation, rather than a checkbox with inert siblings beside it.
 - **FR61:** Item filtering and search are available on both list surfaces, with the same controls and the same
-  semantics. The shopping view (`/list/:id`) and the management view (`/lists/:id`) each offer a category filter and a
-  free-text item-name search, combined with AND. The category filter accepts more than one category at a time:
-  selecting two categories shows the items of both, and selecting none shows all. The shopping view keeps its
+  semantics. The shopping view (`/list/:id`) and the list management screen (`/lists/:id`) each offer a category
+  filter and a free-text item-name search, combined with AND. The category filter accepts more than one category at a
+  time: selecting two categories shows the items of both, and selecting none shows all. The shopping view keeps its
   checked-status toggle (All / To buy / Done), which has no meaning while managing a list and is not added there.
-  Empty categories are shown on the management screen when no filter or search is active — its "No items yet." row is
-  where a first item gets added — and hidden while filtering; the shopping view hides empty groups always. See
-  `epics.md` FR61 and UX-DR-E8-8 for the full ruling.
+  Empty categories are shown on the list management screen when no filter or search is active — its "No items yet."
+  row is where a first item gets added — and hidden while filtering; the shopping view hides empty groups always. See
+  `epics.md` FR61 and UX-DR-E8-8 for the full ruling. The open category menu covers most of a phone screen, so it
+  carries an explicit confirm control that closes it; selections apply as they are toggled, so confirming only closes
+  and there is no cancel-and-revert. Tapping outside the menu or pressing Escape still closes it too. *(Amended
+  2026-09-15: confirm control added.)*
 - **FR62:** Categories and the items inside them appear in the same order on both list surfaces — categories ordered by
   name, items ordered by name within their category, on `/list/:id` and `/lists/:id` alike. A user who arranges a list
   on one screen and then shops it on the other reads the same sequence in both places.
@@ -721,6 +783,12 @@ to lists and introduces sharing.
   name, and saving renames the category in place — its items stay attached to it and nothing else about it changes. The
   rename propagates to other members in real time on the shopping view, as an added or removed category already does.
   Scope is the name only; a category has no other user-editable attribute and this requirement does not add one.
+- **FR68:** The shopping view (`/list/:id`) offers a floating add button that adds an item to the list being viewed
+  without leaving the screen — today adding an item means going to the list management screen. It opens the same
+  add-item dialog the list management screen uses (name, category, store (s) per FR44) with the current list as the
+  fixed target; the new item appears on the shopping view on save and reaches other members in real time (FR52). The
+  button stays reachable while scrolling and never permanently covers the last item row or its controls. If the list
+  has no categories yet, the dialog says a category is needed first and offers a way to the list management screen.
 
 ### Real-Time Collaboration & Authentication
 

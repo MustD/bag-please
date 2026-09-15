@@ -118,7 +118,7 @@ FR33: System displays a specific message when a user is redirected to login due 
 
 #### Epic 4 — List Management
 
-FR34: User can create a named shopping list with an emoji icon and an optional description
+FR34: User can create a named shopping list with an emoji icon (amended 2026-09-15: optional description dropped)
 FR35: User can view all lists they own or are a member of
 FR36: User can switch between lists using a chip-row switcher in the shopping view; the active list is always visible in the chip row, the toolbar title, and the URL
 FR37: Only the list owner can delete a list; deletion permanently removes the list, all its items, and all its categories from the database; active subscribers to the list are disconnected on deletion; non-owner members cannot delete — they can leave the list instead (see FR55)
