@@ -24,13 +24,14 @@
 import {BACKEND, gql, loginApi} from './support/api'
 
 // Readiness poll first, so setup is robust regardless of the
-// webServer/globalSetup ordering. /api/auth/config is the cheapest unauthed
-// endpoint that proves Ktor itself is warm, not just Caddy (there is still no
-// /health endpoint — tracked debt).
+// webServer/globalSetup ordering. GET /api/health (Story 9.1) is 200 only when
+// Ktor is warm AND Mongo answers a ping — not merely when Caddy answers — and it
+// is outside the auth rate limiter, so polling it spends no auth slots (the old
+// /api/auth/config probe did).
 async function waitForBackend(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
-      const res = await fetch(`${BACKEND}/api/auth/config`)
+      const res = await fetch(`${BACKEND}/api/health`)
       if (res.ok) return
     } catch {
       // backend not up yet

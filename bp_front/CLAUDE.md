@@ -31,8 +31,8 @@ UI components are built with **Material UI (MUI)**. When working on frontend UI,
 `vite-plugin-pwa/client` reference in `src/vite-env.d.ts`). Three rules that are easy to break silently:
 
 - **Nothing under `/api` may ever be cached or fallen back to.** `navigateFallbackDenylist: [/^\/api/]` plus an
-  empty `runtimeCaching`. `GET /api/graphiql` is a *navigation*, so without the denylist the worker answers it
-  with the SPA shell and the project's only backend-readiness check starts silently lying. There is no offline
+  empty `runtimeCaching`. `GET /api/health` (the backend-readiness check, Story 9.1) is a *navigation*, so
+  without the denylist the worker answers it with the SPA shell and the readiness check starts silently lying. There is no offline
   mode and none is wanted.
 - **`registerType: 'autoUpdate'` reloads open tabs** when a new worker activates — it is not deferred to the
   next launch. See the measured note in `src/main.tsx` before changing update behaviour.

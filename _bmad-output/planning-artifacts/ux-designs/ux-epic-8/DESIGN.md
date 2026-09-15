@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '3af2d575e852ca186467c67a051e5ddc77a6fe6d'
-verified_on: '2026-09-09'
+verified_at_commit: '7535617913c51f033038892dd4153917c9f8170d'
+verified_on: '2026-09-15'
 ---
 
 # DESIGN.md — Bag Please visual contract
@@ -445,7 +445,7 @@ grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u
 ```
 
 If a count here disagrees with a count in `epics.md`, `epic-8-context.md` or `deferred-work.md`, **this document is
-the one that was measured** — at `3af2d575e852ca186467c67a051e5ddc77a6fe6d`, on 2026-09-09. If it disagrees with the
+the one that was measured** — at `7535617913c51f033038892dd4153917c9f8170d`, on 2026-09-15. If it disagrees with the
 source, the source wins and this document is stale: correct it, and name the figure it supersedes.
 
 **Who re-verifies, and when.** This document goes stale the same way the two specs it supersedes did — silently. The

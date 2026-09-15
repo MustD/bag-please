@@ -70,10 +70,10 @@ line number.
 
 **Own story — E2E harness readiness:**
 
-- Epic 8 retro **F20** + Epic 5 close-out "Playwright `webServer` gaps" + code review of 7-1 cold-start entry — wait for
-  real
-  readiness.
-- Story 7.12 — there is still no backend health endpoint.
+- ✅ CLOSED by Story 9.1 (2026-09-15): the webServer now waits on `:2080/api/health`. Was: Epic 8 retro **F20** +
+  Epic 5 close-out "Playwright `webServer` gaps" + code review of 7-1 cold-start entry — wait for real readiness.
+- ✅ CLOSED by Story 9.1 (2026-09-15): `GET /api/health` ships. Was: Story 7.12 — there is still no backend health
+  endpoint.
 
 **Own story — small cleanups:**
 
@@ -103,7 +103,11 @@ Full context: `epic-7-retro-2026-08-21.md`. Only the rows that are still open ar
 Full context: `epic-5-retro-2026-07-28.md`. The other rows in this section were closed across Epics 6 and 7 and are in
 the archive.
 
-- **Playwright `webServer` gaps, carried since Epic 3** (still unaddressed after the Epic 5 harness rebuild, re-verified
+- ✅ CLOSED by Story 9.1 (2026-09-15): compose runs in the foreground (`--abort-on-container-failure`, stderr piped,
+  SIGTERM stop at teardown with the volume kept) and `webServer.url` is `:2080/api/health`, which only a warm Ktor with
+  a pingable Mongo answers 200. Not closed: a failed start (e.g. a port-bind error on bp_front) still leaves `mongo`
+  and `bp_back` running, deferred in the Story 9.1 spec's story record.
+  Was: **Playwright `webServer` gaps, carried since Epic 3** (still unaddressed after the Epic 5 harness rebuild, re-verified
   2026-09-07 at `playwright.config.ts:64-74`): no teardown command (containers accumulate across runs), the `url`
   health check only proves the entrypoint responds — not that Ktor is warm inside the container (first tests can see
   502) — and no `stdout`/`stderr` filtering, so a compose startup failure silently burns the 600 s timeout before
@@ -121,7 +125,9 @@ the archive.
 
 ### Surfaced by the Story 7.1 code review (2026-08-07)
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
+- ✅ CLOSED by Story 9.1 (2026-09-15): `docker compose up` now runs in the foreground, so a healthy start never "exits
+  early", and Playwright waits on `/api/health` (see `spec-9-1-the-test-run-waits-until-the-backend-is-ready.md`).
+  Was: source_spec: `_bmad-output/implementation-artifacts/spec-7-1-e2e-suite-inside-frontend-quality-gates.md`
   summary: `npm run test:e2e` cannot reliably cold-start — Story 7.1's green run was obtained via `reuseExistingServer`
   after the documented command aborted, so the headline evidence is not reproducible by that command on a clean machine.
   evidence: the first invocation failed with `Error: Process from config.webServer exited early.` because
@@ -292,7 +298,9 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   certainly right — `Expression is unused.` is a language diagnostic a library cannot emit — but the isolating run was
   one command away and not taken.
 
-- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+- ✅ CLOSED by Story 9.1 (2026-09-15): unauthenticated, non-rate-limited `GET /api/health` (Mongo ping in a 2 s
+  timeout → `200 OK` / `503 UNAVAILABLE`); `AGENTS.md` now documents it as the readiness check.
+  Was: source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
   summary: **there is still no backend health endpoint**, which is the actual gap the "backend readiness" documentation
   bullet has been deferring since Epic 1.
   evidence: `GQL.kt:135-140` puts `graphiQLRoute()` inside `authenticate(authMethod)` alongside `graphQLPostRoute()`

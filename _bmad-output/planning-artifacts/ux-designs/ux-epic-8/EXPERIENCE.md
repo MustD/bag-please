@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '3af2d575e852ca186467c67a051e5ddc77a6fe6d'
-verified_on: '2026-09-09'
+verified_at_commit: '7535617913c51f033038892dd4153917c9f8170d'
+verified_on: '2026-09-15'
 ---
 
 # EXPERIENCE.md — Bag Please information architecture & behaviour
@@ -792,8 +792,9 @@ grep -rn 'role="status"' bp_front/src
 # expect AdminPage.tsx:158 only
 
 grep -n 'NARROW_FLOOR_PX' bp_front/e2e/support/layout.ts bp_front/playwright.config.ts
-# expect 6 lines: the single declaration (layout.ts:32) plus one comment there (:100),
-# and in the config the import (:2), two uses (:31, :32) and one comment (:6)
+# expect 5 lines: the single declaration (layout.ts:32), and in the config the import (:2),
+# two uses (:31, :32) and one comment (:6). (Supersedes "6 lines … plus one comment there
+# (:100)": re-measured at Story 9.1, layout.ts has no second NARROW_FLOOR_PX line.)
 ```
 
 If a claim here disagrees with the source, **the source wins** and this document is stale: correct it, and name the

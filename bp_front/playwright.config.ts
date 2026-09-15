@@ -61,14 +61,48 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
   },
+  // Story 9.1 — the webServer waits for a backend that is actually READY.
+  //   * FOREGROUND compose, not `-d` / `--wait`: Playwright treats any exit of
+  //     the command before `url` is ready as fatal ("Process from
+  //     config.webServer exited early", zero tests run). `-d` exits once the
+  //     containers start and `--wait` once they are started/healthy — neither
+  //     means Ktor is warm. A long-lived foreground process never exits early on
+  //     a healthy start.
+  //   * `--abort-on-container-failure`: a failed build, a port-bind error or a
+  //     container that crashes on startup (e.g. a migration error in bp_back)
+  //     ends the command at once, and Playwright reports the early exit with the
+  //     piped stderr — instead of polling a 502 for the full 600 s.
+  //   * `--force-recreate`: a failed port bind can leave a bp_front container
+  //     with no published port; reusing it would leave :2080 dead and burn the
+  //     600 s timeout silently, so containers are always recreated.
+  //   * `url` is GET /api/health (unauthenticated, not rate limited): 200 only
+  //     when Ktor answers AND pings Mongo. Caddy's 502 (Ktor not up) and the
+  //     endpoint's 503 (Mongo unreachable) both count as not ready, so
+  //     Playwright keeps polling. It targets the compose-managed Caddy entrypoint
+  //     directly, independent of E2E_BASE_URL: docker compose starts :2080, not
+  //     the edge.
+  //   * `stdout: 'ignore'`: attached compose streams every container's logs to
+  //     stdout, which would drown the report. `stderr: 'pipe'`: compose's build,
+  //     pull and port-bind errors go to stderr — exactly the failure output that
+  //     must surface.
+  //   * Teardown: `gracefulShutdown` SIGTERM makes compose STOP the containers
+  //     it started (the default SIGKILL kills only the client and leaves them
+  //     running). 60 s covers three containers' 10 s stop grace. It is a stop,
+  //     never a `down -v`: the named `db_data` volume is always kept.
+  //   * Reuse: Playwright reuses a running stack (`reuseExistingServer`, left
+  //     untouched) ONLY when /api/health already answers 200-403. A running
+  //     stack answering 503 (Mongo paused) or 404 (an older image without the
+  //     endpoint) is NOT reused: compose rebuilds, recreates and attaches to it,
+  //     and teardown then stops it.
   webServer: {
-    command: 'docker compose up -d --build',
+    command: 'docker compose up --build --force-recreate --abort-on-container-failure',
     // Relative to this config's directory → the repo root.
     cwd: '..',
-    // Readiness probe targets the compose-managed Caddy entrypoint directly,
-    // independent of E2E_BASE_URL: docker compose starts :2080, not the edge.
-    url: 'http://localhost:2080',
+    url: 'http://localhost:2080/api/health',
     reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+    stderr: 'pipe',
+    gracefulShutdown: {signal: 'SIGTERM', timeout: 60_000},
     // Cold runs build the backend + frontend images before the stack is ready.
     timeout: 600 * 1000,
   },

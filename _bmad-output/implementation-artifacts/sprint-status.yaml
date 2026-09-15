@@ -111,8 +111,8 @@ development_status:
   8-7-write-down-the-design-this-app-actually-has: done
   epic-8-retrospective: done
 
-  epic-9: backlog
-  9-1-the-test-run-waits-until-the-backend-is-ready: backlog
+  epic-9: in-progress
+  9-1-the-test-run-waits-until-the-backend-is-ready: done
   9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: backlog
   9-3-deleting-a-category-deletes-its-items-for-everyone: backlog
   9-4-deleting-a-user-leaves-no-phantom-memberships: backlog
@@ -374,7 +374,7 @@ action_items:
       Caddy serves, and Playwright treats the early process exit as fatal (observed
       this session: exit 1, zero tests run). Make it wait for readiness."
     owner: "Amelia"
-    status: open  # ROUTED TO EPIC 9 (2026-09-15): own E2E-harness-readiness story, together with a backend health endpoint
+    status: done  # CLOSED BY Story 9.1 (2026-09-15): unauthenticated, non-rate-limited GET /api/health (Mongo ping, 2 s timeout, 200/503); playwright webServer runs compose in the foreground and waits on :2080/api/health. Was: ROUTED TO EPIC 9 (2026-09-15)
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-37-process-treat-the-epic-spec-cross-story"
     epic: 8

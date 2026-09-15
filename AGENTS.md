@@ -37,10 +37,9 @@ load with this one — this block carries only what those do not.
   failure. `--tests "com.bagplease.SomeTest"` runs one whole Kotest class and is the cheap iteration loop.
 - JDK 25 is required locally (`jvmToolchain(25)`); a wrong JDK gives a cryptic toolchain-resolution error, not a
   version message.
-- Backend readiness check:
-  `curl -o /dev/null -w '%{http_code}' -H "Authorization: Bearer <admin token>" http://localhost:2080/api/graphiql`
-  → `200`. A plain browser navigation to `/api/graphiql` returns **401 on a healthy backend** — `graphiQLRoute()` sits
-  inside `authenticate(...)` — so do not read that 401 as "the backend is down".
+- Backend readiness check: `curl -o /dev/null -w '%{http_code}' http://localhost:2080/api/health` → `200`
+  (unauthenticated, not rate limited; `503` = Mongo unreachable, `502` = Ktor not up behind Caddy). Do not probe
+  `/api/graphiql` for readiness: it sits inside `authenticate(...)` and returns 401 on a healthy backend.
 - Registration defaults to OFF (persisted in Mongo); enable it with the `setRegistrationEnabled(enabled: true)`
   mutation as admin. `admin`/`admin` is blocked from every list operation and from change-password, so register a
   regular user for any list or account flow.
