@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: 09-11-2026 07:30
+last_updated: 09-15-2026 16:00
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -101,7 +101,7 @@ development_status:
   7-15-give-the-dev-auto-warnings-a-measured-verdict: done
   epic-7-retrospective: done
 
-  epic-8: in-progress
+  epic-8: done
   8-1-move-the-mobile-gate-to-the-width-people-actually-use: done
   8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone: done
   8-3-check-off-an-item-by-tapping-its-row: done
@@ -111,7 +111,20 @@ development_status:
   8-7-write-down-the-design-this-app-actually-has: done
   epic-8-retrospective: done
 
-# Action items committed during retrospectives (section created by the retrospective workflow)
+  epic-9: backlog
+  9-1-the-test-run-waits-until-the-backend-is-ready: backlog
+  9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: backlog
+  9-3-deleting-a-category-deletes-its-items-for-everyone: backlog
+  9-4-deleting-a-user-leaves-no-phantom-memberships: backlog
+  9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: backlog
+  9-6-an-item-can-be-in-several-stores: backlog
+  9-7-home-is-in-the-account-menu: backlog
+  9-8-the-category-filter-menu-can-be-closed-on-a-phone: backlog
+  9-9-a-user-can-send-feedback-from-any-screen: backlog
+  9-10-the-admin-reviews-and-clears-feedback: backlog
+  9-11-an-item-can-be-added-from-the-shopping-screen: backlog
+  9-12-small-cleanups: backlog
+  epic-9-retrospective: optional
 action_items:
   - epic: 7
     action: "Re-check typescript-eslint for TypeScript 7 support before any future

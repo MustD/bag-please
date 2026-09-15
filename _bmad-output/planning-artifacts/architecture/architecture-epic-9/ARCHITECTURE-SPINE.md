@@ -253,8 +253,9 @@ flowchart TD
       existing `alreadyHome` comparison (on home it only closes the menu), and the existing `Lists` entry stays.
       Feedback is hidden when the auth role is `admin`, and it opens a dialog rendered by `AppShell`, not a route, so
       the user's current screen stays mounted.
-    - The shopping row's accessible name carries `Stores: A, B`, and the segment is left out when the item has no
-      stores. Store chips stay non-interactive inside the FR60 row control. Test ids: `shopping-item-stores-<item>` for
+    - The shopping row's accessible name stays exactly `` `Toggle ${item.name}` ``; `Stores: A, B` goes in the row's
+      accessible description beside `addedBy`, and the segment is left out when the item has no stores (md ruling,
+      2026-09-15, epics.md UX-DR-E9-7). Store chips stay non-interactive inside the FR60 row control. Test ids: `shopping-item-stores-<item>` for
       the container, `shopping-item-store-<item>-<store>` for each chip.
 
 ### AD-11 — One check-state transition for every item mutation
@@ -281,7 +282,7 @@ flowchart TD
 | Errors        | Reuse `GraphQLForbiddenException` / `GraphQLInvalidInputException` / `GraphQLNotFoundException`; no new error envelope.                                                                                                                                                                                                                                                                                                               |
 | Events        | List-scoped mutations emit on their service's SharedFlow after the write. Cascades emit only the parent event (AD-7), and clients prune children. Feedback, users, and list deletion emit nothing.                                                                                                                                                                                                                                    |
 | Frontend data | Every operation returning an `Item` spreads one fragment, `ListItemFields`, in `lib/lists/listsQueries.ts`. No hand-written item field lists, and `subscribeToMore` handlers use the generated fragment type. Admin operations live in `lib/admin/adminQueries.ts`, and admin collections use `cache-and-network` plus evict-on-mutation. Codegen is regenerated in the same story as the schema change; never edit `__generated__/`. |
-| Notices       | FR66 send confirmation and FR67 delete result use the app's existing snackbar pattern. A failed send keeps the dialog open with the text intact.                                                                                                                                                                                                                                                                                      |
+| Notices       | No toast or snackbar (none exists in `src/`; md ruling, 2026-09-15, epics.md UX-DR-E9-1). FR66 send confirmation is an in-flow `<Alert severity="success" role="status">` rendered by `AppShell`; an FR67 delete is confirmed by the row disappearing. A failed send keeps the dialog open with the text intact and the error inline.                                                                                              |
 | Tests         | Backend: Kotest + Testcontainers for each backend rule: normalization, migration seeds, cascades including soft-deleted items, purge idempotency, admin rejection, health 200/503. E2E: UI-driven per FR on both projects, with a 320px overflow assertion on `/admin`, the feedback dialog, the FAB, and the multi-store row.                                                                                                        |
 
 ## Stack
