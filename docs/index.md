@@ -46,20 +46,20 @@ parts: 3
 
 - [Project Overview](./project-overview.md)
 - [Source Tree Analysis](./source-tree-analysis.md)
-- [Integration Architecture](./integration-architecture.md)
 - [Development Guide](./development-guide.md)
 - [Deployment Guide](./deployment-guide.md)
 - [Project Parts Metadata](./project-parts.json)
 
 ### Backend (bp_back)
 
-- [Architecture — bp_back](./architecture-bp_back.md)
+- Architecture: [bp_back/CLAUDE.md](../bp_back/CLAUDE.md) and the planning architecture under
+  `_bmad-output/planning-artifacts/`
 - [API Contracts — bp_back](./api-contracts-bp_back.md)
 - [Data Models — bp_back](./data-models-bp_back.md)
 
 ### Frontend (bp_front)
 
-- [Architecture — bp_front](./architecture-bp_front.md)
+- Architecture: [bp_front/CLAUDE.md](../bp_front/CLAUDE.md)
 - [Component Inventory — bp_front](./component-inventory-bp_front.md)
 
 ### Routing
@@ -122,7 +122,7 @@ Read these documents in this order when implementing features:
 
 1. `CLAUDE.md` — mandatory rules and critical patterns
 2. This `index.md` — project structure overview
-3. `architecture-bp_back.md` or `architecture-bp_front.md` — relevant part architecture
+3. `bp_back/CLAUDE.md`, `bp_front/CLAUDE.md` or `routing/CLAUDE.md` — relevant part architecture
 4. `api-contracts-bp_back.md` — when touching GQL schema or API
 5. `data-models-bp_back.md` — when touching entities or MongoDB
-6. `integration-architecture.md` — when touching cross-part communication
+6. `architecture-routing.md` — when touching cross-part communication
