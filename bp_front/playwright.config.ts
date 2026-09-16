@@ -47,11 +47,28 @@ const PIXEL_7_AT_FLOOR = {
 // fail the run.
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:2080'
 
+// Tests that must run while NOTHING ELSE IS TOUCHING SHARED BACKEND STATE.
+//
+// One definition, consumed by all four projects below: the two viewport projects
+// grepInvert it, the two chained projects grep it. Adding a tag here is the
+// whole wiring — see the "Four projects, not two" note under `projects`.
+//
+//   @registration-toggle (Story 7.3) — `registrationEnabled` is a single shared
+//     Mongo document and the FR20/FR21 test flips it OFF for real.
+//   @serial-users (Story 9.2) — the FR13/FR15 last-page test must arrange the
+//     users table's TOTAL to sit at a page boundary, and the suite creates ~4
+//     users/second while it runs.
+const SERIALIZED = /@registration-toggle|@serial-users/
+
 export default defineConfig({
   testDir: './e2e',
   // Enable public registration once before the suite (see e2e/global-setup.ts)
   // so the real register → auto-login flow can succeed.
   globalSetup: './e2e/global-setup.ts',
+  // Delete every user the run created (Story 9.2). This is the D4 mechanism:
+  // without it the users table grows ~120 rows a run forever. It never fails the
+  // run — see e2e/global-teardown.ts.
+  globalTeardown: './e2e/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -145,8 +162,10 @@ export default defineConfig({
   //     the tag and the tagged test simply runs in chromium+mobile while both
   //     toggle projects collect zero — and the total is *unchanged*, because the
   //     tag reroutes a test rather than duplicating it. The INVARIANT to check is
-  //     therefore structural, not numeric: exactly ONE test in each
-  //     `registration-toggle-*` project, everything else split evenly across the
+  //     therefore structural, not numeric: each `registration-toggle-*` project
+  //     collects exactly one test per pattern in `SERIALIZED` (TWO since Story
+  //     9.2 added `@serial-users` — the projects are named for the first tag they
+  //     carried, not for the only one), everything else split evenly across the
   //     two viewport projects (every untagged test runs in both, so a new spec is
   //     +2 runs). Read it with:
   //       npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c
@@ -219,20 +238,37 @@ export default defineConfig({
   //         (NFR-E8-5: one test owns that row). Counts measured with the command
   //         above on the post-fix build; the skip SPLIT read off a
   //         `--reporter=json` run, not inferred.
+  //       2026-09-16 (Story 9.2, pre-story baseline at 15ec65b): 230 = 114 / 114
+  //         / 1 / 1 — i.e. the 2026-09-09 row above was ALREADY STALE by 6
+  //         before this story changed anything (Story 9.1 and unrecorded specs).
+  //         Measured in a throwaway worktree at the baseline commit, not quoted.
+  //       2026-09-16 (Story 9.2): 236 = 116 / 116 / 2 / 2 (+6 against that 230).
+  //         The arithmetic, and note it is NOT the usual tests x 2 because one of
+  //         the three is TAGGED: two untagged tests at +2 runs each = +4 (the
+  //         FR13 pager walk in admin.spec.ts and the /admin floor case in
+  //         narrow-viewport.spec.ts), plus ONE `@serial-users` test at +2 = the
+  //         delete-last-page case, which lands in the two chained projects
+  //         instead of the two viewport ones — which is why those columns moved
+  //         off 1 for the first time since this ledger began. OF WHICH 23 ARE
+  //         SKIPS — 22 in chromium (the mobile-only narrow-viewport set, now
+  //         including this story's /admin floor case) and 1 in mobile (the
+  //         above-the-breakpoint header test). Counts from the command above;
+  //         the skip SPLIT read off a `--reporter=json` run (213 expected, 23
+  //         skipped, 0 unexpected, 0 flaky), not inferred.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
     {
       name: 'chromium',
       use: {...devices['Desktop Chrome']},
-      grepInvert: /@registration-toggle/,
+      grepInvert: SERIALIZED,
     },
     {
       name: 'mobile',
       // Renders at NFR-E8-1's floor — see PIXEL_7_AT_FLOOR above for why the
       // descriptor is kept and only the widths are overridden.
       use: PIXEL_7_AT_FLOOR,
-      grepInvert: /@registration-toggle/,
+      grepInvert: SERIALIZED,
     },
     // Runs only after BOTH viewport projects finish → nothing is registering
     // while the flag is OFF. `fullyParallel: false` is a guard for the future,
@@ -243,7 +279,7 @@ export default defineConfig({
     {
       name: 'registration-toggle-chromium',
       use: {...devices['Desktop Chrome']},
-      grep: /@registration-toggle/,
+      grep: SERIALIZED,
       dependencies: ['chromium', 'mobile'],
       fullyParallel: false,
     },
@@ -267,7 +303,7 @@ export default defineConfig({
       // floor in a normal run" (NFR-E8-2) untrue of the admin-panel half, and put
       // two Pixel 7 projects in this file at two different widths.
       use: PIXEL_7_AT_FLOOR,
-      grep: /@registration-toggle/,
+      grep: SERIALIZED,
       dependencies: ['registration-toggle-chromium'],
       fullyParallel: false,
     },

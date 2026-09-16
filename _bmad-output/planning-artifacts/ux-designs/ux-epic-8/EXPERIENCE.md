@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '7535617913c51f033038892dd4153917c9f8170d'
-verified_on: '2026-09-15'
+verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
+verified_on: '2026-09-16'
 ---
 
 # EXPERIENCE.md — Bag Please information architecture & behaviour
@@ -789,7 +789,7 @@ grep -rn 'maxWidth="xs"' bp_front/src/components
 # expect 10 lines, one per dialog
 
 grep -rn 'role="status"' bp_front/src
-# expect AdminPage.tsx:158 only
+# expect AdminPage.tsx:236 only (was :158; the line moved when Story 9.2 added the pager)
 
 grep -n 'NARROW_FLOOR_PX' bp_front/e2e/support/layout.ts bp_front/playwright.config.ts
 # expect 5 lines: the single declaration (layout.ts:32), and in the config the import (:2),

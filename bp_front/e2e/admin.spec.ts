@@ -1,6 +1,7 @@
 import {type Browser, expect, type Page, test} from '@playwright/test'
 
-import {uniqueUsername} from './support/ui'
+import {ADMIN, loginAsAdmin, loginViaUi, uniqueUsername} from './support/ui'
+import {countUsersApi, createUserApi, loginApi} from './support/api'
 
 // Admin User Management E2E (Story 5.4). UI-driven only — no API shortcuts for
 // the asserted behaviour (the sole exception is the one-time registration-enable
@@ -14,29 +15,15 @@ import {uniqueUsername} from './support/ui'
 // exercise a managed user's own session (login, redirect) run in a FRESH browser
 // context so the admin session in `page` is never disturbed.
 
-const ADMIN = {username: 'admin', password: 'admin'}
 const DEFAULT_PW = 'e2e-password-123'
 
-async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/auth')
-  await page.getByTestId('login-username').fill(username)
-  await page.getByTestId('login-password').fill(password)
-  await page.getByTestId('login-submit').click()
-}
+// FR13's page size, mirrored from AdminPage.tsx so the pager arithmetic below
+// reads against the requirement rather than a bare 20.
+const PAGE_SIZE = 20
 
-// Sign in as the guaranteed first-boot admin and open the panel through the
-// role-gated menu affordance (FR30) — never by navigating to /admin directly.
-async function loginAsAdmin(page: Page): Promise<void> {
-  await loginViaUi(page, ADMIN.username, ADMIN.password)
-  // Admin lands on /admin via the `/` redirect (Story 5.6); assert authenticated
-  // route-agnostically, then reach the panel through the role-gated menu.
-  await expect(page).not.toHaveURL(/\/auth$/)
-  await expect(page.getByTestId('app-bar')).toBeVisible()
-  await page.getByTestId('user-menu-button').click()
-  await page.getByTestId('menu-admin').click()
-  await expect(page).toHaveURL(/\/admin$/)
-  await expect(page.getByTestId('admin-page')).toBeVisible()
-}
+// `ADMIN`, `loginViaUi` and `loginAsAdmin` moved to support/ui.ts in Story 9.2:
+// narrow-viewport.spec.ts now signs in as the admin too, and a second copy in a
+// spec is the duplication NFR-E8-5 forbids.
 
 // Create a user via the panel dialog and wait for the new row to appear without
 // a page reload (refetch-driven).
@@ -214,6 +201,140 @@ test('FR20/FR21 — toggling registration off hides the Register link on /auth; 
   } finally {
     await offCtx.close()
   }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 9.2 (FR13) — the users table is SERVER-PAGED.
+//
+// WHAT THESE MAY AND MAY NOT ASSERT. `db_data` persists across runs and the two
+// viewport projects run CONCURRENTLY, so the table's absolute size is not a
+// property any run controls. Both tests below therefore measure the total before
+// they seed and assert a DELTA against it — never a literal — exactly as the
+// file header has required since Story 5.4. Exact ordering, clamping and
+// `around` semantics are pinned in AdminUserManagementTest, where the data is
+// controlled; what is asserted here is the rendered pager.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('FR13 — the users table pages at 20 with a total, and the pager walks pages', async ({page}, testInfo) => {
+  const token = await loginApi(ADMIN.username, ADMIN.password)
+  const before = await countUsersApi(token)
+
+  // 45 rows under one run-unique prefix — enough for three pages to exist
+  // regardless of what else is in the table. Seeded via the API: this test is
+  // about the PAGER, and driving 45 creates through the dialog would be testing
+  // the create flow 45 times.
+  const prefix = uniqueUsername('pager', 'seed', testInfo.project.name)
+  for (let i = 0; i < 45; i++) {
+    await createUserApi(token, `${prefix}_${String(i).padStart(3, '0')}`, DEFAULT_PW)
+  }
+
+  await loginAsAdmin(page)
+
+  // THE TOTAL, as a measured delta. `>=` and not `===`: the sibling viewport
+  // project runs this same test concurrently and seeds its own 45, so rows can
+  // land between the read above and this assertion. Asserting `=== before + 45`
+  // would rebuild the "assert on a total you did not create" defect this story
+  // exists to remove.
+  const shownTotal = Number((await page.getByTestId('admin-users-total').textContent()) ?? '')
+  expect(shownTotal, 'the total counts the rows this test seeded').toBeGreaterThanOrEqual(before + 45)
+
+  // /admin opens on the first page.
+  const rows = page.locator('[data-testid^="admin-user-row-"]')
+  const names = () => page.getByTestId('admin-user-name').allTextContents()
+  await expect(page.getByTestId('admin-users-page')).toHaveText(/^1 \/ \d+$/)
+  await expect(rows, 'a full page is exactly the page size').toHaveCount(PAGE_SIZE)
+  await expect(page.getByTestId('admin-users-prev'), 'no previous page to go to').toBeDisabled()
+  await expect(page.getByTestId('admin-users-next'), '45 seeded rows guarantee a next page').toBeEnabled()
+
+  const firstPage = await names()
+  expect(firstPage, 'usernames ascend within the page').toEqual([...firstPage].sort())
+
+  // next → next → previous lands on the expected pages.
+  await page.getByTestId('admin-users-next').click()
+  await expect(page.getByTestId('admin-users-page')).toHaveText(/^2 \/ \d+$/)
+  await expect(rows).toHaveCount(PAGE_SIZE)
+  const secondPage = await names()
+  expect(secondPage, 'usernames ascend within the page').toEqual([...secondPage].sort())
+  // The page really ADVANCED rather than re-rendering the same rows. `>=` covers
+  // the one benign case: a concurrent insert ahead of this page shifts every row
+  // down by one, making this page's first name the previous page's last.
+  expect(
+    secondPage[0] >= firstPage[firstPage.length - 1],
+    'page 2 starts where page 1 ended',
+  ).toBe(true)
+
+  await page.getByTestId('admin-users-next').click()
+  await expect(page.getByTestId('admin-users-page')).toHaveText(/^3 \/ \d+$/)
+
+  await page.getByTestId('admin-users-prev').click()
+  await expect(page.getByTestId('admin-users-page')).toHaveText(/^2 \/ \d+$/)
+  await expect(rows).toHaveCount(PAGE_SIZE)
+  const backAgain = await names()
+  expect(backAgain, 'usernames ascend within the page').toEqual([...backAgain].sort())
+})
+
+// TAGGED, and the tag is load-bearing — see playwright.config.ts.
+//
+// This test has to ARRANGE a last page holding exactly one row, which is a
+// property of the table's TOTAL. Under `fullyParallel: true` the rest of the
+// suite creates users continuously (296 in a measured 75-second run, ~4/sec
+// across 12 workers) and the two viewport projects run this same test
+// concurrently, so the total is stale the moment it is read: measured red at
+// `toHaveCount(1)` receiving 5 (chromium) and 2 (mobile). No tightening of the
+// window fixes that — an admin login plus navigation is seconds, and seconds are
+// dozens of rows.
+//
+// So it runs where nothing else is creating users: the `@serial-users` tag
+// routes it into the projects chained behind both viewport projects, exactly as
+// `@registration-toggle` does for the shared registration flag. It is NOT a
+// retry loop and NOT a raised timeout — those remain forbidden.
+test('FR13/FR15 — deleting the only user on the last page moves the table back a page', {
+  tag: '@serial-users',
+}, async ({page}, testInfo) => {
+  const token = await loginApi(ADMIN.username, ADMIN.password)
+
+  // ARRANGE a last page holding exactly one row.
+  //
+  // `zzz_`-prefixed names sort after every other username the suite creates
+  // (every other prefix is a lowercase word), so these pad rows form the tail of
+  // the table, and the `zzzz` row created through the UI below sorts after even
+  // those. Pad until the total is 1 (mod 20) COUNTING that row, which then lands
+  // alone on a brand-new last page.
+  const padPrefix = uniqueUsername('zzz_pad', 'tail', testInfo.project.name)
+  const total = await countUsersApi(token)
+  const padCount = (PAGE_SIZE - (total % PAGE_SIZE)) % PAGE_SIZE
+  for (let i = 0; i < padCount; i++) {
+    await createUserApi(token, `${padPrefix}_${String(i).padStart(3, '0')}`, DEFAULT_PW)
+  }
+
+  const lastUser = uniqueUsername('zzzz', 'last', testInfo.project.name)
+  await loginAsAdmin(page)
+  // The create lands on another page entirely, so this also exercises AC-3: the
+  // panel shows the page CONTAINING the new row without walking pages.
+  await createUserViaUi(page, lastUser, DEFAULT_PW)
+
+  const rows = page.locator('[data-testid^="admin-user-row-"]')
+  await expect(rows, 'the new row is alone on a fresh last page').toHaveCount(1)
+  await expect(page.getByTestId('admin-users-next'), 'there is no page after this one').toBeDisabled()
+
+  const label = (await page.getByTestId('admin-users-page').textContent()) ?? ''
+  const [pageNumber, pageCount] = label.split('/').map(part => Number(part.trim()))
+  expect(pageNumber, 'the create landed on the LAST page').toBe(pageCount)
+  const totalBefore = Number((await page.getByTestId('admin-users-total').textContent()) ?? '')
+
+  await page.getByTestId(`admin-user-row-${lastUser}`).getByTestId('delete-user-button').click()
+  await expect(page.getByTestId('delete-user-dialog')).toBeVisible()
+  await page.getByTestId('delete-user-confirm').click()
+  await expect(page.getByTestId('delete-user-dialog')).toHaveCount(0)
+
+  // What the delete left behind: the row is gone, the table sits one page back,
+  // the total is one lower, and that page is FULL again. These are web-first and
+  // retry until the post-delete answer lands, so they pin the settled result —
+  // NOT the cache eviction that produced it (they would pass without it too).
+  await expect(page.getByTestId(`admin-user-row-${lastUser}`)).toHaveCount(0)
+  await expect(page.getByTestId('admin-users-page')).toHaveText(`${pageNumber - 1} / ${pageCount - 1}`)
+  await expect(page.getByTestId('admin-users-total')).toHaveText(String(totalBefore - 1))
+  await expect(rows).toHaveCount(PAGE_SIZE)
 })
 
 test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /admin', async ({

@@ -17,9 +17,13 @@ interface Props {
   open: boolean
   onClose: () => void
   // Called after a successful create so the parent can refresh the users table
-  // before the new row is asserted. Awaited so the dialog closes only once the
-  // table reflects the addition (no full page reload).
-  onCreated: () => void | Promise<unknown>
+  // before the new row is asserted.
+  //
+  // It receives the CREATED USERNAME (Story 9.2): the table is server-paged, so
+  // the new row rarely belongs on the page currently shown, and the parent needs
+  // the name to ask for the page containing it (`around`). Without the argument
+  // the client could only guess, or walk pages.
+  onCreated: (username: string) => void | Promise<unknown>
 }
 
 interface FieldErrors {
@@ -70,8 +74,11 @@ export default function CreateUserDialog({open, onClose, onCreated}: Props) {
     setFormError(null)
     if (!validate()) return
 
+    // Captured before `reset()` clears the field — it is what the parent needs
+    // to locate the new row's page.
+    const created = username.trim()
     try {
-      await createUser({variables: {username: username.trim(), password}})
+      await createUser({variables: {username: created, password}})
     } catch (err) {
       // Keep the dialog open with fields intact; surface the reason inline.
       setFormError(graphqlErrorMessage(err))
@@ -84,7 +91,7 @@ export default function CreateUserDialog({open, onClose, onCreated}: Props) {
     // settles).
     reset()
     onClose()
-    void onCreated()
+    void onCreated(created)
   }
 
   return (

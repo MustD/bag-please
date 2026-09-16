@@ -6,7 +6,7 @@ import type {AdminUsersQuery as AdminUsersQueryResult} from '@/__generated__/gra
 // A single row of the admin users table, derived from the generated query type
 // (no inline GraphQL response types — project rule). Shared by AdminPage and the
 // delete/reset dialogs.
-export type AdminUser = AdminUsersQueryResult['users'][number]
+export type AdminUser = AdminUsersQueryResult['users']['users'][number]
 
 // Admin GraphQL operations (Story 5.4) — the first generated operations of the
 // Epic-5 reframe. Authored with the graphql() tagged template so codegen
@@ -18,12 +18,23 @@ export type AdminUser = AdminUsersQueryResult['users'][number]
 // Consume these via useQuery/useMutation from @apollo/client/react in AdminPage
 // and the dialogs; never hand-edit the generated output.
 
+// Server-paged (Story 9.2). The unpaginated form rendered every row in the
+// database, and the create-user dialog's close was gated behind that re-render.
+//
+// The SERVER owns ordering, clamping and page location: `offset` comes back as
+// the page actually served (clamped to 0..lastPage), and `around` locates the
+// page containing a given username — which is how the panel jumps to a row it
+// just created without walking pages.
 export const AdminUsersQuery = graphql(`
-    query AdminUsers {
-        users {
-            id
-            username
-            role
+    query AdminUsers($limit: Int!, $offset: Int, $around: String) {
+        users(limit: $limit, offset: $offset, around: $around) {
+            users {
+                id
+                username
+                role
+            }
+            totalCount
+            offset
         }
     }
 `)

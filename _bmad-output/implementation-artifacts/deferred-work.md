@@ -32,15 +32,18 @@ Scope source: `prd.md` → "Epic 9 — User Feedback Pass (Planned)". Each entry
 below; this is an index, not a copy. Anything NOT named here stays deferred. Find entries by section and summary, not by
 line number.
 
-**Rides FR13 (admin user list pagination):**
+**Rides FR13 (admin user list pagination):** ✅ ALL THREE CLOSED by Story 9.2 (2026-09-16).
 
-- Epic 7 close-out — `AdminUsers` is unpaginated; the product half is delivered by FR13 and the gate half (**D4**,
-  per-run
-  E2E data hygiene) ships with it.
-- Stories 7.8 + 7.9 — the size-driven `createUserViaUi` flake (mechanism behind D4).
-- Story 8.2 + its review — the `/admin` username cell `noWrap` cap (`AdminPage.tsx`) and the missing floor assertion on
-  `/admin`. The `/lists` half of those entries is NOT routed; `md` closed it by decision
-  in the second 2026-09-15 pass.
+- ✅ CLOSED by Story 9.2 (2026-09-16): `users(limit, offset, around): UserPage` replaces the unpaginated field and
+  `/admin` pages at 20; the gate half ships as `e2e/global-teardown.ts`. Was: Epic 7 close-out — `AdminUsers` is
+  unpaginated; the product half is delivered by FR13 and the gate half (**D4**, per-run E2E data hygiene) ships with it.
+- ✅ CLOSED by Story 9.2 (2026-09-16): the per-run sweep ends the growth that drove the flake, and pagination removes the
+  full-table re-render the dialog close waited on. Was: Stories 7.8 + 7.9 — the size-driven `createUserViaUi` flake
+  (mechanism behind D4).
+- ✅ CLOSED by Story 9.2 (2026-09-16): the `/admin` username cell's cap is removed (the name wraps) and
+  `narrow-viewport.spec.ts` now asserts the floor on `/admin`. Was: Story 8.2 + its review — the `/admin` username cell
+  `noWrap` cap (`AdminPage.tsx`) and the missing floor assertion on `/admin`. The `/lists` half of those entries is NOT
+  routed; `md` closed it by decision in the second 2026-09-15 pass.
 
 **Rides FR44/FR69 (multiple stores per item — the story edits `EditItemDialog.tsx` and `saveItem`):**
 
@@ -91,7 +94,11 @@ line number.
 Full context: `epic-7-retro-2026-08-21.md`. Only the rows that are still open are kept here; the closed rulings (the
 7.14 device install, the `autoUpdate` tab reload, the `main`-behind-production gap) are in the archive.
 
-- ⏸ **`AdminUsers` is unpaginated — the product half is BACKLOG, the gate half is Epic 7 action `D4` and is OPEN.**
+- ✅ CLOSED by Story 9.2 (2026-09-16): both halves shipped together — `users(limit, offset, around): UserPage` with a
+  20-per-page `/admin` pager, and `e2e/global-teardown.ts`, which deletes every `_e2e_` user a run created (so the next
+  run starts at the same table size, and the rows already banked are drained). `sprint-status.yaml` action **D4** is
+  `done`.
+  Was: ⏸ **`AdminUsers` is unpaginated — the product half is BACKLOG, the gate half is Epic 7 action `D4` and is OPEN.**
   The defect is real for any admin with a large user table, not merely a test-harness annoyance. **The gate half is NOT
   covered by the backlog routing**: the users table grows ~120 rows per full suite run, the create-user dialog measured
   **5015 ms against a 5000 ms assertion at 5497 rows**, and clearing the database only restarted the clock. Per-run data
@@ -208,7 +215,13 @@ archive). What follows is the residue it deliberately did **not** take on. All r
 ## Deferred from: Stories 7.8 + 7.9 — @types/node 26 and Vite 8 (2026-08-13)
 
 - source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
-  summary: **The `createUserViaUi` flake is SIZE-DRIVEN, not random, and its mechanism is measured.** The admin panel
+  ✅ CLOSED by Story 9.2 (2026-09-16): the mechanism is gone on both sides — `/admin` renders at most 20 rows (the
+  dialog's close no longer waits on a full-table re-render), and `e2e/global-teardown.ts` deletes every `_e2e_` user a
+  run created, so the table stops growing instead of merely being cleared. Of the three candidates recorded below, the
+  first (a table-independent assertion) was NOT taken and the other two were, in their non-destructive form: a teardown
+  SWEEP rather than a database reset, because it keeps the `db_data` volume, needs no privileged docker step in
+  `webServer`, and drains the rows earlier runs banked. No retry loop was added.
+  Was: summary: **The `createUserViaUi` flake is SIZE-DRIVEN, not random, and its mechanism is measured.** The admin panel
   renders **every** user row in the persistent database (`AdminUsers` at `bp_front/src/lib/admin/adminQueries.ts:21` is
   unpaginated), and the create-user dialog's close is gated behind that re-render. At **~5.5k** user rows a
   no-other-load probe measured **5015 ms** to close against `admin.spec.ts:49`'s **5000 ms** `toHaveCount` timeout. As
@@ -538,7 +551,12 @@ are filed under Story 7.6. Archived. Everything below was re-verified against `b
   inside a `minWidth: 0` flex box, which clips by exactly report #2's mechanism without a numeric cap. Neither has been
   measured at 320px. **2026-09-15, second triage pass (`md`):** the `/lists` half of this entry (`ListsPage.tsx:195`) is
   CLOSED by
-  decision and will not be worked. The `/admin` half stays OPEN and rides FR13 in Epic 9 (see the index at the top).
+  decision and will not be worked. Was: The `/admin` half stays OPEN and rides FR13 in Epic 9 (see the index at the top).
+  **✅ The `/admin` half is CLOSED by Story 9.2 (2026-09-16):** the username cell's `noWrap` +
+  `maxWidth: {xs: 140, sm: 260}` is gone — the name wraps (`overflowWrap: 'anywhere'`) and carries a
+  `data-testid="admin-user-name"` so a spec can target the text element — and the missing assertion now exists as
+  `narrow-viewport.spec.ts`'s `[P1] a long username and the pager stay inside the floor on /admin`. `ListsPage.tsx:195`
+  is untouched, per md's decision.
 
 ## Deferred from: code review of spec-8-2-a-long-name-and-a-full-header-fit-on-a-narrow-phone (2026-09-06)
 
@@ -549,8 +567,12 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   `320 === 320` while the list name is an ellipsis at `scrollWidth 380 > clientWidth 200`. `/admin` is rendered at the
   floor on every run by `admin.spec.ts` (no project guard) but carries no layout assertion at all. Neither Typography
   has a `data-testid`, so no spec can target them today. Belongs with the scoping story this file already asks for.
-  **2026-09-15, second triage pass (`md`):** the `/lists` half is CLOSED by decision; the missing `/admin` floor
+  **2026-09-15, second triage pass (`md`):** the `/lists` half is CLOSED by decision. Was: the missing `/admin` floor
   assertion stays OPEN and rides FR13 in Epic 9.
+  **✅ CLOSED by Story 9.2 (2026-09-16):** the `/admin` username `Typography` now has a `data-testid`
+  (`admin-user-name`), which is what "no spec can target them today" was blocking, and
+  `narrow-viewport.spec.ts` asserts a 42-character username with `expectNotClipped`, the page with
+  `expectNoHorizontalOverflow`, and both pager controls with `expectInsideViewport`, at the 320px floor.
 ## Deferred from: Story 8.5 — the same list reads the same way on both screens (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-5-the-same-list-reads-the-same-way-on-both-screens.md`

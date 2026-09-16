@@ -14,7 +14,7 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n": typeof types.AdminUsersDocument,
+    "\n    query AdminUsers($limit: Int!, $offset: Int, $around: String) {\n        users(limit: $limit, offset: $offset, around: $around) {\n            users {\n                id\n                username\n                role\n            }\n            totalCount\n            offset\n        }\n    }\n": typeof types.AdminUsersDocument,
     "\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n": typeof types.AdminConfigDocument,
     "\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n": typeof types.CreateUserDocument,
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": typeof types.DeleteUserDocument,
@@ -41,7 +41,7 @@ type Documents = {
     "\n    subscription CategoryUpdates($listId: ID!) {\n        getCategoryUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                listId\n            }\n        }\n    }\n": typeof types.CategoryUpdatesDocument,
 };
 const documents: Documents = {
-    "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n": types.AdminUsersDocument,
+    "\n    query AdminUsers($limit: Int!, $offset: Int, $around: String) {\n        users(limit: $limit, offset: $offset, around: $around) {\n            users {\n                id\n                username\n                role\n            }\n            totalCount\n            offset\n        }\n    }\n": types.AdminUsersDocument,
     "\n    query AdminConfig {\n        applicationConfig {\n            registrationEnabled\n        }\n    }\n": types.AdminConfigDocument,
     "\n    mutation CreateUser($username: String!, $password: String!) {\n        createUser(username: $username, password: $password) {\n            id\n            username\n            role\n        }\n    }\n": types.CreateUserDocument,
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n        }\n    }\n": types.DeleteUserDocument,
@@ -85,7 +85,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n"): (typeof documents)["\n    query AdminUsers {\n        users {\n            id\n            username\n            role\n        }\n    }\n"];
+export function graphql(source: "\n    query AdminUsers($limit: Int!, $offset: Int, $around: String) {\n        users(limit: $limit, offset: $offset, around: $around) {\n            users {\n                id\n                username\n                role\n            }\n            totalCount\n            offset\n        }\n    }\n"): (typeof documents)["\n    query AdminUsers($limit: Int!, $offset: Int, $around: String) {\n        users(limit: $limit, offset: $offset, around: $around) {\n            users {\n                id\n                username\n                role\n            }\n            totalCount\n            offset\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

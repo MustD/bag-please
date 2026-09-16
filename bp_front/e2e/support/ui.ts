@@ -1,5 +1,7 @@
 import {expect, type Page} from '@playwright/test'
 
+import {ADMIN} from './api'
+
 // Shared UI-driven E2E helpers (Story 7.2 extraction). Three facts every spec
 // header used to repeat, stated once here:
 //
@@ -18,6 +20,11 @@ import {expect, type Page} from '@playwright/test'
 //      `sharing`, `shopping`, `item_editing`).
 
 export const PASSWORD = 'e2e-password-123'
+
+// The guaranteed first-boot admin — one definition for the whole suite
+// (NFR-E8-5), declared in ./api.ts so the runner-free setup/teardown phases can
+// share it, and re-exported here for the specs.
+export {ADMIN}
 
 export function uniqueUsername(prefix: string, label: string, projectName: string): string {
   return `${prefix}_e2e_${label}_${projectName}_${Date.now()}`
@@ -44,6 +51,32 @@ export async function registerViaUi(page: Page, username: string, password: stri
   // shared app-bar visible) rather than a specific landing URL/testid.
   await expect(page).not.toHaveURL(/\/auth$/)
   await expect(page.getByTestId('app-bar')).toBeVisible()
+}
+
+// Sign in through the login form. Any account — the admin included.
+export async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
+  await page.goto('/auth')
+  await page.getByTestId('login-username').fill(username)
+  await page.getByTestId('login-password').fill(password)
+  await page.getByTestId('login-submit').click()
+}
+
+// Sign in as the admin and open the panel through the role-gated menu
+// affordance (FR30) — never by navigating to /admin directly.
+//
+// Moved here from admin.spec.ts by Story 9.2: narrow-viewport.spec.ts needs the
+// same entry to assert the /admin floor, and a second copy in a spec is the
+// duplication NFR-E8-5 forbids.
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await loginViaUi(page, ADMIN.username, ADMIN.password)
+  // Admin lands on /admin via the `/` redirect (Story 5.6); assert authenticated
+  // route-agnostically, then reach the panel through the role-gated menu.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
+  await page.getByTestId('user-menu-button').click()
+  await page.getByTestId('menu-admin').click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByTestId('admin-page')).toBeVisible()
 }
 
 // Open the lists index via the AppShell user-menu affordance (not by navigating

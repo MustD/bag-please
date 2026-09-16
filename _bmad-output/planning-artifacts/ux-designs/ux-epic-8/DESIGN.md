@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '7535617913c51f033038892dd4153917c9f8170d'
-verified_on: '2026-09-15'
+verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
+verified_on: '2026-09-16'
 ---
 
 # DESIGN.md — Bag Please visual contract
@@ -193,7 +193,12 @@ the row's own bounds (`ListShoppingPage.tsx:144-148`). Everything else uses MUI'
 This is the one part of the visual contract that is genuinely inconsistent across the app. It is recorded here as
 measured, not tidied.
 
-### 7.1 `noWrap` with a numeric cap — **four** sites
+### 7.1 `noWrap` with a numeric cap — **three** sites
+
+> **RE-MEASURED 2026-09-16 (Story 9.2).** The census below was **four**; the `/admin` username cell
+> (`AdminPage.tsx:200`, `{xs: 140, sm: 260}`) is **gone** — Story 9.2 removed it as AR-E9-6b, so the name wraps with
+> `overflowWrap: 'anywhere'` and carries a `data-testid="admin-user-name"`. That row is struck from the table below and
+> the count is now three. The deferred-work entry the block quote below argues with is closed by the same story.
 
 > **RE-MEASURED, and the census figure in `deferred-work.md` is superseded — as a SCOPING call, not a miscount.**
 > The Story 8.2 entry (`deferred-work.md:1860-1868`, quoted sentence at `:1862-1864`) states, twice-corrected and
@@ -216,8 +221,9 @@ measured, not tidied.
 | --- | --- | --- |
 | App-bar username chip | `{xs: 140, sm: 220}` | `AppShell.tsx:192-193` |
 | `/lists` row name | `{xs: 200, sm: 420}` | `ListsPage.tsx:195` |
-| `/admin` username cell | `{xs: 140, sm: 260}` | `AdminPage.tsx:200` |
 | `/list/:id` `addedBy` attribution | `100` | `ListShoppingPage.tsx:197` |
+
+(Removed by Story 9.2: `/admin` username cell, `{xs: 140, sm: 260}`, `AdminPage.tsx:200`.)
 
 ### 7.2 `noWrap` with no numeric cap — three sites
 
@@ -250,12 +256,13 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
-`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (21 raw import lines resolve to)
-— **16 distinct icons**:
+`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (23 raw import lines resolve to)
+— **18 distinct icons** (re-measured 2026-09-16; was 16 from 21 lines, before Story 9.2's pager added `ChevronLeft`
+and `ChevronRight`):
 
-`Add`, `AdminPanelSettings`, `ArrowBack`, `CheckBox`, `CheckBoxOutlineBlank`, `Close`, `DeleteOutlined`,
-`EditOutlined`, `FormatListBulleted`, `GroupOutlined`, `LockReset`, `Logout`, `LogoutOutlined`, `PersonAddAlt1`,
-`PersonRemoveOutlined`, `Storefront`.
+`Add`, `AdminPanelSettings`, `ArrowBack`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`, `Close`,
+`DeleteOutlined`, `EditOutlined`, `FormatListBulleted`, `GroupOutlined`, `LockReset`, `Logout`, `LogoutOutlined`,
+`PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
 
 Conventions that hold across the set:
 
@@ -263,17 +270,18 @@ Conventions that hold across the set:
   `LogoutOutlined`, `PersonRemoveOutlined`); filled for the primary/menu ones.
 - **`fontSize="small"` wherever an icon sits beside text or inside a row.** Three different hosts, all consistent:
   an `IconButton` child (`ListDetailPage.tsx:284,298,308,359,369`, `ListsPage.tsx:159,170,183`,
-  `AdminPage.tsx:215,228`, `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
+  `AdminPage.tsx:299,312,352,367` (re-measured 2026-09-16; was `:215,228`, and the last two are Story 9.2's pager
+  chevrons), `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
   `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`); and an icon inside a text
   `Link` on the two back links (`ListDetailPage.tsx:123`, `ListShoppingPage.tsx:399`).
 - **`color="error"` marks the destructive path.** Nine sites, and they are not all controls. Seven are: the row
-  `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:221`,
+  `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:305` (was `:221`),
   `ShareMembersDialog.tsx:156`) and the delete-user confirm `Button` (`DeleteUserDialog.tsx:91`). The other two are
   **error TEXT, not controls** — the bare `Typography role="alert"` on `/auth` (`AuthPage.tsx:286`) and
   `/account/password` (`ChangePasswordPage.tsx:196`), which are the alert-idiom deviations recorded in
   `EXPERIENCE.md` §6.2. So "destructive ⇒ `color="error"`" holds; the converse does not.
 - **Every icon-only control has an `aria-label` naming its target**, e.g. `` `Remove category ${group.name}` ``
-  (`ListDetailPage.tsx:304`), `` `Delete ${user.username}` `` (`AdminPage.tsx:220`),
+  (`ListDetailPage.tsx:304`), `` `Delete ${user.username}` `` (`AdminPage.tsx:304`, was `:220`),
   `` `Remove ${member.username}` `` (`ShareMembersDialog.tsx:157`). **Most, but not all, are also wrapped in a
   `Tooltip`**: only four files import `Tooltip` (`AdminPage.tsx`, `ListsPage.tsx`, `ListDetailPage.tsx`,
   `ShareMembersDialog.tsx`), and `WelcomeBanner.tsx:23-29`'s dismiss button carries
@@ -431,8 +439,10 @@ grep -rn 'custom\.bp' bp_front/src | grep -v 'src/theme.ts'
 # expect exactly 2 lines: AppShell.tsx:102 (navBg), WelcomeBanner.tsx:37 (accentSoft)
 
 grep -rn 'noWrap' bp_front/src
-# expect 9 lines: the 4 numeric-cap sites (§7.1), the 3 uncapped ones (§7.2),
-# and 2 PROSE COMMENTS at ListDetailPage.tsx:133-134 explaining why the title has none
+# expect 9 lines: the 3 numeric-cap sites (§7.1), the 3 uncapped ones (§7.2), and 3 PROSE
+# COMMENTS — ListDetailPage.tsx:133-134 (why the title has none) and AdminPage.tsx:279
+# (why the /admin cell no longer has one). Re-measured 2026-09-16: the TOTAL is unchanged
+# at 9, but the composition moved — Story 9.2 turned the /admin cap into a comment.
 
 grep -rniE 'snackbar|toast' bp_front/src
 # expect 11 lines across 10 files, every one a comment; no Snackbar is imported or rendered
@@ -441,11 +451,11 @@ grep -rn '#[0-9A-Fa-f]\{3,8\}' bp_front/src
 # expect src/theme.ts only
 
 grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u
-# expect the 16 distinct icons in §8 (21 raw import lines collapse to 16)
+# expect the 18 distinct icons in §8 (23 raw import lines collapse to 18)
 ```
 
 If a count here disagrees with a count in `epics.md`, `epic-8-context.md` or `deferred-work.md`, **this document is
-the one that was measured** — at `7535617913c51f033038892dd4153917c9f8170d`, on 2026-09-15. If it disagrees with the
+the one that was measured** — at `15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb`, on 2026-09-16. If it disagrees with the
 source, the source wins and this document is stale: correct it, and name the figure it supersedes.
 
 **Who re-verifies, and when.** This document goes stale the same way the two specs it supersedes did — silently. The

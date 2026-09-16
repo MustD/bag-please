@@ -113,7 +113,7 @@ development_status:
 
   epic-9: in-progress
   9-1-the-test-run-waits-until-the-backend-is-ready: done
-  9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: backlog
+  9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: done
   9-3-deleting-a-category-deletes-its-items-for-everyone: backlog
   9-4-deleting-a-user-leaves-no-phantom-memberships: backlog
   9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: backlog
@@ -301,7 +301,7 @@ action_items:
       at 5497 rows, and clearing the database only restarted the clock. Per-run data
       hygiene, or the assertion is on a timer"
     owner: "Murat"
-    status: open  # ROUTED TO EPIC 9 (2026-09-15): ships with the FR13 pagination story as its gate half -- per-run E2E data hygiene is still owed on its own, pagination alone does not stop the table growing
+    status: done  # CLOSED by Story 9.2 (2026-09-16): e2e/global-teardown.ts deletes every `_e2e_` user the run created, so the table no longer grows run over run (and the rows earlier runs banked are drained too); the `users` field is server-paged, which removes the full-table re-render the dialog close waited on. No retry loop, no raised timeout, and the db_data volume is kept.
   - epic: 7
     action: "D5 — run the E2E suite through the TLS edge domain (E2E_BASE_URL=https://bag-please.localhost)
       against the service worker. Chromium refuses serviceWorker.register() on an

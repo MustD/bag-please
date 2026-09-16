@@ -3,13 +3,16 @@ import {expectInsideViewport, expectNoHorizontalOverflow, expectNotClipped, NARR
 import {
   addCategory,
   addItem,
+  ADMIN,
   createListAndOpen,
+  loginAsAdmin,
   openListsViaMenu,
   PASSWORD,
   registerViaUi,
   uniqueUsername,
   withCategoryMenu,
 } from './support/ui'
+import {createUserApi, loginApi} from './support/api'
 
 // Story 8.1 — Move the Mobile Gate to the Width People Actually Use.
 //
@@ -106,6 +109,23 @@ const UNBREAKABLE_LIST_NAME = 'Supercalifragilisticexpialidociousaurusrexinatori
 // clipped, because the two-line clamp keeps `overflow: hidden`.
 const UNBREAKABLE_CATEGORY_NAME = 'Refrigeratedpasteurisedhomogenisedchilleddairy'
 const UNBREAKABLE_ITEM_NAME = 'Semiskimmedorganichomogenisedmilktwolitrebottle'
+
+// The /admin floor case's fixture (Story 9.2, AR-E9-6b). 42 characters, which is
+// roughly what `uniqueUsername` produces and comfortably past what the removed
+// `maxWidth: {xs: 140}` cap could show.
+const ADMIN_FLOOR_NAME_LENGTH = 42
+
+// A name that sorts onto the FIRST page: a leading digit precedes every letter
+// under the binary collation the server sorts by, and every other username the
+// suite creates starts with a lowercase word. /admin opens on page 1, so the row
+// is on screen without this test walking a pager it is not testing. The `_e2e_`
+// marker keeps it inside the teardown sweep.
+function adminFloorUsername(projectName: string): string {
+  const base = `0_e2e_adminfloor_${projectName}_${Date.now()}`
+  return base.length >= ADMIN_FLOOR_NAME_LENGTH
+    ? base.slice(0, ADMIN_FLOOR_NAME_LENGTH)
+    : base.padEnd(ADMIN_FLOOR_NAME_LENGTH, 'x')
+}
 
 // MUI's default `sm`, which is the breakpoint ListDetailPage's header stacks
 // below (the theme declares no custom `breakpoints`, verified 2026-09-05). Named
@@ -918,6 +938,52 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expect(summary).toContainText(LONG_CATEGORY_NAME)
     await expectInsideViewport(control, 'the category filter control with a selection')
     await expectInsideViewport(summary, 'the category filter summary with a selection')
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.2 (AR-E9-6b) — /admin at the floor.
+  //
+  // THE MISSING HALF. `admin.spec.ts` carries no project guard, so /admin has
+  // always RENDERED at 320px in the `mobile` project — it simply made no layout
+  // assertion there, which is why the username cell's `noWrap` +
+  // `maxWidth: {xs: 140}` cap survived Story 8.2's sweep of the same construct
+  // on /lists/:id. The cap is gone (the name wraps); this is what keeps it gone,
+  // and it covers the pager the same story added.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] a long username and the pager stay inside the floor on /admin', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const username = adminFloorUsername(testInfo.project.name)
+    expect(username, 'the 42-character case AR-E9-6b names').toHaveLength(ADMIN_FLOOR_NAME_LENGTH)
+    const token = await loginApi(ADMIN.username, ADMIN.password)
+    await createUserApi(token, username, PASSWORD)
+
+    await loginAsAdmin(page)
+
+    // The NAME element, not the row: `expectNotClipped` must measure the box the
+    // text lives in (support/layout.ts). With the cap removed the name wraps, so
+    // it is the HEIGHT branch that carries this assertion — the same handover
+    // Story 8.2 made on the other screen.
+    const name = page.getByTestId(`admin-user-row-${username}`).getByTestId('admin-user-name')
+    await expectNotClipped(name)
+    await expectInsideViewport(name, 'the username cell')
+
+    // NFR-E8-1's third clause, on the controls this story introduced. `prev` is
+    // disabled on the first page and still has to be fully on screen.
+    //
+    // SCROLLED INTO VIEW FIRST, deliberately. A full page of 20 usernames that
+    // WRAP at 320px is taller than the viewport, so the pager sits below the
+    // fold and `toBeInViewport` — which does not auto-scroll — reported
+    // `viewport ratio 0` (measured). That is ordinary vertical scrolling, not
+    // the defect NFR-E8-1 names: its third clause is about a control pushed off
+    // an edge or clipped away by an ancestor, which is still exactly what these
+    // two assertions catch once the control is scrolled to.
+    await page.getByTestId('admin-users-prev').scrollIntoViewIfNeeded()
+    await expectInsideViewport(page.getByTestId('admin-users-prev'), 'the previous-page control')
+    await expectInsideViewport(page.getByTestId('admin-users-next'), 'the next-page control')
+
     await expectNoHorizontalOverflow(page)
   })
 })

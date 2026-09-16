@@ -25,9 +25,21 @@ private fun DataFetchingEnvironment.requireAdmin() {
 class UserAdminQueries(
     private val userService: UserService,
 ) : Query {
-    suspend fun users(env: DataFetchingEnvironment): List<GqlUser> {
+    // Server-paged user list (Story 9.2). Replaces the unpaginated `users` field,
+    // which rendered every row in the database and degraded as accounts
+    // accumulated.
+    //
+    // The admin gate is unchanged and stays the FIRST statement. Ordering,
+    // clamping and page location are all the service's: this resolver passes the
+    // arguments through and maps the result.
+    suspend fun users(
+        env: DataFetchingEnvironment,
+        limit: Int,
+        offset: Int? = null,
+        around: String? = null,
+    ): GqlUserPage {
         env.requireAdmin()
-        return userService.getAllRegularUsers().map(GqlUserMapper::toGql)
+        return GqlUserMapper.toGql(userService.getUserPage(limit, offset, around))
     }
 }
 
