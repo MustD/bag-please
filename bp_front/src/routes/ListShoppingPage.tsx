@@ -1,6 +1,6 @@
 import {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
-import {useMutation, useQuery} from '@apollo/client/react'
+import {useApolloClient, useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -29,7 +29,7 @@ import {
 } from '@/lib/lists/listsQueries'
 import {byCreatedAtAsc, groupItemsByCategory, type ItemGroup} from '@/lib/lists/order'
 import {type CheckedFilter, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
-import {graphqlErrorMessage, isForbiddenError} from '@/lib/admin/adminErrors'
+import {graphqlErrorMessage, isForbiddenError, itemSaveErrorMessage} from '@/lib/admin/adminErrors'
 import ListFilters from '@/components/ListFilters'
 
 // How far a pointer may travel between down and up and still count as a tap
@@ -252,6 +252,12 @@ export default function ListShoppingPage() {
   const {subscribeToMore: subscribeToMoreItems} = itemsResult
   const {subscribeToMore: subscribeToMoreCategories} = categoriesResult
 
+  // Story 9.3. The category subscription's `updateQuery` can only ever return a
+  // `getCategories` result, so the items cached under ItemsQuery{listId} survive
+  // a category DELETED event untouched. Reaching the other query needs the cache
+  // itself — this is the first and only `cache.` call in src/.
+  const client = useApolloClient()
+
   // Per-list realtime. subscribeToMore ties the WS subscription to this query's
   // lifecycle, so unmount (e.g. logout → redirect) unsubscribes and the lazy
   // socket closes — no explicit dispose (FR53). The merge keys by id and is
@@ -295,6 +301,23 @@ export default function ListShoppingPage() {
         const {type, item} = update
         let next: ListCategory[]
         if (type === 'DELETED') {
+          // The server cascade emits exactly ONE event for a removed category —
+          // the item flow is one-slot / DROP_OLDEST, so a per-item fan-out would
+          // arrive truncated. This event is therefore authoritative for the
+          // category's CHILDREN as well, and the fan-out happens here, as a
+          // local filter: without it the group vanishes while its rows stay on
+          // screen until something else refetches.
+          //
+          // Deferred one microtask so the items write is not nested inside the
+          // cache transaction Apollo is running for this categories update; a
+          // nested write can land without broadcasting, which would leave the
+          // rows on screen — exactly the bug being fixed.
+          const deletedCategoryId = item.id
+          queueMicrotask(() => {
+            client.cache.updateQuery({query: ItemsQuery, variables: {listId}}, data =>
+              data ? {getItems: data.getItems.filter(i => i.category !== deletedCategoryId)} : data,
+            )
+          })
           next = current.filter(c => c.id !== item.id)
         } else if (current.some(c => c.id === item.id)) {
           next = current.map(c => (c.id === item.id ? item : c))
@@ -305,7 +328,7 @@ export default function ListShoppingPage() {
       },
     })
     return () => unsubscribe()
-  }, [id, listId, subscribeToMoreCategories])
+  }, [client, id, listId, subscribeToMoreCategories])
 
   const categories = useMemo(
     () => categoriesResult.data?.getCategories ?? [],
@@ -381,7 +404,14 @@ export default function ListShoppingPage() {
     } catch (err) {
       // The normalized cache is untouched on failure, so the row's indicator
       // reverts to the server state automatically; surface the reason inline.
-      setActionError(graphqlErrorMessage(err))
+      //
+      // Through `itemSaveErrorMessage`, not `graphqlErrorMessage` (review
+      // finding, 2026-09-17): Story 9.3 gave `uncheckItem` an orphan guard that
+      // throws the same "Category <uuid> does not belong to list <uuid>" the two
+      // item dialogs already map, and this row is the only place a legacy orphan
+      // is toggled. Unmapped it put two raw UUIDs in `shopping-action-error`.
+      // Every other rejection falls through the regex and reads as before.
+      setActionError(itemSaveErrorMessage(err))
     }
   }
 

@@ -90,6 +90,24 @@ class ItemLifecycleTest : FunSpec({
         return res.bodyAsText()
     }
 
+    suspend fun ApplicationTestBuilder.deleteCategory(token: String, catId: UUID, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { deleteCategory(id: \"$catId\", listId: \"$listId\") { id name listId } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
+    suspend fun ApplicationTestBuilder.getCategories(token: String, listId: String): String {
+        val res = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"{ getCategories(listId: \"$listId\") { id name } }"}""")
+        }
+        return res.bodyAsText()
+    }
+
     // `checked` is a parameter because Story 7.4's merge takes `checked` from the input while `checkedAt`
     // stays server-owned: an edit that left `checked: false` would silently un-check the item, and
     // `findCheckedRecurringItems` would then never see it again.
@@ -200,6 +218,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             val body = saveItem(token, itemId, catId, listId)
             body shouldNotContain "errors"
             body shouldContain """"addedBy":"$username""""
@@ -218,6 +239,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, store = "Pharmacy")
             val body = getItems(token, listId)
             body shouldNotContain "errors"
@@ -236,6 +260,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             for (value in listOf("WEEKLY", "BIWEEKLY", "MONTHLY", "ONE_TIME")) {
                 val itemId = UUID.randomUUID()
                 val saveBody = saveItem(token, itemId, catId, listId, recurring = value)
@@ -264,6 +291,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId)
 
             val checkRes = client.post("/graphql") {
@@ -294,6 +324,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, recurring = "WEEKLY")
 
             val checkRes = client.post("/graphql") {
@@ -325,6 +358,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, recurring = "ONE_TIME")
 
             val checkRes = client.post("/graphql") {
@@ -355,6 +391,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, recurring = "ONE_TIME")
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
@@ -391,6 +430,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, recurring = "ONE_TIME")
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
@@ -519,6 +561,9 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, UUID.randomUUID(), catId, listId, store = "Pharmacy")
             saveItem(token, UUID.randomUUID(), catId, listId, store = "Pharmacy")
             saveItem(token, UUID.randomUUID(), catId, listId, store = "Bakery")
@@ -588,6 +633,9 @@ class ItemLifecycleTest : FunSpec({
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
             val listId = createList(ownerToken)
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(ownerToken, catId, listId) shouldNotContain "errors"
             saveItem(ownerToken, itemId, catId, listId)
             val nonMemberToken = registerAndLogin(nonMemberUsername)
 
@@ -719,6 +767,9 @@ class ItemLifecycleTest : FunSpec({
             val listX = createList(token, "ListX")
             val listY = createList(token, "ListY")
 
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(token, catId, listX, "Dairy") shouldNotContain "errors"
             saveItem(token, itemId, catId, listX, name = "OnListX") shouldNotContain "errors"
 
             // getByIdCached is list-scoped, so this misses and lands on the create branch; the global
@@ -798,13 +849,13 @@ class ItemLifecycleTest : FunSpec({
         }
     }
 
-    test("7.4 AC4 a CREATE with an unknown category is still accepted (ruling A tripwire)") {
-        // Deliberate scope decision (md, 2026-08-10): the check is update-only. Guarding creates too
-        // would fail 29 existing saveItem invocations that invent a catId. This test exists so that a
-        // later "tightening" trips one obvious tripwire instead of those 29, and so the open hole
-        // filed in deferred-work.md is visible in the suite.
-        val username = "cat74c_${UUID.randomUUID().toString().take(8)}"
+    // Story 9.3 retired the "ruling A tripwire" that used to live here (it asserted the CREATE hole was
+    // OPEN, and was the one obvious failure a later tightening was meant to trip). The hole is now closed
+    // on both branches, so the tripwire is replaced by its inverse.
+    test("9.3 a CREATE carrying a category that is not on the list is rejected") {
+        val username = "cat93a_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
+        val catHere = UUID.randomUUID()
         val catGhost = UUID.randomUUID()
 
         testApplication {
@@ -813,10 +864,42 @@ class ItemLifecycleTest : FunSpec({
             application { module() }
             val token = registerAndLogin(username)
             val listId = createList(token)
+            saveCategory(token, catHere, listId, "Dairy") shouldNotContain "errors"
 
-            val body = saveItem(token, itemId, catGhost, listId, name = "Ghosted")
-            body shouldNotContain "errors"
-            body shouldContain catGhost.toString()
+            // The SAME message the update branch produces — the frontend maps exactly this wording to
+            // friendly copy (adminErrors.CATEGORY_NOT_ON_LIST), so a second phrasing would surface raw.
+            saveItem(token, itemId, catGhost, listId, name = "Ghosted") shouldContain
+                    "Category $catGhost does not belong to list $listId"
+
+            // Nothing was created: assert the absence of the row, not merely that an error came back.
+            val body = getItems(token, listId)
+            body shouldNotContain (itemId.toString())
+            body shouldNotContain """"name":"Ghosted""""
+        }
+    }
+
+    test("9.3 a CREATE carrying a category that belongs to another list is rejected") {
+        val username = "cat93b_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catHere = UUID.randomUUID()
+        val catElsewhere = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listHere = createList(token, "Here")
+            val listElsewhere = createList(token, "Elsewhere")
+            saveCategory(token, catHere, listHere, "Dairy") shouldNotContain "errors"
+            saveCategory(token, catElsewhere, listElsewhere, "Frozen") shouldNotContain "errors"
+
+            saveItem(token, itemId, catElsewhere, listHere, name = "Smuggled") shouldContain
+                    "Category $catElsewhere does not belong to list $listHere"
+
+            val body = getItems(token, listHere)
+            body shouldNotContain (itemId.toString())
+            body shouldNotContain """"name":"Smuggled""""
         }
     }
 
@@ -882,6 +965,9 @@ class ItemLifecycleTest : FunSpec({
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
             val listId = createList(ownerToken)
+            // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
+            // branch too, so this fixture has to make the category real first.
+            saveCategory(ownerToken, catId, listId) shouldNotContain "errors"
             saveItem(ownerToken, itemId, catId, listId)
             val nonMemberToken = registerAndLogin(nonMemberUsername)
 
@@ -891,6 +977,276 @@ class ItemLifecycleTest : FunSpec({
                 setBody("""{"query":"mutation { uncheckItem(id: \"$itemId\", listId: \"$listId\") { id } }"}""")
             }.bodyAsText()
             res shouldContain "errors"
+        }
+    }
+    // ── Story 9.3 ── deleteCategory cascades to the category's items ──────
+
+    test("9.3 deleting a category deletes every item in it, soft-deleted rows included") {
+        val username = "casc93_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val survivorCatId = UUID.randomUUID()
+        val visibleIds = List(5) { UUID.randomUUID() }
+        val softDeletedId = UUID.randomUUID()
+        val survivorId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId, "Doomed") shouldNotContain "errors"
+            saveCategory(token, survivorCatId, listId, "Kept") shouldNotContain "errors"
+
+            visibleIds.forEachIndexed { i, id ->
+                saveItem(token, id, catId, listId, name = "Doomed$i") shouldNotContain "errors"
+            }
+            // A ONE_TIME item that has been checked is SOFT-deleted (deleted = true), so getItems
+            // already hides it. It is in this fixture because the obvious cascade implementation reads
+            // ItemStorage.getByListId, whose `!deleted` filter would skip exactly this row and leave it
+            // behind in Mongo pointing at a category that no longer exists.
+            saveItem(token, softDeletedId, catId, listId, name = "SoftGone", recurring = "ONE_TIME") shouldNotContain "errors"
+            checkItem(token, softDeletedId, listId) shouldContain """"deleted":true"""
+            itemsCol.find(Filters.eq("_id", softDeletedId.toString())).toList().single()
+                .getBoolean("deleted") shouldBe true
+
+            // The control row: a sibling category's item must survive, or "everything vanished" would
+            // also satisfy every assertion below.
+            saveItem(token, survivorId, survivorCatId, listId, name = "Survivor") shouldNotContain "errors"
+
+            deleteCategory(token, catId, listId) shouldNotContain "errors"
+
+            getCategories(token, listId) shouldNotContain (catId.toString())
+
+            val body = getItems(token, listId)
+            visibleIds.forEach { body shouldNotContain (it.toString()) }
+            body shouldNotContain (softDeletedId.toString())
+            body shouldContain survivorId.toString()
+
+            // …and gone from MONGO, not merely from the cache: a cache-only prune would come back on
+            // the next restart as exactly the orphans this story removes.
+            itemsCol.find(Filters.eq("category", catId.toString())).toList().size shouldBe 0
+            itemsCol.find(Filters.eq("_id", survivorId.toString())).toList().size shouldBe 1
+        }
+    }
+
+    test("9.3 a non-member deleteCategory is rejected and removes nothing") {
+        val ownerUsername = "cascown93_${UUID.randomUUID().toString().take(8)}"
+        val strangerUsername = "cascstr93_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val ownerToken = registerAndLogin(ownerUsername)
+            val listId = createList(ownerToken)
+            saveCategory(ownerToken, catId, listId, "Private") shouldNotContain "errors"
+            saveItem(ownerToken, itemId, catId, listId, name = "Private item") shouldNotContain "errors"
+
+            val strangerToken = registerAndLogin(strangerUsername)
+            deleteCategory(strangerToken, catId, listId) shouldContain "Access denied: not a list member"
+
+            // The cascade sits AFTER verifyMembership, so a rejected caller must leave both the category
+            // and its items exactly where they were.
+            getCategories(ownerToken, listId) shouldContain catId.toString()
+            getItems(ownerToken, listId) shouldContain itemId.toString()
+            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().size shouldBe 1
+        }
+    }
+
+    // Review finding, 2026-09-17: every other 9.3 cascade case uses ONE list, so deleting the `listId`
+    // clause from ItemRepository.deleteAllInCategory's filter left the whole suite green — the clause
+    // its own KDoc argues for was untested. Category ids are UUIDs, so a natural cross-list collision
+    // does not happen; this fixture forces the collision at the ITEM level, which is where the filter
+    // applies — the shape a category relocation, or any legacy orphan, leaves behind.
+    test("9.3 the cascade is scoped by listId, not by category id alone") {
+        val username = "casctwolist93_${UUID.randomUUID().toString().take(8)}"
+        val sharedCatId = UUID.randomUUID()
+        val doomedItemId = UUID.randomUUID()
+        val otherListItemId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        var listA = ""
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            listA = createList(token, "ListA")
+            val listB = createList(token, "ListB")
+            saveCategory(token, sharedCatId, listA, "Shared") shouldNotContain "errors"
+            saveItem(token, doomedItemId, sharedCatId, listA, name = "OnA") shouldNotContain "errors"
+
+            // List B gets an ITEM carrying the SAME category id, which is what the filter's `listId`
+            // clause actually guards — the categories collection is keyed by `_id`, so the category
+            // document itself can only ever live on one list. It cannot be created through the API
+            // (saveItem's guard rejects a category that is not on the target list — the point of this
+            // story), so the row is written straight to Mongo and a fresh instance picks it up on sync.
+            // That is also exactly the shape a relocated category leaves behind, and the shape of the
+            // legacy rows the `Uncategorized` bucket exists for.
+            itemsCol.insertOne(
+                Document(
+                    mapOf(
+                        "_id" to otherListItemId.toString(),
+                        "name" to "OnB",
+                        "checked" to false,
+                        "category" to sharedCatId.toString(),
+                        "listId" to listB,
+                        "deleted" to false,
+                        "addedBy" to username,
+                    )
+                )
+            )
+        }
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = loginToken(username, "pass1234")
+
+            deleteCategory(token, sharedCatId, listA) shouldNotContain "errors"
+
+            // List A's row is gone from Mongo; list B's row with the identical category id is NOT.
+            itemsCol.find(Filters.eq("_id", doomedItemId.toString())).toList().size shouldBe 0
+            itemsCol.find(Filters.eq("_id", otherListItemId.toString())).toList().size shouldBe 1
+        }
+    }
+
+    // Review finding, 2026-09-17: the cascade was only ever exercised by a list OWNER, so nothing
+    // proved verifyMembership (rather than an ownership check) is what gates it.
+    test("9.3 a shared member can cascade a category delete, like the owner") {
+        val ownerUsername = "cascshareown93_${UUID.randomUUID().toString().take(8)}"
+        val memberUsername = "cascsharemem93_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+        val survivorCatId = UUID.randomUUID()
+        val survivorId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val ownerToken = registerAndLogin(ownerUsername)
+            val memberToken = registerAndLogin(memberUsername)
+            val listId = createList(ownerToken)
+            shareList(ownerToken, listId, memberUsername) shouldNotContain "errors"
+            acceptInvite(memberToken, listId) shouldNotContain "errors"
+
+            saveCategory(ownerToken, catId, listId, "Doomed") shouldNotContain "errors"
+            saveCategory(ownerToken, survivorCatId, listId, "Kept") shouldNotContain "errors"
+            saveItem(ownerToken, itemId, catId, listId, name = "OwnerAdded") shouldNotContain "errors"
+            saveItem(ownerToken, survivorId, survivorCatId, listId, name = "Survivor") shouldNotContain "errors"
+
+            // The MEMBER deletes a category the OWNER filled — the cross-member case the story is about.
+            deleteCategory(memberToken, catId, listId) shouldNotContain "errors"
+
+            getCategories(ownerToken, listId) shouldNotContain (catId.toString())
+            val body = getItems(ownerToken, listId)
+            body shouldNotContain (itemId.toString())
+            body shouldContain survivorId.toString()
+            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().size shouldBe 0
+            itemsCol.find(Filters.eq("_id", survivorId.toString())).toList().size shouldBe 1
+        }
+    }
+
+    test("9.3 deleting an empty category removes the category and no items") {
+        val username = "cascempty93_${UUID.randomUUID().toString().take(8)}"
+        val emptyCatId = UUID.randomUUID()
+        val otherCatId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, emptyCatId, listId, "Empty") shouldNotContain "errors"
+            saveCategory(token, otherCatId, listId, "Full") shouldNotContain "errors"
+            saveItem(token, itemId, otherCatId, listId, name = "Untouched") shouldNotContain "errors"
+
+            deleteCategory(token, emptyCatId, listId) shouldNotContain "errors"
+
+            getCategories(token, listId) shouldNotContain (emptyCatId.toString())
+            getItems(token, listId) shouldContain itemId.toString()
+        }
+    }
+
+    test("9.3 deleting an unknown category is rejected and removes no items") {
+        val username = "cascghost93_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId, "Real") shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, name = "Bystander") shouldNotContain "errors"
+
+            deleteCategory(token, UUID.randomUUID(), listId) shouldContain "Category not found"
+
+            getItems(token, listId) shouldContain itemId.toString()
+        }
+    }
+
+    test("9.3 uncheckItem refuses to resurrect an item whose category is gone") {
+        val username = "orph93_${UUID.randomUUID().toString().take(8)}"
+        val catId = UUID.randomUUID()
+        val itemId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val categoriesCol = db.getCollection<Document>("categories")
+        var listId = ""
+
+        // FIRST app instance: create the row pair legitimately, then strip the category straight out of
+        // Mongo. It has to be done this way round — CategoryStorage is an in-memory cache, so a category
+        // removed behind its back is still "present" to this instance, and the API can no longer produce
+        // an orphan at all (that is the point of the cascade above). The orphan therefore only becomes
+        // visible to a process that syncs AFTER the raw delete, which is precisely the legacy shape this
+        // guard exists for.
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            listId = createList(token)
+            saveCategory(token, catId, listId, "Vanishing") shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, name = "Ghost item") shouldNotContain "errors"
+            checkItem(token, itemId, listId) shouldNotContain "errors"
+            categoriesCol.deleteOne(Filters.eq("_id", catId.toString()))
+        }
+
+        // SECOND app instance: fresh caches, so it reads the orphan as it really is on disk.
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = loginToken(username, "pass1234")
+
+            val res = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(token)
+                setBody("""{"query":"mutation { uncheckItem(id: \"$itemId\", listId: \"$listId\") { id checked } }"}""")
+            }.bodyAsText()
+            res shouldContain "Category $catId does not belong to list $listId"
+
+            // Not resurrected: the stored row is still checked. Without this the test would pass on an
+            // implementation that threw AFTER writing.
+            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().single()
+                .getBoolean("checked") shouldBe true
         }
     }
 })

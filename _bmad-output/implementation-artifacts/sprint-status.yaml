@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: 09-15-2026 16:00
+last_updated: 09-17-2026 16:20
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -114,7 +114,7 @@ development_status:
   epic-9: in-progress
   9-1-the-test-run-waits-until-the-backend-is-ready: done
   9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: done
-  9-3-deleting-a-category-deletes-its-items-for-everyone: backlog
+  9-3-deleting-a-category-deletes-its-items-for-everyone: review
   9-4-deleting-a-user-leaves-no-phantom-memberships: backlog
   9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: backlog
   9-6-an-item-can-be-in-several-stores: backlog

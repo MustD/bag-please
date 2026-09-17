@@ -67,7 +67,9 @@ line number.
 
 **Backend fixes riding the Epic 9 backend unfreeze (FR44/FR69, FR66/FR67):**
 
-- Story 8.5 — the orphan CAUSE: `deleteCategory` cascades to its items server-side and the client loop is deleted.
+- ✅ CLOSED by Story 9.3 (2026-09-17): `CategoryService.deleteCategory` cascades server-side (soft-deleted rows
+  included), emits only the category `DELETED` event, and the client loop is gone. Was: Story 8.5 — the orphan
+  CAUSE: `deleteCategory` cascades to its items server-side and the client loop is deleted.
 - Code review of 7-6 — `adminDeleteUser` strands the user's `list_members` rows (also the second leak path under the
   Story 7.6 standing assumption).
 
@@ -576,7 +578,8 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
 ## Deferred from: Story 8.5 — the same list reads the same way on both screens (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-5-the-same-list-reads-the-same-way-on-both-screens.md`
-  status: **OPEN — the orphan CAUSE. Story 8.5 filed it rather than fixing it (its AC6 forbade the fix).**
+  status: **✅ CLOSED by Story 9.3 (2026-09-17).** Was: **OPEN — the orphan CAUSE. Story 8.5 filed it rather than
+  fixing it (its AC6 forbade the fix).**
   summary: `ListDetailPage`'s remove-category confirm is a CLIENT-SIDE delete loop over the items that client happens
   to hold, so any item added by another client since the last refetch survives its category and is left pointing at a
   dangling category id.
@@ -597,6 +600,26 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
   **Shape of the real fix:** `deleteCategory` cascades to the category's items server-side, in `ItemService`/
   `CategoryService`, and the client loop is deleted. Pairs with the standing "`Item.category` has no schema-level
   referential integrity" entry under the Story 7.4 section — same missing invariant, other end.
+  **How Story 9.3 closed it:** `CategoryService.deleteCategory` now verifies membership, deletes the category, then
+  removes every item of it — `ItemStorage.deleteAllInCategory` walks the RAW per-list cache map (not `getByListId`,
+  whose `!deleted` filter would skip soft-deleted rows) and `ItemRepository.deleteAllInCategory` is the Mongo
+  `deleteMany`. Exactly ONE event is emitted, the category `DELETED`; both SharedFlows are `extraBufferCapacity = 1` /
+  `DROP_OLDEST`, so a per-item fan-out would be dropped. Clients treat that event as authoritative for the children:
+  `ListShoppingPage` prunes `ItemsQuery{listId}` through `client.cache.updateQuery`, and `ListDetailPage`'s per-item
+  loop is deleted. The two remaining ways to MAKE a fresh orphan are closed too — `saveItem` rejects an out-of-list
+  category on the CREATE branch as well as the UPDATE branch, and `uncheckItem` refuses to resurrect an item whose
+  category is gone.
+  **A coverage gap this leaves, recorded rather than patched:** with no API-reachable way to create an orphan, the
+  Story 8.5 E2E spec `FR62 — an item orphaned by a category removal…` could no longer build its fixture and was
+  RETIRED (see the comment left in its place in `bp_front/e2e/lists.spec.ts`). The synthetic `Uncategorized` bucket
+  stays in the product for items that predate the cascade, and its ordering/placement rules stay covered by
+  `e2e/order.spec.ts` (which calls `groupItemsByCategory` directly), but the RENDERING of a legacy orphan on
+  `/lists/:id` — the bucket's controls, its last-position placement, the filter tripwire — now has no end-to-end
+  test, because no test can produce the data. Re-covering it needs a seam that writes an orphan directly (a Mongo
+  fixture in the E2E harness, or a test-only seeding route); neither exists today.
+  **That gap is tracked as its OWN open entry** under "Deferred from: Story 9.3" at the end of this file — it was
+  first recorded here, inside this CLOSED block, where a scan for OPEN entries would have missed it (review finding,
+  2026-09-17). This paragraph stays as the history of how the gap arose; the open entry is the one to work from.
   **One rough edge on the mitigation, recorded here rather than patched:** `EditItemDialog` seeds `categoryId` from
   `item.category`, so an orphan's dialog opens with a BLANK `Select` (the stored id is out of range; MUI's warning is
   dev-only and the E2E runs the production build). Picking a category is the recovery and it works — that is AC4 and
@@ -638,3 +661,78 @@ are the places where the measurement disagreed with what was already written dow
   treatment the app does not have. **Not fixed** because UX-DR-E8-11 freezes the visual language for Epic 8 and
   because the decision is a product one — adopt them or delete them — not a cleanup. Recorded in `DESIGN.md` §3 and
   §11.2.
+
+## Deferred from: Story 9.3 — deleting a category deletes its items for everyone (2026-09-17)
+
+Filed at the Story 9.3 review (three layers; the full triage is in the spec's `## Review Triage Log`).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-deleting-a-category-deletes-its-items-for-everyone.md`
+  status: **OPEN**
+  summary: `saveCategory` has no `listId`-stability guard, so re-saving an existing category id under a different list
+  RELOCATES it and strands the original list's items as orphans — the one API path that still produces the data shape
+  Story 9.3 exists to eliminate.
+  evidence: `CategoryService.saveCategory` verifies membership only against the INCOMING `category.listId`, and
+  `CategoryRepository.save` upserts by `_id` alone while `Updates.set`-ting `listId`. `ItemService.saveItem` has exactly
+  this guard for items ("Item … belongs to a different list"); categories have none. In-process the effect is masked
+  because `CategoryStorage.save` adds the category under the new list without removing the stale entry under the old
+  one, so `getCategories(oldList)` still returns it; the orphan surfaces after a restart, when the caches sync from
+  Mongo. No Kotest case covers a `saveCategory` carrying a changed `listId`.
+  **Shape of the fix:** mirror the item guard — `storage.getById(category.id)?.let { require(it.listId == category.listId) }`
+  in `saveCategory`, plus a case pinning it. Pairs with the standing "`Item.category` has no schema-level referential
+  integrity" entry: same missing invariant, third end.
+  **Rides along:** `CategoryStorage.delete(id, listId)` removes from that list's map while `CategoryRepository.delete(id)`
+  deletes by `_id` globally, so a relocated category can be deleted through its STALE old-list entry — which now also
+  fires `deleteAllInCategory(oldListId, id)`. Pre-existing and only reachable through the relocation above, but the
+  cascade widens what that path destroys.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-deleting-a-category-deletes-its-items-for-everyone.md`
+  status: **OPEN — needs a test seam that does not exist yet.**
+  summary: the `Uncategorized` rendering path on `/lists/:id` — the story's own AC3 — has no end-to-end test, because
+  retiring the Story 8.5 FR62 spec removed the only one and no API-reachable way to seed an orphan remains.
+  evidence: this is the gap Story 9.3 first recorded INSIDE the now-closed Story 8.5 entry above, where an OPEN scan
+  would miss it (review finding, 2026-09-17); it is restated here as its own open entry. What is uncovered: the bucket
+  appearing at all on `/lists/:id`, its LAST position among real categories, the `category &&` gate in
+  `ListDetailPage.tsx` that hides `add-item-in-category-button` / `edit-category-button` / `remove-category-button` on
+  the synthetic bucket, the per-item edit and remove controls that are the recovery path, search reaching an orphan,
+  the "no `Uncategorized` filter option" decision tripwire, and `list-detail-empty` staying absent on a list of pure
+  orphans. Inverting that gate, or sorting the bucket among real categories instead of appending it, leaves every
+  remaining test green: `e2e/order.spec.ts` calls `groupItemsByCategory` as a pure function and renders no page, and
+  the only other `Uncategorized` hit in `bp_front/e2e` is a comment in `shopping.spec.ts` in a test that deletes the
+  item first so no orphan appears.
+  **Shape of the fix:** a seam that writes an orphan directly — a Mongo fixture in the E2E harness, or a test-only
+  seeding route. Neither exists. **Cheap interim, worth doing even without the seam:** `order.spec.ts` already calls
+  `groupItemsByCategory` directly, so the PLACEMENT half ("the bucket is appended last, not sorted among real
+  categories") can be pinned there today at no infrastructure cost.
+  **Also open on the same data:** nothing decides what happens to the orphan rows already on disk. Story 9.3 gives them
+  a rendering (AC3) but not a disposition. Epic 9 is already reworking the migration runner (Story 9.6), so a one-time
+  `epic9-*` migration that deletes or re-homes category-less items would be cheap to ride along — or the decision NOT
+  to run one should be recorded here.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-deleting-a-category-deletes-its-items-for-everyone.md`
+  status: **OPEN — narrow; no atomicity is claimed anywhere, this records the exact windows.**
+  summary: the cascade is non-transactional, so a concurrent `saveItem` can still write an orphan, and a save landing
+  between the cascade's two halves survives in Mongo while being evicted from the cache.
+  evidence: `ItemService.requireCategoryOnList` reads the in-memory `CategoryStorage` and `ItemStorage.save` runs
+  outside any lock, so a create that passes the guard before a cascade can land after it. Separately,
+  `ItemStorage.deleteAllInCategory` does `repository.deleteAllInCategory` then the cache `removeIf` as two independent
+  writes; a save interleaving between them leaves a row on disk that is absent from the cache — invisible until the
+  next process restart. Both need the operations to interleave within a small window. Deferred rather than patched
+  because every fix (a per-list mutex, re-checking inside the write's critical section) adds locking machinery for
+  state Story 9.3 did not demonstrate reachable.
+  **Rides along:** `runSchedulerCycle` reads `toDelete` from Mongo and then calls `storage.delete`, which throws
+  `IllegalStateException("Item not found")` when a cascade removed the cache entry in between; `Scheduler.kt` catches
+  and logs, so the remaining items simply wait an hour. Pre-existing — `deleteItem` takes the same path, so the
+  client-side loop Story 9.3 REPLACED produced the identical race — but the cascade widens the window. A `try`/`catch`
+  around the per-item delete inside the loop would close it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-deleting-a-category-deletes-its-items-for-everyone.md`
+  status: **OPEN — test hygiene, cheap.**
+  summary: the "seed a category before saving an item" fixture is copy-pasted across eight sites in six Kotest files
+  and belongs in the shared test utilities.
+  evidence: Story 9.3 made a real category a precondition for EVERY `saveItem`, so six raw `client.post` blocks plus
+  two private `saveCategory` helpers (`ItemLifecycleTest`, `SubscriptionScopingTest`) now express one repo-wide rule,
+  each with its own copy of the comment. The review found the duplication had already propagated the defect it
+  enables: six of the eight new sites shipped fire-and-forget, without the `shouldNotContain "errors"` assertion that
+  `ItemApiTest` documents as mandatory (patched in that review, but the next copy-paste reintroduces it).
+  **Shape of the fix:** one `saveCategory` helper beside `utils/TestContainers.kt`, asserting its own response, with
+  the rationale stated once.

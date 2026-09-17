@@ -76,6 +76,24 @@ class ItemRepository(
         return result.deletedCount.toInt()
     }
 
+    /**
+     * Story 9.3 — the Mongo half of `deleteCategory`'s cascade. Scoped by BOTH `listId` and `category`
+     * even though a category id is globally unique: the `("listId","_id")` index makes `listId` the
+     * cheap prefix, and a category-only filter would be a cross-list write in a code path whose whole
+     * point is that it runs under one list's membership check.
+     * `deleteMany` is deliberately unconditional on `deleted` — a soft-deleted row is still a row
+     * pointing at a category that is about to stop existing.
+     */
+    suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID): Int {
+        val result = col.deleteMany(
+            Filters.and(
+                Filters.eq("listId", listId.toString()),
+                Filters.eq(MongoItem::category.name, categoryId.toString()),
+            )
+        )
+        return result.deletedCount.toInt()
+    }
+
     suspend fun findCheckedRecurringItems(): List<Item> =
         col.find(
             Filters.and(

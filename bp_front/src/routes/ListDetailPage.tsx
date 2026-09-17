@@ -440,15 +440,14 @@ export default function ListDetailPage() {
         onConfirm={async () => {
           if (!removeCategoryTarget) return
           const target = removeCategoryTarget
-          // The backend's deleteCategory does NOT cascade to items — removing a
-          // category alone would strand its items (orphaned by a dangling
-          // category id, hidden by the group filter, and unreachable for
-          // removal). So delete this category's items first, then the category,
-          // honouring the confirm copy ("items are removed with it"). If an item
-          // delete fails, it propagates and the category is left intact.
-          for (const item of items.filter(i => i.category === target.id)) {
-            await deleteItem({variables: {id: item.id, listId}})
-          }
+          // ONE request. Since Story 9.3 the server cascades: deleteCategory
+          // removes the category and then every item of it — soft-deleted rows
+          // included — so the confirm copy ("items are removed with it") is now
+          // a description of what the server does rather than of a loop run
+          // here. The loop that used to live here walked only the items THIS
+          // client happened to hold, so anything a co-member had added since the
+          // last refetch outlived its category as an orphan, and a mid-loop
+          // failure left the category gone with items behind.
           await deleteCategory({variables: {id: target.id, listId}})
           void refetch().catch(() => {})
         }}

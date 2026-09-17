@@ -47,6 +47,27 @@ class ItemStorage(
         return item
     }
 
+    /**
+     * Story 9.3 — bulk removal of one category's items, Mongo first then cache, mirroring
+     * `ListService.deleteList`. That ordering is CONVENTION, not transactional safety: these are two
+     * independent writes with no session.
+     *
+     * It walks the raw inner map on purpose. `getByListId` filters `!deleted` out, so the obvious
+     * implementation ("get the list's items, delete the ones in this category") would leave every
+     * soft-deleted row of the category behind — invisible to `getItems`, still on disk, and pointing
+     * at a category that no longer exists. That is exactly the orphan this story removes.
+     *
+     * `internal`, like `ItemService.deleteAllInCategory` that wraps it (review finding, 2026-09-17).
+     * A public storage method with the same signature would put the membership check `deleteCategory`
+     * performs one call away from being skipped, which is the guarantee the wrapper claims to hold.
+     * Returns nothing: the repository's deleted-count was read by no caller along the chain.
+     */
+    internal suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID) {
+        sync()
+        repository.deleteAllInCategory(listId, categoryId)
+        storage[listId]?.entries?.removeIf { it.value.category == categoryId }
+    }
+
     fun evictList(listId: UUID) {
         storage.remove(listId)
         // DO NOT reset synced — only the evicted list's inner map is removed

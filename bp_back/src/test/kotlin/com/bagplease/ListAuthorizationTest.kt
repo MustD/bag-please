@@ -106,6 +106,15 @@ class ListAuthorizationTest : FunSpec({
             val tokenB = createUserAndLogin(userB)
 
             val listIdB = createList(tokenB)
+            // Story 9.3: saveItem rejects a category that is not on the target list on both branches.
+            client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(tokenB)
+                setBody("""{"query":"mutation { saveCategory(category: { id: \"$catId\", name: \"Seeded\", listId: \"$listIdB\" }) { id } }"}""")
+            }.bodyAsText() shouldNotContain "errors"
+            // Asserted, not fire-and-forget (review finding, 2026-09-17): if this seed silently fails, the
+            // saveItem below fails for the CATEGORY reason instead, and a rejection-shaped test still passes
+            // while covering nothing. Same rule the existing seed in ItemApiTest already states.
             // User B creates an item
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)

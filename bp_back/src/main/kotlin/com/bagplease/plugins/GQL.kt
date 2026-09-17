@@ -87,7 +87,8 @@ fun Application.configureGql(
 
     val itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
     configureScheduler(itemService)
-    val categoryService = CategoryService(categoryStorage, listService)
+    // itemService is constructed above on purpose: CategoryService.deleteCategory cascades into it.
+    val categoryService = CategoryService(categoryStorage, listService, itemService)
 
     install(GraphQL) {
         schema {

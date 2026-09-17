@@ -255,6 +255,30 @@ export default defineConfig({
   //         above-the-breakpoint header test). Counts from the command above;
   //         the skip SPLIT read off a `--reporter=json` run (213 expected, 23
   //         skipped, 0 unexpected, 0 flaky), not inferred.
+  //       2026-09-17 (Story 9.3): 238 = 117 / 117 / 2 / 2 — +2 runs against the
+  //         Story 9.2 row's 236, and the flat-looking delta hides three moves, so
+  //         read the per-file test names rather than this number. ADDED: the
+  //         two-member category cascade and the stale-add rejection, both untagged
+  //         in lists.spec.ts (+4 runs). RETIRED: `FR62 — an item orphaned by a
+  //         category removal…` (-2 runs) — its fixture was the client-side delete
+  //         loop this story deleted, and with `saveItem` now rejecting an
+  //         out-of-list category on the CREATE branch too there is no
+  //         API-reachable way left to produce an orphan. OF WHICH 23 ARE SKIPS,
+  //         unchanged from the Story 9.2 row (22 chromium, 1 mobile): none of the
+  //         moved tests carries a project guard. Counts from the command above on
+  //         the post-fix production image; the run itself reported 215 passed, 23
+  //         skipped, 0 failed.
+  //       2026-09-17 (Story 9.3 REVIEW): 240 = 118 / 118 / 2 / 2 — +2 on the row
+  //         above. ADDED: one untagged case in shopping.spec.ts, `FR46 — a
+  //         rejected uncheck shows the mapped category copy…` (+2 runs), pinning
+  //         the review fix that routes `uncheckItem`'s orphan rejection through
+  //         `itemSaveErrorMessage`. Nothing retired or moved. OF WHICH 23 ARE
+  //         SKIPS, unchanged (22 chromium, 1 mobile): the new case carries no
+  //         project guard. Counts from the command above on the post-fix
+  //         production image; the run itself reported 217 passed, 23 skipped,
+  //         0 failed. The new case was observed RED on both viewport projects
+  //         (raw `Category <uuid> does not belong to list <uuid>` in
+  //         `shopping-action-error`) before the fix, and green after.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

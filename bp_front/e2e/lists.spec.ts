@@ -512,177 +512,31 @@ test('FR62 — categories and items read in the SAME by-name order on /lists/:id
   expect(await shoppingItemNames(page, catM), 'both screens order items alike').toEqual(managementItems)
 })
 
-test('FR62 — an item orphaned by a category removal is reachable in an Uncategorized group on /lists/:id', async ({page}, testInfo) => {
-  const username = uniqueUsername('lists', 'orphan', testInfo.project.name)
-  const stamp = Date.now()
-  const listName = `Orphan ${stamp}`
-  const keep = `Keep ${stamp}`
-  const doomed = `Doomed ${stamp}`
-  const known = `Known ${stamp}`
-  const strandedEdit = `Stranded edit ${stamp}`
-  const strandedGone = `Stranded gone ${stamp}`
-  // Added only AFTER the last real category is removed below, so the edit
-  // recovery still has somewhere to move an orphan to.
-  const rehome = `Rehome ${stamp}`
-  // A real category whose name sorts AFTER "Uncategorized", kept NON-EMPTY so the
-  // shopping view (which hides empty groups) renders it too. Without it the
-  // "appended last" rule is asserted only where alphabetical placement happens to
-  // agree, and re-sorting the whole array with the group comparator instead of
-  // pushing the bucket would keep every assertion below green.
-  const zLast = `Z Last ${stamp}`
-  const zItem = `Zebra cakes ${stamp}`
-
-  await registerViaUi(page, username, PASSWORD)
-  await openListsViaMenu(page)
-  const listId = await createListAndOpen(page, listName)
-  await addCategory(page, keep)
-  await addCategory(page, doomed)
-  await addCategory(page, zLast)
-  await addItem(page, doomed, known)
-  await addItem(page, zLast, zItem)
-
-  // THE PRODUCER, and it has to be this one. Remove-category deletes the items
-  // the removing CLIENT can see and then the category, so a single-tab "add a
-  // category, add an item, remove the category" strands nothing at all and a
-  // test written to that sequence would assert nothing. The real producer is the
-  // stale-client-set race (AR-E8-7a): a second tab adds items this tab has never
-  // seen, and — /lists/:id being refetch-driven with no subscription (AR-E8-6) —
-  // the removal loop walks the stale set. One user, one context, two tabs.
-  const other = await page.context().newPage()
-  await other.goto(`/lists/${listId}`)
-  await expect(other.getByTestId('list-detail-page')).toBeVisible()
-  await addItem(other, doomed, strandedEdit)
-  await addItem(other, doomed, strandedGone)
-  await other.close()
-
-  // THE FIXTURE'S PREMISE, asserted rather than assumed. If this tab had
-  // refetched at any point since the second tab's writes it would now hold the
-  // strays, the removal loop would take them too, and nothing would be orphaned —
-  // and the spec would then fail somewhere below as a confusing false negative
-  // about the `Uncategorized` group instead of here, about its own setup.
-  await expect(page.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
-
-  await page.getByTestId(`category-row-${doomed}`).getByTestId('remove-category-button').click()
-  await expect(page.getByTestId('remove-category-dialog')).toBeVisible()
-  await page.getByTestId('remove-category-dialog-confirm').click()
-  await expect(page.getByTestId('remove-category-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${doomed}`)).toHaveCount(0)
-  // The one item this tab knew about went with the category; the two it did not
-  // know about now point at an id that no longer exists.
-  await expect(page.getByTestId(`item-row-${known}`)).toHaveCount(0)
-
-  // AC4 — the orphans are VISIBLE on the only screen that can edit or delete
-  // them, in a synthetic group, positioned LAST.
-  const uncategorized = page.getByTestId('category-row-Uncategorized')
-  await expect(uncategorized).toBeVisible()
-  // APPENDED LAST, not sorted among the real categories — and asserted as the
-  // FULL sequence, because `Uncategorized` falls between `Keep …` and `Z Last …`
-  // alphabetically. A `.last()` check would pass either way.
-  await expect(page.getByTestId('category-name')).toHaveText([keep, zLast, 'Uncategorized'])
-  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
-  await expect(uncategorized.getByTestId(`item-row-${strandedGone}`)).toBeVisible()
-  // NO category-level controls: there is no category to add into or to remove.
-  // Each ITEM keeps its own working pair, asserted by using them below.
-  await expect(uncategorized.getByTestId('add-item-in-category-button')).toHaveCount(0)
-  await expect(uncategorized.getByTestId('remove-category-button')).toHaveCount(0)
-  // …and no RENAME control either (Story 8.6, FR63). The synthetic bucket has no
-  // category behind it, so there is no name to save. Asserted in the ONE test
-  // that already owns this fixture rather than re-producing an orphan elsewhere.
-  await expect(uncategorized.getByTestId('edit-category-button')).toHaveCount(0)
-
-  // The shopping view has bucketed orphans since Story 5.6. Asserting it here is
-  // what makes "the same list reads the same way" a COMPARISON rather than a
-  // one-sided claim about the screen this story changed.
-  await page.goto(`/list/${listId}`)
-  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
-  // `keep` is empty, so the shopping view drops it (the AC5 asymmetry) and the
-  // sequence here is the `Z …` category followed by the bucket — again the full
-  // sequence, again because 'Uncategorized' would sort BEFORE `Z Last …`.
-  const shoppingGroups = await shoppingGroupNames(page)
-  expect(shoppingGroups, 'Uncategorized is appended last on the shopping view too').toEqual([zLast, 'Uncategorized'])
-  await page.goto(`/lists/${listId}`)
-  await expect(page.getByTestId('list-detail-page')).toBeVisible()
-
-  // A search matching ONLY an orphan reaches it. Before this story the same
-  // search rendered `list-detail-no-matches` over an item that exists.
-  await page.getByTestId('filter-search').fill(strandedEdit)
-  await expect(page.getByTestId('list-detail-no-matches')).toHaveCount(0)
-  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
-  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
-  await page.getByTestId('filter-search').fill('')
-
-  // A REAL category selected, orphans present — and this is the TRIPWIRE for a
-  // recorded decision, not just a behaviour check. There is deliberately no
-  // `Uncategorized` OPTION in the filter (decided NO by this story; the
-  // mechanism is in deferred-work.md — a synthetic id in
-  // `ItemFilterValue.categoryIds` is deleted by `useItemFilter`'s prune on the
-  // next render), so narrowing to any real category hides the orphans. If that
-  // option is ever added, this assertion is what says a decision is being
-  // reversed rather than a gap being filled.
-  await withCategoryMenu(page, async () => {
-    await page.getByTestId(`filter-category-option-${keep}`).click()
-  })
-  await expect(uncategorized).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
-  // Cleared, they come back — without this the assertion above would also be
-  // satisfied by a screen that had simply stopped rendering the bucket.
-  await withCategoryMenu(page, async () => {
-    await page.getByTestId('filter-category-option-all').click()
-  })
-  await expect(uncategorized).toBeVisible()
-  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
-
-  // ZERO categories, orphans still present. Removing the last real category
-  // leaves a list holding items and no categories at all — and the pre-8.5 gate
-  // (`categories.length === 0`) would have shown the "No categories yet"
-  // onboarding card OVER two items that are right there. Branching on
-  // `groups.length` is what makes this corner hold.
-  for (const doomedName of [keep, zLast]) {
-    await page.getByTestId(`category-row-${doomedName}`).getByTestId('remove-category-button').click()
-    await expect(page.getByTestId('remove-category-dialog')).toBeVisible()
-    await page.getByTestId('remove-category-dialog-confirm').click()
-    await expect(page.getByTestId('remove-category-dialog')).toHaveCount(0)
-    await expect(page.getByTestId(`category-row-${doomedName}`)).toHaveCount(0)
-  }
-  await expect(page.getByTestId('list-detail-empty')).toHaveCount(0)
-  await expect(uncategorized).toBeVisible()
-  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
-  await expect(uncategorized.getByTestId(`item-row-${strandedGone}`)).toBeVisible()
-  // The filter row survives a categoryless list. Its mount guard is
-  // `categories.length > 0 || items.length > 0` for exactly this state; with the
-  // second half missing, the ONLY control that reaches these items — the search
-  // box used a few lines above — would not be rendered at all.
-  await expect(page.getByTestId('list-detail-filters')).toBeVisible()
-  await expect(page.getByTestId('filter-search')).toBeVisible()
-
-  // Give the recovery somewhere to go.
-  await addCategory(page, rehome)
-
-  // RECOVERY, half one: re-home the orphan through the row's own edit control.
-  // The dialog opens with a blank category (the stored id is out of range),
-  // which is the right affordance — "pick a category" — and picking one is the
-  // recovery this story exists to make possible.
-  await uncategorized.getByTestId(`item-row-${strandedEdit}`).getByTestId('edit-item-button').click()
-  await expect(page.getByTestId('edit-item-dialog')).toBeVisible()
-  await page.getByTestId('edit-item-dialog').getByRole('combobox').click()
-  await page.getByTestId(`edit-item-category-option-${rehome}`).click()
-  await page.getByTestId('edit-item-submit').click()
-  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`category-row-${rehome}`).getByTestId(`item-row-${strandedEdit}`)).toBeVisible()
-  await expect(uncategorized.getByTestId(`item-row-${strandedEdit}`)).toHaveCount(0)
-
-  // RECOVERY, half two: delete the other one — and once no orphan remains the
-  // synthetic group is ABSENT, not rendered empty.
-  await uncategorized.getByTestId(`item-row-${strandedGone}`).getByTestId('remove-item-button').click()
-  await expect(page.getByTestId('remove-item-dialog')).toBeVisible()
-  await page.getByTestId('remove-item-dialog-confirm').click()
-  await expect(page.getByTestId('remove-item-dialog')).toHaveCount(0)
-  await expect(page.getByTestId(`item-row-${strandedGone}`)).toHaveCount(0)
-  await expect(uncategorized).toHaveCount(0)
-  await expect(page.getByTestId('category-name')).toHaveText([rehome])
-})
+// RETIRED by Story 9.3 — "an item orphaned by a category removal is reachable in an Uncategorized
+// group on /lists/:id".
+//
+// That spec's fixture was the stale-client-set race (AR-E8-7a): a second tab added items this tab had
+// never seen, and the client-side removal loop walked the stale set, stranding them. Story 9.3 deleted
+// that loop — the server cascades — and closed `saveItem`'s CREATE hole, so an out-of-list category is
+// now rejected on both branches. No SUCCESSFUL call on the item surface can leave an item pointing at a
+// category that is not on its list, so this fixture cannot be written and the spec cannot stand.
+//
+// Narrower than "no orphan is reachable at all", deliberately (review finding, 2026-09-17). Three
+// windows remain and none of them is a fixture a UI-driven E2E can use: `saveCategory` can RELOCATE a
+// category between lists (no `listId`-stability guard, unlike `saveItem`), `saveItem`'s category check
+// is a TOCTOU read of a cache the cascade mutates, and the cascade is non-transactional so its failure
+// residue is an orphan. All three are recorded in deferred-work.md; reaching any of them from a browser
+// test would mean racing the server on purpose.
+//
+// What survives, and where:
+//   * The synthetic `Uncategorized` bucket itself is NOT removed — items that predate this change keep
+//     appearing in it with their per-item edit and remove controls (Story 9.3 AC3). Its ordering and
+//     placement rules stay covered, without a browser, by `e2e/order.spec.ts`, which calls
+//     `groupItemsByCategory` directly with items whose category id matches nothing.
+//   * "Removing a category removes its items" is covered by the FR46 spec above and, across two
+//     members, by the FR46 cascade spec at the end of this file.
+// The one thing now uncovered end-to-end is the RENDERING of a legacy orphan on /lists/:id, because no
+// test can create one; see deferred-work.md.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Story 8.6 (FR63) — rename a category instead of destroying it.
@@ -1186,4 +1040,158 @@ test('FR63 — a rejected rename keeps the dialog open and shows the backend mes
   } finally {
     await ctx.close()
   }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 9.3 (FR46) — deleting a category deletes its items, for everyone.
+//
+// The removal is now ONE server-side cascade behind a single `deleteCategory`
+// mutation, and the single category DELETED event it emits is authoritative for
+// the category's children: the watching client fans it out locally. Both halves
+// of that are asserted below, because either one alone is satisfiable by the
+// pre-story behaviour.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('FR46 — a category removal takes every one of its items with it on another member\'s shopping view, in ONE request', async ({browser, page, baseURL}, testInfo) => {
+  const owner = uniqueUsername('lists', 'cascowner', testInfo.project.name)
+  const member = uniqueUsername('lists', 'cascmember', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Shared cascade ${stamp}`
+  const doomed = `Doomed ${stamp}`
+  const kept = `Kept ${stamp}`
+  const doomedItems = [1, 2, 3, 4, 5].map(n => `Doomed ${n} ${stamp}`)
+  const keptItem = `Kept item ${stamp}`
+
+  // The WATCHER sits on the `page` fixture, whose /list/:id rendering is what the
+  // mandatory mobile gate must cover: browser.newContext() does NOT inherit the
+  // project's `use` block, so a hand-built context would silently watch at a
+  // desktop viewport on the mobile project. The co-member does the removing from
+  // the hand-built context.
+  await registerViaUi(page, owner, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, doomed)
+  await addCategory(page, kept)
+  for (const name of doomedItems) await addItem(page, doomed, name)
+  await addItem(page, kept, keptItem)
+
+  const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    const memberPage = await ctx.newPage()
+    await registerViaUi(memberPage, member, PASSWORD)
+
+    // SETUP ONLY (sharing is Story 5.7's subject): make `member` an accepted
+    // member through shareList + acceptInvite with each user's own API token.
+    const ownerToken = await loginApi(owner, PASSWORD)
+    const memberToken = await loginApi(member, PASSWORD)
+    await gql(`mutation { shareList(listId: "${listId}", username: "${member}") { id } }`, ownerToken)
+    await gql(`mutation { acceptInvite(listId: "${listId}") { id } }`, memberToken)
+
+    // The owner parks on the shopping view and never reloads from here.
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    await expect(page.getByTestId(`shopping-group-${doomed}`)).toBeVisible()
+    for (const name of doomedItems) {
+      await expect(page.getByTestId(`shopping-item-${name}`)).toBeVisible()
+    }
+
+    // The member opens the management screen and removes the category there.
+    await memberPage.goto(`/lists/${listId}`)
+    await expect(memberPage.getByTestId('list-detail-page')).toBeVisible()
+    for (const name of doomedItems) {
+      await expect(memberPage.getByTestId(`item-row-${name}`)).toBeVisible()
+    }
+
+    // Attached AFTER the setup so the page's own load is not counted. `"DeleteItem"`
+    // / `"DeleteCategory"` (quoted) match Apollo's operationName field, not the
+    // query text — the same idiom as captureCategorySaves above. This is the half
+    // that fails on the pre-story build: the client used to send one DeleteItem
+    // per item it happened to hold.
+    const deleteOps: string[] = []
+    memberPage.on('request', req => {
+      if (req.method() !== 'POST' || !req.url().includes('/api/graphql')) return
+      const body = req.postData() ?? ''
+      if (body.includes('"DeleteCategory"')) deleteOps.push('DeleteCategory')
+      if (body.includes('"DeleteItem"')) deleteOps.push('DeleteItem')
+    })
+
+    await memberPage.getByTestId(`category-row-${doomed}`).getByTestId('remove-category-button').click()
+    await expect(memberPage.getByTestId('remove-category-dialog')).toBeVisible()
+    await memberPage.getByTestId('remove-category-dialog-confirm').click()
+    await expect(memberPage.getByTestId('remove-category-dialog')).toHaveCount(0)
+    await expect(memberPage.getByTestId(`category-row-${doomed}`)).toHaveCount(0)
+    for (const name of doomedItems) {
+      await expect(memberPage.getByTestId(`item-row-${name}`)).toHaveCount(0)
+    }
+
+    // THE WATCHER, with no reload: the group goes, and so does every row under
+    // it. Asserting the group alone would pass on the shipped build, where the
+    // DELETED event pruned `getCategories` and left the items in the cache.
+    await expect(page.getByTestId(`shopping-group-${doomed}`)).toHaveCount(0)
+    for (const name of doomedItems) {
+      await expect(page.getByTestId(`shopping-item-${name}`)).toHaveCount(0)
+    }
+    // The CONTROL: a sibling category and its item survive on both screens, so
+    // "everything vanished" does not satisfy the assertions above.
+    await expect(page.getByTestId(`shopping-group-${kept}`)).toBeVisible()
+    await expect(page.getByTestId(`shopping-item-${keptItem}`)).toBeVisible()
+    await expect(memberPage.getByTestId(`item-row-${keptItem}`)).toBeVisible()
+
+    // Exactly one request, and it is the category one. Read after the DOM has
+    // settled above, so a late DeleteItem cannot land behind the read.
+    expect(deleteOps, 'the cascade is the server\'s job: one deleteCategory, no deleteItem').toEqual([
+      'DeleteCategory',
+    ])
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('FR46 — submitting an add into a category removed meanwhile keeps the dialog open with mapped copy', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'staleadd', testInfo.project.name)
+  const stamp = Date.now()
+  const listName = `Stale add ${stamp}`
+  const doomed = `Doomed ${stamp}`
+  const itemName = `Never saved ${stamp}`
+
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, doomed)
+
+  // The dialog is opened and the category PICKED before it goes away — the stale
+  // option the dialog is still holding is the whole fixture, so this cannot use
+  // the addItem helper (which submits).
+  await page.getByTestId('add-item-button').click()
+  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
+  await page.getByTestId('add-item-name').fill(itemName)
+  await page.getByTestId('add-item-dialog').getByRole('combobox').click()
+  await page.getByTestId(`add-item-category-option-${doomed}`).click()
+
+  // Removed OUT OF BAND while the dialog holds it. /lists/:id is refetch-driven
+  // with no subscription (AR-E8-6) and the dialog snapshots its options on open,
+  // so a co-member's removal is indistinguishable from this one from the open
+  // dialog's point of view; the extra member would only slow the run down.
+  const token = await loginApi(username, PASSWORD)
+  const {getCategories} = await gql<{getCategories: {id: string; name: string}[]}>(
+    `{ getCategories(listId: "${listId}") { id name } }`,
+    token,
+  )
+  const doomedId = getCategories.find(c => c.name === doomed)?.id
+  expect(doomedId, 'the fixture category was found before it is removed').toBeTruthy()
+  await gql(`mutation { deleteCategory(id: "${doomedId}", listId: "${listId}") { id } }`, token)
+
+  await page.getByTestId('add-item-submit').click()
+
+  // Story 9.3 closed the CREATE hole, so this is now REJECTED rather than saved
+  // as a fresh orphan — and the message is mapped, not the raw
+  // "Category <uuid> does not belong to list <uuid>" the backend throws.
+  const error = page.getByTestId('add-item-error')
+  await expect(error).toBeVisible()
+  await expect(error).toHaveText(/category no longer exists/i)
+  // The dialog STAYS OPEN with the typed name intact: the user's next step is to
+  // pick another category, which is impossible if the work is thrown away.
+  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
+  await expect(page.getByTestId('add-item-name')).toHaveValue(itemName)
+  await expect(page.getByTestId(`item-row-${itemName}`)).toHaveCount(0)
 })

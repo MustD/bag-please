@@ -1042,3 +1042,67 @@ test('FR61 — filtering issues ZERO GraphQL requests and shows no loading state
   expect(requests()).toBe(0)
   await expect(page.getByTestId('shopping-loading')).toHaveCount(0)
 })
+
+// Story 9.3 (FR46), review finding 2026-09-17 — `uncheckItem` acquired an orphan
+// guard that throws the backend's developer copy, "Category <uuid> does not
+// belong to list <uuid>". The two item dialogs already map that string through
+// `itemSaveErrorMessage`; the shopping row did not, so the one screen where a
+// legacy orphan is actually toggled showed two raw UUIDs in its inline alert.
+//
+// The rejection is INTERCEPTED rather than provoked for real: no API-reachable
+// way to create an orphan survives this story (see the retired FR62 spec in
+// lists.spec.ts), so the fixture cannot be built through the UI. The exact
+// backend wording is what is pinned here, and it is pinned on the other side by
+// ItemLifecycleTest — if the backend rewords the message, that Kotest case fails
+// and this one keeps passing, which is the intended division of labour.
+test('FR46 — a rejected uncheck shows the mapped category copy, not the raw backend message', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'orphanuncheck', testInfo.project.name)
+  const listName = `OrphanUncheck ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  const itemName = `Bananas ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+  await addItem(page, categoryName, itemName)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  const row = page.getByTestId(`shopping-item-${itemName}`)
+
+  // Check it for real first, so the uncheck below is the genuine UI path.
+  await row.click()
+  await expect(row).toBeChecked()
+  await expect(page.getByTestId('shopping-action-error')).toHaveCount(0)
+
+  // Fail ONLY the uncheck mutation, with the backend's real rejection body.
+  await page.route('**/api/graphql', async route => {
+    if (/uncheckItem/.test(route.request().postData() ?? '')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          errors: [
+            {
+              message:
+                'Category 3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f607 does not belong to list ' +
+                '7c1b2a3d-4e5f-4061-9273-84a5b6c7d8e9',
+            },
+          ],
+        }),
+      })
+      return
+    }
+    await route.continue()
+  })
+
+  await row.click()
+
+  const alert = page.getByTestId('shopping-action-error')
+  await expect(alert).toHaveText('This item’s category no longer exists. Choose a category and save again.')
+  // The raw developer copy never reaches the screen — neither UUID, in any form.
+  await expect(alert).not.toContainText('does not belong to list')
+  await expect(alert).not.toContainText('3f2a1b4c')
+  // And the row reverted to server state, as every other rejected toggle does.
+  await expect(row).toBeChecked()
+})

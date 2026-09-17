@@ -298,9 +298,10 @@ Always present: a "Back to lists" link (`:117-125`), the header (`:137-176`) and
 fault. This is the difference from `/list/:id`, which uses `severity="error"` for its query notice
 (`ListShoppingPage.tsx:456`); recorded as measured, and the two screens genuinely differ here.
 
-**Both empty branches key off `groups`, not `categories`** (`:206-212`): a list whose only category was removed
-under a stale client has zero categories while orphaned items still exist, and the old gate showed "No categories
-yet" over an item that was right there.
+**Both empty branches key off `groups`, not `categories`** (`:206-212`): a list can hold zero categories while
+pre-cascade orphaned items still exist, and the old gate showed "No categories yet" over an item that was right
+there. Since Story 9.3 the producer of that state is legacy data rather than a stale client, but the branch stays —
+the data it guards against is still on disk.
 
 **The filter row's gate is three clauses, and the third is a dead-end guard**
 (`:178-196`, condition at `:197`): `!error && (categories.length > 0 || items.length > 0 || filterActive)`. It is
@@ -314,21 +315,31 @@ to clear it.
 fixed order: add-item, **rename**, remove. The destructive control stays last, and the rename was inserted *between*
 rather than appended for exactly that reason (`:287-291`). On the synthetic `Uncategorized` bucket all three are
 absent; each orphaned item keeps its own edit and remove controls, and that pair is the recovery path that justifies
-rendering the bucket on this screen at all (`:269-275`).
+rendering the bucket on this screen at all (`:269-275`). Since Story 9.3 the bucket serves pre-existing orphans only.
 
 **Mutation feedback is refetch, not optimism**: every dialog's success callback calls `refetch()` unawaited
 (`:388-390, 399-401, 412-414, 424-426, 453, 471`), so "a failed refetch is never reported as a failed mutation".
 
-**Remove-category is a client-side cascade** (`:440-454`): the backend's `deleteCategory` does not cascade, so this
-handler deletes the category's items in a `for` loop with an `await` inside it (`:449-451`) and only then the
-category (`:452`). There is no transaction. **The failure residue is partially-deleted items under a category that
-is still there**, not orphans: each item delete is awaited, so a failure at item four *propagates out of the handler
-before `deleteCategory` runs* and the category is left intact — the code says exactly that at `:447-448` ("If an item
-delete fails, it propagates and the category is left intact"). The user sees the `ConfirmDialog` stay open with an
-inline error over a category that has lost some of its items. A dropped connection or a closed tab mid-loop leaves
-the same state with no error shown. That cause is recorded in `epics.md` (AR-E8-7's neighbourhood,
-`epics.md:833-851`) and deliberately not scoped into Epic 8; the separate *orphan* symptom — items whose category id
-no longer resolves, however they got that way — is what the `Uncategorized` bucket surfaces.
+**Remove-category is a SERVER-side cascade** (Story 9.3). The confirm handler sends exactly one mutation —
+`deleteCategory` — and then refetches; there is no item loop here any more. The server verifies membership, deletes
+the category, removes every item of it (soft-deleted rows included) and emits **one** event, the category `DELETED`.
+That event is authoritative for the category's children: `/list/:id` prunes them from its own `ItemsQuery` cache
+locally, because the item flow is one-slot / `DROP_OLDEST` and a per-item fan-out would arrive truncated.
+
+**The failure residue is a deleted category with some items still present.** The server's two writes (Mongo, then the
+in-memory cache) are independent, with no session — the same non-transactional shape `deleteList` has, and the same
+absence of any atomicity claim. What it is NOT any more is an orphan factory: the loop it replaced walked only the
+items the removing CLIENT happened to hold, so anything a co-member had added since that client's last refetch
+outlived its category. `/lists/:id` is refetch-driven with no subscription (AR-E8-6), so that set was stale by
+construction whenever anyone else had written.
+
+Creating a fresh orphan is closed off at the other end too: `saveItem` rejects a category that is not on the target
+list on the CREATE branch as well as the UPDATE branch, and `uncheckItem` refuses to resurrect an item whose category
+is gone. The `Uncategorized` bucket therefore surfaces **pre-existing** orphans in practice — data written before this
+cascade shipped. No ordinary use of the app adds to it: no successful call on the item surface can leave an item under
+a category that is not on its list. It is not sealed, though — `saveCategory` still has no `listId`-stability guard, so
+re-saving a category onto another list strands the first list's items, and the cascade is not transactional. Both are
+recorded in `deferred-work.md`; neither is reachable by clicking.
 
 ### 5.3 `/list/:id` — shopping (`ListShoppingPage.tsx`)
 
@@ -680,6 +691,15 @@ socket closes with no explicit dispose (`ListShoppingPage.tsx:255-258`). The mer
 because the stream echoes the caller's own actions: `DELETED` or a `SAVED` carrying `item.deleted === true` (the
 one-timer check) drops the row; a `SAVED` with `deleted: false` upserts (`ListShoppingPage.tsx:264-281`,
 `listsQueries.ts:266-274`).
+
+**A category `DELETED` event prunes TWO caches** (Story 9.3). `updateQuery` can only ever return the query it is
+attached to, so the categories subscription returns the pruned `getCategories` *and* reaches across to
+`ItemsQuery{listId}` through `client.cache.updateQuery`, dropping every item of the removed category. This is the
+only `cache.` call in `src/`. It is deferred one microtask so the items write is not nested inside the cache
+transaction Apollo is running for the categories update — a nested write can land without broadcasting, which would
+leave the rows on screen under the synthetic `Uncategorized` bucket after their group had gone. The server emits no
+per-item events for a cascade on purpose: the item flow is `extraBufferCapacity = 1` / `DROP_OLDEST`, so a fan-out
+would be truncated for any subscriber not consuming instantly.
 
 **`/lists/:id` is refetch-driven and deliberately has no subscription.** The code says so twice, at
 `ListDetailPage.tsx:404-406` (item edits) and `:417-420` (category renames): "no `subscribeToMore` here; the shopping
