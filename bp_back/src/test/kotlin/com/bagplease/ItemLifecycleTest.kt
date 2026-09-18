@@ -24,6 +24,7 @@ import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.ktor.client.request.bearerAuth
@@ -1248,5 +1249,277 @@ class ItemLifecycleTest : FunSpec({
             itemsCol.find(Filters.eq("_id", itemId.toString())).toList().single()
                 .getBoolean("checked") shouldBe true
         }
+    }
+
+    // ── Story 9.5 ── one check-state transition, whatever the door ─────────
+
+    test("9.5 an item checked through an edit still feeds the scheduler") {
+        val username = "sch95a_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            // Created UNCHECKED and never passed through checkItem: the edit below is the only thing
+            // that ever sets `checked`, which is the whole point. Before Story 9.5 the merge copied
+            // `checked` from the input and left `checkedAt` at the stored null, so the row went into
+            // findCheckedRecurringItems and straight back out at the `checkedAt == null` guard —
+            // checked off forever.
+            saveItem(token, itemId, catId, listId, name = "Tea", recurring = "WEEKLY") shouldNotContain "errors"
+            val editBody = saveItem(
+                token, itemId, catId, listId, name = "Tea", recurring = "WEEKLY", checked = true,
+            )
+            editBody shouldNotContain "errors"
+            editBody shouldNotContain """"checkedAt":null"""
+
+            // Backdate RELATIVE to what the edit left behind (the 7.4 AC5 idiom): an absolute
+            // Updates.set would hand the scheduler a valid clock the merge never wrote, and this test
+            // would pass with the bug fully present.
+            val checkedAtAfterEdit = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
+            itemsCol.updateOne(
+                itemFilter,
+                Updates.set("checkedAt", checkedAtAfterEdit?.let { Date.from(it.toInstant().minus(8, ChronoUnit.DAYS)) }),
+            )
+        }
+
+        buildItemService(db).runSchedulerCycle()
+
+        val restored = itemsCol.find(itemFilter).toList().single()
+        restored.getBoolean("checked") shouldBe false
+        restored["checkedAt"] shouldBe null
+        restored.getString("addedBy") shouldBe username
+    }
+
+    test("9.5 an edit of an already-checked recurring item does not restart the check-off clock") {
+        val username = "sch95b_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            saveItem(token, itemId, catId, listId, name = "Milk", recurring = "WEEKLY") shouldNotContain "errors"
+            checkItem(token, itemId, listId) shouldNotContain "errors"
+            val checkedAtT = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
+            checkedAtT shouldNotBe null
+
+            // A rename must not postpone the restore — otherwise editing a checked weekly item every
+            // day keeps it checked off indefinitely.
+            saveItem(
+                token, itemId, catId, listId, name = "Whole milk", recurring = "WEEKLY", checked = true,
+            ) shouldNotContain "errors"
+            itemsCol.find(itemFilter).toList().single()["checkedAt"] shouldBe checkedAtT
+
+            // Nor may changing the cadence, which takes the same branch with a different Recurring.
+            saveItem(
+                token, itemId, catId, listId, name = "Whole milk", recurring = "MONTHLY", checked = true,
+            ) shouldNotContain "errors"
+            val afterCadence = itemsCol.find(itemFilter).toList().single()
+            afterCadence["checkedAt"] shouldBe checkedAtT
+            afterCadence.getString("recurring") shouldBe "MONTHLY"
+            afterCadence.getString("addedBy") shouldBe username
+        }
+    }
+
+    test("9.5 an edit that checks a no-cadence item stamps nothing") {
+        val username = "sch95c_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            saveItem(token, itemId, catId, listId, name = "Batteries") shouldNotContain "errors"
+            saveItem(
+                token, itemId, catId, listId, name = "Batteries", checked = true,
+            ) shouldNotContain "errors"
+
+            val stored = itemsCol.find(itemFilter).toList().single()
+            stored.getBoolean("checked") shouldBe true
+            stored["checkedAt"] shouldBe null
+            stored.getBoolean("deleted") shouldBe false
+            stored["deletedAt"] shouldBe null
+            stored.getString("addedBy") shouldBe username
+        }
+    }
+
+    test("9.5 an edit that unchecks clears checkedAt, deleted and deletedAt") {
+        val username = "sch95d_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            // ONE_TIME, so checking it sets BOTH deleted and deletedAt — the only shape that proves the
+            // uncheck branch clears all three fields and not just the clock.
+            saveItem(token, itemId, catId, listId, name = "Bin bags", recurring = "ONE_TIME") shouldNotContain "errors"
+            checkItem(token, itemId, listId) shouldNotContain "errors"
+            val checkedRow = itemsCol.find(itemFilter).toList().single()
+            checkedRow.getBoolean("deleted") shouldBe true
+            checkedRow["deletedAt"] shouldNotBe null
+
+            saveItem(
+                token, itemId, catId, listId, name = "Bin bags", recurring = "ONE_TIME", checked = false,
+            ) shouldNotContain "errors"
+
+            val stored = itemsCol.find(itemFilter).toList().single()
+            stored.getBoolean("checked") shouldBe false
+            stored["checkedAt"] shouldBe null
+            stored.getBoolean("deleted") shouldBe false
+            stored["deletedAt"] shouldBe null
+            stored.getString("addedBy") shouldBe username
+        }
+    }
+
+    test("9.5 an edit that checks a ONE_TIME item soft-deletes it, and a later edit keeps the purge clock") {
+        val username = "sch95e_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            saveItem(token, itemId, catId, listId, name = "Cling film", recurring = "ONE_TIME") shouldNotContain "errors"
+            saveItem(
+                token, itemId, catId, listId, name = "Cling film", recurring = "ONE_TIME", checked = true,
+            ) shouldNotContain "errors"
+
+            val soft = itemsCol.find(itemFilter).toList().single()
+            soft.getBoolean("deleted") shouldBe true
+            val deletedAtT = soft["deletedAt"] as Date?
+            deletedAtT shouldNotBe null
+            getItems(token, listId) shouldNotContain itemId.toString()
+
+            // A second save of an ALREADY soft-deleted one-timer must not restart the purge window, or
+            // findSoftDeletedToHardDelete's one-hour threshold is pushed back on every edit and the row
+            // is never hard-deleted.
+            saveItem(
+                token, itemId, catId, listId, name = "Cling film XL", recurring = "ONE_TIME", checked = true,
+            ) shouldNotContain "errors"
+
+            val again = itemsCol.find(itemFilter).toList().single()
+            again["deletedAt"] shouldBe deletedAtT
+            again.getString("name") shouldBe "Cling film XL"
+            again.getString("addedBy") shouldBe username
+        }
+    }
+
+    test("9.5 the scheduler's restore clears the soft delete as well as the clock") {
+        val db = connectToDb()
+        val itemService = buildItemService(db)
+        val itemId = UUID.randomUUID()
+        val listId = UUID.randomUUID()
+        val itemsCol = db.getCollection<Document>("items")
+
+        // Seeded raw (the AC10 idiom): a checked WEEKLY row that ALSO carries a soft delete — the shape
+        // a cadence change on a checked one-timer leaves behind. The restore has to shed all of it;
+        // a hand-written copy(checked = false, checkedAt = null) would leave the row invisible forever.
+        itemsCol.insertOne(
+            Document(mapOf(
+                "_id" to itemId.toString(),
+                "name" to "Stuck",
+                "checked" to true,
+                "category" to UUID.randomUUID().toString(),
+                "listId" to listId.toString(),
+                "recurring" to "WEEKLY",
+                "deleted" to true,
+                "deletedAt" to Date.from(Instant.now()),
+                "checkedAt" to Date.from(Instant.now().minus(8, ChronoUnit.DAYS)),
+            ))
+        )
+
+        itemService.runSchedulerCycle()
+
+        val restored = itemsCol.find(Filters.eq("_id", itemId.toString())).toList().single()
+        restored.getBoolean("checked") shouldBe false
+        restored["checkedAt"] shouldBe null
+        restored.getBoolean("deleted") shouldBe false
+        restored["deletedAt"] shouldBe null
+    }
+
+    test("9.5 checking an unchecked item with a stale checkedAt stamps a fresh clock") {
+        val username = "sch95g_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+        val stale = Date.from(Instant.now().minus(8, ChronoUnit.DAYS))
+        var listId = ""
+
+        // FIRST instance: create the row, then plant the legacy shape straight in Mongo —
+        // `checked = false` with a stale non-null `checkedAt`, which is exactly what the pre-9.5 merge
+        // used to leave behind. It has to be done behind the running app's back and read by a SECOND
+        // instance, because ItemStorage is an in-memory cache.
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, name = "Rice", recurring = "WEEKLY") shouldNotContain "errors"
+            itemsCol.updateOne(itemFilter, Updates.set("checkedAt", stale))
+        }
+
+        // SECOND instance: fresh caches, so checkItem reads the stale clock off disk. Reusing it would
+        // put the item straight past the 7-day threshold and the very next cycle would un-check it.
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = loginToken(username, "pass1234")
+            checkItem(token, itemId, listId) shouldNotContain "errors"
+
+            itemsCol.find(itemFilter).toList().single()["checkedAt"] shouldNotBe stale
+        }
+
+        buildItemService(db).runSchedulerCycle()
+
+        val afterCycle = itemsCol.find(itemFilter).toList().single()
+        afterCycle.getBoolean("checked") shouldBe true
+        afterCycle["checkedAt"] shouldNotBe null
     }
 })

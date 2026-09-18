@@ -116,7 +116,7 @@ development_status:
   9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: done
   9-3-deleting-a-category-deletes-its-items-for-everyone: review
   9-4-deleting-a-user-leaves-no-phantom-memberships: review
-  9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: backlog
+  9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: review
   9-6-an-item-can-be-in-several-stores: backlog
   9-7-home-is-in-the-account-menu: backlog
   9-8-the-category-filter-menu-can-be-closed-on-a-phone: backlog

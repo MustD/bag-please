@@ -35,12 +35,15 @@ const NAME_MAX = 100
 // /lists/:id. Renders name, category and store; the shopping view stays
 // check-off-only and gains no edit affordance.
 //
-// `saveItem` is a full-document upsert (GqlItemMapper.mapItemFromInput builds a
-// fresh Item from the input alone and ItemRepository.save $sets every field), so
-// the payload MUST carry forward every field this form does not render —
-// `checked` and `recurring`. A partial payload silently un-checks the item and
-// wipes its cadence. There is no lifecycle control here by design (deferred,
-// blocked on the server-side checkedAt reset — see deferred-work.md BUG-E6-2).
+// `saveItem` MERGES into the stored row (ItemService.saveItem's update branch):
+// it copies only `name`, `category` and `store` from the input, so `addedBy` and
+// anything else the input does not carry survive untouched. `checked` and
+// `recurring` are the exception — they go to `applyCheckState`, which derives
+// `checkedAt`, `deleted` and `deletedAt` from them. So the payload must carry
+// both forward: this form renders neither, and a payload that dropped them would
+// un-check the item (clearing its check-off clock) and wipe its cadence.
+// A lifecycle control here is still deferred, but no longer blocked: Story 9.5
+// fixed the server-side check-state defect that was its blocker.
 //
 // Editing is a MEMBER right (ItemService.saveItem → verifyMembership), so there
 // is deliberately no client-side owner check.
@@ -113,10 +116,10 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
     if (!validate()) return
 
     // Nothing actually changed → send no mutation at all, and close exactly as a
-    // successful save does. The request would only re-attribute a co-member's
-    // item (`addedBy` is server-set from the caller — deferred-work BUG-E6-1) for
-    // no benefit. Both sides of the store comparison are normalized so a legacy
-    // '' stored value does not read as a change.
+    // successful save does. The merge would preserve `addedBy` either way, but a
+    // no-op write still re-emits the item on the list's update flow and makes
+    // every subscriber re-render for nothing. Both sides of the store comparison
+    // are normalized so a legacy '' stored value does not read as a change.
     const nothingChanged =
       name.trim() === shown.name &&
       categoryId === shown.category &&
@@ -124,8 +127,9 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
     if (!nothingChanged) {
       // Carry-forward fields read from the LIVE `item` prop, not the open-time
       // `shown` snapshot: ListDetailPage refetches after every mutation, so the
-      // prop can be newer, and a full-document upsert turns any stale value into
-      // a silent overwrite. The change comparison above deliberately still uses
+      // prop can be newer, and `checked`/`recurring` are input-owned — the merge
+      // applies whatever this payload says, so a stale value here is still a
+      // silent overwrite. The change comparison above deliberately still uses
       // `shown` — "did the user change anything" is about what they were shown,
       // so a co-member's concurrent rename is left alone rather than reverted.
       const current = item ?? shown
@@ -137,8 +141,10 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
               listId,
               name: name.trim(),
               category: categoryId,
-              // Not rendered by this form — omitting either would reset it to its
-              // default server-side (un-checking the item, wiping its cadence).
+              // Not rendered by this form, but still input-owned: the merge feeds
+              // both straight to `applyCheckState`, so sending a stale `checked`
+              // would un-check the item and clear its check-off clock, and a
+              // missing `recurring` would wipe its cadence.
               checked: current.checked,
               recurring: current.recurring ?? null,
               store: normalizeStore(store),

@@ -48,12 +48,17 @@ class ItemService(
             requireCategoryOnList(item.category, item.listId)
             // AC1 / AR-E7-1 — merge, do not reconstruct. addedBy, checkedAt, deleted and deletedAt are
             // server-owned and absent from ItemInput, so the incoming values are meaningless here.
-            stored.copy(
-                name = item.name,
-                checked = item.checked,
-                category = item.category,
-                store = item.store,
-                recurring = item.recurring,
+            // The merge is therefore an ALLOWLIST of the three plain input fields, and check state is
+            // then applied by `applyCheckState` (AR-E9-11) — the one transition table shared with
+            // checkItem/uncheckItem. Story 9.5: copying `checked` straight across (as this used to) left
+            // `checkedAt` at the stored null, so an edit that checked a recurring item produced
+            // `checked = true, checkedAt = null` — a row findCheckedRecurringItems returns and
+            // runSchedulerCycle then drops at its `checkedAt == null` guard, checked off forever.
+            applyCheckState(
+                stored.copy(name = item.name, category = item.category, store = item.store),
+                item.checked,
+                item.recurring,
+                Instant.now(),
             )
         } else {
             // AC3 — getByIdCached is list-scoped, so an id on another list also misses. Without this,
@@ -95,11 +100,7 @@ class ItemService(
     suspend fun checkItem(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Item> = either {
         listService.verifyMembership(caller, listId).bind()
         val item = storage.getByIdCached(id, listId) ?: throw IllegalStateException("Item not found")
-        val updated = when (item.recurring) {
-            Recurring.ONE_TIME -> item.copy(checked = true, deleted = true, deletedAt = Instant.now())
-            Recurring.WEEKLY, Recurring.BIWEEKLY, Recurring.MONTHLY -> item.copy(checked = true, checkedAt = Instant.now())
-            null -> item.copy(checked = true)
-        }
+        val updated = applyCheckState(item, true, item.recurring, Instant.now())
         val saved = storage.save(updated)
         itemUpdateChannel.emit(saved)
         saved
@@ -122,7 +123,7 @@ class ItemService(
         // than special-cased (review finding, 2026-09-17) — exempting soft-deleted rows would restore
         // exactly the "back on both screens under no group" outcome this guard exists to prevent.
         requireCategoryOnList(item.category, listId)
-        val restored = item.copy(checked = false, deleted = false, deletedAt = null, checkedAt = null)
+        val restored = applyCheckState(item, false, item.recurring, Instant.now())
         val saved = storage.save(restored)
         itemUpdateChannel.emit(saved)
         saved
@@ -147,6 +148,46 @@ class ItemService(
     internal suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID) =
         storage.deleteAllInCategory(listId, categoryId)
 
+    /**
+     * Story 9.5 / AR-E9-11 — the ONE check-state transition. `checkItem`, `uncheckItem` and
+     * `saveItem`'s update branch all route through it, so no path can produce a check state the
+     * others cannot; it is the only writer of `checked`, `recurring`, `checkedAt`, `deleted` and
+     * `deletedAt` in this service, and it touches nothing else on the stored row.
+     *
+     * `recurring` is a PARAMETER and is written here on purpose: a save may change the cadence in the
+     * same call that changes check state, and the branch must be chosen by the INCOMING cadence, not
+     * the stored one. `checkItem`/`uncheckItem` pass `stored.recurring`, so for them it is a no-op.
+     *
+     * Both clocks are KEPT for a row that is already in the state being applied and STAMPED otherwise:
+     * an edit of an already-checked item must not restart the cadence clock, or renaming a checked
+     * weekly item every day would postpone its restore indefinitely (7.4 AC5), and re-saving an
+     * already soft-deleted one-timer must not restart `findSoftDeletedToHardDelete`'s purge window.
+     * The reuse is keyed on `stored.checked`/`stored.deleted`, not on the clock being non-null:
+     * a row that is UN-checked may still carry a stale `checkedAt` (the legacy shape the pre-9.5
+     * merge produced), and reusing that would have the next scheduler cycle un-check it on the spot.
+     *
+     * `now` is a parameter rather than an injected `Clock` deliberately — every caller passes
+     * `Instant.now()`, and the suite controls time by rewinding the stored `checkedAt` after the
+     * write, which exercises the scheduler's real threshold arithmetic.
+     */
+    private fun applyCheckState(stored: Item, checked: Boolean, recurring: Recurring?, now: Instant): Item =
+        if (!checked) {
+            stored.copy(checked = false, recurring = recurring, checkedAt = null, deleted = false, deletedAt = null)
+        } else when (recurring) {
+            Recurring.ONE_TIME -> stored.copy(
+                checked = true,
+                recurring = recurring,
+                deleted = true,
+                deletedAt = if (stored.deleted) stored.deletedAt ?: now else now,
+            )
+            Recurring.WEEKLY, Recurring.BIWEEKLY, Recurring.MONTHLY -> stored.copy(
+                checked = true,
+                recurring = recurring,
+                checkedAt = if (stored.checked) stored.checkedAt ?: now else now,
+            )
+            null -> stored.copy(checked = true, recurring = recurring)
+        }
+
     private suspend fun requireCategoryOnList(categoryId: UUID, listId: UUID) {
         if (categoryStorage.getByListId(listId).none { it.id == categoryId }) {
             throw IllegalArgumentException("Category $categoryId does not belong to list $listId")
@@ -165,7 +206,9 @@ class ItemService(
             }
             val threshold = Instant.now().minus(elapsedDays, ChronoUnit.DAYS)
             if (item.checkedAt == null || item.checkedAt.isAfter(threshold)) continue
-            val restored = item.copy(checked = false, checkedAt = null)
+            // Through the same transition as every other uncheck (Story 9.5): a restored row must also
+            // shed `deleted`/`deletedAt`, which the hand-written copy here left set.
+            val restored = applyCheckState(item, false, item.recurring, Instant.now())
             storage.save(restored)
             itemUpdateChannel.emit(restored)
         }

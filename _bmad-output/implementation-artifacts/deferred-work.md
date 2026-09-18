@@ -47,10 +47,16 @@ line number.
 
 **Rides FR44/FR69 (multiple stores per item — the story edits `EditItemDialog.tsx` and `saveItem`):**
 
-- Code review of 7-4 — the four factually wrong comments in `EditItemDialog.tsx`.
+- ✅ CLOSED by Story 9.5 (2026-09-18): all four comment sites in `EditItemDialog.tsx` rewritten to describe the merge
+  and `applyCheckState`; no comment cites `BUG-E6-2` or calls `saveItem` a full-document upsert, and the
+  `checked`/`recurring` carry-forward is kept with the new comment saying why it still matters. Was: Code review of
+  7-4 — the four factually wrong comments in `EditItemDialog.tsx`.
 - Story 8.6 (carried from 8.5) — an orphaned item's edit dialog closes silently when saved without touching the
   category.
-- Story 7.4 — `saveItem` can write `checked = true` with a null `checkedAt`; stamp `checkedAt` on a false→true merge.
+- ✅ CLOSED by Story 9.5 (2026-09-18): one private `ItemService.applyCheckState(stored, checked, recurring, now)` is
+  now the single writer of `checked`/`checkedAt`/`deleted`/`deletedAt`, and `checkItem`, `uncheckItem` and `saveItem`'s
+  update branch all route through it, so no path can produce `checked = true` with a null `checkedAt`. Was: Story 7.4 —
+  `saveItem` can write `checked = true` with a null `checkedAt`; stamp `checkedAt` on a false→true merge.
 
 **Rides FR61 (confirm control on the category filter):**
 
@@ -157,6 +163,18 @@ Story 7.4 turned `ItemService.saveItem` into a **merge**: it loads the stored ro
 input **onto** the stored row is an allowlist, so a field added to `Item` later is preserved by default. BUG-E6-1 and
 BUG-E6-2 are closed (archive); BUG-E6-3 is partial. What follows is what the story knowingly did **not** take, plus one
 thing the merge newly makes possible. All re-verified against `ItemService.kt` on 2026-09-07.
+
+- ✅ **CLOSED by Story 9.5 (2026-09-18):** one private `ItemService.applyCheckState(stored, checked, recurring, now)`
+  is the single check-state transition, and `checkItem`, `uncheckItem` and `saveItem`'s update branch all route through
+  it — so the merge can no longer manufacture a state the other two cannot. The answer taken is the third one this
+  entry names, refined: on a checked recurring row the merge writes `checkedAt = stored.checkedAt ?: now`, which stamps
+  the clock on a false→true edit **without restarting** it on a rename, so editing a checked weekly item daily no
+  longer postpones its restore. Unchecking through any path clears `checkedAt`, `deleted` and `deletedAt` together.
+  `recurring` is passed in and written, so a cadence change in the same call picks the branch by the **incoming**
+  cadence. The merge stays an allowlist of `name`, `category`, `store`, so `addedBy` and every other server-owned field
+  still survive. Regression coverage: `ItemLifecycleTest` "9.5 an item checked through an edit still feeds the
+  scheduler" (observed red before the change) plus three sibling cases. The `EditItemDialog.tsx` carry-forward is
+  unchanged and still required — `checked`/`recurring` remain input-owned. Was:
 
 - **`saveItem` can write `checked` inconsistently with the server-owned `checkedAt`, and the scheduler then ignores the
   item forever.** `checked` **is** in `ItemInput` while `checkedAt` is server-owned, so the merge can manufacture states
@@ -475,6 +493,15 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
   passes (the id is a non-empty string), so the user sees `Category <uuid> does not belong to list <uuid>` in
   `edit-item-error` with no indication that re-picking the category is the fix. Cross-reference the declined
   `BAD_USER_INPUT` shape in the Story 7.4 section: a typed code is what a "pick a category" hint would branch on.
+
+- ✅ **CLOSED by Story 9.5 (2026-09-18):** all four sites rewritten in place, with a comment-only diff on
+  `EditItemDialog.tsx` (same JSX, same handlers, same carry-forward). The header block now describes `saveItem` as a
+  merge that copies `name`/`category`/`store` and routes check state through `applyCheckState`, and records that the
+  lifecycle control's absence is a product decision rather than a blocked one; the `nothingChanged`, carry-forward and
+  payload comments now say that `checked`/`recurring` are **input-owned** — which is exactly why the carry-forward from
+  the live `item` prop still matters and must not be deleted as obsolete. No comment cites `BUG-E6-2` or the
+  "full-document upsert" premise. The routing question this entry kept re-opening is moot: Story 9.5 is the first story
+  that actually edits the file. Was:
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-7-4-item-edit-merges-stored-item.md`
   summary: Four comments in `EditItemDialog.tsx` are factually wrong and shipped that way, because `bp_front/src/`
