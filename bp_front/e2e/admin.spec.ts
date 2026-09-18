@@ -1,7 +1,15 @@
 import {type Browser, expect, type Page, test} from '@playwright/test'
 
-import {ADMIN, loginAsAdmin, loginViaUi, uniqueUsername} from './support/ui'
-import {countUsersApi, createUserApi, loginApi} from './support/api'
+import {
+  ADMIN,
+  createListAndOpen,
+  loginAsAdmin,
+  loginViaUi,
+  openListsViaMenu,
+  shareWith,
+  uniqueUsername,
+} from './support/ui'
+import {countUsersApi, createUserApi, deleteUserApi, listE2eUsers, loginApi} from './support/api'
 
 // Admin User Management E2E (Story 5.4). UI-driven only — no API shortcuts for
 // the asserted behaviour (the sole exception is the one-time registration-enable
@@ -136,6 +144,12 @@ test('FR15/FR17 — admin deletes a user via the confirm dialog; the row disappe
 
   await page.getByTestId(`admin-user-row-${username}`).getByTestId('delete-user-button').click()
   await expect(page.getByTestId('delete-user-dialog')).toBeVisible()
+  // This user owns nothing, so the Story 9.4 cascade sentence must be ABSENT —
+  // the zero case of the count, and the only place it is asserted.
+  await expect(
+    page.getByTestId('delete-user-dialog'),
+    'a user who owns no lists gets no cascade sentence',
+  ).not.toContainText('This also deletes')
   await page.getByTestId('delete-user-confirm').click()
   await expect(page.getByTestId('delete-user-dialog')).toHaveCount(0)
   await expect(page.getByTestId(`admin-user-row-${username}`)).toHaveCount(0)
@@ -335,6 +349,155 @@ test('FR13/FR15 — deleting the only user on the last page moves the table back
   await expect(page.getByTestId('admin-users-page')).toHaveText(`${pageNumber - 1} / ${pageCount - 1}`)
   await expect(page.getByTestId('admin-users-total')).toHaveText(String(totalBefore - 1))
   await expect(rows).toHaveCount(PAGE_SIZE)
+})
+
+// The prefix this test's two rows carry. It sorts after every other username the
+// suite creates, the `zzz_pad`/`zzzz` rows of the last-page case included, which
+// is what puts this case's rows at the tail of the table.
+const TAIL_PREFIX = 'zzzzz_purge'
+
+// TAGGED, and the tag is load-bearing — same reason as the last-page test above.
+//
+// This test has to keep TWO SPECIFIC ROWS on the page the admin panel is showing
+// while a third actor works in another context, and the only way the panel can
+// locate a row at all is the `around` jump a create performs. Under
+// `fullyParallel: true` the suite creates ~4 users/second, so any row's page is
+// stale the moment it is read. `@serial-users` routes this into the projects
+// chained behind both viewport projects, where nothing else touches the users
+// table, and the table is then padded to a page boundary exactly as the test
+// above does — so the two rows land, deterministically, alone on a fresh last
+// page.
+//
+// The admin is on the `page` fixture on purpose: the new cascade sentence in the
+// delete confirmation is this story's new rendering, and that is what the
+// 320px project must cover. The owner and the member drive their halves in
+// hand-built contexts (desktop-sized, as `browser.newContext()` never inherits
+// the project's `use` block) — their surfaces are already covered at the floor
+// by sharing.spec.ts.
+test('FR15 — deleting a list owner states the owned-list count and takes the list from its members', {
+  tag: '@serial-users',
+}, async ({browser, page, baseURL}, testInfo) => {
+  const token = await loginApi(ADMIN.username, ADMIN.password)
+
+  // `zzzzz_` sorts after every other username the suite creates, including the
+  // `zzz_pad`/`zzzz` rows the last-page test leaves behind, so this case's rows
+  // form the tail of the table. Padding the total to a multiple of the page size
+  // first puts them — and nothing else — on a brand-new last page.
+  const owner = uniqueUsername(TAIL_PREFIX, 'owner', testInfo.project.name)
+  // Sorts IMMEDIATELY after the owner: no username can fall between a name and
+  // that same name with a suffix. It also inherits the owner's `_e2e_` marker,
+  // so the per-run sweep still collects it.
+  const member = `${owner}_m`
+  // A third account, created only to make the admin panel re-read the owner's
+  // owned-list count after the second list exists. It sorts right after the
+  // member, so all three rows stay on the same page.
+  const refetchTrigger = `${member}_x`
+  // Project-scoped like the usernames: the two chained projects run the same
+  // case, and `list-row-<name>` is a testid two concurrent runs could collide on.
+  const listName = `Purged ${testInfo.project.name} ${Date.now()}`
+  // A SECOND owned list, so the confirmation's count reaches 2 and its wording
+  // switches to the plural branch. Both are destroyed by the delete; only the
+  // first is shared.
+  const secondListName = `Purged second ${testInfo.project.name} ${Date.now()}`
+
+  const padPrefix = uniqueUsername('zzz_pad', 'purge', testInfo.project.name)
+  const total = await countUsersApi(token)
+  const padCount = (PAGE_SIZE - (total % PAGE_SIZE)) % PAGE_SIZE
+  for (let i = 0; i < padCount; i++) {
+    await createUserApi(token, `${padPrefix}_${String(i).padStart(3, '0')}`, DEFAULT_PW)
+  }
+
+  await loginAsAdmin(page)
+  await createUserViaUi(page, owner, DEFAULT_PW)
+
+  const ownerCtx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  const memberCtx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    // The owner creates the list that the delete must destroy.
+    const ownerPage = await ownerCtx.newPage()
+    await loginViaUi(ownerPage, owner, DEFAULT_PW)
+    await expect(ownerPage).not.toHaveURL(/\/auth$/)
+    await expect(ownerPage.getByTestId('app-bar')).toBeVisible()
+    await openListsViaMenu(ownerPage)
+    const listId = await createListAndOpen(ownerPage, listName)
+    await ownerPage.getByTestId('list-detail-back').click()
+    await expect(ownerPage.getByTestId('lists-page')).toBeVisible()
+
+    // Creating the member re-reads the users page AFTER the first list exists,
+    // which is what puts a truthful owned-list count in front of the admin — and
+    // it lands both rows on the same (last) page. The panel re-reads on a create
+    // or a delete and nothing else, so each count below needs a create before it.
+    await createUserViaUi(page, member, DEFAULT_PW)
+    await expect(page.getByTestId(`admin-user-row-${owner}`)).toBeVisible()
+
+    // ONE owned list — the singular branch of the sentence, asserted verbatim
+    // and then cancelled out of. Without this, interpolating "lists"
+    // unconditionally would pass the whole suite.
+    await page.getByTestId(`admin-user-row-${owner}`).getByTestId('delete-user-button').click()
+    await expect(page.getByTestId('delete-user-dialog')).toBeVisible()
+    await expect(
+      page.getByTestId('delete-user-dialog'),
+      'one owned list reads in the singular',
+    ).toContainText('This also deletes the 1 list they own, with their items and categories.')
+    await page.getByTestId('delete-user-cancel').click()
+    await expect(page.getByTestId('delete-user-dialog')).toHaveCount(0)
+
+    // A second owned list, and a throwaway account whose create is what makes the
+    // panel re-read the count as 2.
+    await createListAndOpen(ownerPage, secondListName)
+    await ownerPage.getByTestId('list-detail-back').click()
+    await expect(ownerPage.getByTestId('lists-page')).toBeVisible()
+    await createUserViaUi(page, refetchTrigger, DEFAULT_PW)
+    await expect(page.getByTestId(`admin-user-row-${owner}`)).toBeVisible()
+
+    // The member accepts the invite and can read the list.
+    const memberPage = await memberCtx.newPage()
+    await loginViaUi(memberPage, member, DEFAULT_PW)
+    // `loginViaUi` only SUBMITS the form; without waiting for the landing the
+    // reload below would race the in-flight sign-in and find /auth.
+    await expect(memberPage).not.toHaveURL(/\/auth$/)
+    await expect(memberPage.getByTestId('app-bar')).toBeVisible()
+    await shareWith(ownerPage, listName, member)
+    await expect(ownerPage.getByTestId(`member-row-${member}`)).toBeVisible()
+    await ownerPage.getByTestId('share-members-close').click()
+    await memberPage.goto('/lists')
+    await memberPage.getByTestId(`accept-invite-${listName}`).click()
+    await expect(memberPage.getByTestId(`list-row-${listName}`)).toBeVisible()
+    await memberPage.goto(`/list/${listId}`)
+    await expect(memberPage.getByTestId('list-shopping-page')).toBeVisible()
+
+    // The confirmation names what the delete destroys beyond the account.
+    await page.getByTestId(`admin-user-row-${owner}`).getByTestId('delete-user-button').click()
+    await expect(page.getByTestId('delete-user-dialog')).toBeVisible()
+    await expect(
+      page.getByTestId('delete-user-dialog'),
+      'the confirm states the cascade, with the owned-list count',
+    ).toContainText('This also deletes the 2 lists they own, with their items and categories.')
+    await page.getByTestId('delete-user-confirm').click()
+    await expect(page.getByTestId('delete-user-dialog')).toHaveCount(0)
+    await expect(page.getByTestId(`admin-user-row-${owner}`)).toHaveCount(0)
+
+    // The member's next load of the deleted owner's list redirects (the Story
+    // 5.6 FORBIDDEN guard), and the list is gone from their index — the phantom
+    // membership this story removes would have kept both alive.
+    await memberPage.goto(`/list/${listId}`)
+    await expect(memberPage).toHaveURL(/\/lists$/)
+    await memberPage.goto('/lists')
+    await expect(memberPage.getByTestId(`list-row-${listName}`)).toHaveCount(0)
+  } finally {
+    await memberCtx.close()
+    await ownerCtx.close()
+    // TEARDOWN, not an assertion. These rows sort AFTER the `zzzz` tail the
+    // last-page case above arranges, so a leftover one would push that case's
+    // "alone on a fresh last page" row into a full page — measured, as a failure
+    // of THAT test on the second chained project. The per-run sweep is too late
+    // for a sibling in the same file, so they go now. Keyed on THIS run's `owner`
+    // (the member and the trigger are both derived from it), never on the shared
+    // prefix: that would delete the sibling project's rows out from under it.
+    for (const row of await listE2eUsers(token)) {
+      if (row.username.startsWith(owner)) await deleteUserApi(token, row.id)
+    }
+  }
 })
 
 test('FR30/FR31 — a non-admin has no Admin menu item and is redirected from /admin', async ({

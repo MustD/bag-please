@@ -279,6 +279,31 @@ export default defineConfig({
   //         0 failed. The new case was observed RED on both viewport projects
   //         (raw `Category <uuid> does not belong to list <uuid>` in
   //         `shopping-action-error`) before the fix, and green after.
+  //       2026-09-18 (Story 9.4): 242 = 118 / 118 / 3 / 3 — +2 on the row above,
+  //         and the FIRST row where the chained projects move without the
+  //         viewport ones. ADDED: one case in admin.spec.ts, `FR15 — deleting a
+  //         list owner states the owned-list count and takes the list from its
+  //         members`, TAGGED `@serial-users` (+2 runs, one per chained project).
+  //         The tag is not decoration: the case has to keep two specific rows on
+  //         the page the admin panel is showing while a third actor works, and
+  //         `around` — the panel's only way to locate a row — is set by a create,
+  //         so it pads the users table to a page boundary exactly as the
+  //         last-page case does. Nothing retired or moved. OF WHICH 23 ARE SKIPS,
+  //         unchanged (22 chromium, 1 mobile): the new case carries no project
+  //         guard, and being tagged it is absent from the viewport projects
+  //         rather than skipped in them. Counts from the command above on the
+  //         post-fix production image; the full run reported 219 passed, 23
+  //         skipped, 0 failed. (Driving the chained projects by hand, run ONE
+  //         project at a time — `--no-deps` on both at once runs them
+  //         CONCURRENTLY and breaks the serialisation both tagged cases depend
+  //         on.) The new case's two rows are swept by their own teardown: they
+  //         carry a `zzzzz_` prefix that sorts AFTER the `zzzz` tail the
+  //         last-page case arranges, and leaving them behind moved that case's
+  //         last page on the second chained project. The new case
+  //         was observed RED on both chained projects before the fix
+  //         (`expect(page).toHaveURL(/\/lists$/)` receiving `/list/<uuid>`: with
+  //         the purge disabled the member kept access to the deleted owner's
+  //         list), and green after.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [

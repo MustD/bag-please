@@ -61,8 +61,10 @@ class ListService(
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
 
-        val owner = userRepository.findByUsername(caller.value)
-            ?: throw IllegalStateException("User not found: ${caller.value}")
+        // A caller whose user row has gone (admin delete, Story 9.4) must be REFUSED, not crashed on: the purge
+        // runs after the user row is deleted, so a createList racing it on a still-valid access token lands here,
+        // and re-creating a list for a user who no longer exists is exactly what the ordering exists to prevent.
+        val owner = userRepository.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
 
         val list = List(
             name = name,
@@ -113,12 +115,21 @@ class ListService(
         val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
         ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
 
-        // cascade: items → categories → members → list. The ordering is a CONVENTION, not a safety
-        // property — these are four independent Mongo deletes with no session, so a throw at
-        // listRepository.delete leaves a live list whose children are already gone, and list_members
-        // has no in-memory cache to re-sync from. Neither ordering is failure-safe; only a single
-        // ClientSession transaction would be (filed in deferred-work.md). Do not restore the earlier
-        // "order enables lazy-sync recovery on partial failure" rationale — it had this backwards.
+        cascadeDeleteList(list)
+    }
+
+    // The one place a list and everything hanging off it is destroyed — `deleteList` (owner-initiated) and
+    // `purgeUser` (admin user delete, Story 9.4) both route through here, so the two can never drift apart.
+    // It performs NO authorization of its own: every caller gates first.
+    //
+    // cascade: items → categories → members → list. The ordering is a CONVENTION, not a safety
+    // property — these are four independent Mongo deletes with no session, so a throw at
+    // listRepository.delete leaves a live list whose children are already gone, and list_members
+    // has no in-memory cache to re-sync from. Neither ordering is failure-safe; only a single
+    // ClientSession transaction would be (filed in deferred-work.md). Do not restore the earlier
+    // "order enables lazy-sync recovery on partial failure" rationale — it had this backwards.
+    private suspend fun cascadeDeleteList(list: List): DeleteListResult {
+        val id = list.id
         val deletedItems = itemRepository.deleteAllInList(id)
         val deletedCategories = categoryRepository.deleteAllInList(id)
         listMemberRepository.deleteAllInList(id)
@@ -129,10 +140,69 @@ class ListService(
         categoryStorage.evictList(id)
         listStorage.evictFromCache(id)
 
-        DeleteListResult(
+        return DeleteListResult(
             deletedItemCount = deletedItems,
             deletedCategoryCount = deletedCategories,
         )
+    }
+
+    // Removes every trace of a deleted user from list data (Story 9.4). Called by
+    // `UserAdminMutations.deleteUser` AFTER the user row is gone and BEFORE sessions are invalidated — that order is
+    // load-bearing, see the comment there.
+    //
+    // Deliberately caller-less: it takes no `CallerUsername` and runs no `adminLogin` / ownership gate, because the
+    // subject of the purge is not the caller and the caller has already been proven an admin at the GraphQL boundary.
+    // It is the single documented exception to NFR-L2. It is also idempotent: a second run finds no owned lists, no
+    // member arrays to strip and no rows to delete, and changes nothing.
+    //
+    // Writes go through `ListStorage.save` and the private cascade only — never `ListRepository` directly, or the
+    // in-memory list cache diverges from Mongo and keeps serving the phantom member. No subscription event is
+    // emitted: a member sitting on a deleted owner's list is redirected by the Story 5.6 FORBIDDEN guard on their
+    // next data access.
+    suspend fun purgeUser(userId: UUID, username: String) {
+        val all = listStorage.getAll()
+
+        // Lists the user OWNED go away entirely, with their items, categories and member rows. No ownership
+        // transfer — that is a product decision, not an omission (md, 2026-09-15).
+        all.filter { it.ownerId == userId }.forEach { cascadeDeleteList(it) }
+
+        // Lists they merely BELONGED to survive, minus them. Both arrays are stripped: `memberUsernames` is what
+        // `getLists` and the membership guard read, `members` is what the Share dialog resolves ids from.
+        //
+        // Each one is RE-READ immediately before its save, exactly as every other mutating path here does.
+        // `ListStorage.save` is a whole-document upsert, so stripping a copy taken in the snapshot above — which is
+        // now several Mongo round-trips old, the owned-list cascades having run since — would silently revert a
+        // concurrent accept/remove/rename, and would resurrect a list deleted in the meantime. A list that has gone
+        // is skipped: there is nothing left to strip.
+        all.filter { it.ownerId != userId }
+            .filter { it.members.contains(userId) || it.memberUsernames.contains(username) }
+            .forEach { stale ->
+                val list = listStorage.getById(stale.id) ?: return@forEach
+                listStorage.save(
+                    list.copy(
+                        members = list.members.filter { it != userId },
+                        memberUsernames = list.memberUsernames.filter { it != username },
+                    )
+                )
+            }
+
+        // Last, so a row is never orphaned by a half-done strip above: every `list_members` row the user held, in
+        // any status. The owned-list cascade has already removed its own rows; this catches the rest.
+        listMemberRepository.deleteAllForUser(userId)
+    }
+
+    // How many lists a user owns — the number the admin's delete confirmation states before destroying them.
+    // Answered off the in-memory list cache, so a 20-row admin page costs one scan and no Mongo round-trip.
+    suspend fun countOwnedLists(userId: UUID): Int = listStorage.getAll().count { it.ownerId == userId }
+
+    suspend fun countOwnedLists(userIds: Collection<UUID>): Map<UUID, Int> {
+        if (userIds.isEmpty()) return emptyMap()
+        val wanted = userIds.toSet()
+        val counts = listStorage.getAll()
+            .filter { wanted.contains(it.ownerId) }
+            .groupingBy { it.ownerId }
+            .eachCount()
+        return wanted.associateWith { counts[it] ?: 0 }
     }
 
     suspend fun verifyMembership(caller: CallerUsername, listId: UUID): Either<ListAuthError, Unit> = either {

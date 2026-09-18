@@ -104,14 +104,14 @@ fun Application.configureGql(
                 CategoryQueries(categoryService),
                 ListQueries(listService, listMemberRepository, itemStorage),
                 ApplicationConfigQueries(appConfigService),
-                UserAdminQueries(userService),
+                UserAdminQueries(userService, listService),
             )
             mutations = listOf(
                 ItemMutations(itemService),
                 CategoryMutations(categoryService),
                 ListMutations(listService, listMemberRepository, itemStorage),
                 ApplicationConfigMutations(appConfigService),
-                UserAdminMutations(userService, authService),
+                UserAdminMutations(userService, authService, listService),
             )
             subscriptions = listOf(
                 ItemSubscriptions(itemService, listService),

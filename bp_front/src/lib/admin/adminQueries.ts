@@ -32,6 +32,7 @@ export const AdminUsersQuery = graphql(`
                 id
                 username
                 role
+                ownedListCount
             }
             totalCount
             offset
@@ -61,6 +62,7 @@ export const DeleteUserMutation = graphql(`
     mutation DeleteUser($id: ID!) {
         deleteUser(id: $id) {
             id
+            ownedListCount
         }
     }
 `)

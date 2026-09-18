@@ -103,6 +103,24 @@ export async function createListAndOpen(page: Page, name: string): Promise<strin
   return page.url().split('/lists/')[1]
 }
 
+// Owner-side sharing through the Share & Members dialog (UI, never the
+// shareList/acceptInvite API). Lives here rather than in a spec because two
+// specs drive it since Story 9.4 — sharing.spec.ts and admin.spec.ts — and a
+// second copy in a spec is the duplication NFR-E8-5 forbids.
+//
+// `openShareDialog` leaves the dialog OPEN so the caller can assert on the
+// members list or on an error.
+export async function openShareDialog(page: Page, listName: string): Promise<void> {
+  await page.getByTestId(`manage-members-${listName}`).click()
+  await expect(page.getByTestId('share-members-dialog')).toBeVisible()
+}
+
+export async function shareWith(page: Page, listName: string, username: string): Promise<void> {
+  await openShareDialog(page, listName)
+  await page.getByTestId('share-username-input').fill(username)
+  await page.getByTestId('share-submit').click()
+}
+
 export async function addCategory(page: Page, name: string): Promise<void> {
   await page.getByTestId('add-category-button').click()
   await expect(page.getByTestId('add-category-dialog')).toBeVisible()

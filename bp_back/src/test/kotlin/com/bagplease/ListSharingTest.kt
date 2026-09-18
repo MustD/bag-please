@@ -3,6 +3,7 @@ package com.bagplease
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
@@ -685,6 +686,219 @@ class ListSharingTest : FunSpec({
 
             col.countDocuments(Filters.eq("listId", listAId)) shouldBe 0L
             col.countDocuments(Filters.eq("listId", listBId)) shouldBe 1L
+        }
+    }
+
+    // ── Story 9.4: deleting a user leaves no phantom memberships ──────────────
+    //
+    // Batch-creates users with a SINGLE admin login and hands back the admin
+    // token alongside each user's id and login token. The ids come from the
+    // createUser response, so the deletes below need no second lookup, and the
+    // retained admin token keeps the whole test inside the 5 logins/min limiter
+    // (1 admin + N users).
+    suspend fun ApplicationTestBuilder.registerManyWithAdmin(
+        vararg usernames: String,
+        password: String = "pass1234",
+    ): Triple<String, List<String>, List<String>> {
+        val adminToken = loginToken()
+        val ids = usernames.map { username ->
+            val res = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(adminToken)
+                setBody("""{"query":"mutation { createUser(username: \"$username\", password: \"$password\") { id } }"}""")
+            }
+            val body = res.bodyAsText()
+            body shouldNotContain "errors"
+            mapper.readTree(body)["data"]["createUser"]["id"].asText()
+        }
+        return Triple(adminToken, ids, usernames.map { loginToken(it, password) })
+    }
+
+    suspend fun ApplicationTestBuilder.deleteUser(adminToken: String, userId: String): String =
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(adminToken)
+            setBody("""{"query":"mutation { deleteUser(id: \"$userId\") { id username ownedListCount } }"}""")
+        }.bodyAsText()
+
+    // One category + one item inside `listId`, so the owned-list cascade has
+    // children to destroy. Ids are generated here and returned for the
+    // post-delete raw-collection assertions.
+    suspend fun ApplicationTestBuilder.seedListContent(token: String, listId: String): Pair<String, String> {
+        val catId = UUID.randomUUID().toString()
+        val itemId = UUID.randomUUID().toString()
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { saveCategory(category: { id: \"$catId\", name: \"Dairy\", listId: \"$listId\" }) { id } }"}""")
+        }.bodyAsText() shouldNotContain "errors"
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+        }.bodyAsText() shouldNotContain "errors"
+        return catId to itemId
+    }
+
+    suspend fun ApplicationTestBuilder.listsOf(token: String): JsonNode {
+        val body = client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"{ lists { lists { id members { username status } } } }"}""")
+        }.bodyAsText()
+        body shouldNotContain "errors"
+        return mapper.readTree(body)["data"]["lists"]["lists"]
+    }
+
+    // AC-9.4-purge — deleting a user removes every membership row they held in ANY status, strips them from the
+    // member arrays of lists they do NOT own, and cascades the lists they DO own (items, categories, member rows).
+    //
+    // The row counts are taken on the raw `list_members` collection because the status-filtered API view cannot see a
+    // DECLINED row — exactly the row a status-scoped delete would strand while every API assertion stayed green. V's
+    // own list, its content and W's membership row are the non-vacuity guard: without them the test would also pass
+    // on a purge that deleted everything it could reach.
+    test("AC-9.4-purge deleting a user removes every membership row, strips shared lists and cascades owned lists") {
+        val u = "purgeU_${UUID.randomUUID().toString().take(8)}"
+        val v = "purgeV_${UUID.randomUUID().toString().take(8)}"
+        val w = "purgeW_${UUID.randomUUID().toString().take(8)}"
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val (adminToken, ids, tokens) = registerManyWithAdmin(u, v, w)
+            val (uId, _, wId) = Triple(ids[0], ids[1], ids[2])
+            val (uToken, vToken, wToken) = Triple(tokens[0], tokens[1], tokens[2])
+
+            // U owns two lists, each with a category and an item.
+            val ownedA = createList(uToken, "PurgeOwnedA")
+            val ownedB = createList(uToken, "PurgeOwnedB")
+            val (catA, itemA) = seedListContent(uToken, ownedA)
+            val (catB, itemB) = seedListContent(uToken, ownedB)
+
+            // V owns three lists carrying U's three membership statuses; W is an ACCEPTED member of the first.
+            val sharedAccepted = createList(vToken, "PurgeSharedAccepted")
+            val sharedPending = createList(vToken, "PurgeSharedPending")
+            val sharedDeclined = createList(vToken, "PurgeSharedDeclined")
+            val (catV, itemV) = seedListContent(vToken, sharedAccepted)
+            shareList(vToken, sharedAccepted, u) shouldNotContain "errors"
+            acceptInvite(uToken, sharedAccepted) shouldNotContain "errors"
+            shareList(vToken, sharedAccepted, w) shouldNotContain "errors"
+            acceptInvite(wToken, sharedAccepted) shouldNotContain "errors"
+            shareList(vToken, sharedPending, u) shouldNotContain "errors"
+            shareList(vToken, sharedDeclined, u) shouldNotContain "errors"
+            rejectInvite(uToken, sharedDeclined) shouldNotContain "errors"
+
+            val db = connectToDb()
+            val memberCol = db.getCollection<Document>("list_members")
+            val listCol = db.getCollection<Document>("lists")
+            val itemCol = db.getCollection<Document>("items")
+            val categoryCol = db.getCollection<Document>("categories")
+
+            // Setup guard: assert the three statuses really are in place, so the purge assertions below cannot pass
+            // vacuously on a setup that never produced a DECLINED row.
+            memberCol.find(Filters.eq("userId", uId)).toList()
+                .map { it["status"] }.toSet() shouldBe setOf("ACCEPTED", "PENDING", "DECLINED")
+
+            val deleteBody = deleteUser(adminToken, uId)
+            deleteBody shouldNotContain "errors"
+            mapper.readTree(deleteBody)["data"]["deleteUser"]["ownedListCount"].asInt() shouldBe 2
+
+            // Every membership row U held, in any status, is gone.
+            memberCol.countDocuments(Filters.eq("userId", uId)) shouldBe 0L
+            // W's row on V's list survives — the purge is scoped to U.
+            memberCol.countDocuments(Filters.eq("_id", "${sharedAccepted}_$wId")) shouldBe 1L
+
+            // U is stripped from the member arrays of the list they did not own; V and W remain.
+            val sharedDoc = listCol.find(Filters.eq("_id", sharedAccepted)).firstOrNull()
+            sharedDoc.shouldNotBeNull()
+            @Suppress("UNCHECKED_CAST")
+            val memberUsernames = sharedDoc["memberUsernames"] as kotlin.collections.List<String>
+            memberUsernames shouldBe listOf(v, w)
+            @Suppress("UNCHECKED_CAST")
+            val members = sharedDoc["members"] as kotlin.collections.List<*>
+            members.map { it.toString() } shouldBe listOf(ids[1], wId)
+
+            // …and through the API, which serves the list from the in-memory cache: a cache left holding the
+            // pre-purge copy would still show U in this list. The owner V is deliberately absent from `members` —
+            // that field is built from `list_members` rows, and an owner never has one.
+            val vLists = listsOf(vToken)
+            val vShared = vLists.first { it["id"].asText() == sharedAccepted }
+            vShared["members"].map { it["username"].asText() } shouldBe listOf(w)
+
+            // Both lists U owned are gone, with their items and categories.
+            listCol.countDocuments(Filters.`in`("_id", ownedA, ownedB)) shouldBe 0L
+            itemCol.countDocuments(Filters.`in`("_id", itemA, itemB)) shouldBe 0L
+            categoryCol.countDocuments(Filters.`in`("_id", catA, catB)) shouldBe 0L
+
+            // V's own lists and their content are untouched.
+            listCol.countDocuments(
+                Filters.`in`("_id", sharedAccepted, sharedPending, sharedDeclined)
+            ) shouldBe 3L
+            itemCol.countDocuments(Filters.eq("_id", itemV)) shouldBe 1L
+            categoryCol.countDocuments(Filters.eq("_id", catV)) shouldBe 1L
+
+            // The deleted user's refresh tokens are gone (step 3 of the ordered sequence).
+            db.getCollection<Document>("refresh_tokens").countDocuments(Filters.eq("username", u)) shouldBe 0L
+        }
+    }
+
+    // AC-9.4-idempotent — the purge runs inside `deleteUser`, and a second delete of the same id is a NOT_FOUND that
+    // writes nothing. This is the observable form of "purgeUser is idempotent": V's list and W's membership row are
+    // exactly as the first delete left them.
+    test("AC-9.4-idempotent a second delete of the same user id changes nothing") {
+        val u = "idemU_${UUID.randomUUID().toString().take(8)}"
+        val v = "idemV_${UUID.randomUUID().toString().take(8)}"
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val (adminToken, ids, tokens) = registerManyWithAdmin(u, v)
+            val uId = ids[0]
+            val (uToken, vToken) = Pair(tokens[0], tokens[1])
+
+            val ownedA = createList(uToken, "IdemOwned")
+            val shared = createList(vToken, "IdemShared")
+            shareList(vToken, shared, u) shouldNotContain "errors"
+            acceptInvite(uToken, shared) shouldNotContain "errors"
+
+            val db = connectToDb()
+            val memberCol = db.getCollection<Document>("list_members")
+            val listCol = db.getCollection<Document>("lists")
+
+            deleteUser(adminToken, uId) shouldNotContain "errors"
+            val afterFirst = listCol.find(Filters.eq("_id", shared)).firstOrNull()
+            afterFirst.shouldNotBeNull()
+
+            val secondBody = deleteUser(adminToken, uId)
+            secondBody shouldContain "User not found"
+
+            memberCol.countDocuments(Filters.eq("userId", uId)) shouldBe 0L
+            listCol.countDocuments(Filters.eq("_id", ownedA)) shouldBe 0L
+            val afterSecond = listCol.find(Filters.eq("_id", shared)).firstOrNull()
+            afterSecond.shouldNotBeNull()
+            afterSecond["memberUsernames"] shouldBe afterFirst["memberUsernames"]
+            afterSecond["members"] shouldBe afterFirst["members"]
+        }
+    }
+
+    // AC-9.4-order — the user row is deleted BEFORE the purge, so a write racing the purge on a still-valid access
+    // token (access tokens outlive `invalidateUserSessions`, which only drops refresh tokens) cannot re-create
+    // membership: it resolves no caller and is refused.
+    test("AC-9.4-order createList on a deleted user's still-valid token is refused, not re-creating membership") {
+        val u = "orderU_${UUID.randomUUID().toString().take(8)}"
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val (adminToken, ids, tokens) = registerManyWithAdmin(u)
+            deleteUser(adminToken, ids[0]) shouldNotContain "errors"
+
+            val body = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(tokens[0])
+                setBody("""{"query":"mutation { createList(name: \"GhostList\") { id } }"}""")
+            }.bodyAsText()
+            body shouldContain "Authenticated user record not found"
         }
     }
 })

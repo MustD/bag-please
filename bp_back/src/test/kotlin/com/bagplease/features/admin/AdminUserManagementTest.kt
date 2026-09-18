@@ -526,6 +526,40 @@ class AdminUserManagementTest : FunSpec({
         }
     }
 
+    // Matrix row "Non-admin caller" (Story 9.4): `requireAdmin()` is the first
+    // statement of `deleteUser`, so a regular caller is refused BEFORE the
+    // delete-then-purge sequence starts. The second half — that the victim is
+    // still there afterwards — is what makes this a purge test and not just
+    // another FORBIDDEN assertion.
+    test("AC5 non-admin JWT on deleteUser mutation returns FORBIDDEN and deletes nothing") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val adminToken = loginAdmin()
+            val victim = "purgeVictim_${UUID.randomUUID().toString().take(8)}"
+            val created = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(adminToken)
+                setBody("""{"query":"mutation { createUser(username: \"$victim\", password: \"pass123\") { id } }"}""")
+            }.bodyAsText()
+            created shouldNotContain """"errors":"""
+            val victimId = mapper.readTree(created)["data"]["createUser"]["id"].asText()
+
+            val username = "nonAdmin_ac5d_${UUID.randomUUID().toString().take(8)}"
+            val userToken = loginRegularUser(username)
+
+            val body = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(userToken)
+                setBody("""{"query":"mutation { deleteUser(id: \"$victimId\") { id } }"}""")
+            }.bodyAsText()
+            body shouldContain """"code":"FORBIDDEN""""
+
+            usersPage(adminToken, limit = 1, around = victim).usernames() shouldBe listOf(victim)
+        }
+    }
+
     test("AC6 deleteUser with non-existent UUID returns NOT_FOUND") {
         testApplication {
             setUpMongo(container)

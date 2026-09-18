@@ -70,8 +70,11 @@ line number.
 - ✅ CLOSED by Story 9.3 (2026-09-17): `CategoryService.deleteCategory` cascades server-side (soft-deleted rows
   included), emits only the category `DELETED` event, and the client loop is gone. Was: Story 8.5 — the orphan
   CAUSE: `deleteCategory` cascades to its items server-side and the client loop is deleted.
-- Code review of 7-6 — `adminDeleteUser` strands the user's `list_members` rows (also the second leak path under the
-  Story 7.6 standing assumption).
+- ✅ CLOSED by Story 9.4 (2026-09-18): `UserAdminMutations.deleteUser` now runs `adminDeleteUser` →
+  `ListService.purgeUser` → `invalidateUserSessions`, so a deleted user leaves no `list_members` row in any status, is
+  stripped from lists they did not own, and the lists they owned are cascade-deleted. Was: Code review of 7-6 —
+  `adminDeleteUser` strands the user's `list_members` rows (also the second leak path under the Story 7.6 standing
+  assumption).
 
 **Own story — E2E harness readiness:**
 
@@ -207,12 +210,14 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   finding and must not be triaged as a regression of this story.** Orphans are invisible through the API
   (`ListService.getLists` `mapNotNull`s them away), so detection needs a direct query: compare
   `db.list_members.distinct("listId")` against `_id` on `lists`.
-  **A second leak path is still open and known, and that query cannot see it.** `UserService.adminDeleteUser`
-  (`entity/user/UserService.kt:84-88`, re-verified 2026-09-07) deletes the user row and never touches `list_members` —
-  it holds no `ListMemberRepository` at all — so deleting a user still strands every membership row they held. Those
-  orphans are keyed by a live `listId`; catching them needs `db.list_members.distinct("userId")` compared against `_id`
-  on `users`. The honest form of the assumption is therefore: *list deletion* no longer leaks; *user deletion* still
-  does. (The user-deletion leak is also filed on its own under the 7.6 review below, with its user-visible consequence.)
+  **Narrowed by Story 9.4 (2026-09-18) to ALREADY-STRANDED ROWS ONLY.** The second leak path this paragraph used to
+  describe — `adminDeleteUser` stranding every membership row a deleted user held — is closed: `deleteUser` now runs
+  `ListService.purgeUser` between the user delete and session invalidation, and no code path leaks a `list_members` row
+  any more. What survives of the assumption is only the no-backfill part: rows stranded by either path BEFORE their fix
+  shipped are still in the database, and Story 9.4 shipped no migration, backfill or cleanup script for them either. A
+  row stranded by a user deletion is keyed by a live `listId`, so the `db.list_members.distinct("listId")` vs
+  `lists._id` query above cannot see it; that one needs `db.list_members.distinct("userId")` compared against `_id` on
+  `users`. **A NEWLY created orphan from either path is a regression and must be triaged as one.**
 
 ## Deferred from: Stories 7.8 + 7.9 — @types/node 26 and Vite 8 (2026-08-13)
 
@@ -367,6 +372,15 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
 ## Deferred from: code review of 7-6-backend-safety-fixes (2026-08-12)
 
 - source_spec: `spec-7-6-backend-safety-fixes.md`
+  ✅ CLOSED by Story 9.4 (2026-09-18): `UserAdminMutations.deleteUser` orchestrates `adminDeleteUser` →
+  `ListService.purgeUser(userId, username)` → `authService.invalidateUserSessions`, in that order. `purgeUser` deletes
+  every `list_members` row the user held in ANY status (`ListMemberRepository.deleteAllForUser`), strips them from the
+  `members`/`memberUsernames` of lists they did not own (through `ListStorage.save`, so the in-memory cache cannot
+  diverge), and destroys the lists they owned through the one private `cascadeDeleteList` that `deleteList` also uses.
+  The phantom Share-dialog row is therefore gone, and the admin's confirmation states how many owned lists the delete
+  destroys (`User.ownedListCount`). Pinned by `ListSharingTest` `AC-9.4-purge` / `-idempotent` / `-order` and by the
+  `@serial-users` E2E case in `admin.spec.ts`. No backfill for already-stranded rows — see the narrowed standing
+  assumption under Story 7.6 above. Was:
   summary: `UserService.adminDeleteUser` deletes a user without removing their `list_members` rows, so user deletion is a
   still-open second orphan-leak path that Story 7.6's list-side cascade does not touch.
   evidence: `entity/user/UserService.kt:84-88` contains no reference to `ListMemberRepository` — the class is not
@@ -736,3 +750,13 @@ Filed at the Story 9.3 review (three layers; the full triage is in the spec's `#
   `ItemApiTest` documents as mandatory (patched in that review, but the next copy-paste reintroduces it).
   **Shape of the fix:** one `saveCategory` helper beside `utils/TestContainers.kt`, asserting its own response, with
   the rationale stated once.
+
+## Deferred from: code review of 9-4-deleting-a-user-leaves-no-phantom-memberships (2026-09-18)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-4-deleting-a-user-leaves-no-phantom-memberships.md`
+  summary: Items in lists a deleted user merely belonged to keep `addedBy = <their username>`, so a deleted account's
+  name goes on rendering on items in lists that survive the purge.
+  evidence: `ListService.purgeUser` scopes the purge to `list_members` rows, the two member arrays and owned lists —
+  `addedBy` is a denormalized username on `items` that user deletion never touched before this story either, so this
+  is residue the story did not create and its intent does not cover. Settling it needs a product answer first (blank
+  the field, keep it as a historical record, or show "deleted user"), then an `ItemRepository` sweep in the same purge.

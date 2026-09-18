@@ -413,6 +413,14 @@ Two `Paper` panels: the registration toggle (`:92-126`) and the users table (`:1
 | users error | `admin-users-error` (rendered above, not instead of, the table) | `:167-171` |
 | users content | `Table` of `admin-user-row-<username>` | `:186-237` |
 
+**The delete confirmation states the cascade (Story 9.4).** `DeleteUserDialog` reads `ownedListCount` off the row it
+was opened with (`shown`, the retained copy that survives MUI's close transition — never `user`, which is already null
+while the dialog fades), and when it is greater than zero appends one sentence to the existing copy: *"This also
+deletes the N list/lists they own, with their items and categories."* At zero the sentence is omitted and the copy is
+unchanged. The number is a field on the `User` GraphQL type, joined at the GQL boundary from the in-memory list cache
+(`UserAdminQueries.users`), not stored on the domain user — so the page pays one cache scan, not one query per row. It
+is truthful only as of the page's last fetch, which is why the panel re-reads on every create and delete.
+
 The toggle mutation writes the server-confirmed value straight into the cache with `writeQuery` rather than
 refetching, so there is no desync window in which a failed refetch strands the UI on the old value (`:44-63`).
 
@@ -642,7 +650,9 @@ is filed, see §13.
   `-submit` or `-confirm`** — the two are not interchangeable and a spec must use the right one:
   - `-submit` on the form dialogs — `create-list-submit`, `add-category-submit`, `edit-category-submit`,
     `add-item-submit`, `edit-item-submit`, `create-user-submit`.
-  - **`-confirm` on the destructive/confirmation dialogs** — `delete-user-confirm` (`DeleteUserDialog.tsx:94`),
+  - **`-confirm` on the destructive/confirmation dialogs** — `delete-user-confirm` (`DeleteUserDialog.tsx:100`, whose
+    dialog keeps its bespoke shape and its `delete-user-dialog` / `-error` / `-cancel` / `-confirm` testids unchanged
+    through Story 9.4; only the confirmation copy grew the cascade sentence),
     `reset-password-confirm` (`ResetPasswordDialog.tsx:117`), and every `ConfirmDialog` instance, which derives
     `${testId}-confirm` / `-cancel` / `-error` from its `testId` prop (`ConfirmDialog.tsx:17-18, 85, 90, 96, 104`) —
     so `delete-list-dialog-confirm`, `leave-list-dialog-confirm`, `remove-category-dialog-confirm`,
