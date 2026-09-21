@@ -118,16 +118,17 @@ class ItemLifecycleTest : FunSpec({
         catId: UUID,
         listId: String,
         name: String = "Item",
-        store: String? = null,
+        stores: List<String> = emptyList(),
         recurring: String? = null,
         checked: Boolean = false,
     ): String {
-        val storeArg = if (store != null) """, store: \"$store\"""" else ""
+        // Story 9.6 — `stores: [String!]!` is REQUIRED on the input, so it is always sent, `[]` included.
+        val storesArg = stores.joinToString(", ", prefix = ", stores: [", postfix = "]") { """\"$it\"""" }
         val recurringArg = if (recurring != null) """, recurring: \"$recurring\"""" else ""
         val res = client.post("/graphql") {
             contentType(ContentType.Application.Json)
             bearerAuth(token)
-            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"$name\", checked: $checked, category: \"$catId\", listId: \"$listId\"$storeArg$recurringArg }) { id name checked category listId store recurring addedBy deleted deletedAt checkedAt } }"}""")
+            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"$name\", checked: $checked, category: \"$catId\", listId: \"$listId\"$storesArg$recurringArg }) { id name checked category listId stores recurring addedBy deleted deletedAt checkedAt } }"}""")
         }
         return res.bodyAsText()
     }
@@ -163,7 +164,7 @@ class ItemLifecycleTest : FunSpec({
         val res = client.post("/graphql") {
             contentType(ContentType.Application.Json)
             bearerAuth(token)
-            setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked recurring deleted addedBy store category } }"}""")
+            setBody("""{"query":"{ getItems(listId: \"$listId\") { id name checked recurring deleted addedBy stores category } }"}""")
         }
         return res.bodyAsText()
     }
@@ -228,7 +229,7 @@ class ItemLifecycleTest : FunSpec({
         }
     }
 
-    test("AC2 store round-trip") {
+    test("AC2 stores round-trip") {
         val username = "user_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
@@ -243,10 +244,10 @@ class ItemLifecycleTest : FunSpec({
             // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
             // branch too, so this fixture has to make the category real first.
             saveCategory(token, catId, listId) shouldNotContain "errors"
-            saveItem(token, itemId, catId, listId, store = "Pharmacy")
+            saveItem(token, itemId, catId, listId, stores = listOf("Pharmacy", "Bakery"))
             val body = getItems(token, listId)
             body shouldNotContain "errors"
-            body shouldContain """"store":"Pharmacy""""
+            body shouldContain """"stores":["Pharmacy","Bakery"]"""
         }
     }
 
@@ -551,7 +552,7 @@ class ItemLifecycleTest : FunSpec({
 
     // ── AC13 ── store suggestions ─────────────────────────────────────────
 
-    test("AC13 itemStoreSuggestions returns distinct non-null store values") {
+    test("AC13 itemStoreSuggestions returns one name per key, lowest-first, in key order") {
         val username = "user_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
 
@@ -565,10 +566,12 @@ class ItemLifecycleTest : FunSpec({
             // Story 9.3: saveItem now rejects a category that is not on the target list on the CREATE
             // branch too, so this fixture has to make the category real first.
             saveCategory(token, catId, listId) shouldNotContain "errors"
-            saveItem(token, UUID.randomUUID(), catId, listId, store = "Pharmacy")
-            saveItem(token, UUID.randomUUID(), catId, listId, store = "Pharmacy")
-            saveItem(token, UUID.randomUUID(), catId, listId, store = "Bakery")
-            saveItem(token, UUID.randomUUID(), catId, listId)  // null store
+            // Story 9.6 — the four rows of the suggestions case in the I/O matrix: the same store in
+            // two casings on two different items, a second store, and a store-less item.
+            saveItem(token, UUID.randomUUID(), catId, listId, stores = listOf("lidl"))
+            saveItem(token, UUID.randomUUID(), catId, listId, stores = listOf("Lidl"))
+            saveItem(token, UUID.randomUUID(), catId, listId, stores = listOf("Aldi Nord"))
+            saveItem(token, UUID.randomUUID(), catId, listId)  // no stores
 
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
@@ -576,12 +579,11 @@ class ItemLifecycleTest : FunSpec({
                 setBody("""{"query":"{ itemStoreSuggestions(listId: \"$listId\") }"}""")
             }.bodyAsText()
             res shouldNotContain "errors"
-            res shouldContain "Pharmacy"
-            res shouldContain "Bakery"
-            // verify distinct: "Pharmacy" appears only once in the result array
-            val suggestions = mapper.readTree(res)["data"]["itemStoreSuggestions"]
-            val storeList = suggestions.map { it.asText() }
-            storeList.count { it == "Pharmacy" } shouldBe 1
+            val suggestions = mapper.readTree(res)["data"]["itemStoreSuggestions"].map { it.asText() }
+            // ONE name per lowercased key, the lowest by (lowercase, then compareTo) — "Lidl" beats
+            // "lidl" on the second comparator — and the whole answer sorted by that same pair, so it
+            // does not depend on which item the storage map yielded first.
+            suggestions shouldBe listOf("Aldi Nord", "Lidl")
         }
     }
 
@@ -651,7 +653,7 @@ class ItemLifecycleTest : FunSpec({
 
     // ── Story 7.4 ── saveItem merges the stored item instead of reconstructing it ──────────
     //
-    // `ItemInput` carries only {name, checked, category, store, recurring}. Everything else on `Item`
+    // `ItemInput` carries only {name, checked, category, stores, recurring}. Everything else on `Item`
     // is server-owned, so on an update the incoming values for addedBy/checkedAt/deleted/deletedAt are
     // whatever `Item`'s defaults happen to be — meaningless. These tests pin that they come from the
     // stored row instead (AC1), that create still works and the discriminator is storage existence
@@ -1521,5 +1523,149 @@ class ItemLifecycleTest : FunSpec({
         val afterCycle = itemsCol.find(itemFilter).toList().single()
         afterCycle.getBoolean("checked") shouldBe true
         afterCycle["checkedAt"] shouldNotBe null
+    }
+    // ── Story 9.6 ── an item can be in several stores ─────────────────────
+    //
+    // The server is the normalization AUTHORITY (AR-E9-4): trim, drop blanks, dedupe by lowercased
+    // key keeping the first occurrence's casing AND position. These cases pin that rule on BOTH
+    // branches of `saveItem`, because the normalizer sits above the create/update fork precisely so
+    // the two cannot answer differently.
+
+    test("9.6 the normalizer trims, drops blanks and dedupes by key on CREATE") {
+        val username = "st96a_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+
+            val body = saveItem(
+                token, itemId, catId, listId,
+                stores = listOf(" Lidl ", "lidl", "", "Aldi Nord"),
+            )
+            body shouldNotContain "errors"
+            // `" Lidl "` trimmed and kept, `"lidl"` dropped as the same key, `""` dropped, and the
+            // surviving names in their first-occurrence order.
+            body shouldContain """"stores":["Lidl","Aldi Nord"]"""
+        }
+    }
+
+    test("9.6 the normalizer applies on UPDATE too, and a casing-only edit still persists") {
+        val username = "st96b_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, stores = listOf("Lidl")) shouldNotContain "errors"
+
+            // Same mixed input on the UPDATE branch — the merge allowlist carries `stores`, and the
+            // normalizer above the fork is the only place the rule is written.
+            val updated = saveItem(
+                token, itemId, catId, listId,
+                stores = listOf(" Lidl ", "lidl", "", "Aldi Nord"),
+            )
+            updated shouldNotContain "errors"
+            updated shouldContain """"stores":["Lidl","Aldi Nord"]"""
+
+            // Identity is the lowercased KEY; the stored casing is display data. So `["LIDL"]` is
+            // not "the same store, nothing to do" — it is a change, and it persists verbatim.
+            val recased = saveItem(token, itemId, catId, listId, stores = listOf("LIDL"))
+            recased shouldNotContain "errors"
+            recased shouldContain """"stores":["LIDL"]"""
+            getItems(token, listId) shouldContain """"stores":["LIDL"]"""
+        }
+    }
+
+    test("9.6 a blank-only list stores no stores at all") {
+        val username = "st96c_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, stores = listOf("Lidl")) shouldNotContain "errors"
+
+            // Whitespace-only entries are not stores. `[]`, never `[""]` — an empty name would render
+            // an empty chip on the shopping row and pollute `itemStoreSuggestions`.
+            val cleared = saveItem(token, itemId, catId, listId, stores = listOf("   ", ""))
+            cleared shouldNotContain "errors"
+            cleared shouldContain """"stores":[]"""
+        }
+    }
+
+    test("9.6 a stores-only edit leaves addedBy and the check state alone") {
+        val username = "st96d_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, name = "Coffee", recurring = "WEEKLY") shouldNotContain "errors"
+            checkItem(token, itemId, listId) shouldNotContain "errors"
+
+            // The merge allowlist grew a third field in this story; `addedBy` and the check-off clock
+            // are still server-owned, and `applyCheckState` is still what writes the check state.
+            val edited = saveItem(
+                token, itemId, catId, listId,
+                name = "Coffee", stores = listOf("Lidl"), recurring = "WEEKLY", checked = true,
+            )
+            edited shouldNotContain "errors"
+            edited shouldContain """"stores":["Lidl"]"""
+            edited shouldContain """"addedBy":"$username""""
+            edited shouldContain """"checked":true"""
+            mapper.readTree(edited)["data"]["saveItem"]["checkedAt"].isNull shouldBe false
+        }
+    }
+
+    test("9.6 every write unsets the legacy single-value store field") {
+        val username = "st96e_${UUID.randomUUID().toString().take(8)}"
+        val itemId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val db = connectToDb()
+        val itemsCol = db.getCollection<Document>("items")
+        val itemFilter = Filters.eq("_id", itemId.toString())
+
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val token = registerAndLogin(username)
+            val listId = createList(token)
+            saveCategory(token, catId, listId) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, stores = listOf("Lidl")) shouldNotContain "errors"
+
+            // Plant the legacy field behind the app's back — the shape a pre-9.6 image, or a row the
+            // startup migration has not reached, would leave. AR-E9-3: the very next write must take
+            // it away, because `save` sets `stores` and unsets `store` in ONE update.
+            itemsCol.updateOne(itemFilter, Updates.set("store", "Aldi"))
+            itemsCol.find(itemFilter).toList().single().containsKey("store") shouldBe true
+
+            saveItem(token, itemId, catId, listId, stores = listOf("Lidl", "Aldi")) shouldNotContain "errors"
+
+            val row = itemsCol.find(itemFilter).toList().single()
+            row.containsKey("store") shouldBe false
+            row.getList("stores", String::class.java) shouldBe listOf("Lidl", "Aldi")
+        }
     }
 })

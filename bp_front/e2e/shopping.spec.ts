@@ -283,7 +283,7 @@ async function seedItems(
     const recurringField = recurring === undefined ? '' : `, recurring: "${recurring}"`
     await gql(
       `mutation { saveItem(item: { id: "${randomUUID()}", name: "${name}", checked: false,` +
-        ` category: "${categoryId}", listId: "${listId}"${recurringField} }) { id } }`,
+        ` category: "${categoryId}", listId: "${listId}", stores: []${recurringField} }) { id } }`,
       token,
     )
   }
@@ -312,7 +312,7 @@ test('FR60 — a stationary activation on ANY region of the row toggles the item
   await addCategory(page, categoryName)
   // A store is required for region 2, and `addedBy` (region 3) is server-set
   // from the caller, so adding through the UI as this user populates it.
-  await addItem(page, categoryName, itemName, 'Aldi')
+  await addItem(page, categoryName, itemName, ['Aldi'])
 
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId('list-shopping-page')).toBeVisible()
@@ -330,8 +330,10 @@ test('FR60 — a stationary activation on ANY region of the row toggles the item
   await row.getByText(itemName, {exact: true}).click()
   await expect(row).toBeChecked()
 
-  // Region 2 — the store chip.
-  await page.getByTestId(`shopping-item-store-${itemName}`).click()
+  // Region 2 — a store chip. Presentational, inside the row's CLOSED surface
+  // (AR-E8-8a): it is not an affordance of its own, so activating it toggles
+  // the item like any other part of the row.
+  await page.getByTestId(`shopping-item-store-${itemName}-Aldi`).click()
   await expect(row).not.toBeChecked()
 
   // Region 3 — the addedBy avatar + username.
@@ -356,7 +358,7 @@ test('FR60 — the row is ONE control: one accessible name, one checked state, o
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
   await addCategory(page, categoryName)
-  await addItem(page, categoryName, first, 'Aldi')
+  await addItem(page, categoryName, first, ['Aldi', 'Lidl'])
   await addItem(page, categoryName, second)
 
   await page.goto(`/list/${listId}`)
@@ -382,7 +384,15 @@ test('FR60 — the row is ONE control: one accessible name, one checked state, o
   // announced by nothing without the row's accessible DESCRIPTION. The NAME
   // asserted above must stay exactly `Toggle <item>`, which is why this rides on
   // the description rather than being folded into the label.
-  await expect(row).toHaveAccessibleDescription(new RegExp(`Aldi[\\s\\S]*${username}`))
+  // `Stores: A, B` — plural since Story 9.6, and omitted entirely for an item
+  // with none (asserted in item-editing.spec.ts).
+  await expect(row).toHaveAccessibleDescription(new RegExp(`Stores: Aldi, Lidl[\\s\\S]*${username}`))
+
+  // A store-less item still gets its `addedBy` description, and NOT a bare
+  // `Stores:` segment — that would be read out as a store list that is not there.
+  const bare = page.getByTestId(`shopping-item-${second}`)
+  await expect(bare).toHaveAccessibleDescription(new RegExp(`Added by ${username}`))
+  await expect(bare).not.toHaveAccessibleDescription(/Stores/)
 
   // One tab stop per row: Tab from the first row lands on the SECOND row, so no
   // stop hides between them.

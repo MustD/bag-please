@@ -117,7 +117,7 @@ development_status:
   9-3-deleting-a-category-deletes-its-items-for-everyone: review
   9-4-deleting-a-user-leaves-no-phantom-memberships: review
   9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: review
-  9-6-an-item-can-be-in-several-stores: backlog
+  9-6-an-item-can-be-in-several-stores: review
   9-7-home-is-in-the-account-menu: backlog
   9-8-the-category-filter-menu-can-be-closed-on-a-phone: backlog
   9-9-a-user-can-send-feedback-from-any-screen: backlog

@@ -379,7 +379,7 @@ class ListSharingTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(memberToken)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"MemberItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"MemberItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
             }
 
             // Owner removes the member
@@ -484,7 +484,7 @@ class ListSharingTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(memberToken)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"LeaveItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"LeaveItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
             }
 
             // Member leaves
@@ -735,7 +735,7 @@ class ListSharingTest : FunSpec({
         client.post("/graphql") {
             contentType(ContentType.Application.Json)
             bearerAuth(token)
-            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+            setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
         }.bodyAsText() shouldNotContain "errors"
         return catId to itemId
     }

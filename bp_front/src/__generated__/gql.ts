@@ -20,6 +20,7 @@ type Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n            ownedListCount\n        }\n    }\n": typeof types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": typeof types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": typeof types.SetRegistrationEnabledDocument,
+    "\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n": typeof types.ListItemFieldsFragmentDoc,
     "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": typeof types.ListsDocument,
     "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": typeof types.CreateListDocument,
     "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": typeof types.DeleteListDocument,
@@ -29,15 +30,15 @@ type Documents = {
     "\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": typeof types.RemoveMemberDocument,
     "\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n": typeof types.LeaveListDocument,
     "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.CategoriesDocument,
-    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n": typeof types.ItemsDocument,
+    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": typeof types.ItemsDocument,
     "\n    query ItemStoreSuggestions($listId: ID!) {\n        itemStoreSuggestions(listId: $listId)\n    }\n": typeof types.ItemStoreSuggestionsDocument,
     "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": typeof types.SaveCategoryDocument,
     "\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n": typeof types.DeleteCategoryDocument,
-    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n": typeof types.SaveItemDocument,
+    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            ...ListItemFields\n        }\n    }\n": typeof types.SaveItemDocument,
     "\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n": typeof types.DeleteItemDocument,
-    "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n": typeof types.CheckItemDocument,
-    "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n": typeof types.UncheckItemDocument,
-    "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                checked\n                category\n                listId\n                store\n                addedBy\n                deleted\n                recurring\n            }\n        }\n    }\n": typeof types.ItemUpdatesDocument,
+    "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": typeof types.CheckItemDocument,
+    "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": typeof types.UncheckItemDocument,
+    "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                ...ListItemFields\n            }\n        }\n    }\n": typeof types.ItemUpdatesDocument,
     "\n    subscription CategoryUpdates($listId: ID!) {\n        getCategoryUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                listId\n            }\n        }\n    }\n": typeof types.CategoryUpdatesDocument,
 };
 const documents: Documents = {
@@ -47,6 +48,7 @@ const documents: Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n            ownedListCount\n        }\n    }\n": types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": types.SetRegistrationEnabledDocument,
+    "\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n": types.ListItemFieldsFragmentDoc,
     "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": types.ListsDocument,
     "\n    mutation CreateList($name: String!, $emoji: String) {\n        createList(name: $name, emoji: $emoji) {\n            id\n            name\n            emoji\n            ownerId\n            ownerUsername\n            createdAt\n        }\n    }\n": types.CreateListDocument,
     "\n    mutation DeleteList($id: ID!) {\n        deleteList(id: $id) {\n            deletedItemCount\n            deletedCategoryCount\n        }\n    }\n": types.DeleteListDocument,
@@ -56,15 +58,15 @@ const documents: Documents = {
     "\n    mutation RemoveMember($listId: ID!, $username: String!) {\n        removeMember(listId: $listId, username: $username) {\n            id\n            members {\n                userId\n                username\n                status\n            }\n        }\n    }\n": types.RemoveMemberDocument,
     "\n    mutation LeaveList($listId: ID!) {\n        leaveList(listId: $listId)\n    }\n": types.LeaveListDocument,
     "\n    query Categories($listId: ID!) {\n        getCategories(listId: $listId) {\n            id\n            name\n            listId\n        }\n    }\n": types.CategoriesDocument,
-    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n": types.ItemsDocument,
+    "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": types.ItemsDocument,
     "\n    query ItemStoreSuggestions($listId: ID!) {\n        itemStoreSuggestions(listId: $listId)\n    }\n": types.ItemStoreSuggestionsDocument,
     "\n    mutation SaveCategory($category: CategoryInput!) {\n        saveCategory(category: $category) {\n            id\n            name\n            listId\n        }\n    }\n": types.SaveCategoryDocument,
     "\n    mutation DeleteCategory($id: ID!, $listId: ID!) {\n        deleteCategory(id: $id, listId: $listId) {\n            id\n        }\n    }\n": types.DeleteCategoryDocument,
-    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n": types.SaveItemDocument,
+    "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            ...ListItemFields\n        }\n    }\n": types.SaveItemDocument,
     "\n    mutation DeleteItem($id: ID!, $listId: ID!) {\n        deleteItem(id: $id, listId: $listId) {\n            id\n        }\n    }\n": types.DeleteItemDocument,
-    "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n": types.CheckItemDocument,
-    "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n": types.UncheckItemDocument,
-    "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                checked\n                category\n                listId\n                store\n                addedBy\n                deleted\n                recurring\n            }\n        }\n    }\n": types.ItemUpdatesDocument,
+    "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": types.CheckItemDocument,
+    "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n": types.UncheckItemDocument,
+    "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                ...ListItemFields\n            }\n        }\n    }\n": types.ItemUpdatesDocument,
     "\n    subscription CategoryUpdates($listId: ID!) {\n        getCategoryUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                listId\n            }\n        }\n    }\n": types.CategoryUpdatesDocument,
 };
 
@@ -109,6 +111,10 @@ export function graphql(source: "\n    mutation SetRegistrationEnabled($enabled:
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
+export function graphql(source: "\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n"): (typeof documents)["\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
 export function graphql(source: "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n"): (typeof documents)["\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -145,7 +151,7 @@ export function graphql(source: "\n    query Categories($listId: ID!) {\n       
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n"): (typeof documents)["\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n"];
+export function graphql(source: "\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"): (typeof documents)["\n    query Items($listId: ID!) {\n        getItems(listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -161,7 +167,7 @@ export function graphql(source: "\n    mutation DeleteCategory($id: ID!, $listId
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n"): (typeof documents)["\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            recurring\n        }\n    }\n"];
+export function graphql(source: "\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            ...ListItemFields\n        }\n    }\n"): (typeof documents)["\n    mutation SaveItem($item: ItemInput!) {\n        saveItem(item: $item) {\n            ...ListItemFields\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -169,15 +175,15 @@ export function graphql(source: "\n    mutation DeleteItem($id: ID!, $listId: ID
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n"): (typeof documents)["\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n"];
+export function graphql(source: "\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"): (typeof documents)["\n    mutation CheckItem($id: ID!, $listId: ID!) {\n        checkItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n"): (typeof documents)["\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            id\n            name\n            checked\n            category\n            listId\n            store\n            addedBy\n            deleted\n        }\n    }\n"];
+export function graphql(source: "\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"): (typeof documents)["\n    mutation UncheckItem($id: ID!, $listId: ID!) {\n        uncheckItem(id: $id, listId: $listId) {\n            ...ListItemFields\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                checked\n                category\n                listId\n                store\n                addedBy\n                deleted\n                recurring\n            }\n        }\n    }\n"): (typeof documents)["\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                id\n                name\n                checked\n                category\n                listId\n                store\n                addedBy\n                deleted\n                recurring\n            }\n        }\n    }\n"];
+export function graphql(source: "\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                ...ListItemFields\n            }\n        }\n    }\n"): (typeof documents)["\n    subscription ItemUpdates($listId: ID!) {\n        getItemUpdates(listId: $listId) {\n            type\n            item {\n                ...ListItemFields\n            }\n        }\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

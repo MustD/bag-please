@@ -199,7 +199,7 @@ class ListServiceTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Milk\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
             }
 
             val deleteRes = client.post("/graphql") {

@@ -39,25 +39,31 @@ class ItemService(
     suspend fun saveItem(item: Item, caller: CallerUsername): Either<ListAuthError, Item> = either {
         listService.verifyMembership(caller, item.listId).bind()
 
-        val stored = storage.getByIdCached(item.id, item.listId)
+        // Story 9.6 / AR-E9-4 — normalize ONCE, above the branch, so create and update cannot
+        // diverge. The client mirrors the same rule for immediate feedback, but the server is the
+        // authority: whatever it stores here is what every screen renders.
+        val incoming = item.copy(stores = StoreNames.normalize(item.stores))
+
+        val stored = storage.getByIdCached(incoming.id, incoming.listId)
         val toSave = if (stored != null) {
             // BUG-E6-3b — a stale edit dialog can hold a category a co-member has since deleted;
             // writing it strands the item under no group on either screen. Story 9.3 closed the
             // matching CREATE hole below, so both branches now reject an out-of-list category with
             // the SAME message (the frontend maps exactly this wording to friendly copy).
-            requireCategoryOnList(item.category, item.listId)
+            requireCategoryOnList(incoming.category, incoming.listId)
             // AC1 / AR-E7-1 — merge, do not reconstruct. addedBy, checkedAt, deleted and deletedAt are
             // server-owned and absent from ItemInput, so the incoming values are meaningless here.
-            // The merge is therefore an ALLOWLIST of the three plain input fields, and check state is
+            // The merge is therefore an ALLOWLIST of the three plain input fields — `name`,
+            // `category` and, since Story 9.6, `stores` — and check state is
             // then applied by `applyCheckState` (AR-E9-11) — the one transition table shared with
             // checkItem/uncheckItem. Story 9.5: copying `checked` straight across (as this used to) left
             // `checkedAt` at the stored null, so an edit that checked a recurring item produced
             // `checked = true, checkedAt = null` — a row findCheckedRecurringItems returns and
             // runSchedulerCycle then drops at its `checkedAt == null` guard, checked off forever.
             applyCheckState(
-                stored.copy(name = item.name, category = item.category, store = item.store),
-                item.checked,
-                item.recurring,
+                stored.copy(name = incoming.name, category = incoming.category, stores = incoming.stores),
+                incoming.checked,
+                incoming.recurring,
                 Instant.now(),
             )
         } else {
@@ -65,8 +71,8 @@ class ItemService(
             // the create branch upserts by _id alone and silently relocates the item. It is checked
             // BEFORE the category guard on purpose: "this id lives elsewhere" is the more specific
             // diagnosis, and swapping the order would report a relocation attempt as a category error.
-            if (repository.findById(item.id) != null) {
-                throw IllegalArgumentException("Item ${item.id} belongs to a different list")
+            if (repository.findById(incoming.id) != null) {
+                throw IllegalArgumentException("Item ${incoming.id} belongs to a different list")
             }
             // Story 9.3 — the create hole, closed. An add-item dialog left open while a co-member
             // removes the category would otherwise manufacture a fresh orphan on submit, which was the
@@ -81,8 +87,8 @@ class ItemService(
             // reads the in-memory `CategoryStorage` and `storage.save` runs outside any lock, so a
             // create racing a cascade is a TOCTOU window; (c) the cascade is non-transactional, and its
             // failure residue IS an orphan.
-            requireCategoryOnList(item.category, item.listId)
-            item // AC2 — create: addedBy from the caller, exactly as today
+            requireCategoryOnList(incoming.category, incoming.listId)
+            incoming // AC2 — create: addedBy from the caller, exactly as today
         }
 
         val savedItem = storage.save(toSave)
@@ -131,7 +137,10 @@ class ItemService(
 
     suspend fun getStoreSuggestions(listId: UUID, caller: CallerUsername): Either<ListAuthError, List<String>> = either {
         listService.verifyMembership(caller, listId).bind()
-        storage.getByListId(listId).mapNotNull { it.store }.distinct()
+        // Story 9.6 — flatten every item's stores, then one name per key in the server's order
+        // (AR-E9-4). StoreField renders them as offered: the client no longer trims, dedupes or
+        // sorts, because only the server can see the whole list.
+        StoreNames.suggestions(storage.getByListId(listId).flatMap { it.stores })
     }
 
     /**

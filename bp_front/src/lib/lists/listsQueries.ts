@@ -4,7 +4,7 @@ import {graphql} from '@/__generated__'
 // constants of the same name below.
 import type {
   CategoriesQuery as CategoriesQueryResult,
-  ItemsQuery as ItemsQueryResult,
+  ListItemFieldsFragment,
   ListsQuery as ListsQueryResult,
 } from '@/__generated__/graphql'
 
@@ -23,9 +23,16 @@ export type ListMember = ListSummary['members'][number]
 // `pendingInvites` field on the `lists` query result.
 export type PendingInviteSummary = ListsQueryResult['lists']['pendingInvites'][number]
 
-// A category / item row on the list detail screen, derived from their queries.
+// A category row on the list detail screen, derived from its query.
 export type ListCategory = CategoriesQueryResult['getCategories'][number]
-export type ListItem = ItemsQueryResult['getItems'][number]
+
+// An item row. Derived from the FRAGMENT rather than from `ItemsQuery`, because
+// since Story 9.6 all five item-returning documents spread `ListItemFields` and
+// therefore return exactly this shape — including the subscription payload,
+// which `ListShoppingPage` writes straight into the query's cached result. It
+// used to be `ItemsQuery['getItems'][number]`, which made that merge's cast an
+// assertion about two field lists somebody had to keep in step by hand.
+export type ListItem = ListItemFieldsFragment
 
 // Lists / category / item GraphQL operations (Story 5.5). Authored with the
 // graphql() tagged template so codegen (`npm run generate`) discovers them and
@@ -34,6 +41,35 @@ export type ListItem = ItemsQueryResult['getItems'][number]
 // backend forbids the admin account from every list resource (FORBIDDEN), and
 // gates list mutations by ownership/membership — surfaced inline via
 // graphqlErrorMessage. Never hand-edit the generated output.
+
+// THE item shape, spread by every operation that returns an `Item` (AR-E9-10a):
+// `ItemsQuery`, `SaveItemMutation`, `CheckItemMutation`, `UncheckItemMutation`
+// and `ItemUpdatesSubscription`. Before Story 9.6 those five carried four
+// different hand-written field lists, and `ListShoppingPage`'s realtime merge
+// wrote a subscription payload into the query's cached rows through a cast that
+// only held because somebody kept the lists in step. One fragment, one shape.
+//
+// `recurring` is selected even though no UI renders it (the one-timer/recurring
+// control is deferred): the edit dialog must carry the cadence forward in its
+// payload, and it can only carry a field the query fetched. `deleted` is
+// selected so a SAVED-with-deleted item (a checked one-timer) can be merged out
+// of the shopping list.
+//
+// Codegen runs with `fragmentMasking: false`, so this flattens into every
+// operation type instead of becoming a `$fragmentRefs` marker — see codegen.ts.
+export const ListItemFields = graphql(`
+    fragment ListItemFields on Item {
+        id
+        name
+        checked
+        category
+        listId
+        stores
+        addedBy
+        recurring
+        deleted
+    }
+`)
 
 // All lists the caller owns or is an accepted member of, plus the invites the
 // caller has yet to accept/decline. `members` excludes the owner and carries
@@ -150,30 +186,21 @@ export const CategoriesQuery = graphql(`
     }
 `)
 
-// `recurring` is selected even though no UI renders it (the one-timer/recurring
-// control is deferred): `saveItem` is a FULL-DOCUMENT upsert, so the edit dialog
-// can only carry a field forward if this query fetched it. Dropping `recurring`
-// from the selection would make every edit silently wipe an item's cadence
-// (Story 6.1).
+// The rows behind both list screens. The selection is `ListItemFields` and
+// nothing else — see the fragment for why each field is in it.
 export const ItemsQuery = graphql(`
     query Items($listId: ID!) {
         getItems(listId: $listId) {
-            id
-            name
-            checked
-            category
-            listId
-            store
-            addedBy
-            recurring
+            ...ListItemFields
         }
     }
 `)
 
-// Store values already used on this list, offered as suggestions under the
+// Store names already used on this list, offered as suggestion chips under the
 // store field in the add/edit item dialogs (Story 6.1). Scalar list — no
-// sub-selection. The backend returns them unsorted and does not drop empty
-// strings, so StoreField trims/dedupes/sorts client-side.
+// sub-selection. Since Story 9.6 the server answers with ONE name per
+// case-insensitive key, already sorted (AR-E9-4), so `StoreField` renders them
+// in the order given and only filters out the ones already selected.
 export const ItemStoreSuggestionsQuery = graphql(`
     query ItemStoreSuggestions($listId: ID!) {
         itemStoreSuggestions(listId: $listId)
@@ -198,20 +225,13 @@ export const DeleteCategoryMutation = graphql(`
     }
 `)
 
-// The result selection mirrors ItemsQuery's so Apollo's by-id normalization
+// The result selection is the shared fragment, so Apollo's by-id normalization
 // refreshes every field an edit can change. A narrower selection would leave a
-// stale `store`/`addedBy`/`recurring` in the cache after a save (Story 6.1).
+// stale `stores`/`addedBy`/`recurring` in the cache after a save (Story 6.1).
 export const SaveItemMutation = graphql(`
     mutation SaveItem($item: ItemInput!) {
         saveItem(item: $item) {
-            id
-            name
-            checked
-            category
-            listId
-            store
-            addedBy
-            recurring
+            ...ListItemFields
         }
     }
 `)
@@ -234,14 +254,7 @@ export const DeleteItemMutation = graphql(`
 export const CheckItemMutation = graphql(`
     mutation CheckItem($id: ID!, $listId: ID!) {
         checkItem(id: $id, listId: $listId) {
-            id
-            name
-            checked
-            category
-            listId
-            store
-            addedBy
-            deleted
+            ...ListItemFields
         }
     }
 `)
@@ -249,14 +262,7 @@ export const CheckItemMutation = graphql(`
 export const UncheckItemMutation = graphql(`
     mutation UncheckItem($id: ID!, $listId: ID!) {
         uncheckItem(id: $id, listId: $listId) {
-            id
-            name
-            checked
-            category
-            listId
-            store
-            addedBy
-            deleted
+            ...ListItemFields
         }
     }
 `)
@@ -267,25 +273,19 @@ export const UncheckItemMutation = graphql(`
 // carry item.deleted === true (one-timer check), so the merge keys by id and is
 // idempotent: DELETED / SAVED+deleted → drop, SAVED+!deleted → upsert. The
 // CategoryUpdate payload field is literally named `item` even though it carries a
-// Category. `recurring` is selected (Story 6.1) purely so the payload stays a
+// Category. `recurring` was selected (Story 6.1) purely so the payload stayed a
 // superset of ItemsQuery's item shape — ListShoppingPage writes the event's
 // `item` straight into the Items result, so a field missing here would be a
-// missing field in the cache (and a type error at the merge). No merge or
+// missing field in the cache (and a type error at the merge). Since Story 9.6
+// that superset relationship is not a convention to maintain but the SAME
+// fragment: the payload and the query row are one type. No merge or
 // subscription behaviour changed.
 export const ItemUpdatesSubscription = graphql(`
     subscription ItemUpdates($listId: ID!) {
         getItemUpdates(listId: $listId) {
             type
             item {
-                id
-                name
-                checked
-                category
-                listId
-                store
-                addedBy
-                deleted
-                recurring
+                ...ListItemFields
             }
         }
     }

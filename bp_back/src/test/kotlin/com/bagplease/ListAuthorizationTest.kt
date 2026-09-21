@@ -119,7 +119,7 @@ class ListAuthorizationTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(tokenB)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"SecretItem\", checked: false, category: \"$catId\", listId: \"$listIdB\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"SecretItem\", checked: false, category: \"$catId\", listId: \"$listIdB\", stores: [] }) { id } }"}""")
             }
 
             // User A tries to access User B's list
@@ -150,7 +150,7 @@ class ListAuthorizationTest : FunSpec({
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(strangerToken)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"HackedItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"HackedItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
             }
             val body = res.bodyAsText()
             body shouldContain "errors"

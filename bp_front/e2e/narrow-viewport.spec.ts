@@ -110,6 +110,17 @@ const UNBREAKABLE_LIST_NAME = 'Supercalifragilisticexpialidociousaurusrexinatori
 const UNBREAKABLE_CATEGORY_NAME = 'Refrigeratedpasteurisedhomogenisedchilleddairy'
 const UNBREAKABLE_ITEM_NAME = 'Semiskimmedorganichomogenisedmilktwolitrebottle'
 
+// Story 9.6 — three store names, each long enough that the three together
+// cannot sit on one line inside the ~190px the item's text column leaves at the
+// floor. They are what makes the shopping row's chip block WRAP rather than
+// widen: an unwrapped row would push the check glyph and the item name off the
+// screen, which is exactly NFR-E8-1's third clause.
+const LONG_STORE_NAMES = [
+  'Neighbourhood organic grocer',
+  'Riverside discount supermarket',
+  'Central station convenience shop',
+]
+
 // The /admin floor case's fixture (Story 9.2, AR-E9-6b). 42 characters, which is
 // roughly what `uniqueUsername` produces and comfortably past what the removed
 // `maxWidth: {xs: 140}` cap could show.
@@ -759,6 +770,44 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     // but not automatically in scope".
     await expectInsideViewport(page.getByTestId('user-chip'), 'the app-bar username chip')
     await expectInsideViewport(page.getByTestId('app-bar-home'), 'the app-bar home link')
+  })
+
+  test('[P1] an item in three stores does not push the shopping row off the floor', async ({page}, testInfo) => {
+    // Story 9.6. The shopping row shows one chip PER store inside its closed
+    // control surface, and the chips live in the same `minWidth: 0` box as the
+    // item name. Three long names is the case that decides whether that block
+    // wraps or widens — and a row that widens takes the check glyph and the name
+    // with it, which no amount of vertical space fixes.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'stores', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, LONG_LIST_NAME)
+    await addCategory(page, LONG_CATEGORY_NAME)
+    await addItem(page, LONG_CATEGORY_NAME, LONG_ITEM_NAME, LONG_STORE_NAMES)
+
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    const row = page.getByTestId(`shopping-item-${LONG_ITEM_NAME}`)
+    await expect(row).toBeVisible()
+
+    // Every chip is really on screen — the whole point of showing them.
+    for (const store of LONG_STORE_NAMES) {
+      await expect(page.getByTestId(`shopping-item-store-${LONG_ITEM_NAME}-${store}`)).toBeVisible()
+    }
+
+    // The page does not scroll sideways…
+    await expectNoHorizontalOverflow(page)
+    // …the check glyph and the name are still fully inside the viewport (the
+    // third clause, which the overflow helper cannot see: a row clipped by an
+    // `overflow: hidden` ancestor widens nothing)…
+    await expectInsideViewport(
+      page.getByTestId(`shopping-item-indicator-${LONG_ITEM_NAME}`),
+      'the shopping-row check glyph',
+    )
+    await expectInsideViewport(row.getByText(LONG_ITEM_NAME, {exact: true}), 'the shopping-row item name')
+    // …and the chip block is not clipped: it grew DOWNWARDS, by wrapping.
+    await expectNotClipped(page.getByTestId(`shopping-item-stores-${LONG_ITEM_NAME}`))
   })
 
   test('[P1] an open dialog does not overflow the floor', async ({page}, testInfo) => {

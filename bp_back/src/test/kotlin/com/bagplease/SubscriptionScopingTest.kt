@@ -147,7 +147,7 @@ class SubscriptionScopingTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(tokenA)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"ListAItem\", checked: false, category: \"$catId\", listId: \"$listIdA\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"ListAItem\", checked: false, category: \"$catId\", listId: \"$listIdA\", stores: [] }) { id } }"}""")
             }
 
             // User B's listB subscriber should receive NO event from listA mutation
@@ -260,7 +260,7 @@ class SubscriptionScopingTest : FunSpec({
                     client.post("/graphql") {
                         contentType(ContentType.Application.Json)
                         bearerAuth(ownerToken)
-                        setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"TriggerItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                        setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"TriggerItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
                     }
 
                     // userA should receive no event after removal (flow terminates)
@@ -307,7 +307,7 @@ class SubscriptionScopingTest : FunSpec({
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Casc\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"Casc\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
                 }.bodyAsText() shouldNotContain "errors"
             }
 
@@ -339,7 +339,7 @@ class SubscriptionScopingTest : FunSpec({
                 client.post("/graphql") {
                     contentType(ContentType.Application.Json)
                     bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$probeItemId\", name: \"Probe\", checked: false, category: \"$probeCatId\", listId: \"$listId\" }) { id } }"}""")
+                    setBody("""{"query":"mutation { saveItem(item: { id: \"$probeItemId\", name: \"Probe\", checked: false, category: \"$probeCatId\", listId: \"$listId\", stores: [] }) { id } }"}""")
                 }.bodyAsText() shouldNotContain "errors"
 
                 var catStreamLive = false

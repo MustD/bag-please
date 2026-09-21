@@ -64,13 +64,15 @@ function ShoppingItemRow({item, onToggle}: ShoppingItemRowProps) {
 
   // `role="checkbox"` makes the row's children PRESENTATIONAL, and the
   // author-supplied `aria-label` displaces name-from-content on top of that — so
-  // the store chip and the `addedBy` name, which used to be plain row content
+  // the store chips and the `addedBy` name, which used to be plain row content
   // beside a labelled checkbox, would otherwise be announced by nothing at all.
   // They come back as the row's accessible DESCRIPTION, which is computed from a
   // separate traversal and so leaves the accessible NAME exactly
   // `Toggle ${item.name}` (an assertion pins that string).
+  // Story 9.6 — plural. Omitted ENTIRELY when the item has no stores: an empty
+  // `Stores: ` segment would be read out as a store list that is not there.
   const descriptionParts = [
-    item.store ? `Store: ${item.store}` : null,
+    item.stores.length > 0 ? `Stores: ${item.stores.join(', ')}` : null,
     item.addedBy ? `Added by ${item.addedBy}` : null,
   ].filter((part): part is string => part !== null)
 
@@ -173,15 +175,32 @@ function ShoppingItemRow({item, onToggle}: ShoppingItemRowProps) {
         >
           {item.name}
         </Typography>
-        {item.store && (
-          <Chip
-            size="small"
-            variant="outlined"
-            icon={<StorefrontIcon/>}
-            label={item.store}
-            data-testid={`shopping-item-store-${item.name}`}
-            sx={{mt: 0.5}}
-          />
+        {/* Story 9.6 / UX-DR-E9-7 — one chip per store, inside the row's CLOSED
+            control surface (AR-E8-8a): they are presentational, activating one
+            toggles the item like any other part of the row, and the row's
+            accessible NAME stays exactly `Toggle <name>` because
+            `role="checkbox"` makes them presentational to assistive technology.
+            The store list rides the row's DESCRIPTION instead.
+            They wrap inside this `minWidth: 0` box, so three long names at the
+            320px floor add rows rather than width — the check glyph and the
+            name stay on screen. No container at all when there are no stores. */}
+        {item.stores.length > 0 && (
+          <Box
+            data-testid={`shopping-item-stores-${item.name}`}
+            sx={{display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5, minWidth: 0}}
+          >
+            {item.stores.map(store => (
+              <Chip
+                key={store}
+                size="small"
+                variant="outlined"
+                icon={<StorefrontIcon/>}
+                label={store}
+                data-testid={`shopping-item-store-${item.name}-${store}`}
+                sx={{maxWidth: '100%'}}
+              />
+            ))}
+          </Box>
         )}
       </Box>
       {item.addedBy && (

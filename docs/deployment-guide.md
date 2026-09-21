@@ -98,8 +98,42 @@ contents before use.
 
 ## MongoDB Persistence
 
-Data is mounted at `./db/data:/data/db` (`db/.gitignore` excludes the data files). Back up this directory to persist
+Data lives in the named Docker volume `db_data` (`docker-compose.yaml`), mounted at `/data/db`. Back it up to persist
 data across container recreations. The host port is `27217` to avoid conflicting with a locally installed MongoDB.
+
+### Dump before a migration release, restore to roll back (AR-E9-5a)
+
+Startup migrations (`plugins/Migration.kt`) rewrite documents in place and are **not** reversible by the application.
+`epic9-multi-store`, which ships in **0.19.0**, folds every item's legacy `store` field into `stores` and unsets it;
+the previous image reads `store` and would see every item as store-less. So for any release carrying a new migration
+— 0.19.0 included — **take a dump first**:
+
+```bash
+# 1. Pre-deploy dump (with the stack still on the OLD image)
+docker compose exec -T mongo mongodump \
+  --username user --password pass --authenticationDatabase admin \
+  --archive > backup-$(date +%Y%m%d-%H%M%S).archive
+
+# 2. Deploy
+docker compose up -d --build
+# Confirm the migration ran exactly once:
+docker compose logs bp_back | grep "multi-store migration"
+```
+
+**Rollback is restore-plus-previous-image, in that order** — rolling the image back alone leaves the migrated data
+behind and the old code cannot read it:
+
+```bash
+docker compose down
+docker compose up -d mongo
+docker compose exec -T mongo mongorestore \
+  --username user --password pass --authenticationDatabase admin \
+  --drop --archive < backup-<timestamp>.archive
+# then bring up the PREVIOUS image tag
+```
+
+The migration is idempotent and gated on its own `app_migrations` record, so a re-deploy of the same release is safe;
+the dump exists for the one case that is not recoverable in the app — going *back*.
 
 ## Production Hardening Checklist
 

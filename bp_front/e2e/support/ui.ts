@@ -130,18 +130,31 @@ export async function addCategory(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
 }
 
-// Add an item through the overlay. `store` exercises the Story 6.1 store field
-// on the ADD dialog; omit it to leave the item store-less.
-export async function addItem(page: Page, categoryName: string, itemName: string, store?: string): Promise<void> {
+// Add an item through the overlay. `stores` exercises the store field on the ADD
+// dialog (Story 6.1, multi-value since Story 9.6); omit it to leave the item
+// store-less.
+export async function addItem(
+  page: Page,
+  categoryName: string,
+  itemName: string,
+  stores?: readonly string[],
+): Promise<void> {
   await page.getByTestId('add-item-button').click()
   await expect(page.getByTestId('add-item-dialog')).toBeVisible()
   await page.getByTestId('add-item-name').fill(itemName)
   // Scoped role=combobox: the category Select must stay the ONLY combobox in
   // this dialog, which is why the store field is a plain input with Chip
-  // suggestions rather than an Autocomplete.
+  // suggestions rather than an Autocomplete. Story 9.6 KEPT that constraint when
+  // the field went multi-value, and this line is what enforces it.
   await page.getByTestId('add-item-dialog').getByRole('combobox').click()
   await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  if (store !== undefined) await page.getByTestId('add-item-store').fill(store)
+  // Each name is committed with Enter — the store field's commit key, which
+  // preventDefaults so it adds a chip instead of submitting the form.
+  for (const store of stores ?? []) {
+    await page.getByTestId('add-item-store').fill(store)
+    await page.getByTestId('add-item-store').press('Enter')
+    await expect(page.getByTestId(`add-item-store-chip-${store.trim()}`)).toBeVisible()
+  }
   await page.getByTestId('add-item-submit').click()
   await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
   await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()

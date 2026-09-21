@@ -381,14 +381,24 @@ Activation is a **pointer pair with a movement threshold**, not a click:
   not scroll the page under the focused row.
 
 Because `role="checkbox"` makes the row's children presentational and the author-supplied `aria-label` displaces
-name-from-content, the store chip and the `addedBy` name would otherwise be announced by nothing at all. They come
+name-from-content, the store chips and the `addedBy` name would otherwise be announced by nothing at all. They come
 back as the row's accessible **description** via a visually-hidden span (`:72-75`, `:202-220`), which leaves the
 accessible **name** exactly `` `Toggle ${item.name}` ``.
 
+**Story 9.6 made the store PLURAL and changed nothing else about the row.** An item carries a list of stores, so the
+single chip became a wrapping row of chips inside the same `minWidth: 0` text column as the item name — they grow the
+row DOWNWARDS, never sideways, which is what keeps the check glyph and the name on screen at the 320px floor
+(`narrow-viewport.spec.ts`, "an item in three stores does not push the shopping row off the floor"). The description
+segment is `` `Stores: A, B` `` and is **omitted entirely** when the item has none — no empty segment, and no chip
+container either. The accessible **name** is still exactly `` `Toggle ${item.name}` `` (`shopping.spec.ts` pins the
+string verbatim), and the chips are still presentational: activating one toggles the item, like any other part of the
+row.
+
 > **RULING — the shopping row is a CLOSED surface. AR-E8-8a** (`epics.md:853-858`). "Once the whole row is one
-> control, the store chip and the `addedBy` avatar inside it can no longer become affordances of their own — a
+> control, the store chips and the `addedBy` avatar inside it can no longer become affordances of their own — a
 > filter-by-store chip, or a 'show me what Anna added' avatar — without breaking the single-control rule FR60 exists
-> to create." Both live inside the row today (store chip `:176-185`, `addedBy` `:187-201`) and are inert by design.
+> to create." Both live inside the row today (store chips — one per store since Story 9.6 — and `addedBy`) and are
+> inert by design.
 > A later epic wanting either affordance is **re-opening a decision**, not treating the row as free space.
 
 #### 5.3.2 Toggling: no optimistic update
@@ -602,6 +612,17 @@ Ten dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDial
 failure, showing `{testId}-error` inline (`:89-93`). Its callers pass a description that names the cascade in prose
 ("Items in this category are removed with it. This cannot be undone." — `ListDetailPage.tsx:432-437`).
 
+**The multi-value store field's commit key is Enter — the one per-field exception to "Enter submits."** `StoreField`
+(shared by `AddItemDialog` and `EditItemDialog`) is a chip input: the user types a name and it becomes a removable
+chip. Both dialogs are native forms that submit on Enter (the canonical shape above), and Enter is also the gesture
+users expect from a chip input, so the store input `preventDefault()`s and **commits the draft instead of submitting**
+(Story 9.6, UX-DR-E9-6). **Blur commits the same draft**, which is what keeps "type Lidl, click Save" from silently
+dropping the name: the button's `pointerdown` blurs the input, React flushes the commit, and the click then submits a
+payload that already holds it. A duplicate by case-insensitive key is refused with an inline message and no save
+attempt. The field is deliberately **not** an `Autocomplete`: the category `Select` must stay the only
+`role=combobox` in either dialog, which is what the E2E helpers' scoped `getByRole('combobox')` depends on. Story 9.6
+re-examined that constraint and **kept** it.
+
 **The open-transition seeding pattern.** A dialog whose props are cleared by the parent the instant it closes must
 retain what it was showing, or the content blanks out during MUI's close animation. Both implementations adjust state
 **during render**, keyed off the closed→open transition — never in an effect, because the project's lint
@@ -661,6 +682,13 @@ is filed, see §13.
     `share-submit` with **no matching `share-cancel`** — the dismiss control is `share-members-close` — its field is
     `share-username-input` and its error is `share-error`, not `share-members-*`. It is the one dialog whose testids
     are not derived from its own root testid.
+- **Per-store ids are keyed by NAME, nested under the owner's key** (Story 9.6). On the shopping row:
+  `shopping-item-stores-<item>` on the chip container (absent when the item has no stores) and
+  `shopping-item-store-<item>-<store>` per chip. In either item dialog, under the `{testIdPrefix}` the dialog passes
+  (`add-item` / `edit-item`): `-store` (the text input), `-store-chips` (the selected-store container),
+  `-store-chip-<name>`, `-store-chip-remove-<name>`, `-store-suggestions`, `-store-suggestion-<name>`,
+  `-store-suggestions-error` and `-store-duplicate` (the inline refusal). They inherit the name-keying defect below.
+
 - **Shared filter controls**: `filter-category`, `filter-category-option-all`,
   `filter-category-option-<name>`, `filter-search`, `filter-checked`, `filter-checked-{all|unchecked|checked}`
   (`ListFilters.tsx:117,119,127,144,146-148,158`). The *row* testid is passed in — `list-detail-filters` on
@@ -759,7 +787,7 @@ they bear, and are listed after the table.
 | **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns") | §4; `keepEmpty` at `order.ts:120-131` |
 | **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:119-125, 134-147` |
 | **No toast, snackbar or banner** — state changes are confirmed by the UI changing | **UX-DR-E8-10**, carried from **UX-DR-E7-7** | `epics.md:1243-1245`, `epics.md:1157-1161` | no `Snackbar` in `src/`; 11 comments asserting it |
-| **The shopping row is a closed extension surface** — the store chip and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx:61-223`, chip `:176-185`, `addedBy` `:187-201` |
+| **The shopping row is a closed extension surface** — the store chips and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx` — `ShoppingItemRow`, its chip block and its `addedBy` block |
 
 **The other rulings cited inline**, each at the point it bears:
 

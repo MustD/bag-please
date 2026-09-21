@@ -77,7 +77,7 @@ class ItemCategoryStorageTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"EvictItem\", checked: false, category: \"$catId\", listId: \"$listId\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"EvictItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
             }
 
             // Verify item is accessible
@@ -143,12 +143,12 @@ class ItemCategoryStorageTest : FunSpec({
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId1\", name: \"Item1\", checked: false, category: \"$catId\", listId: \"$listId1\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId1\", name: \"Item1\", checked: false, category: \"$catId\", listId: \"$listId1\", stores: [] }) { id } }"}""")
             }
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
-                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId2\", name: \"Item2\", checked: false, category: \"$catId2\", listId: \"$listId2\" }) { id } }"}""")
+                setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId2\", name: \"Item2\", checked: false, category: \"$catId2\", listId: \"$listId2\", stores: [] }) { id } }"}""")
             }
 
             // Delete list1 only

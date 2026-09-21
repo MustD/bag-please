@@ -18,7 +18,8 @@ import TextField from '@mui/material/TextField'
 import {type ListCategory, type ListItem, SaveItemMutation} from '@/lib/lists/listsQueries'
 import {itemSaveErrorMessage} from '@/lib/admin/adminErrors'
 import StoreField from '@/components/StoreField'
-import {normalizeStore} from '@/lib/lists/storeValue'
+import {normalizeStores} from '@/lib/lists/storeValue'
+import {isKnownCategoryId} from '@/lib/lists/categoryChoice'
 
 interface Props {
   // The row the edit was opened on; null keeps the dialog closed.
@@ -32,11 +33,11 @@ interface Props {
 const NAME_MAX = 100
 
 // Edit-item dialog (Story 6.1, FR40/FR44) for the list MANAGEMENT screen
-// /lists/:id. Renders name, category and store; the shopping view stays
-// check-off-only and gains no edit affordance.
+// /lists/:id. Renders name, category and stores (plural since Story 9.6); the
+// shopping view stays check-off-only and gains no edit affordance.
 //
 // `saveItem` MERGES into the stored row (ItemService.saveItem's update branch):
-// it copies only `name`, `category` and `store` from the input, so `addedBy` and
+// it copies only `name`, `category` and `stores` from the input, so `addedBy` and
 // anything else the input does not carry survive untouched. `checked` and
 // `recurring` are the exception — they go to `applyCheckState`, which derives
 // `checkedAt`, `deleted` and `deletedAt` from them. So the payload must carry
@@ -50,7 +51,7 @@ const NAME_MAX = 100
 export default function EditItemDialog({item, listId, categories, onClose, onSaved}: Props) {
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [store, setStore] = useState('')
+  const [stores, setStores] = useState<string[]>([])
   const [nameError, setNameError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -76,7 +77,7 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
       setShown(item)
       setName(item.name)
       setCategoryId(item.category)
-      setStore(item.store ?? '')
+      setStores([...item.stores])
       setNameError(null)
       setCategoryError(null)
       setFormError(null)
@@ -100,7 +101,13 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
     } else {
       setNameError(null)
     }
-    if (!categoryId) {
+    // Story 9.6 — the ORPHAN GUARD. An item whose category is no longer on the
+    // list opens with a BLANK `Select` while `categoryId` still holds the stale
+    // id, so an untouched save used to pass validation, hit `nothingChanged` and
+    // close silently, leaving the orphan orphaned with no feedback. Guarded HERE
+    // rather than in the short-circuit, because from validate() it covers every
+    // path — the short-circuit below is then never reached.
+    if (!categoryId || !isKnownCategoryId(categoryId, categories)) {
       setCategoryError('Choose a category')
       ok = false
     } else {
@@ -118,12 +125,17 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
     // Nothing actually changed → send no mutation at all, and close exactly as a
     // successful save does. The merge would preserve `addedBy` either way, but a
     // no-op write still re-emits the item on the list's update flow and makes
-    // every subscriber re-render for nothing. Both sides of the store comparison
-    // are normalized so a legacy '' stored value does not read as a change.
+    // every subscriber re-render for nothing. The stores comparison is EXACT
+    // string equality over the normalized arrays, element by element: identity
+    // is the lowercased key, but the stored casing is display data, so changing
+    // "Lidl" to "LIDL" IS a change and has to be sent (AR-E9-4).
+    const nextStores = normalizeStores(stores)
+    const storedStores = normalizeStores(shown.stores)
     const nothingChanged =
       name.trim() === shown.name &&
       categoryId === shown.category &&
-      normalizeStore(store) === normalizeStore(shown.store ?? '')
+      nextStores.length === storedStores.length &&
+      nextStores.every((s, i) => s === storedStores[i])
     if (!nothingChanged) {
       // Carry-forward fields read from the LIVE `item` prop, not the open-time
       // `shown` snapshot: ListDetailPage refetches after every mutation, so the
@@ -147,7 +159,7 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
               // missing `recurring` would wipe its cadence.
               checked: current.checked,
               recurring: current.recurring ?? null,
-              store: normalizeStore(store),
+              stores: nextStores,
             },
           },
         })
@@ -207,8 +219,8 @@ export default function EditItemDialog({item, listId, categories, onClose, onSav
             </FormControl>
             <StoreField
               listId={listId}
-              value={store}
-              onChange={setStore}
+              value={stores}
+              onChange={setStores}
               testIdPrefix="edit-item"
               disabled={loading}
             />

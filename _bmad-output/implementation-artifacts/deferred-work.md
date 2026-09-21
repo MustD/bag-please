@@ -51,8 +51,10 @@ line number.
   and `applyCheckState`; no comment cites `BUG-E6-2` or calls `saveItem` a full-document upsert, and the
   `checked`/`recurring` carry-forward is kept with the new comment saying why it still matters. Was: Code review of
   7-4 — the four factually wrong comments in `EditItemDialog.tsx`.
-- Story 8.6 (carried from 8.5) — an orphaned item's edit dialog closes silently when saved without touching the
-  category.
+- ✅ CLOSED by Story 9.6 (2026-09-20): `EditItemDialog.validate()` now rejects a category id that is not in
+  `categories` (`isKnownCategoryId`, `src/lib/lists/categoryChoice.ts`), so an orphan's untouched save keeps the
+  dialog open with `Choose a category` on the field instead of closing silently. Was: Story 8.6 (carried from 8.5) —
+  an orphaned item's edit dialog closes silently when saved without touching the category.
 - ✅ CLOSED by Story 9.5 (2026-09-18): one private `ItemService.applyCheckState(stored, checked, recurring, now)` is
   now the single writer of `checked`/`checkedAt`/`deleted`/`deletedAt`, and `checkItem`, `uncheckItem` and `saveItem`'s
   update branch all route through it, so no path can produce `checked = true` with a null `checkedAt`. Was: Story 7.4 —
@@ -671,12 +673,22 @@ Review Pass 2, four layers. Five entries routed `defer`; the full triage lives i
 ## Deferred from: Story 8.6 — rename a category instead of destroying it (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-rename-a-category-instead-of-destroying-it.md`
-  status: **OPEN — carried forward from Story 8.5, still uncovered.**
-  summary: The Story 8.5 note that an ORPHANED item's `EditItemDialog` closes silently when submitted without
-  touching the category `Select` (the `nothingChanged` guard fires, the orphan stays orphaned, no feedback) stays
-  OPEN. Story 8.4 routed `EditItemDialog.tsx` edits to "the first story that actually edits that file"; Story 8.6 is
-  not that story — it added `EditCategoryDialog.tsx` and changed `EditItemDialog.tsx` by zero lines, and no AC of its
-  own covers the item dialog.
+  status: **✅ CLOSED by Story 9.6 (2026-09-20).**
+  closed_by: `_bmad-output/implementation-artifacts/spec-9-6-an-item-can-be-in-several-stores.md`
+  summary of the fix: the guard went into `validate()`, not into the `nothingChanged` short-circuit. `validate()` now
+  requires `isKnownCategoryId(categoryId, categories)` — a pure, import-free function in
+  `bp_front/src/lib/lists/categoryChoice.ts` — so an out-of-list category id fails validation on every path and the
+  short-circuit below is never reached: the dialog stays open, the `Select` shows `Choose a category`, and nothing is
+  saved. The `nothingChanged` guard itself was never the bug; accepting a stale category id was.
+  where it is proven: `bp_front/e2e/item-fields.spec.ts`, a browserless spec. Since Story 9.3 no API path can create
+  an item whose category is not on its list, so no browser test can build the fixture — the same coverage gap already
+  recorded as its own OPEN entry under "Deferred from: Story 9.3". The guard is asserted where it lives, exactly as
+  `e2e/order.spec.ts` does for the duplicate-name ordering.
+  Was: **OPEN — carried forward from Story 8.5, still uncovered.** The Story 8.5 note that an ORPHANED item's
+  `EditItemDialog` closes silently when submitted without touching the category `Select` (the `nothingChanged` guard
+  fires, the orphan stays orphaned, no feedback) stayed OPEN. Story 8.4 routed `EditItemDialog.tsx` edits to "the
+  first story that actually edits that file"; Story 8.6 was not that story — it added `EditCategoryDialog.tsx` and
+  changed `EditItemDialog.tsx` by zero lines, and no AC of its own covered the item dialog. Story 9.6 is that story.
 
 ## Deferred from: Story 8.7 — write down the design this app actually has (2026-09-09)
 
