@@ -1035,4 +1035,23 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
 
     await expectNoHorizontalOverflow(page)
   })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.7 put Home first in the account menu, which made it four entries
+  // tall. The menu is anchored to the right edge of the bar, so the floor gate
+  // is that every entry — the new one included — is fully on screen at 320px.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] every account-menu entry is inside the viewport at the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'menu', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+
+    await page.getByTestId('user-menu-button').click()
+    for (const id of ['menu-home', 'menu-lists', 'menu-change-password', 'menu-logout']) {
+      await expectInsideViewport(page.getByTestId(id), id)
+    }
+    await expectNoHorizontalOverflow(page)
+  })
 })

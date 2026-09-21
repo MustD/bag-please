@@ -4,14 +4,7 @@
 
 ## Goal
 
-Epic 9 turns a round of real user feedback into shipped behaviour. Users can send an idea or problem to the admin from
-inside the app, and the admin can read and clear it. An item carries every store it is sold in instead of one, with no
-existing store lost. Items can be added from the shopping screen, Home appears in the account menu, the category filter
-menu can be dismissed on a phone, and the admin's user list is paged instead of growing without bound. Underneath,
-deleting a category or a user stops leaving orphaned data behind, an item checked through an edit still feeds the
-recurring-item scheduler, and the E2E gate waits for a backend that actually answers. It matters because these are the
-frictions real use surfaced, and because several of them (orphans, phantom memberships, an unpaginated admin table) are
-correctness and scaling defects, not just polish.
+Epic 9 turns real user feedback into shipped behaviour. Users can send feedback to the admin from inside the app, and the admin can read and clear it. Items carry every store they are sold in, with no existing store lost. An item can be added from the shopping screen, Home is in the account menu, the category filter menu can be closed on a phone, and the admin's user list is paginated. Underneath, deleting a category or a user stops leaving orphaned data, an item checked through an edit still feeds the recurring scheduler, and the E2E gate waits for a backend that actually answers.
 
 ## Stories
 
@@ -30,127 +23,43 @@ correctness and scaling defects, not just polish.
 
 ## Requirements & Constraints
 
-- **Feedback.** A signed-in non-admin user sends free text (trimmed, non-blank, at most 2000 UTF-16 code units) from any
-  authenticated screen without navigating away; the author and timestamp are server-set, never client-supplied. The
-  admin is excluded from sending. The admin reads all entries newest first with username and time, and deletes
-  individually with confirmation. Feedback text is rendered literally — never as markup or markdown. Feedback outlives
-  its author: deleting a user does not delete their feedback.
-- **Multi-store items.** An item holds a list of stores rather than one. Names are trimmed, blanks dropped, and
-  duplicates refused by case-insensitive key (first occurrence's casing and position win). Stores show on the shopping
-  row and are editable from both item dialogs, with suggestions drawn from stores already in use. Existing single-store
-  data must convert with nothing lost, idempotently, on a startup migration.
-- **Admin pagination.** The user list is server-paginated (20 per page in the UI) with a total count and prev/next
-  controls, sorted by username ascending. After a create the UI lands on the page holding the new user; after a delete
-  it clamps to the last valid page. No client ever fetches an unpaginated user list.
-- **Data integrity.** Deleting a category deletes every item in it server-side, soft-deleted items included. Deleting a
-  user removes every membership row in any status, deletes the lists they own with their contents, and invalidates
-  their sessions — with the user record removed *before* the purge so no in-flight write re-creates state. Both are
-  idempotent and admin- or member-gated.
-- **Readiness.** A credential-free `GET /api/health` returns 200 when Mongo answers and 503 within a 2-second bound when
-  it does not; the E2E runner waits on it instead of racing a cold start.
-- **Quality bar binding every story.** Backend rules proven with Kotest + Testcontainers; E2E driven through the UI
-  against the production artifact on both desktop and the 320px floor; every new test observed failing first; schema
-  changes regenerate codegen in the same story; no horizontal overflow or clipped controls at 320px; visible labels and
-  full keyboard operation on new controls; the design/experience documents corrected in the same commit as the screen
-  they describe; each discharged deferred-work entry closed in place and sprint status reconciled at story close.
+- **Feedback:** a signed-in non-admin sends free text (trimmed, non-blank, max 2000 UTF-16 units) from any authenticated screen without navigating away. Author and timestamp are server-set. The admin cannot send; reads all entries newest first with username and time; deletes individually after confirmation. Text renders literally, never as markup. Feedback outlives its author.
+- **Multi-store items:** an item holds a list of stores. Names are trimmed, blanks dropped, duplicates refused case-insensitively (first casing and position win). Stores show on the shopping row and are editable in both item dialogs, with suggestions from stores already in use. Legacy single-store data converts losslessly and idempotently on startup.
+- **Admin pagination:** server-paginated, 20 per page, total count, sorted by username. After a create, land on the page holding the new user; after a delete, clamp to the last valid page. No client fetches an unpaginated user list.
+- **Data integrity:** deleting a category deletes all its items server-side, soft-deleted included. Deleting a user removes their memberships in any status, deletes the lists they own with contents, and invalidates sessions. Both idempotent and authorization-gated.
+- **Readiness:** credential-free `GET /api/health` returns 200 when Mongo answers, 503 within 2 seconds when it does not; the E2E runner waits on it.
+- **Bar for every story:** backend rules proven with Kotest + Testcontainers; E2E UI-driven against the production artifact on desktop and the 320px floor, with no horizontal overflow or clipped controls; each new test observed failing first; schema changes regenerate codegen in the same story; visible labels and keyboard operation on new controls; `DESIGN.md`/`EXPERIENCE.md` corrected in the same commit as the screen they describe; discharged deferred-work entries closed in place; `sprint-status.yaml` reconciled at story close.
 
 ## Technical Decisions
 
-- **Slice layout.** Backend stays a layered monolith of per-entity vertical slices with one-way calls
-  GQL → Service → Storage (optional cache) → Mongo repository. Epic 9 adds exactly one slice (`feedback`), changes one
-  field's shape (`Item.store` → `stores`), and adds one plain HTTP route. No new dependency, no version upgrades.
-- **Feedback slice.** Repository-backed only: no storage cache, no SharedFlow, no subscription. Document holds a string
-  UUID id, text, a copied username string (not a user reference), and a server-set instant. GraphQL surface is
-  `sendFeedback(text)`, `feedback` (createdAt descending, unpaginated), `deleteFeedback(id)` returning the id, with a
-  missing id reported as not found.
-- **One admin gate.** The two private `requireAdmin()` copies collapse into a single `DataFetchingEnvironment`
-  extension in the GraphQL auth plugin, checking the JWT role claim, used by the user-admin, config and feedback APIs.
-- **Store normalization.** The server is authoritative: trim, drop empties, dedupe by lowercased key keeping the first
-  occurrence. Store identity is the lowercased key; stored casing is display data. Suggestions return one name per key,
-  lowest by (lowercase, then natural order). The frontend mirrors the normalizer for dedupe but compares "changed"
-  by exact string equality, so a casing-only edit still saves.
-- **One indivisible multi-store story.** Domain model, Mongo document, both mappers, GraphQL type and input, repository
-  save (set `stores` and unset `store` in one update), the migration, codegen, and the raw GraphQL in the item-editing
-  E2E spec all change together, with backend and frontend versions bumped in lockstep.
-- **Migrations.** Startup migrations run in declared order, each checking only its own record, none short-circuiting the
-  others. The store conversion keys on the legacy field's presence, processes documents one at a time, and writes its
-  completion record last — before any storage cache is populated. The release carrying it is deployed after a database
-  dump, with restore-plus-previous-image as the rollback.
-- **Pagination contract.** `users(limit, offset, around)` returns a page object with users, total count and the
-  effective offset. The server clamps limit and offset, and `around: <username>` returns the page containing that user,
-  ignoring offset. Admin collections use `cache-and-network` with the field evicted and garbage-collected after every
-  successful mutation. The unpaginated field is removed from the schema.
-- **Cascades.** Cascades stay ordered, non-transactional Mongo deletes followed by cache eviction. A category cascade
-  emits only the parent DELETED event — clients treat it as authoritative for children and prune locally; the
-  client-side per-item delete loop goes away. List deletion (by owner or by purge) emits nothing; other members are
-  redirected on their next Forbidden. Only the list service writes membership data, and the user purge is the single
-  caller-less, idempotent entry point, writing through list storage and the member repository rather than bulk updates.
-  Owner delete and purge share one private list-cascade helper.
-- **Orphan prevention.** Item save rejects a category outside the target list on both create and update branches;
-  uncheck rejects an item whose category is gone; both item dialogs surface that error through the same mapped path.
-  Pre-existing orphans still render in an `Uncategorized` group keyed by a frontend-only sentinel id, with their edit
-  and remove controls intact. Category naming rules are unchanged.
-- **Single check-state transition.** One private `applyCheckState(stored, checked, recurring, now)` serves check,
-  uncheck and the save update branch: one-time checked items are soft-deleted with a timestamp, recurring checked items
-  keep or receive a check-off time, no-cadence checked items stamp nothing, and unchecking clears all three fields.
-  Every other server-owned field survives a save.
-- **Health route.** Declared relative (`get("/health")`) inside routing, outside authentication and rate limiting, and
-  served at `/api/health` via the root path. It pings Mongo inside a 2-second timeout. The service worker must keep
-  `/api` out of its cache/fallback so the probe reaches the backend, and no probe binary is added to the backend image.
-- **Frontend data conventions.** Every operation returning an item spreads one shared item fragment; no hand-written
-  field lists; generated types are never edited by hand. There is one Apollo client; the access token stays in memory.
-- **Errors and events.** Reuse the existing forbidden / invalid-input / not-found exceptions — no new error envelope.
-  List-scoped mutations emit on their service's flow after the write; feedback, users and list deletion emit nothing.
+- Layered per-entity slices, one-way GQL → Service → Storage (optional cache) → Mongo repository. Epic adds one slice (`feedback`, repository-only: no cache, no flow, no subscription; string-UUID id, text, copied username, server instant), changes `Item.store` to `stores`, and adds one plain HTTP route. No new dependencies or version upgrades.
+- Feedback API: `sendFeedback(text)`, `feedback` (createdAt desc, unpaginated), `deleteFeedback(id)` returning the id; missing id is not found.
+- The two private `requireAdmin()` copies collapse into one `DataFetchingEnvironment` extension in the GraphQL auth plugin (JWT role claim), used by user-admin, config and feedback APIs.
+- Store normalization is server-authoritative; identity is the lowercased key, stored casing is display data; suggestions return one name per key. The frontend mirrors dedupe but compares "changed" by exact string, so a casing-only edit still saves. The multi-store change (domain, document, mappers, GraphQL type/input, repository save that sets `stores` and unsets `store` together, migration, codegen, raw GraphQL in the item-edit E2E spec) ships as one story with backend and frontend versions bumped in lockstep.
+- Startup migrations run in declared order, each checking only its own record. The store migration keys on the legacy field's presence, works document by document, writes its completion record last, and runs before any cache is populated. Deploy after a DB dump.
+- `users(limit, offset, around)` returns `UserPage { users, totalCount, offset }`; the server clamps limit (1..100) and offset; `around: <username>` returns the page containing that user. Admin collections use `cache-and-network`, evicting and garbage-collecting the field after every successful mutation. The unpaginated `users` field is removed.
+- Cascades are ordered, non-transactional Mongo deletes then cache eviction. A category cascade emits only the parent DELETED event (clients prune children locally, and the client per-item delete loop is removed); list deletion emits nothing. Only the list service writes membership data. The user purge is an idempotent, caller-less entry point that runs after `adminDeleteUser` (so the user record is gone first), sharing a private list-cascade helper with owner delete.
+- Orphan prevention: item save rejects a category outside the target list on create and update; uncheck rejects an item whose category is gone; both dialogs surface it via the same mapped error path. Existing orphans render in an `Uncategorized` group (frontend-only sentinel id) with edit and remove controls.
+- One private `applyCheckState(stored, checked, recurring, now)` serves check, uncheck and the save update branch; one-time checked items soft-delete with a timestamp, recurring ones keep or get a check-off time, unchecking clears the fields; all other server-owned fields survive a save.
+- Health route: `get("/health")` outside `authenticate` and rate limiting, served at `/api/health` through `rootPath`; pings Mongo in a 2s timeout. The service worker must not cache or fall back on `/api`. No probe tool is added to the backend image.
+- Frontend: every item-returning operation spreads the shared item fragment; generated types are never hand-edited; one Apollo client, access token in memory. Reuse existing forbidden/invalid-input/not-found exceptions; no new error envelope.
 
 ## UX & Interaction Patterns
 
-- **No toast, snackbar or notification layer exists or is added.** A success confirmation is an in-flow success alert
-  with `role="status"` rendered in the surface that caused it (the account-shell hosts the feedback confirmation). A
-  delete is confirmed by the row disappearing. A failed submit keeps the dialog open with the text intact and the
-  reason inline at the bottom of the dialog content.
-- **Form dialogs follow the existing canonical shape:** native form with submit-on-Enter (a multi-line field needs an
-  explicit decision and test for its submit key), validate on submit with errors clearing on typing, a same-tick
-  re-entry guard, inline mapped GraphQL errors, cancel disabled in flight, a spinner on submit, extra-small max width,
-  a visible associated label, and a character counter against the trimmed limit. Test ids are namespaced per dialog.
-- **Account menu** gains Home (first) and Feedback (non-admin only, after Change password / Admin, before Logout), each
-  a menu item with a small icon, keyboard reachable. On the resolved home route the Home entry only closes the menu and
-  adds no history entry. The app-bar title link's existing inert-but-present behaviour is untouched.
-- **Admin screen** gains a feedback panel matching the existing panel shape, with the standard branch order
-  error → loading → empty → content, rows keyed by id, text wrapping without truncation at 320px, and a destructive
-  icon button opening the shared confirm dialog. Pagination adds labelled prev/next controls, a page indicator and a
-  total, all usable at 320px. The delete-user dialog names the owned-list cascade in prose.
-- **Store field** becomes multi-value in both item dialogs: selected stores as removable chips, suggestions from
-  existing stores, free entry, case-insensitive duplicate prevention, keyboard-operable at 320px. It is deliberately
-  not an autocomplete today (to avoid a second combobox in the dialog) — a story either keeps that constraint or
-  records why it no longer applies.
-- **Shopping row** shows stores as non-interactive chips inside the closed row surface; activating anywhere on the row,
-  chips included, toggles the item. The row's accessible name stays exactly the toggle phrasing, and the store list goes
-  in the row's accessible *description*, omitted entirely when the item has no stores. Long store names must not push
-  the check glyph or the name out of a 320px viewport.
-- **Shopping add button** is a floating action button fixed bottom-right with safe-area inset, labelled "Add item",
-  reachable while scrolling, with page padding reserved so it never covers the last row. Adding becomes a shopping-view
-  action; editing and deleting stay management-only. Empty-state copy is revised to point at it when the list has
-  categories but no items, and keeps the management guidance when there are no categories. With no categories, the
-  add dialog shows guidance and a link to list management instead of a form.
-- **Category filter menu** gains a sticky confirm control inside the multi-select menu, defined once so both list
-  screens get it; selections still apply live, outside-tap and Escape still close without reverting, and focus returns
-  to the category control on confirm. An explicitly selected empty category stays visible on the management screen.
-- **Visual language is unchanged:** dark-only theme, system fonts, the existing component overrides, outlined icons for
-  destructive and secondary actions, error colour on destructive controls, a label on every icon-only control. No new
-  palette key or theme override.
+- No toast or snackbar. Success is an in-flow `role="status"` alert in the causing surface (the account shell hosts feedback confirmation); a delete is confirmed by the row disappearing; a failed submit keeps the dialog open with text intact and an inline mapped error.
+- Form dialogs follow the canonical shape: native form with submit-on-Enter (a multi-line field needs an explicit submit-key decision and test), validate on submit with errors clearing on typing, same-tick re-entry guard, cancel disabled in flight, spinner on submit, extra-small width, visible label, character counter against the trimmed limit, per-dialog test id namespace.
+- Account menu order: Home first (on the home route it only closes the menu, no history entry), then existing entries, Feedback (non-admin only) before Logout. The app-bar title link is untouched.
+- Admin screen: feedback panel in the existing panel shape (error → loading → empty → content, rows keyed by id, text wraps at 320px, destructive icon button opening the shared confirm dialog). Pager has labelled prev/next, page indicator and total. The delete-user dialog states the owned-list cascade count.
+- Store field is multi-value chips with suggestions and free entry, keyboard-operable at 320px; deliberately not an autocomplete unless a story records why that no longer holds.
+- Shopping row: stores as non-interactive chips inside the row surface; the whole row still toggles; accessible name stays the toggle phrasing, and stores go in the accessible description (omitted when empty). Long names must not push the check glyph or name off a 320px screen.
+- Shopping add: a bottom-right FAB labelled "Add item" with safe-area inset and reserved page padding. Adding is a shopping-view action; edit and delete stay management-only. Empty-state copy points at the FAB when categories exist but no items. With no categories, the dialog shows guidance and a link to list management.
+- Category filter menu gets a sticky confirm control defined once for both list screens; selections still apply live, outside-tap and Escape close without reverting, focus returns to the category control. Visual language unchanged (dark-only, no new palette keys or theme overrides, labels on icon-only controls).
 
 ## Cross-Story Dependencies
 
-- The health endpoint (9.1) lands first: every later story is verified against a gate that can otherwise abort on a
-  cold start.
-- Pagination with its test-data hygiene mechanism (9.2) lands early, because the user-creation E2E helper's flake grows
-  with every suite run against a persistent database.
-- The category cascade (9.3) lands before or with the shopping add button (9.11): its create-branch category check is
-  what stops the new button creating items in a just-deleted category.
-- The multi-store change (9.6) is indivisible — schema, mappers, repository, migration, codegen and E2E GraphQL ship in
-  one story and one app version. It depends on the shared check-state transition (9.5) for its save update branch.
-- Stories 9.7, 9.9 and 9.11 all touch the app shell's account menu and the shared add-item dialog; 9.2 and 9.10 both
-  touch the admin screen and the shared admin gate; 9.3 and 9.4 both touch item and list cascade paths. Expect to
-  coordinate rather than duplicate these surfaces.
-- Small cleanups (9.12) run last, after every app-shell story, so only tokens still unconsumed at that point are
-  removed.
+- 9.1 lands first; every later story is verified against its gate.
+- 9.2 lands early because the user-creation E2E helper flake grows with each run.
+- 9.3 lands before or with 9.11: its create-branch category check stops the FAB creating items in a just-deleted category.
+- 9.6 is indivisible and depends on 9.5's shared check-state transition.
+- 9.7, 9.9 and 9.11 share the account menu and add-item dialog; 9.2 and 9.10 share the admin screen and admin gate; 9.3 and 9.4 share cascade paths.
+- 9.12 runs last, after every app-shell story, so only still-unconsumed tokens are deleted.

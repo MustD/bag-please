@@ -66,12 +66,12 @@ line number.
 - Epic 8 retro **F5** — `Uncategorized` is not a reserved name (relates to, but does not close, the Story 8.4 name-keyed
   testid entry, which `md` archived by decision in the second 2026-09-15 pass).
 
-**Rides FR57 (home entry in the account menu):**
+**Rides FR57 (home entry in the account menu):** ✅ ALL CLOSED by Story 9.7 (2026-09-21).
 
-- Story 7.5 — an empty `/lists` is one menu away from a dead end in the installed PWA.
-- Code review of 7-5 — the cache-first home-link design question for `md`, and the unreachable `error` branch in observe
+- ✅ CLOSED by Story 9.7 (2026-09-21): Home is the account menu's first entry (`menu-home`), so an empty `/lists` no longer leaves the user without a Home or Lists entry in the installed PWA. On `/lists` itself both resolve to the page the user is already on — the exits that actually leave it are creating a list, Change password and Logout. Was: Story 7.5 — an empty `/lists` is one menu away from a dead end in the installed PWA.
+- ✅ CLOSED by Story 9.7 (2026-09-21): the cache-first question is closed as leave-as-is (`md`, 2026-09-15): observe mode stays `cache-only`. The unreachable `error` branch is now gated on `mode === 'resolve'`. Was: Code review of 7-5 — the cache-first home-link design question for `md`, and the unreachable `error` branch in observe
   mode.
-- Code review of epic-7-context — `useHomePath`'s `if (error)` precedes `if (!data)`.
+- ✅ CLOSED by Story 9.7 (2026-09-21): `useHomePath`'s error branch is gated on `mode === 'resolve'`; observe mode falls through to `!data` and answers `null`. Was: Code review of epic-7-context — `useHomePath`'s `if (error)` precedes `if (!data)`.
 
 **Backend fixes riding the Epic 9 backend unfreeze (FR44/FR69, FR66/FR67):**
 
@@ -200,7 +200,7 @@ thing the merge newly makes possible. All re-verified against `ItemService.kt` o
 
 ## Deferred from: Story 7.5 — home resolution and the inert home link (2026-08-11)
 
-- **`/lists` for a user with no lists is a route whose only exits are the user menu and creating a list.** For that
+- ✅ CLOSED by Story 9.7 (2026-09-21): Home is now the account menu's first entry (`menu-home`, closes the menu on the home route), so the menu carries both a Home and a Lists entry on an empty `/lists` (both are no-ops there; the exits that leave the page are creating a list, Change password and Logout). Was: **`/lists` for a user with no lists is a route whose only exits are the user menu and creating a list.** For that
   user home resolves *to* `/lists`, so the title link is correctly inert there, and `/lists` has no back affordance of
   its own — leaving `user-menu-button` as the single in-app navigation control on the screen. Harmless in a browser
   tab, but **Story 7.14 shipped the PWA, whose standalone display removes both the URL bar and the browser Back
@@ -411,7 +411,7 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
 
 ## Deferred from: code review of 7-5-home-resolution-and-inert-home-link (2026-08-11)
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+- ✅ CLOSED by Story 9.7 (2026-09-21): closed as leave-as-is by `md` (2026-09-15): observe mode stays `cache-only`. No code change. Was: source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
   summary: **FOR `md` — a design decision, not a bug: should the app bar be allowed to join the in-flight lists query
   so the inert guard covers the cold-start window?** Today it does not, and for roughly the first 100 ms after a full
   page load of the resolved home route the title link is live, so a click landing in that window still costs the FR57
@@ -429,7 +429,7 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
   question for `md` rather than a patch. Weigh it against the fact that the PWA makes this link the app's only exit and
   makes launch-then-tap the normal interaction.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
+- ✅ CLOSED by Story 9.7 (2026-09-21): `useHomePath` gates the error branch on `mode === 'resolve'` (Story 9.7), so observe mode can never resolve to `/lists` from an error; resolve mode still does. `e2e/navigation.spec.ts` pins the resolve half and the live title link with `Lists` forced to HTTP 500; the observe gate itself is hardening no test can distinguish today (Apollo `cache-only` never surfaces an error), so it is unpinned. Was: source_spec: `_bmad-output/implementation-artifacts/spec-7-5-home-resolution-and-inert-home-link.md`
   summary: `useHomePath`'s `if (error) return '/lists'` branch is unreachable in `observe` mode, so while the lists
   query is failing the two consumers of the "single source of truth" disagree about where home is.
   evidence: `cache-only` never issues a request and therefore never surfaces an `error`; observe mode falls to
@@ -534,7 +534,7 @@ and the docs/`_bmad` chunk were NOT reviewed and are outstanding.** Items alread
 re-confirmed by this pass (the `checked`/`checkedAt` desync, `@Volatile`, `MemberStatus.valueOf`, the cold-cache home
 link, the non-transactional cascade, the widened `eslint .` glob) are cross-references only and are in the archive.
 
-- **`useHomePath`'s `if (error)` precedes `if (!data)` in `observe` mode too.** `homePath.ts:68-69`. Not a live defect:
+- ✅ CLOSED by Story 9.7 (2026-09-21): the branch is gated on `mode === 'resolve'` (Story 9.7); the ordering hazard cannot fire in observe mode, and resolve mode keeps `error` before `!data` so a dataless failure cannot spin forever. Was: **`useHomePath`'s `if (error)` precedes `if (!data)` in `observe` mode too.** `homePath.ts:68-69`. Not a live defect:
   Apollo 4 `cache-only` reports a miss as `data: undefined, error: undefined`, so the branch does not fire today. Both
   the adversarial and edge-case layers independently flagged it as a latent hazard riding the Apollo 4.1→4.2 bump. If a
   future Apollo ever surfaces a cache miss as `error`, the app bar resolves home to `/lists` and the link goes inert ON

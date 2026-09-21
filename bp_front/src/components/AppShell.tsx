@@ -13,6 +13,7 @@ import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
+import HomeIcon from '@mui/icons-material/Home'
 import LockResetIcon from '@mui/icons-material/LockReset'
 import LogoutIcon from '@mui/icons-material/Logout'
 import {authApi} from '@/lib/auth/authApi'
@@ -26,6 +27,10 @@ import {useHomePath} from '@/lib/lists/homePath'
 // is hidden for the admin account, which the backend 403-forbids from that
 // endpoint (AC #7); the "Admin" item is shown only for the admin role (the sole
 // entry point to /admin — Story 5.4, FR30/FR31); Logout is always present.
+// Menu order (Story 9.7): Home, Lists, Change password | Admin, Logout. Home is
+// first because users look for navigation in the menu — the title link is inert
+// on the home route and easy to miss, and the installed PWA has no URL bar or
+// Back button.
 export default function AppShell() {
   const {username, role, clearAuth} = useAuth()
   const navigate = useNavigate()
@@ -58,6 +63,18 @@ export default function AppShell() {
 
   const openMenu = (event: MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
   const closeMenu = () => setAnchorEl(null)
+
+  // Home (Story 9.7) goes where the title link goes and never re-derives it
+  // (AR-E6-7 / AR-E7-8): off the resolved home route it navigates to `/`, so
+  // HomeRedirect resolves it exactly as it does for the title link — including
+  // from a cold cache, where `homePath` is still null. On the resolved home
+  // route there is nowhere to go, so it only closes the menu: no navigate, no
+  // history entry (the same FR57 guarantee the inert title link gives).
+  const goHome = () => {
+    closeMenu()
+    if (alreadyHome) return
+    navigate('/')
+  }
 
   const goToLists = () => {
     closeMenu()
@@ -205,6 +222,12 @@ export default function AppShell() {
             anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
             transformOrigin={{vertical: 'top', horizontal: 'right'}}
           >
+            <MenuItem data-testid="menu-home" onClick={goHome}>
+              <ListItemIcon>
+                <HomeIcon fontSize="small"/>
+              </ListItemIcon>
+              <ListItemText>Home</ListItemText>
+            </MenuItem>
             <MenuItem data-testid="menu-lists" onClick={goToLists}>
               <ListItemIcon>
                 <FormatListBulletedIcon fontSize="small"/>

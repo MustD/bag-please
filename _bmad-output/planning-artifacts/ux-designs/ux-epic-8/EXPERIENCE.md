@@ -57,25 +57,37 @@ Two structural facts worth stating explicitly because they are easy to misread f
 ### 1.1 `AppShell` is the only chrome
 
 Everything under `RouteGuard` renders inside `AppShell` (`App.tsx:22`), which is a sticky top `AppBar` plus an
-`<Outlet/>` (`AppShell.tsx:96-243`). There is no bottom navigation, no drawer, no sidebar and no breadcrumb anywhere
+`<Outlet/>` (`AppShell.tsx:114-266`). There is no bottom navigation, no drawer, no sidebar and no breadcrumb anywhere
 in `src/`. `/auth` is outside the shell entirely and has no app bar at all.
 
-The bar holds exactly three things: the **"Bag Please" home link** (`AppShell.tsx:126-165`), the **username identity
-chip** that opens the menu (`AppShell.tsx:167-198`), and the **overflow menu** (`AppShell.tsx:200-236`).
+The bar holds exactly three things: the **"Bag Please" home link** (`AppShell.tsx:143-183`), the **username identity
+chip** that opens the menu (`AppShell.tsx:184-215`), and the **overflow menu** (`AppShell.tsx:217-259`).
 
-**Menu contents, and their conditions** (`AppShell.tsx:208-235`):
+**Menu contents, in order, and their conditions** (`AppShell.tsx:225-258`):
 
 | Item | Shown | Anchor |
 | --- | --- | --- |
-| Lists → `/lists` | always | `AppShell.tsx:208-213` |
-| Change password → `/account/password` | `role !== 'admin'` | `AppShell.tsx:214-221` |
-| Admin → `/admin` | `role === 'admin'` | `AppShell.tsx:222-229` |
-| Logout | always; `disabled` while the logout call is in flight | `AppShell.tsx:230-235` |
+| Home → `/` (see below) | always | `AppShell.tsx:225-230` |
+| Lists → `/lists` | always | `AppShell.tsx:231-236` |
+| Change password → `/account/password` | `role !== 'admin'` | `AppShell.tsx:237-244` |
+| Admin → `/admin` | `role === 'admin'` | `AppShell.tsx:245-252` |
+| Logout | always; `disabled` while the logout call is in flight | `AppShell.tsx:253-258` |
 
 Change password is hidden for admin because "the backend 403-forbids that account from that endpoint"
-(`AppShell.tsx:25-27`); the Admin item is "the sole entry point to `/admin`" (`AppShell.tsx:27-28`). Logout
+(`AppShell.tsx:27-28`); the Admin item is "the sole entry point to `/admin`" (`AppShell.tsx:28-29`). Logout
 invalidates the server session then calls `clearAuth()`, and does **not** navigate — flipping `username` to `null`
-makes `RouteGuard` do the redirect, so there is one navigator (`AppShell.tsx:77-92`).
+makes `RouteGuard` do the redirect, so there is one navigator (`AppShell.tsx:94-109`).
+
+**Home is the first entry, and is the title link's twin** (Story 9.7, `goHome`, `AppShell.tsx:73-77`). Users look for
+navigation in the menu, and the title link is inert on the home route and easy to miss — in the installed PWA, with no
+URL bar and no Back button, an empty `/lists` would otherwise be one menu away from a dead end. It does not re-derive
+home (AR-E6-7 / AR-E7-8): off the resolved home route it navigates to `/`, so `HomeRedirect` resolves it exactly as it
+does for the title link (admin → `/admin`, no lists → `/lists`, otherwise the oldest list), including from a cold
+cache. On the resolved home route (`alreadyHome`, `AppShell.tsx:58`) it only closes the menu: no `navigate`, no URL
+change, no history entry — "resolved" being the operative word: `alreadyHome` reads the cache-only observer, so in the same
+measured cold-cache window as the title link (§7.2), and while the lists query is failing, Home still navigates and costs
+one history entry before `HomeRedirect` replaces it. The Lists entry stays. It is a plain MUI `MenuItem`, so keyboard reach and activation come
+with it (`menu-home`).
 
 ---
 
@@ -115,43 +127,46 @@ the same no-flash shape as `RouteGuard`.
 
 `ChangePasswordPage.tsx:40` — `if (role === 'admin') return <Navigate to="/" replace/>`, placed after the hooks so
 hook order stays stable (`:37-39`). This is why `/account/password` shows only one guard in the route table but is
-effectively admin-proof twice over (the menu item is also hidden at `AppShell.tsx:214`).
+effectively admin-proof twice over (the menu item is also hidden at `AppShell.tsx:237`).
 
 ---
 
 ## 3. How `/` resolves — five branches, one implementation
 
-`/` is not a screen. It is `HomeRedirect` (`HomeRedirect.tsx:22-39`), which renders a spinner or a `<Navigate …
-replace/>`. The **decision** lives in one hook, `useHomePath` (`bp_front/src/lib/lists/homePath.ts:31-49`), so that
+`/` is not a screen. It is `HomeRedirect` (`HomeRedirect.tsx:24-42`), which renders a spinner or a `<Navigate …
+replace/>`. The **decision** lives in one hook, `useHomePath` (`bp_front/src/lib/lists/homePath.ts:42-62`), so that
 "two implementations of 'which list is home' is the defect class this hook exists to close"
 (`homePath.ts:9-13`).
 
 | # | Condition | Result | Anchor |
 | --- | --- | --- | --- |
-| 1 | `role === 'admin'` | `/admin` — and the lists query is **skipped entirely**, because the backend forbids admin from every list resource | `homePath.ts:41`, skip at `:37` |
-| 2 | lists query errored | `/lists` — graceful; the index surfaces its own notice | `homePath.ts:45` |
-| 3 | no data yet (`!data`) | `null` → HomeRedirect shows a spinner | `homePath.ts:46`; spinner `HomeRedirect.tsx:28-34` |
-| 4 | data, zero lists | `/lists` | `homePath.ts:48` |
-| 5 | data, ≥1 list | `` `/list/${oldest.id}` `` — oldest by `byCreatedAtAsc` | `homePath.ts:49` |
+| 1 | `role === 'admin'` | `/admin` — and the lists query is **skipped entirely**, because the backend forbids admin from every list resource | `homePath.ts:52`, skip at `:48` |
+| 2 | **resolve mode only:** lists query errored | `/lists` — graceful; the index surfaces its own notice. Observe mode never reads the error and falls through to branch 3 | `homePath.ts:57` |
+| 3 | no data yet (`!data`) | `null` → HomeRedirect shows a spinner; the app bar reads it as not-already-home | `homePath.ts:58`; spinner `HomeRedirect.tsx:30-36` |
+| 4 | data, zero lists | `/lists` | `homePath.ts:60` |
+| 5 | data, ≥1 list | `` `/list/${oldest.id}` `` — oldest by `byCreatedAtAsc` | `homePath.ts:61` |
 
-**Branch order is load-bearing** and the code says so (`homePath.ts:26-30`): `!data` must precede the empty-list
+**Branch order is load-bearing** and the code says so (`homePath.ts:30-41`): `!data` must precede the empty-list
 check, or a cold cache in `observe` mode reads as `[]` → `/lists` and the app bar goes inert on `/lists` for a user
-who actually owns lists.
+who actually owns lists. And in resolve mode the error branch must stay **before** `!data`: a failed query has no
+data, so reordering them would leave `HomeRedirect` on its spinner forever. Story 9.7 therefore gates the error branch
+on `mode === 'resolve'` instead of moving it, so observe mode can never resolve to `/lists` from an error (which would
+make the title link inert on `/lists` while the lists query is failing).
 
-**Two modes, one hook** (`homePath.ts:15-24, 36-39`):
+**Two modes, one hook** (`homePath.ts:15-28, 47-50`):
 
 - `'resolve'` — `HomeRedirect`, which *performs* the redirect: `fetchPolicy: 'cache-first'`, so it fetches and shows
-  its spinner while the answer is unknown.
-- `'observe'` — `AppShell`'s title link, which only *decorates* an answer that already exists:
+  its spinner while the answer is unknown. The only mode that turns a query error into `/lists`.
+- `'observe'` — `AppShell`'s title link and Home menu entry, which only *decorate* an answer that already exists:
   `fetchPolicy: 'cache-only'`, so the app bar never fires the membership-gated lists request itself. A cold cache
   yields `null`, which reads as **not already-home**, so the link stays live. That direction is deliberate: "fail
-  toward navigating, never toward a dead control" (`homePath.ts:23-24`, UX-DR-E7-4).
+  toward navigating, never toward a dead control" (`homePath.ts:24-25`, UX-DR-E7-4).
 
-Every redirect is `replace` so `/` never lingers in history (`HomeRedirect.tsx:21,39`). The one-time `welcome` signal
-is forwarded on **both** `/lists` branches (2 and 4) and on neither of the others (`HomeRedirect.tsx:36-39`).
+Every redirect is `replace` so `/` never lingers in history (`HomeRedirect.tsx:23,41`). The one-time `welcome` signal
+is forwarded on **both** `/lists` branches (2 and 4) and on neither of the others (`HomeRedirect.tsx:38-41`).
 
 > **RULING — the app bar must never re-derive home.** **AR-E6-7**, restated as **AR-E7-8** (`epics.md:599-605`). The
-> code anchor for compliance is `homePath.ts:38` (`'observe'` ⇒ `cache-only`) and `AppShell.tsx:48`.
+> code anchor for compliance is `homePath.ts:49` (`'observe'` ⇒ `cache-only`) and `AppShell.tsx:53`.
 
 ---
 
@@ -531,7 +546,7 @@ comment states the convention: "Errors are shown inline (dialog/panel alert) —
 
 | Route | In-app exits |
 | --- | --- |
-| `/lists` | app-bar home link; app-bar menu (Lists / Admin / Change password / Logout) |
+| `/lists` | app-bar home link; app-bar menu (Home / Lists / Change password or Admin / Logout) |
 | `/lists/:id` | its own "Back to lists" link (`ListDetailPage.tsx:117-125`) + app bar |
 | `/list/:id` | its own "Back to lists" link (`ListShoppingPage.tsx:393-401`), the switcher chips (`:414-436`) + app bar |
 | `/account/password` | **app bar only** |
@@ -550,12 +565,12 @@ place without unmounting, which is exactly why `useItemFilter` carries a list-sw
 
 ### 7.2 The home link is inert-but-PRESENT
 
-`AppShell.tsx:127-164`. When the resolved home is the current route (`alreadyHome`, `:53`), the link:
+`AppShell.tsx:144-181`. When the resolved home is the current route (`alreadyHome`, `:58`), the link:
 
 - keeps its `href`, its link role, its focusability, its focus ring and its type scale;
-- gains `aria-current="page"` and nothing else (`:134`);
+- gains `aria-current="page"` and nothing else (`:151`);
 - suppresses the navigation with `preventDefault()` **only for a plain primary activation** — `button === 0` and no
-  Ctrl/Cmd/Shift/Alt (`:135-147`). Modified clicks mean "open home in a new tab" and keep working; middle click fires
+  Ctrl/Cmd/Shift/Alt (`:152-164`). Modified clicks mean "open home in a new tab" and keep working; middle click fires
   `auxclick` and never reaches `onClick` at all. Enter on a focused anchor dispatches a `button: 0` click, so keyboard
   activation is covered by the same line.
 
@@ -569,12 +584,12 @@ place without unmounting, which is exactly why `useItemFilter` carries a list-sw
 > redirects with `replace`, so a launch at `start_url: '/'` leaves history exactly **one** entry deep. On
 > `/account/password` and `/admin` the app-bar link is the screen's **only** in-app exit — invisible as a risk in a
 > browser, single-point-of-failure without chrome. And for the admin account home resolves to `/admin`
-> (`homePath.ts:41`), so the inert guard fires on the very route with no other affordance: harmless only by
+> (`homePath.ts:52`), so the inert guard fires on the very route with no other affordance: harmless only by
 > coincidence, which is precisely why a vanishing title would never have been caught.
 >
-> The rationale is repeated verbatim in the code at `AppShell.tsx:119-125`, which is the reason it survived.
+> The rationale is repeated verbatim in the code at `AppShell.tsx:136-142`, which is the reason it survived.
 
-**Consequence, measured and knowingly accepted** (`AppShell.tsx:40-47`): on a cold page load of the home route the
+**Consequence, measured and knowingly accepted** (`AppShell.tsx:45-52`): on a cold page load of the home route the
 app bar reads an empty cache for ~100ms, so the link is live in that window and a click inside it still costs a
 history entry. Closing it would mean the app bar issuing its own request, which AR-E7-8 forbids. **Any test asserting
 the inert state must synchronise on `aria-current` rather than race it** — two of the six specs failed 2-of-6 runs
@@ -582,7 +597,7 @@ before they did.
 
 > **RULING — UX-DR-E7-6b** (`epics.md:1153-1155`): nothing about the installed app may depend on being able to read
 > or edit the URL. That promotes every graceful-redirect branch from politeness to the only recovery path:
-> `homePath.ts:45` (lists-query error → `/lists`) and `ListShoppingPage.tsx:369-371` (FORBIDDEN → `/lists`). Neither
+> `homePath.ts:57` (lists-query error → `/lists`, resolve mode) and `ListShoppingPage.tsx:369-371` (FORBIDDEN → `/lists`). Neither
 > may be narrowed.
 
 ---
@@ -768,7 +783,7 @@ render-phase update is load-bearing: an unconditional `setValue` would re-render
    user to `/auth?expired=1` (`RouteGuard.tsx:8-10, 24`), and the banner clears the moment the user engages the form.
 6. Password change ends in a clean sign-out with a confirmation on `/auth` (§5.5).
 7. Logout invalidates the server session, then `clearAuth()` lets the guard redirect; the menu item is disabled while
-   the call is in flight so it cannot double-fire (`AppShell.tsx:82-92`, `:230`).
+   the call is in flight so it cannot double-fire (`AppShell.tsx:99-109`, `:253`).
 
 The guard renders `null`, never a spinner, on every one of these transitions (`RouteGuard.tsx:29`,
 `AdminGuard.tsx:19`), so the app never flashes a redirect.
@@ -785,7 +800,7 @@ they bear, and are listed after the table.
 | Ruling | Identifier | Where it was decided | Its code today |
 | --- | --- | --- | --- |
 | **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns") | §4; `keepEmpty` at `order.ts:120-131` |
-| **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:119-125, 134-147` |
+| **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:136-142, 151-164` |
 | **No toast, snackbar or banner** — state changes are confirmed by the UI changing | **UX-DR-E8-10**, carried from **UX-DR-E7-7** | `epics.md:1243-1245`, `epics.md:1157-1161` | no `Snackbar` in `src/`; 11 comments asserting it |
 | **The shopping row is a closed extension surface** — the store chips and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx` — `ShoppingItemRow`, its chip block and its `addedBy` block |
 
@@ -795,7 +810,7 @@ they bear, and are listed after the table.
 | --- | --- | --- |
 | The closing story writes this contract; describe, don't prescribe; the stale specs are marked superseded, not deleted | **AR-E8-8** (`epics.md:859-870`) | this document's premise; `DESIGN.md` §13 |
 | Nothing about the installed app may depend on reading or editing the URL | **UX-DR-E7-6b** (`epics.md:1153-1155`) | §7.2 |
-| A cold/unknown answer must fail toward navigating, never toward a dead control | **UX-DR-E7-4** (`epics.md:1125`) | §3 (`homePath.ts:23-24`) |
+| A cold/unknown answer must fail toward navigating, never toward a dead control | **UX-DR-E7-4** (`epics.md:1125`) | §3 (`homePath.ts:24-25`) |
 | The category filter is a multi-select with a text summary, not a chip row | **UX-DR-E8-4** (`epics.md:1202`) | §4.1 |
 | The checked-status toggle is shopping-only; the shared component omits it rather than disabling it | **UX-DR-E8-7** (`epics.md:1220`) | §4, §4.1 |
 | The shared filter must not assume the subscription only one of its two hosts has | **AR-E8-6** (`epics.md:829`) | §4.1, §10 |

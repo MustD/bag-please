@@ -8,7 +8,9 @@ import {useHomePath} from '@/lib/lists/homePath'
 // can observe the same answer without re-deriving it. "Same answer" holds once
 // the lists query has resolved: the app bar observes cache-only, so before that
 // (and if the query fails) it reads `null` and keeps its link live rather than
-// guessing — see the comment on `alreadyHome` in AppShell.tsx.
+// guessing — see the comment on `alreadyHome` in AppShell.tsx. Only THIS
+// (resolve) mode turns a failed query into `/lists`; observe mode never reads
+// the error (homePath.ts).
 // - admin → /admin (the backend forbids admin from list resources, so its lists
 //   query is skipped entirely).
 // - a regular user with lists → their oldest list (min createdAt, compared
