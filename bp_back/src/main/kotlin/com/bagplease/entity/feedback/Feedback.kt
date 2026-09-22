@@ -19,6 +19,3 @@ data class Feedback(
     val username: String,
     val createdAt: Instant,
 )
-
-// Story 9.10: FeedbackQueries (feedback query) and deleteFeedback will read/mutate
-// this same collection, guarded by requireAdmin(), and are out of scope here.

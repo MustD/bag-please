@@ -20,6 +20,8 @@ type Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n            ownedListCount\n        }\n    }\n": typeof types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": typeof types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": typeof types.SetRegistrationEnabledDocument,
+    "\n    query AdminFeedback {\n        feedback {\n            id\n            text\n            username\n            createdAt\n        }\n    }\n": typeof types.AdminFeedbackDocument,
+    "\n    mutation DeleteFeedback($id: ID!) {\n        deleteFeedback(id: $id)\n    }\n": typeof types.DeleteFeedbackDocument,
     "\n    mutation SendFeedback($text: String!) {\n        sendFeedback(text: $text)\n    }\n": typeof types.SendFeedbackDocument,
     "\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n": typeof types.ListItemFieldsFragmentDoc,
     "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": typeof types.ListsDocument,
@@ -49,6 +51,8 @@ const documents: Documents = {
     "\n    mutation DeleteUser($id: ID!) {\n        deleteUser(id: $id) {\n            id\n            ownedListCount\n        }\n    }\n": types.DeleteUserDocument,
     "\n    mutation ResetUserPassword($id: ID!, $newPassword: String!) {\n        resetUserPassword(id: $id, newPassword: $newPassword) {\n            id\n        }\n    }\n": types.ResetUserPasswordDocument,
     "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n": types.SetRegistrationEnabledDocument,
+    "\n    query AdminFeedback {\n        feedback {\n            id\n            text\n            username\n            createdAt\n        }\n    }\n": types.AdminFeedbackDocument,
+    "\n    mutation DeleteFeedback($id: ID!) {\n        deleteFeedback(id: $id)\n    }\n": types.DeleteFeedbackDocument,
     "\n    mutation SendFeedback($text: String!) {\n        sendFeedback(text: $text)\n    }\n": types.SendFeedbackDocument,
     "\n    fragment ListItemFields on Item {\n        id\n        name\n        checked\n        category\n        listId\n        stores\n        addedBy\n        recurring\n        deleted\n    }\n": types.ListItemFieldsFragmentDoc,
     "\n    query Lists {\n        lists {\n            lists {\n                id\n                name\n                emoji\n                ownerId\n                ownerUsername\n                createdAt\n                members {\n                    userId\n                    username\n                    status\n                }\n            }\n            pendingInvites {\n                listId\n                listName\n                listEmoji\n                ownerUsername\n            }\n        }\n    }\n": types.ListsDocument,
@@ -110,6 +114,14 @@ export function graphql(source: "\n    mutation ResetUserPassword($id: ID!, $new
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n"): (typeof documents)["\n    mutation SetRegistrationEnabled($enabled: Boolean!) {\n        setRegistrationEnabled(enabled: $enabled) {\n            registrationEnabled\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    query AdminFeedback {\n        feedback {\n            id\n            text\n            username\n            createdAt\n        }\n    }\n"): (typeof documents)["\n    query AdminFeedback {\n        feedback {\n            id\n            text\n            username\n            createdAt\n        }\n    }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n    mutation DeleteFeedback($id: ID!) {\n        deleteFeedback(id: $id)\n    }\n"): (typeof documents)["\n    mutation DeleteFeedback($id: ID!) {\n        deleteFeedback(id: $id)\n    }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

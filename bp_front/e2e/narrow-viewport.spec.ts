@@ -1185,4 +1185,61 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectInsideViewport(page.getByTestId('feedback-submit'), 'the feedback submit control')
     await expectNoHorizontalOverflow(page)
   })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.10 — the admin Feedback panel and its delete-confirm dialog at the
+  // floor. A long, unbroken feedback text is what makes the panel's text
+  // column WRAP rather than widen the page (same shape as the /admin username
+  // cell above) — the delete button must stay reachable alongside it, and the
+  // confirm dialog (which quotes the text) must not overflow either.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the admin Feedback panel and delete-confirm dialog stay inside the floor', async ({
+                                                                                                   page,
+                                                                                                   browser,
+                                                                                                   baseURL,
+                                                                                                 }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const longText =
+      'Pleaseaddadarkiconthemewithcustomisablecoloursandhighcontrastoptionsforoutdoorreadability ' +
+      Date.now()
+    const username = uniqueUsername('narrow', 'feedbackpanel', testInfo.project.name)
+
+    const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+    try {
+      const senderPage = await ctx.newPage()
+      await registerViaUi(senderPage, username, PASSWORD)
+      await openListsViaMenu(senderPage)
+      await senderPage.getByTestId('user-menu-button').click()
+      await senderPage.getByTestId('menu-feedback').click()
+      await expect(senderPage.getByTestId('feedback-dialog')).toBeVisible()
+      await senderPage.getByTestId('feedback-text').fill(longText)
+      await senderPage.getByTestId('feedback-submit').click()
+      await expect(senderPage.getByTestId('feedback-dialog')).toHaveCount(0)
+    } finally {
+      await ctx.close()
+    }
+
+    await loginAsAdmin(page)
+
+    await page.getByText(longText).scrollIntoViewIfNeeded()
+    await expectNotClipped(page.getByText(longText))
+    await expectInsideViewport(page.getByText(longText), 'the feedback text')
+
+    const deleteButton = page.getByRole('button', {name: `Delete feedback from ${username}`})
+    await deleteButton.scrollIntoViewIfNeeded()
+    await expectInsideViewport(deleteButton, 'the delete-feedback control')
+    await expectNoHorizontalOverflow(page)
+
+    await deleteButton.click()
+    await expect(page.getByTestId('delete-feedback-dialog')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('delete-feedback-dialog'), 'the delete-feedback dialog')
+    await expectInsideViewport(page.getByTestId('delete-feedback-cancel'), 'the delete-feedback cancel control')
+    await expectInsideViewport(page.getByTestId('delete-feedback-confirm'), 'the delete-feedback confirm control')
+    await expectNoHorizontalOverflow(page)
+
+    await page.getByTestId('delete-feedback-confirm').click()
+    await expect(page.getByTestId('delete-feedback-dialog')).toHaveCount(0)
+  })
 })

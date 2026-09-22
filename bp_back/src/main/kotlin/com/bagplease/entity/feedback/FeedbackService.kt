@@ -34,4 +34,15 @@ class FeedbackService(
         ensure(trimmed.length <= MAX_TEXT_LENGTH) { FeedbackError.TooLong }
         repository.insert(Feedback(text = trimmed, username = caller.value, createdAt = Instant.now()))
     }
+
+    // Admin review (Story 9.10) — newest-first, unpaginated (out of scope for this epic).
+    suspend fun list(): List<Feedback> = repository.findAllNewestFirst()
+
+    suspend fun delete(id: String): Either<FeedbackDeleteError, Feedback> = either {
+        repository.deleteById(id) ?: raise(FeedbackDeleteError.NotFound)
+    }
+}
+
+sealed class FeedbackDeleteError {
+    data object NotFound : FeedbackDeleteError()
 }

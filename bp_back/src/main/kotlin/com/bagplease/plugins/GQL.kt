@@ -13,6 +13,7 @@ import com.bagplease.entity.category.gql.CategorySubscriptions
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.feedback.FeedbackService
 import com.bagplease.entity.feedback.gql.FeedbackMutations
+import com.bagplease.entity.feedback.gql.FeedbackQueries
 import com.bagplease.entity.feedback.mongo.FeedbackRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
@@ -112,7 +113,7 @@ fun Application.configureGql(
                 ListQueries(listService, listMemberRepository, itemStorage),
                 ApplicationConfigQueries(appConfigService),
                 UserAdminQueries(userService, listService),
-                // Story 9.10 adds FeedbackQueries (the `feedback` query) here.
+                FeedbackQueries(feedbackService),
             )
             mutations = listOf(
                 ItemMutations(itemService),

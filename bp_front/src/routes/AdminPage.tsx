@@ -24,12 +24,15 @@ import LockResetIcon from '@mui/icons-material/LockReset'
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1'
 import {
   AdminConfigQuery,
+  type AdminFeedback,
+  AdminFeedbackQuery,
   type AdminUser,
   AdminUsersQuery,
   SetRegistrationEnabledMutation,
 } from '@/lib/admin/adminQueries'
 import {graphqlErrorMessage} from '@/lib/admin/adminErrors'
 import CreateUserDialog from '@/components/CreateUserDialog'
+import DeleteFeedbackDialog from '@/components/DeleteFeedbackDialog'
 import DeleteUserDialog from '@/components/DeleteUserDialog'
 import ResetPasswordDialog from '@/components/ResetPasswordDialog'
 
@@ -164,6 +167,25 @@ export default function AdminPage() {
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null)
   // Inline panel-level confirmation after a password reset (no success toast).
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  // Feedback panel (Story 9.10) — unpaginated by design (out of scope for this
+  // epic), newest-first from the server. `cache-and-network` for the same
+  // reason as the users query: a returning render never shows a stale list.
+  const {
+    data: feedbackData,
+    loading: feedbackLoading,
+    error: feedbackError,
+    refetch: refetchFeedback,
+  } = useQuery(AdminFeedbackQuery, {fetchPolicy: 'cache-and-network'})
+  const feedbackEntries = feedbackData?.feedback ?? []
+  const feedbackFirstLoad = feedbackLoading && !feedbackData
+  const [deleteFeedbackTarget, setDeleteFeedbackTarget] = useState<AdminFeedback | null>(null)
+
+  const handleFeedbackDeleted = () => {
+    client.cache.evict({fieldName: 'feedback'})
+    client.cache.gc()
+    void refetchFeedback()
+  }
 
   const handleToggle = async (next: boolean) => {
     if (toggling) return
@@ -390,6 +412,77 @@ export default function AdminPage() {
             </>
           )}
         </Paper>
+
+        {/* Feedback (Story 9.10) */}
+        <Paper sx={{p: {xs: 2, sm: 3}, mt: 3}}>
+          <Typography variant="h6" color="text.primary" sx={{mb: 2}}>
+            Feedback
+          </Typography>
+
+          {feedbackError && (
+            <Alert severity="error" role="alert" data-testid="admin-feedback-error" sx={{mb: 2}}>
+              {graphqlErrorMessage(feedbackError)}
+            </Alert>
+          )}
+
+          {feedbackFirstLoad ? (
+            <Box data-testid="admin-feedback-loading" sx={{display: 'flex', justifyContent: 'center', py: 4}}>
+              <CircularProgress/>
+            </Box>
+          ) : feedbackEntries.length === 0 && !feedbackError ? (
+            <Typography
+              data-testid="admin-feedback-empty"
+              variant="body2"
+              color="text.secondary"
+              sx={{py: 2}}
+            >
+              No feedback yet.
+            </Typography>
+          ) : (
+            <Box data-testid="admin-feedback-list">
+              {feedbackEntries.map(entry => (
+                <Box
+                  key={entry.id}
+                  data-testid={`admin-feedback-row-${entry.id}`}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: 1,
+                    py: 1.5,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    '&:last-of-type': {borderBottom: 'none'},
+                  }}
+                >
+                  <Box sx={{minWidth: 0, flexGrow: 1}}>
+                    {/* Rendered as plain text (JSX's default escaping) — never
+                        dangerouslySetInnerHTML. */}
+                    <Typography
+                      data-testid={`admin-feedback-text-${entry.id}`}
+                      sx={{overflowWrap: 'anywhere', whiteSpace: 'pre-wrap'}}
+                    >
+                      {entry.text}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{mt: 0.5, overflowWrap: 'anywhere'}}>
+                      {entry.username} {'—'} {new Date(entry.createdAt).toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <Tooltip title="Delete feedback">
+                    <IconButton
+                      aria-label={`Delete feedback from ${entry.username}`}
+                      color="error"
+                      onClick={() => setDeleteFeedbackTarget(entry)}
+                      data-testid={`delete-feedback-button-${entry.id}`}
+                    >
+                      <DeleteOutlinedIcon fontSize="small"/>
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Paper>
       </Container>
 
       <CreateUserDialog
@@ -406,6 +499,11 @@ export default function AdminPage() {
         user={resetTarget}
         onClose={() => setResetTarget(null)}
         onReset={username => setFeedback(`Password reset for ${username}. They have been signed out.`)}
+      />
+      <DeleteFeedbackDialog
+        entry={deleteFeedbackTarget}
+        onClose={() => setDeleteFeedbackTarget(null)}
+        onDeleted={handleFeedbackDeleted}
       />
     </Box>
   )

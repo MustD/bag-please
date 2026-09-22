@@ -6,14 +6,17 @@ import com.bagplease.features.auth.CallerUsername
 import com.bagplease.plugins.GQL_CALL_PRINCIPAL
 import com.bagplease.plugins.GraphQLForbiddenException
 import com.bagplease.plugins.GraphQLInvalidInputException
+import com.bagplease.plugins.GraphQLNotFoundException
+import com.bagplease.plugins.requireAdmin
+import com.expediagroup.graphql.generator.scalars.ID
 import com.expediagroup.graphql.server.operations.Mutation
+import com.expediagroup.graphql.server.operations.Query
 import graphql.schema.DataFetchingEnvironment
 import io.ktor.server.auth.jwt.JWTPrincipal
 
-// Duplicated locally rather than shared, per the project's tolerance for this
-// exact duplication (see the two `requireAdmin()` copies in
-// `config/gql/ApplicationConfigApi.kt` / `entity/user/gql/UserAdminApi.kt`):
-// `ListApi.kt`'s own `caller()` extension is file-scoped.
+// `ListApi.kt`'s own `caller()` extension is file-scoped and stays that way —
+// only `sendFeedback` uses it. The new admin-only resolvers below use the
+// shared `requireAdmin()` instead, same as `UserAdminQueries`/`UserAdminMutations`.
 private fun DataFetchingEnvironment.caller(): CallerUsername {
     val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
         ?: throw IllegalStateException("Unauthenticated")
@@ -35,6 +38,20 @@ class FeedbackMutations(private val service: FeedbackService) : Mutation {
             ifRight = { true },
         )
     }
+
+    suspend fun deleteFeedback(id: ID, env: DataFetchingEnvironment): ID {
+        env.requireAdmin()
+        return service.delete(id.value).fold(
+            ifLeft = { throw GraphQLNotFoundException("Feedback not found") },
+            ifRight = { ID(it.id) },
+        )
+    }
 }
 
-// Story 9.10: FeedbackQueries (feedback query) and deleteFeedback land here, guarded by a third requireAdmin() copy.
+@Suppress("unused")
+class FeedbackQueries(private val service: FeedbackService) : Query {
+    suspend fun feedback(env: DataFetchingEnvironment): List<GqlFeedback> {
+        env.requireAdmin()
+        return service.list().map(GqlFeedbackMapper::toGql)
+    }
+}

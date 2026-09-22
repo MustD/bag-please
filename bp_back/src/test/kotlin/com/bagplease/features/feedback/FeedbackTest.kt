@@ -14,6 +14,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.ktor.client.request.bearerAuth
@@ -29,10 +30,10 @@ import kotlinx.coroutines.flow.toList
 import org.bson.Document
 import org.testcontainers.mongodb.MongoDBContainer
 
-// Story 9.9 — sendFeedback(text). Modeled on features/admin/ApplicationConfigTest.kt:
-// raw /graphql POSTs, no GraphQL client, `shouldContain`/`shouldNotContain` on the
-// response body. Only `sendFeedback` exists yet — the `feedback` query and
-// `deleteFeedback` are Story 9.10.
+// Story 9.9 — sendFeedback(text). Story 9.10 adds the admin-only `feedback`
+// query and `deleteFeedback` mutation. Modeled on
+// features/admin/ApplicationConfigTest.kt: raw /graphql POSTs, no GraphQL
+// client, `shouldContain`/`shouldNotContain` on the response body.
 class FeedbackTest : FunSpec({
 
     val container = mongoContainer()
@@ -85,6 +86,47 @@ class FeedbackTest : FunSpec({
             return client.getDatabase("test").getCollection<Document>("feedback").find().toList()
         } finally {
             client.close()
+        }
+    }
+
+    suspend fun ApplicationTestBuilder.sendFeedback(token: String, text: String) {
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody(sendFeedbackQuery(text))
+        }.shouldHaveStatus(HttpStatusCode.OK)
+    }
+
+    suspend fun ApplicationTestBuilder.feedbackQuery(token: String): String =
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"{ feedback { id text username createdAt } }"}""")
+        }.bodyAsText()
+
+    suspend fun ApplicationTestBuilder.deleteFeedbackMutation(token: String, id: String): String =
+        client.post("/graphql") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody("""{"query":"mutation { deleteFeedback(id: \"$id\") }"}""")
+        }.bodyAsText()
+
+    // Story 9.10 I/O matrix row "No feedback yet". MUST run before any other
+    // test in this spec inserts a row: `container` is one Mongo instance shared
+    // by every `test()` block in this file (declared once above, not reset
+    // between tests), so this is the only point at which the `feedback`
+    // collection is guaranteed empty. Kotest's default FunSpec order is
+    // declaration order, which is why this is placed first.
+    test("the feedback query returns an empty list when nothing has been submitted yet") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val adminToken = loginAdmin()
+
+            val body = feedbackQuery(adminToken)
+            body shouldNotContain """"errors":"""
+            body shouldContain """"feedback":[]"""
         }
     }
 
@@ -202,6 +244,132 @@ class FeedbackTest : FunSpec({
                 contentType(ContentType.Application.Json)
                 setBody(sendFeedbackQuery("Please add dark icons"))
             }.shouldHaveStatus(HttpStatusCode.Unauthorized)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Story 9.10 — admin review (`feedback` query) and clearing (`deleteFeedback`).
+    // Helpers (`sendFeedback`, `feedbackQuery`, `deleteFeedbackMutation`) are
+    // declared above, before the empty-list test, so that test can use them too.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    test("the admin lists feedback newest-first") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val userToken = loginRegularUser("feedback_list_order")
+            val adminToken = loginAdmin()
+
+            sendFeedback(userToken, "first entry")
+            sendFeedback(userToken, "second entry")
+            sendFeedback(userToken, "third entry")
+
+            val body = feedbackQuery(adminToken)
+            body shouldNotContain """"errors":"""
+            // Newest-first: "third entry" must appear before "first entry" in the
+            // raw JSON body.
+            val thirdIndex = body.indexOf("third entry")
+            val firstIndex = body.indexOf("first entry")
+            thirdIndex shouldNotBe -1
+            firstIndex shouldNotBe -1
+            (thirdIndex < firstIndex) shouldBe true
+        }
+    }
+
+    test("a non-admin caller cannot query feedback") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val userToken = loginRegularUser("feedback_query_forbidden")
+
+            val body = feedbackQuery(userToken)
+            body shouldContain """"code":"FORBIDDEN""""
+        }
+    }
+
+    test("the admin deletes a feedback entry and it no longer appears") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val userToken = loginRegularUser("feedback_delete_happy")
+            val adminToken = loginAdmin()
+
+            sendFeedback(userToken, "entry to delete")
+            val stored = feedbackDocuments(container)
+            val id = stored.first { it.getString("text") == "entry to delete" }.getString("_id")
+
+            val deleteBody = deleteFeedbackMutation(adminToken, id)
+            deleteBody shouldNotContain """"errors":"""
+            deleteBody shouldContain id
+
+            val afterBody = feedbackQuery(adminToken)
+            afterBody shouldNotContain "entry to delete"
+        }
+    }
+
+    test("deleting a non-existent feedback id returns NOT_FOUND") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val adminToken = loginAdmin()
+
+            val body = deleteFeedbackMutation(adminToken, java.util.UUID.randomUUID().toString())
+            body shouldContain """"code":"NOT_FOUND""""
+        }
+    }
+
+    test("a non-admin caller cannot delete feedback") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val userToken = loginRegularUser("feedback_delete_forbidden")
+
+            sendFeedback(userToken, "not deletable by a regular user")
+            val stored = feedbackDocuments(container)
+            val id = stored.first { it.getString("text") == "not deletable by a regular user" }.getString("_id")
+
+            val body = deleteFeedbackMutation(userToken, id)
+            body shouldContain """"code":"FORBIDDEN""""
+
+            // Still present — the rejected delete did not go through.
+            val afterBody = feedbackQuery(loginAdmin())
+            afterBody shouldContain "not deletable by a regular user"
+        }
+    }
+
+    test("deleting a user does not delete their feedback") {
+        testApplication {
+            setUpMongo(container)
+            setUpJwt()
+            application { module() }
+            val userToken = loginRegularUser("feedback_survives_user_delete")
+            val adminToken = loginAdmin()
+
+            sendFeedback(userToken, "feedback that outlives its author")
+
+            client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                bearerAuth(adminToken)
+                setBody(
+                    """{"query":"{ users(limit: 100) { users { id username } } }"}"""
+                )
+            }.bodyAsText().let { usersBody ->
+                val userId = jacksonObjectMapper().readTree(usersBody)["data"]["users"]["users"]
+                    .first { it["username"].asText() == "feedback_survives_user_delete" }["id"].asText()
+                client.post("/graphql") {
+                    contentType(ContentType.Application.Json)
+                    bearerAuth(adminToken)
+                    setBody("""{"query":"mutation { deleteUser(id: \"$userId\") { id } }"}""")
+                }.shouldHaveStatus(HttpStatusCode.OK)
+            }
+
+            val afterBody = feedbackQuery(adminToken)
+            afterBody shouldContain "feedback that outlives its author"
         }
     }
 })

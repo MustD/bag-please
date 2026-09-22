@@ -103,3 +103,39 @@ export async function listE2eUsers(token: string): Promise<E2eUser[]> {
   }
   return found
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 9.10 — admin feedback SETUP and TEARDOWN.
+//
+// Setup only, mirroring the user helpers above: these seed rows the UI then
+// drives, and back the per-run sweep in ../global-teardown.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface E2eFeedback {
+  id: string
+  username: string
+}
+
+// Escapes embedded quotes/newlines so the fixture stays a single-line JSON/GQL
+// string — the same idiom FeedbackTest.kt's `sendFeedbackQuery` uses server-side.
+function escapeGqlString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+export async function sendFeedbackApi(token: string, text: string): Promise<void> {
+  await gql<{sendFeedback: boolean}>(
+    `mutation { sendFeedback(text: "${escapeGqlString(text)}") }`,
+    token,
+  )
+}
+
+export async function deleteFeedbackApi(token: string, id: string): Promise<void> {
+  await gql<{deleteFeedback: string}>(`mutation { deleteFeedback(id: "${id}") }`, token)
+}
+
+// Every `_e2e_`-marked feedback row. `feedback` has no pagination (out of scope
+// for this epic), so — unlike `listE2eUsers` — this is a single unpaginated call.
+export async function listE2eFeedback(token: string): Promise<E2eFeedback[]> {
+  const data = await gql<{feedback: E2eFeedback[]}>(`{ feedback { id username } }`, token)
+  return data.feedback.filter(f => f.username.includes(E2E_USERNAME_MARKER))
+}

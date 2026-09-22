@@ -23,7 +23,15 @@
 // backend housekeeping, not the browser-facing origin under test — and imports
 // from ./support/api, which deliberately pulls in nothing from `@playwright/test`.
 
-import {ADMIN, deleteUserApi, E2E_USERNAME_MARKER, listE2eUsers, loginApi} from './support/api'
+import {
+  ADMIN,
+  deleteFeedbackApi,
+  deleteUserApi,
+  E2E_USERNAME_MARKER,
+  listE2eFeedback,
+  listE2eUsers,
+  loginApi,
+} from './support/api'
 
 async function globalTeardown(): Promise<void> {
   try {
@@ -48,6 +56,24 @@ async function globalTeardown(): Promise<void> {
     // goes to stderr, which reporters leave alone.
     console.error(
       `[e2e teardown] removed ${removed} of ${users.length} users matching "${E2E_USERNAME_MARKER}"`,
+    )
+
+    // Story 9.10 — same hygiene for feedback: `sendFeedback`'s tests (Story 9.9)
+    // leave rows behind with no cleanup, and the new admin panel is unpaginated
+    // by design, so unbounded growth here degrades it the same way the
+    // pre-9.2 user table degraded before pagination.
+    const feedbackRows = await listE2eFeedback(token)
+    let feedbackRemoved = 0
+    for (const row of feedbackRows) {
+      try {
+        await deleteFeedbackApi(token, row.id)
+        feedbackRemoved += 1
+      } catch (err) {
+        console.warn(`[e2e teardown] could not delete feedback ${row.id}: ${String(err)}`)
+      }
+    }
+    console.error(
+      `[e2e teardown] removed ${feedbackRemoved} of ${feedbackRows.length} feedback rows matching "${E2E_USERNAME_MARKER}"`,
     )
   } catch (err) {
     // The stack may already be down, or the admin login may have failed. Say so
