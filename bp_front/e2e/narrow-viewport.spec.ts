@@ -1145,8 +1145,9 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
 
   // ───────────────────────────────────────────────────────────────────────────
   // Story 9.7 put Home first in the account menu, which made it four entries
-  // tall. The menu is anchored to the right edge of the bar, so the floor gate
-  // is that every entry — the new one included — is fully on screen at 320px.
+  // tall; Story 9.9 added a fifth (Feedback). The menu is anchored to the right
+  // edge of the bar, so the floor gate is that every entry — each new one
+  // included — is fully on screen at 320px.
   // ───────────────────────────────────────────────────────────────────────────
 
   test('[P1] every account-menu entry is inside the viewport at the floor', async ({page}, testInfo) => {
@@ -1156,9 +1157,32 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await openListsViaMenu(page)
 
     await page.getByTestId('user-menu-button').click()
-    for (const id of ['menu-home', 'menu-lists', 'menu-change-password', 'menu-logout']) {
+    for (const id of ['menu-home', 'menu-lists', 'menu-change-password', 'menu-feedback', 'menu-logout']) {
       await expectInsideViewport(page.getByTestId(id), id)
     }
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.9 — the feedback dialog at the floor. Text field and buttons must
+  // stay fully reachable at 320px, the same shape as the other dialog-floor
+  // assertions in this file (e.g. the add-category dialog above).
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the feedback dialog does not overflow the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'feedback', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+
+    await page.getByTestId('user-menu-button').click()
+    await page.getByTestId('menu-feedback').click()
+    await expect(page.getByTestId('feedback-dialog')).toBeVisible()
+
+    await expectInsideViewport(page.getByTestId('feedback-dialog'), 'the feedback dialog')
+    await expectInsideViewport(page.getByTestId('feedback-text'), 'the feedback text field')
+    await expectInsideViewport(page.getByTestId('feedback-cancel'), 'the feedback cancel control')
+    await expectInsideViewport(page.getByTestId('feedback-submit'), 'the feedback submit control')
     await expectNoHorizontalOverflow(page)
   })
 })

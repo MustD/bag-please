@@ -12,6 +12,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import FeedbackIcon from '@mui/icons-material/Feedback'
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
 import HomeIcon from '@mui/icons-material/Home'
 import LockResetIcon from '@mui/icons-material/LockReset'
@@ -19,6 +20,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import {authApi} from '@/lib/auth/authApi'
 import {useAuth} from '@/lib/auth/AuthContext'
 import {useHomePath} from '@/lib/lists/homePath'
+import FeedbackDialog from '@/components/FeedbackDialog'
 
 // Authenticated app shell (Story 5.3). Renders the top AppBar with the username
 // identity chip on every guarded screen (FR12) and an <Outlet/> for the page
@@ -27,10 +29,13 @@ import {useHomePath} from '@/lib/lists/homePath'
 // is hidden for the admin account, which the backend 403-forbids from that
 // endpoint (AC #7); the "Admin" item is shown only for the admin role (the sole
 // entry point to /admin — Story 5.4, FR30/FR31); Logout is always present.
-// Menu order (Story 9.7): Home, Lists, Change password | Admin, Logout. Home is
-// first because users look for navigation in the menu — the title link is inert
-// on the home route and easy to miss, and the installed PWA has no URL bar or
-// Back button.
+// Menu order (Story 9.9): Home, Lists, Change password, Feedback | Admin,
+// Logout. Home is first because users look for navigation in the menu — the
+// title link is inert on the home route and easy to miss, and the installed
+// PWA has no URL bar or Back button. Feedback is hidden for the admin account
+// (it cannot send feedback — backend-enforced, see FeedbackService) and opens
+// as a dialog over the current screen rather than a route, so the underlying
+// screen stays mounted.
 export default function AppShell() {
   const {username, role, clearAuth} = useAuth()
   const navigate = useNavigate()
@@ -59,10 +64,18 @@ export default function AppShell() {
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const menuOpen = Boolean(anchorEl)
 
   const openMenu = (event: MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
   const closeMenu = () => setAnchorEl(null)
+
+  // Opens the feedback dialog over the current screen — no navigation, per the
+  // `goHome`/`goToLists` shape above.
+  const openFeedback = () => {
+    closeMenu()
+    setFeedbackOpen(true)
+  }
 
   // Home (Story 9.7) goes where the title link goes and never re-derives it
   // (AR-E6-7 / AR-E7-8): off the resolved home route it navigates to `/`, so
@@ -242,6 +255,14 @@ export default function AppShell() {
                 <ListItemText>Change password</ListItemText>
               </MenuItem>
             )}
+            {role !== 'admin' && (
+              <MenuItem data-testid="menu-feedback" onClick={openFeedback}>
+                <ListItemIcon>
+                  <FeedbackIcon fontSize="small"/>
+                </ListItemIcon>
+                <ListItemText>Feedback</ListItemText>
+              </MenuItem>
+            )}
             {role === 'admin' && (
               <MenuItem data-testid="menu-admin" onClick={goToAdmin}>
                 <ListItemIcon>
@@ -263,6 +284,8 @@ export default function AppShell() {
       <Box component="main" sx={{flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
         <Outlet/>
       </Box>
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)}/>
     </Box>
   )
 }

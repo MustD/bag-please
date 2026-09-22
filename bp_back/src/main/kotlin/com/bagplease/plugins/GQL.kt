@@ -11,6 +11,9 @@ import com.bagplease.entity.category.gql.CategoryMutations
 import com.bagplease.entity.category.gql.CategoryQueries
 import com.bagplease.entity.category.gql.CategorySubscriptions
 import com.bagplease.entity.category.mongo.CategoryRepository
+import com.bagplease.entity.feedback.FeedbackService
+import com.bagplease.entity.feedback.gql.FeedbackMutations
+import com.bagplease.entity.feedback.mongo.FeedbackRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.gql.ItemMutations
@@ -68,6 +71,7 @@ fun Application.configureGql(
     val categoryRepository = CategoryRepository(connection.db)
     val listRepository = ListRepository(connection.db)
     val listMemberRepository = ListMemberRepository(connection.db)
+    val feedbackRepository = FeedbackRepository(connection.db)
 
     val itemStorage = ItemStorage(itemRepository)
     val categoryStorage = CategoryStorage(categoryRepository)
@@ -85,6 +89,8 @@ fun Application.configureGql(
         listMemberRepository = listMemberRepository,
     )
 
+    val feedbackService = FeedbackService(feedbackRepository, adminLogin)
+
     val itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
     configureScheduler(itemService)
     // itemService is constructed above on purpose: CategoryService.deleteCategory cascades into it.
@@ -98,6 +104,7 @@ fun Application.configureGql(
                 "com.bagplease.entity.list.gql",
                 "com.bagplease.config.gql",
                 "com.bagplease.entity.user.gql",
+                "com.bagplease.entity.feedback.gql",
             )
             queries = listOf(
                 ItemQueries(itemService),
@@ -105,6 +112,7 @@ fun Application.configureGql(
                 ListQueries(listService, listMemberRepository, itemStorage),
                 ApplicationConfigQueries(appConfigService),
                 UserAdminQueries(userService, listService),
+                // Story 9.10 adds FeedbackQueries (the `feedback` query) here.
             )
             mutations = listOf(
                 ItemMutations(itemService),
@@ -112,6 +120,7 @@ fun Application.configureGql(
                 ListMutations(listService, listMemberRepository, itemStorage),
                 ApplicationConfigMutations(appConfigService),
                 UserAdminMutations(userService, authService, listService),
+                FeedbackMutations(feedbackService),
             )
             subscriptions = listOf(
                 ItemSubscriptions(itemService, listService),

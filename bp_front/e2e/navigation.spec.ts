@@ -739,11 +739,11 @@ async function menuEntries(page: Page): Promise<string[]> {
   return (await page.getByRole('menuitem').allTextContents()).map(text => text.trim())
 }
 
-test('Story 9.7 — the account menu lists Home, Lists, Change password, Logout for a user', async ({page}, testInfo) => {
+test('Story 9.7/9.9 — the account menu lists Home, Lists, Change password, Feedback, Logout for a user', async ({page}, testInfo) => {
   await registerViaUi(page, uniqueUsername('nav', 'menuuser', testInfo.project.name), PASSWORD)
   await openAccountMenu(page)
 
-  expect(await menuEntries(page)).toEqual(['Home', 'Lists', 'Change password', 'Logout'])
+  expect(await menuEntries(page)).toEqual(['Home', 'Lists', 'Change password', 'Feedback', 'Logout'])
   // The first entry carries a small icon like its siblings.
   await expect(page.getByTestId('menu-home').locator('svg')).toBeVisible()
 })
