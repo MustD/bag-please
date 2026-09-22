@@ -1,5 +1,8 @@
-import {type MouseEvent, useId} from 'react'
+import {type MouseEvent, useId, useRef, useState} from 'react'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
+import Divider from '@mui/material/Divider'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import ListItemText from '@mui/material/ListItemText'
@@ -56,6 +59,27 @@ export default function ListFilters({
   // a hardcoded id would make the label point at the wrong control.
   const labelId = useId()
 
+  // Story 9.8 — the menu's `open` state is now CONTROLLED, purely so the sticky
+  // "Done" footer below can close it directly.
+  // A `multiple` Select never self-closes on selection (that is deliberate, see
+  // the module header), and at the 320px floor with many categories it used to
+  // cover most of the screen with no discoverable way out short of Escape or an
+  // outside tap. `onOpen`/`onClose` keep native open/close paths (clicking the
+  // control, Escape, outside tap) working exactly as before; only the confirm
+  // control's own `onClick` reaches `setOpen` from outside those paths.
+  const [open, setOpen] = useState(false)
+
+  // The confirm control's OTHER job: giving focus back to the trigger it just
+  // closed. MUI's own Menu/Modal focus restoration is keyed to ITS exit
+  // transition, which is reliable for the paths that were already exercised
+  // (Escape, outside tap) but not dependably observed for a click landing on a
+  // plain, non-`MenuItem` child inside the menu (measured, 2026-09-22) — so
+  // this is done explicitly rather than assumed. `Select`'s `ref` forwards to
+  // the closed control's own root node, which is always mounted (only the menu
+  // portal opens/closes), so `.focus()` here is safe whether or not the menu
+  // is currently open.
+  const selectRef = useRef<HTMLDivElement>(null)
+
   // THE shared name comparator (Story 8.5, AC3) — the same one `order.ts` groups
   // by, so the menu and the closed control's summary below read in one sequence.
   // Deliberately `byName` and NOT the grouping function's `byNameThenId`: the id
@@ -96,12 +120,31 @@ export default function ListFilters({
             rendered at all for an empty selection. */}
         <InputLabel id={labelId} shrink>Category</InputLabel>
         <Select
+          ref={selectRef}
           multiple
           displayEmpty
           labelId={labelId}
           label="Category"
           value={[...value.categoryIds]}
           onChange={handleCategory}
+          open={open}
+          onOpen={() => setOpen(true)}
+          onClose={() => setOpen(false)}
+          // Focus is handed back to the trigger from the MENU'S OWN exit
+          // transition (`onExited`), explicitly, rather than left to MUI's
+          // default restoration or done eagerly from whichever handler flips
+          // `open` to false — an eager `.focus()` call made from inside a
+          // click that is itself inside the still-mounted `Menu` raced its
+          // FocusTrap and lost, landing focus on `<body>` (measured,
+          // 2026-09-22). `onExited` runs once the trap is actually gone, for
+          // EVERY close path alike (Escape, outside tap, and the confirm
+          // control), so this is one rule rather than a special case for the
+          // new control.
+          MenuProps={{
+            slotProps: {
+              transition: {onExited: () => selectRef.current?.focus()},
+            },
+          }}
           // The closed control SUMMARISES the selection as text. This is the
           // "not a chip row" ruling made concrete: one line, ellipsised by MUI's
           // own `.MuiSelect-select` overflow rules, whatever the selection size.
@@ -130,6 +173,38 @@ export default function ListFilters({
               <ListItemText primary={category.name}/>
             </MenuItem>
           ))}
+          {/* The confirm control (Story 9.8, UX-DR-E9-10). Deliberately NOT a
+              `MenuItem`: MUI's `SelectInput` clones every child and overrides
+              `onClick` only on the ones carrying a `value` prop, so a plain
+              non-`MenuItem` element passes through untouched and is safe to give
+              its own `onClick` — closing the (now controlled) `open` state
+              rather than being misread as a category toggle. `component="li"`
+              on both keeps them valid children of the `Menu`'s own `<ul>`, the
+              same way `MenuItem` renders as one.
+              `position: sticky` + `bottom: 0` is what keeps it reachable
+              without scrolling the menu at the 320px floor with many
+              categories (AR-E9-14 sibling requirement) — it is the LAST child,
+              so it stays pinned to the menu's own bottom edge rather than the
+              viewport's. */}
+          <Divider component="li" role="presentation"/>
+          <Box
+            component="li"
+            role="presentation"
+            sx={{
+              position: 'sticky',
+              bottom: 0,
+              bgcolor: 'background.paper',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              px: 1,
+              py: 0.5,
+              listStyle: 'none',
+            }}
+          >
+            <Button size="small" onClick={() => setOpen(false)} data-testid="filter-category-confirm">
+              Done
+            </Button>
+          </Box>
         </Select>
       </FormControl>
 

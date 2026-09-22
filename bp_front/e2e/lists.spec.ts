@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto'
+
 import {expect, type Page, test} from '@playwright/test'
 
 import {gql, loginApi} from './support/api'
@@ -395,6 +397,26 @@ test('FR61 — an EMPTY category is kept on /lists/:id while nothing filters, dr
   await expect(page.getByTestId(`category-row-${stocked}`)).toBeVisible()
   await expect(emptyCard).toHaveCount(0)
 
+  // BRANCH 2a-inverted (Story 9.8, AR-E9-14, F2) — filter to the EMPTY category
+  // ITSELF instead. Before this story `keepEmpty: !filterActive` alone decided
+  // retention, so an active filter dropped a card with nothing in it regardless
+  // of WHY it was empty — including when the user explicitly asked to see just
+  // that one. "Filter to the category I care about" must not also mean "hide it
+  // because it currently has nothing in it": the card and its add-item
+  // affordance stay, so the empty category can actually be filled. Deselecting
+  // `stocked` and selecting `empty` in the same menu visit (rather than
+  // resetting to "All categories" first) is deliberate — it proves the RETAINED
+  // group is keyed off the current selection, not off some residual "recently
+  // active" state left over from BRANCH 2a.
+  await withCategoryMenu(page, async () => {
+    await page.getByTestId(`filter-category-option-${stocked}`).click()
+    await page.getByTestId(`filter-category-option-${empty}`).click()
+  })
+  await expect(emptyCard).toBeVisible()
+  await expect(emptyCard).toContainText('No items yet.')
+  await expect(emptyCard.getByTestId('add-item-in-category-button')).toBeVisible()
+  await expect(page.getByTestId(`category-row-${stocked}`)).toHaveCount(0)
+
   // BRANCH 2b — the same, driven by a SEARCH TERM rather than a selection: the
   // empty category can match no term, so it goes. Both halves matter because
   // `isItemFilterActive` is one predicate over two independent controls.
@@ -431,6 +453,94 @@ test('FR61 — an EMPTY category is kept on /lists/:id while nothing filters, dr
   await expect(page.getByTestId(`shopping-group-${stocked}`)).toBeVisible()
   await expect(page.getByTestId('filter-category')).toContainText('All categories')
   await expect(page.getByTestId(`shopping-group-${empty}`)).toHaveCount(0)
+})
+
+// Story 9.8, F5 — a REAL category named "Uncategorized" must never collide, by
+// testid, with the SYNTHETIC orphan bucket of the same display name.
+//
+// The orphan half of the fixture is INTERCEPTED, not provoked for real — the
+// same technique (and the same reason) as shopping.spec.ts's "rejected
+// uncheck" spec: Story 9.3 closed every UI- and API-reachable path that can
+// leave an item pointing at a category not on its list (`saveItem` rejects an
+// out-of-list category on both branches, and `deferred-work.md` records that
+// `CategoryService.saveCategory`'s own relocation window does not actually
+// strand the old list's items — its in-memory storage layer ADDS the category
+// to the new list without ever removing it from the old one, so the "orphan"
+// it was thought to produce never materializes). Fixing that storage layer is
+// a backend change this story does not make (frontend-only, NFR-E9-x). Instead
+// the ONE `getItems` response is intercepted and given one extra item whose
+// `category` matches no real category id — the exact shape `groupItemsByCategory`
+// treats as an orphan — so the bucket this test exists to check the testid of
+// is rendered from a real network response through real rendering code,
+// everything downstream of that one interception UI-driven as usual.
+test('F5 — a real category named "Uncategorized" and the synthetic orphan bucket render as two distinct rows', async ({page}, testInfo) => {
+  const username = uniqueUsername('lists', 'unclash', testInfo.project.name)
+  const listName = `Unclash ${Date.now()}`
+  const namedItem = `Flour ${Date.now()}`
+  const orphanedItem = `Stray ${Date.now()}`
+  // Matches no real category this fixture (or any other concurrent run) creates.
+  const bogusCategoryId = randomUUID()
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+
+  // A REAL category, typed as the literal name the synthetic bucket also uses.
+  await addCategory(page, 'Uncategorized')
+  await addItem(page, 'Uncategorized', namedItem)
+
+  // Every `getItems` response for this list gains one extra item pointing at
+  // `bogusCategoryId` — a category id `groupItemsByCategory` will never find
+  // among the real ones, which is precisely what puts an item in the synthetic
+  // bucket. `route.fetch()` runs the request for real; only the JSON is edited.
+  await page.route('**/api/graphql', async route => {
+    const body = route.request().postDataJSON() as {operationName?: string} | undefined
+    if (body?.operationName !== 'Items') {
+      await route.continue()
+      return
+    }
+    const response = await route.fetch()
+    const json = (await response.json()) as {data: {getItems: unknown[]}}
+    json.data.getItems.push({
+      __typename: 'Item',
+      id: randomUUID(),
+      name: orphanedItem,
+      checked: false,
+      category: bogusCategoryId,
+      listId,
+      stores: [],
+      addedBy: username,
+      recurring: null,
+      deleted: false,
+    })
+    await route.fulfill({response, json})
+  })
+
+  // Reload so the interception above is in place for the query that loads
+  // this page's items.
+  await page.reload()
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+
+  // The REAL category keeps its name-based testid, unambiguously.
+  const namedRow = page.getByTestId('category-row-Uncategorized')
+  await expect(namedRow).toHaveCount(1)
+  await expect(namedRow).toContainText(namedItem)
+
+  // The SYNTHETIC bucket is reached by its sentinel key, not its display name —
+  // the same literal `__uncategorized__` `order.ts` exports as `UNCATEGORIZED_KEY`.
+  const orphanRow = page.getByTestId('category-row-__uncategorized__')
+  await expect(orphanRow).toHaveCount(1)
+  await expect(orphanRow).toContainText('Uncategorized')
+  await expect(orphanRow).toContainText(orphanedItem)
+
+  // Same collision, same fix, on the shopping surface (F5 applies to both).
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  const namedShoppingRow = page.getByTestId('shopping-group-Uncategorized')
+  await expect(namedShoppingRow).toHaveCount(1)
+  await expect(namedShoppingRow).toContainText(namedItem)
+  const orphanShoppingRow = page.getByTestId('shopping-group-__uncategorized__')
+  await expect(orphanShoppingRow).toHaveCount(1)
+  await expect(orphanShoppingRow).toContainText(orphanedItem)
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

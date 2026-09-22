@@ -60,11 +60,20 @@ line number.
   update branch all route through it, so no path can produce `checked = true` with a null `checkedAt`. Was: Story 7.4 —
   `saveItem` can write `checked = true` with a null `checkedAt`; stamp `checkedAt` on a false→true merge.
 
-**Rides FR61 (confirm control on the category filter):**
+**Rides FR61 (confirm control on the category filter):** ✅ BOTH CLOSED by Story 9.8 (2026-09-22).
 
-- Epic 8 retro **F2** — filtering `/lists/:id` to an empty category drops its card and add-item affordance.
-- Epic 8 retro **F5** — `Uncategorized` is not a reserved name (relates to, but does not close, the Story 8.4 name-keyed
-  testid entry, which `md` archived by decision in the second 2026-09-15 pass).
+- ✅ CLOSED by Story 9.8 (2026-09-22): `groupItemsByCategory` takes an optional `selectedCategoryIds` and keeps a
+  category rendered, even with zero matching items, when its id is in that list — `/lists/:id` passes
+  `filter.categoryIds` on every call, so filtering explicitly to an empty category no longer drops its card or its
+  add-item affordance. `/list/:id` never passes it: the shopping view still hides every empty group regardless of
+  selection. Was: Epic 8 retro **F2** — filtering `/lists/:id` to an empty category drops its card and add-item
+  affordance.
+- ✅ CLOSED by Story 9.8 (2026-09-22): only the synthetic "Uncategorized" bucket's row testid changed, from
+  `category-row-<name>`/`shopping-group-<name>` to the key-based `category-row-__uncategorized__`/
+  `shopping-group-__uncategorized__` — so a real category a member types as "Uncategorized" can no longer collide with
+  it. Every real category keeps its name-based testid unchanged; no reserved-name rule was added to `saveCategory`.
+  Was: Epic 8 retro **F5** — `Uncategorized` is not a reserved name (relates to, but does not close, the Story 8.4
+  name-keyed testid entry, which `md` archived by decision in the second 2026-09-15 pass).
 
 **Rides FR57 (home entry in the account menu):** ✅ ALL CLOSED by Story 9.7 (2026-09-21).
 

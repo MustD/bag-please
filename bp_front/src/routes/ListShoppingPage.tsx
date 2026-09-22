@@ -527,7 +527,14 @@ export default function ListShoppingPage() {
         ) : (
           <Stack spacing={2}>
             {groups.map(group => (
-              <Paper key={group.key} data-testid={`shopping-group-${group.name}`}>
+              // Story 9.8 (F5) — same key-vs-name testid rule as
+              // `ListDetailPage.tsx`'s `category-row-*`: only the synthetic
+              // "Uncategorized" bucket is keyed off `group.key`, so a real
+              // category named "Uncategorized" can never collide with it.
+              <Paper
+                key={group.key}
+                data-testid={group.category === null ? `shopping-group-${group.key}` : `shopping-group-${group.name}`}
+              >
                 <Typography
                   variant="h6"
                   color="text.primary"

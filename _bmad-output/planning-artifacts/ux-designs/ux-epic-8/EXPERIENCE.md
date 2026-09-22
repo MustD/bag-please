@@ -714,7 +714,9 @@ is filed, see §13.
   `admin-user-row-<username>`, and the three membership ones on the pending-invites surface (§5.1.1) —
   `pending-invite-<listName>`, `accept-invite-<listName>`, `decline-invite-<listName>`
   (`PendingInvites.tsx:72,81,90`). `ShareMembersDialog` adds two more, keyed by username rather than list name:
-  `member-row-<username>` and `remove-member-<username>` (`ShareMembersDialog.tsx:151,159`).
+  `member-row-<username>` and `remove-member-<username>` (`ShareMembersDialog.tsx:151,159`). Exception: since Story 9.8
+  the synthetic "Uncategorized" orphan bucket alone is key-derived (its sentinel id, not its name), so it renders as a
+  row distinct from any real category actually named "Uncategorized"; every real category stays name-keyed as above.
 
 > **This is a known defect, decided and re-filed, not an oversight.** Story 8.4 decided to KEEP name-keyed testids
 > (`deferred-work.md:1935-1949`): Epic 8's contract keys both surfaces by name, which is what makes a shopping-side

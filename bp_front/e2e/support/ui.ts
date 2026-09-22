@@ -188,6 +188,29 @@ export async function withCategoryMenu(page: Page, body: () => Promise<void>): P
   await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
 }
 
+// Story 9.8 — the sibling of `withCategoryMenu` that dismisses through the new
+// `filter-category-confirm` control instead of Escape. `withCategoryMenu` itself
+// is left untouched: Escape/outside-tap dismissal is still exercised by every
+// caller it already has, and this story adds a SECOND way to close the menu
+// rather than replacing the first. Also asserts focus lands back on the
+// category control (AC), which `withCategoryMenu` has never needed to check —
+// Escape's focus-return behaviour is native `<select>`-adjacent browser
+// behaviour, not something this story changes.
+//
+// The FOCUSED node is `filter-category`'s own `role="combobox"` CHILD, not the
+// outer element `data-testid="filter-category"` sits on — MUI's Select renders
+// the testid on the field's root wrapper and puts the actual tabbable node
+// inside it. `narrow-viewport.spec.ts`'s existing floor test already reaches
+// that same child the same way (`control.getByRole('combobox')`).
+export async function confirmCategoryMenu(page: Page, body: () => Promise<void>): Promise<void> {
+  await page.getByTestId('filter-category').click()
+  await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+  await body()
+  await page.getByTestId('filter-category-confirm').click()
+  await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+  await expect(page.getByTestId('filter-category').getByRole('combobox')).toBeFocused()
+}
+
 // Count GraphQL round trips (AC6). EVERY POST to the endpoint, not a named
 // operation, so a `refetch` introduced under any name is caught. Attach it only
 // AFTER the page's own load has settled, or it measures the load rather than the

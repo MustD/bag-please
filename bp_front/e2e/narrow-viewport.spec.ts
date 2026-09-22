@@ -1,9 +1,12 @@
+import {randomUUID} from 'node:crypto'
+
 import {expect, type Locator, type Page, test, type TestInfo} from '@playwright/test'
 import {expectInsideViewport, expectNoHorizontalOverflow, expectNotClipped, NARROW_FLOOR_PX,} from './support/layout'
 import {
   addCategory,
   addItem,
   ADMIN,
+  confirmCategoryMenu,
   createListAndOpen,
   loginAsAdmin,
   openListsViaMenu,
@@ -12,7 +15,7 @@ import {
   uniqueUsername,
   withCategoryMenu,
 } from './support/ui'
-import {createUserApi, loginApi} from './support/api'
+import {createUserApi, gql, loginApi} from './support/api'
 
 // Story 8.1 — Move the Mobile Gate to the Width People Actually Use.
 //
@@ -174,6 +177,20 @@ async function shortListAtFloor(page: Page, testInfo: TestInfo, label: string): 
   await addCategory(page, 'Veg')
   await addItem(page, 'Veg', 'Peas')
   return listId
+}
+
+// SETUP ONLY (Story 9.8, AR-E9-14 sibling) — bulk categories via the API, the
+// same idiom `seedItems`/`categoryIdOf` use in shopping.spec.ts:275-302. Driving
+// 30 add-category dialogs through the UI is the same environment preparation at
+// 30x the runtime for a case that is about the MENU'S geometry, not the
+// add-category flow.
+async function seedCategories(token: string, listId: string, names: ReadonlyArray<string>): Promise<void> {
+  for (const name of names) {
+    await gql(
+      `mutation { saveCategory(category: { id: "${randomUUID()}", name: "${name}", listId: "${listId}" }) { id } }`,
+      token,
+    )
+  }
 }
 
 // Inject a throwaway element, hand it to an assertion, and always remove it.
@@ -988,6 +1005,96 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectInsideViewport(control, 'the category filter control with a selection')
     await expectInsideViewport(summary, 'the category filter summary with a selection')
     await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.8 (AR-E9-14 sibling) — the confirm control, at the floor, under a
+  // realistic worst-case category count.
+  //
+  // Before this story the menu never self-closed and had no confirm control at
+  // all, so at 320px with many categories it covered most of the screen with no
+  // discoverable way out short of Escape or an outside tap. 30 categories is
+  // enough that, without the sticky footer, the control would sit below the
+  // menu's own scrollable overflow — `expectInsideViewport`'s `ratio: 1` check
+  // is what catches that: a control clipped away by a scrolled ancestor is
+  // exactly the failure mode it exists to see (support/layout.ts).
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the category filter confirm control stays reachable at 320px with 30 categories', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const username = uniqueUsername('narrow', 'filtermany', testInfo.project.name)
+    await registerViaUi(page, username, PASSWORD)
+    const token = await loginApi(username, PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, `FilterMany ${Date.now()}`)
+    const stamp = Date.now()
+    const categoryNames = Array.from({length: 30}, (_, i) => `Cat ${String(i).padStart(2, '0')} ${stamp}`)
+    await seedCategories(token, listId, categoryNames)
+
+    // Reload so this client's (refetch-driven, no-subscription) cache picks up
+    // the 30 API-seeded categories.
+    await page.reload()
+    await expect(page.getByTestId('list-detail-page')).toBeVisible()
+    await expect(page.getByTestId(`category-row-${categoryNames[29]}`)).toBeVisible()
+
+    await page.getByTestId('filter-category').click()
+    await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+
+    const confirm = page.getByTestId('filter-category-confirm')
+    await expectInsideViewport(confirm, 'the category filter confirm control at the floor with 30 categories')
+    await expectNoHorizontalOverflow(page)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+
+    // The fix is claimed for "either list screen" (support/ui.ts's shared
+    // `ListFilters`, mounted under both `list-detail-filters` and
+    // `shopping-filters`) — so the same seeded 30 categories are checked again
+    // on /list/:id, the shopping view, not just /lists/:id above. The 30
+    // seeded categories carry no items, and the shopping view NEVER renders an
+    // empty category as a group (`keepEmpty: false`, unconditionally — see
+    // `order.ts`), so `shopping-group-*` is the wrong readiness signal here;
+    // the filter's own category option is what confirms the data loaded.
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+
+    await page.getByTestId('filter-category').click()
+    await expect(page.getByTestId(`filter-category-option-${categoryNames[29]}`)).toBeVisible()
+    await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+
+    const shoppingConfirm = page.getByTestId('filter-category-confirm')
+    await expectInsideViewport(
+      shoppingConfirm,
+      'the category filter confirm control at the floor with 30 categories on /list/:id',
+    )
+    await expectNoHorizontalOverflow(page)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+  })
+
+  // The confirm control's OTHER half — closing, committing, and returning focus
+  // — is a behavioural gate rather than a geometry one, so it runs on both
+  // viewport projects like the rest of the suite, through the shared
+  // `confirmCategoryMenu` helper (support/ui.ts) so this file cannot drift from
+  // how lists.spec.ts / shopping.spec.ts close the same menu.
+  test('[P1] the category filter confirm control closes the menu, keeps selections applied, and returns focus', async ({page}, testInfo) => {
+    const username = uniqueUsername('narrow', 'filterconfirm', testInfo.project.name)
+    await registerViaUi(page, username, PASSWORD)
+    await openListsViaMenu(page)
+    await createListAndOpen(page, `FilterConfirm ${Date.now()}`)
+    await addCategory(page, 'Produce')
+    await addCategory(page, 'Bakery')
+
+    await confirmCategoryMenu(page, async () => {
+      await page.getByTestId('filter-category-option-Produce').click()
+      await page.getByTestId('filter-category-option-Bakery').click()
+    })
+
+    // Both toggles are still applied — the summary lists both names, in the
+    // menu's own alphabetical order.
+    await expect(page.getByTestId('filter-category')).toContainText('Bakery, Produce')
   })
 
   // ───────────────────────────────────────────────────────────────────────────
