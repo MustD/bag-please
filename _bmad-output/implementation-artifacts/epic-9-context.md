@@ -5,11 +5,12 @@
 ## Goal
 
 Users can tell the admin what they want from inside the app, and the admin can read and clear it. Items carry every
-store they are sold in, with no existing store lost. An item can be added from the shopping screen without leaving it.
-The category filter menu can be closed on a phone, Home is reachable from the account menu, and the admin's user list
-is paginated. Underneath, deleting a category or a user no longer leaves orphaned data behind, and the E2E test gate
-waits for a backend that is actually ready. This is a single feedback-driven maintenance epic (source: user feedback
-items relayed by the product owner) rather than a new feature arc — one branch, one release.
+store they are sold in, with none lost in the conversion. An item can be added from the shopping screen without
+leaving it. The category filter menu can be closed on a phone, Home is reachable from the account menu, and the
+admin's user list is paginated instead of growing forever. Underneath, deleting a category or a user no longer leaves
+orphaned data behind, and the E2E gate waits for a backend that is actually ready. This is one feedback-driven
+maintenance epic (source: `docs/feedback.md`, relayed by the product owner) rather than a new feature arc — one
+branch, one release, one retro.
 
 ## Stories
 
@@ -28,139 +29,112 @@ items relayed by the product owner) rather than a new feature arc — one branch
 
 ## Requirements & Constraints
 
-- Admin user list must be server-paginated: 20 users per page, stable username-ascending order, page controls plus a
-  total-count display; creating/deleting a user keeps the admin on a valid page (deleting the last user on the last
-  page moves back one page).
-- Users can assign an item to zero, one, or several stores from both the add and edit item dialogs. Names are trimmed;
-  names differing only by letter case are treated as the same store and not duplicated on one item. The shopping-view
-  item row shows every store the item carries, and all remain inside the row's single check target.
-- No existing per-item store data may be lost when converting to multiple stores; an item that had one store keeps it
-  as its only store on first startup of the release, run once, never re-run.
-- The admin account is restricted to user management, application configuration, and reviewing feedback; admin
-  callers are rejected on every list-related operation (create/view/share/delete lists, items, categories,
-  subscriptions) and cannot send feedback.
-- Any authenticated user (not the admin) can send feedback — free text, required, max 2000 characters — from an
-  account-menu entry available on any screen. Submission stores the text, submitter username, and timestamp; confirms
-  success; returns the user to their prior screen. Cancelling sends nothing. Users cannot see, edit, or delete their
-  own past feedback.
-- The admin reviews feedback in the admin area: all entries newest-first, each showing text (rendered as plain text,
-  never as markup), submitter username, and submission time. The admin can delete an entry after explicit
-  confirmation (permanent, no undo). Feedback has no status/reply/tagging. Deleting a user does not delete their
-  feedback.
-- From any authenticated screen, one action returns to the application's home destination: the app-bar title links to
-  `/`, which resolves via existing logic (oldest owned/member list, lists index if none, admin area for the admin).
-  The shopping view also keeps its back-to-lists affordance. The account menu carries a matching Home entry (on the
-  home route itself it just closes the menu). No screen is a navigational dead end.
-- Category filtering/search stays consistent across both list surfaces (categories AND free-text name search); the
-  shopping view keeps its checked-status toggle, not added to the management screen. Empty categories show on the
-  management screen only when no filter/search is active; the shopping view always hides empty groups. Because the
-  open category filter menu covers most of a phone screen, it needs an explicit, reachable confirm/close control;
-  selections still apply live as toggled (no cancel-and-revert); outside-tap and Escape still close it too.
-- The shopping view offers a floating add button that opens the same add-item dialog used by list management, with
-  the current list fixed as the target (no list picker); the new item appears immediately and reaches other members
-  live. The button must stay reachable while scrolling and never permanently cover the last item row/controls. If the
-  list has no categories, the dialog explains a category is needed first and links to list management instead of
-  showing a disabled form.
-- Destructive admin actions (delete feedback, delete user, etc.) require explicit confirmation, consistent with
-  existing admin confirm-dialog patterns.
-- Every FR must be covered by UI-driven Playwright E2E on both a desktop and a 320px mobile viewport, run against the
-  production artifact (Caddy-served SPA + backend + Mongo); sessions are never faked (no login fixture, no
-  storageState, no request interception for the behavior under test); a new test must be observed failing before it's
-  accepted. 320px assertions are mechanical (no eyeballing) and cover the admin page, feedback dialog, FAB, and
-  multi-store row — nothing overflows, is pushed off-screen, or is clipped without a recorded, measured decision.
-  Every input has a visible associated label, forms are fully keyboard-navigable, and error messages are associated
-  with their field.
-- Deferred, explicitly out of scope for this epic: recurring/one-time item soft-delete and scheduler restore
-  mechanics beyond what's touched here, Phase 3 single-store shopping mode, Mongo transactions for cascades,
-  username reuse within the token window after deletion, feedback pagination, a feedback rate limit, a max
-  stores-per-item limit, an `/admin` page number in the URL.
+- Admin user list is server-paginated: 20/page, username ascending, prev/next controls plus a total count; creating or
+  deleting a user keeps the admin on a valid page (deleting the last user on the last page moves back one page).
+- Any non-admin user can assign an item to zero, one, or several stores from both the add and edit dialogs. Names are
+  trimmed; names differing only by letter case count as one store and are not duplicated on an item. The shopping-view
+  row shows every store the item carries, all inside the row's single check target. No existing single-store data is
+  lost in conversion; the conversion runs once and never re-runs.
+- The admin is restricted to user management, application configuration, and reviewing feedback — rejected on every
+  list-related operation (create/view/share/delete lists, items, categories, subscriptions) and cannot send feedback.
+- Any non-admin user can send feedback (free text, required, max 2000 chars) from an account-menu entry on any screen.
+  Submission stores text + submitter username + timestamp, confirms success, and returns the user to their prior
+  screen with its state intact; cancelling sends nothing. Users never see, edit, or delete their own past feedback.
+- The admin reviews feedback in the admin area: all entries newest-first, each showing text as plain text (never
+  interpreted as markup), submitter username, and submission time. Deletion requires explicit confirmation and is
+  permanent; feedback has no status/reply/tagging. Deleting a user does not delete their feedback.
+- From any authenticated screen, one action reaches the home destination: the app-bar title links to `/`, resolving
+  via existing logic; the shopping view keeps its back-to-lists affordance; the account menu gets a matching Home
+  entry (on the home route it just closes the menu). No screen is a dead end.
+- Category filter/search stays consistent across both list surfaces (categories + free-text name search, AND
+  combined); the shopping view keeps its checked-status toggle, not added to management. Empty categories show on
+  management only when no filter/search is active; shopping always hides empty groups. The filter menu needs an
+  explicit, reachable confirm/close control (it covers most of a phone screen); selections still apply live; outside
+  tap and Escape still close it.
+- The shopping view gets a floating add button opening the existing add-item dialog with the current list fixed (no
+  list picker); the new item appears immediately and reaches other members live. The button stays reachable while
+  scrolling and never permanently covers the last row. No categories yet → the dialog explains one is needed first and
+  links to list management, without rendering a disabled form.
+- Destructive admin actions require explicit confirmation, per existing admin confirm-dialog conventions.
+- Every FR is covered by UI-driven Playwright E2E on desktop and a 320px viewport against the production artifact
+  (Caddy + backend + Mongo); sessions are never faked; a new test is observed failing before it's accepted. 320px
+  assertions are mechanical and cover `/admin`, the feedback dialog, the FAB, and the multi-store row. Every input has
+  a visible label, forms are keyboard-navigable, errors are associated with their field.
+- Explicitly deferred: one-timer/recurring scheduling mechanics beyond what's touched here, Phase 3 single-store
+  shopping mode, Mongo transactions for cascades, username reuse after deletion, feedback pagination/rate limit, a
+  max-stores-per-item limit, `/admin` page number in the URL.
 
 ## Technical Decisions
 
-- Backend stays in the existing per-entity slice layout (`entity/<name>/{Service,Storage,gql/,mongo/}`), one-way
-  GQL → Service → Storage → Repository; errors reuse the existing `GraphQLForbiddenException` /
-  `GraphQLInvalidInputException` / `GraphQLNotFoundException` types (no new error envelope). Backend rules are proven
-  with Kotest + Testcontainers. Schema-changing stories regenerate GraphQL codegen in the same story (never hand-edit
-  generated code); backend and frontend version numbers stay in lockstep and ship together.
-- New `entity/feedback/` slice (`Feedback`, `FeedbackService`, `mongo/FeedbackRepository` in a `feedback` collection,
-  `gql/FeedbackApi`), modeled on the existing user/config entities: no cache, no reactive stream, no subscription.
-  Document fields: UUID `_id` (as string), `text`, `username` (plain copied string, no user-id reference), `createdAt`.
-  User deletion never touches this collection. `sendFeedback(text)` rejects the admin caller, trims and length-checks
-  text (max 2000 UTF-16 chars, blank rejected); `feedback` query returns all entries newest-first unpaginated;
-  `deleteFeedback(id)` returns the deleted id. Both admin-only. The two existing duplicated `requireAdmin()` checks
-  are consolidated into one shared auth helper used by user admin, app config, and feedback.
-- Items move from a single `store` field to `stores: [String!]!` across every layer (entity, Mongo doc, GraphQL type,
-  input, mappers, repository) in one story/release, alongside a one-time migration converting any existing single
-  `store` value into the `stores` list (idempotent, runs once via the existing migration-tracking mechanism, ordered
-  after the prior migration). The server is the sole normalization authority for store names: trim, drop empties,
-  dedupe case-insensitively while keeping first-occurrence casing and position; the frontend mirrors this logic for
-  UX but the server result is authoritative. A pre-deploy database dump/backup is required before shipping this
-  migration, with a documented rollback path.
-- One shared check-state helper function is used by check/uncheck and by the item edit save path so check-related
-  server-owned fields (checkedAt, deleted, deletedAt) behave consistently regardless of which mutation touched them.
-- Admin `users` query becomes paginated (`limit`, `offset`, an `around`-username option), returning a page plus total
-  count, sorted by username ascending; server clamps limit/offset to valid ranges. The frontend fetches with a
-  network-preferring cache policy and evicts/refetches the users list after create/delete mutations.
-- Category deletion cascades: deleting a category also deletes every item in that category (including already
-  soft-deleted ones) for all list members, via a single authoritative event rather than per-item events (the
-  real-time channel used is capacity-limited so bulk per-item events would be dropped) — clients treat the category
-  deletion as authoritative for pruning their own cached items of that category. Item save/uncheck paths reject
-  categories that don't belong to the target list.
-- Deleting a user account fully purges their list memberships (all statuses, on any list) and cascades deletion of
-  lists they own (not transferred) rather than leaving orphaned ownership; session invalidation happens as part of
-  the same deletion flow. The delete-user confirmation states how many owned lists will be deleted as a consequence.
-- A backend health endpoint is added outside authentication/rate-limiting for the E2E test runner to poll before
-  starting tests, checking Mongo reachability with a short timeout; this replaces the current source of test-run
-  flakiness on a cold-start backend.
-- Frontend: the shopping-view floating add button reuses the existing add-item dialog (no second dialog) with the
-  list id fixed; the store field becomes a single reusable multi-value component (chips + suggestions + free entry)
-  used by both add and edit item dialogs, deliberately not an autocomplete/combobox pattern (to avoid a second
-  combobox role inside the dialog) unless a story explicitly records a reason to change that. The account menu gains
-  Home and Feedback entries (Feedback hidden for the admin role); Feedback opens as a dialog, not a route, so the
+- Backend keeps the per-entity slice layout (`entity/<name>/{Service,Storage,gql/,mongo/}`), one-way
+  GQL → Service → Storage → Repository, reusing existing `GraphQLForbiddenException` /
+  `GraphQLInvalidInputException` / `GraphQLNotFoundException` (no new error envelope); proven with Kotest +
+  Testcontainers. Schema-changing stories regenerate GraphQL codegen in the same story; backend and frontend version
+  numbers stay in lockstep.
+- New `entity/feedback/` slice modeled on the user/config entities: no cache, no reactive stream, no subscription.
+  Fields: string UUID `_id`, `text`, `username` (plain copy, no user-id reference), `createdAt`. User deletion never
+  touches this collection. `sendFeedback` rejects the admin, trims and bounds text (max 2000 UTF-16 chars, blank
+  rejected); `feedback` returns all entries newest-first, unpaginated; `deleteFeedback` returns the deleted id; both
+  admin-only. The two duplicated `requireAdmin()` checks (user admin, app config) are consolidated into one shared
+  helper also used by feedback.
+- Items move from a single `store` field to `stores: [String!]!` across every layer in one story/release, with a
+  one-time migration folding any existing `store` into `stores` (idempotent, ordered after the prior migration via
+  the existing tracking mechanism). The server is sole normalization authority: trim, drop empties, dedupe
+  case-insensitively keeping first-occurrence casing/position; the frontend mirrors this for UX but the server result
+  is authoritative. A pre-deploy database dump and documented rollback are required before shipping this migration.
+- One shared check-state helper is used by check/uncheck and the item-edit save path so `checkedAt`/`deleted`/
+  `deletedAt` behave consistently regardless of which mutation touched them.
+- Admin `users` query becomes paginated (`limit`, `offset`, an `around`-username option) returning a page plus total
+  count, sorted by username; server clamps limit/offset. Frontend fetches network-preferring and evicts/refetches
+  after create/delete.
+- Category deletion cascades: deleting a category deletes every item in it (including soft-deleted ones) for all
+  members, via one authoritative category-delete event rather than per-item events (the realtime channel is
+  capacity-limited); clients treat it as authoritative for pruning cached items. Item save/uncheck reject categories
+  that don't belong to the target list.
+- Deleting a user purges all their list memberships (any status, any list) and cascades deletion of lists they own
+  (not transferred); session invalidation happens in the same flow. The delete-user confirmation states how many
+  owned lists will be deleted.
+- A backend health endpoint, outside auth/rate-limiting, lets the E2E runner poll before starting tests (checks Mongo
+  reachability with a short timeout) — replacing the current cold-start flakiness source.
+- Frontend: the shopping-view FAB reuses the existing add-item dialog (no second dialog) with the list id fixed; the
+  store field becomes one reusable multi-value component (chips + suggestions + free entry) used by both item
+  dialogs, deliberately not an autocomplete/combobox unless a story records a reason to change that. The account menu
+  gains Home and Feedback entries (Feedback hidden for admin); Feedback opens as a dialog, not a route, so the
   underlying screen stays mounted.
-- No toast/snackbar/notification layer is introduced anywhere in this epic — feedback send confirmation and admin
-  delete results follow the existing in-flow inline alert / disappearing-row idioms already used elsewhere in the
-  app. New dialogs follow the existing canonical form-dialog conventions (native form + submit-on-Enter, validate on
-  submit, errors clear on typing, in-flight submit/cancel disabling, inline error rendering).
-- Every story that touches core shared UI (App shell, routes, AppShell, theme, or the shared list query/component
-  library) must correct the project's living design/experience documentation in the same commit — these docs
-  describe the shipped app and must stay accurate. No new visual language, palette, or theme override is introduced.
+- No toast/snackbar/notification layer anywhere in this epic — confirmations follow the existing inline-alert /
+  disappearing-row idioms. New dialogs follow the canonical form-dialog conventions (native form + submit-on-Enter,
+  validate on submit, errors clear on typing, in-flight disabling, inline error rendering).
+- Any story touching core shared UI (app shell, routes, theme, shared list query/component library) must correct the
+  project's living design/experience docs in the same commit. No new visual language, palette, or theme override.
 
 ## UX & Interaction Patterns
 
-- Shopping-view item rows keep their existing accessible name (a toggle label naming the item); store information is
-  added to the row's accessible description instead, alongside existing metadata, and is omitted when the item has no
-  stores. Store chips inside the row are presentational only, never separate interactive affordances, and multiple
-  stores must not visually crowd out the check control or item name on a narrow phone width.
-- The floating add button is bottom-right, fixed, reachable through scrolling, respects safe-area insets, and the
-  page must reserve enough bottom padding that it never permanently obscures the last row. Adding an item is now a
-  valid shopping-view action even though editing/deleting remain management-screen-only actions — this is a
-  deliberate change to the previous "shopping view is read-only except checking" rule, and the shopping empty-state
-  copy needs to be revised to match (point users at the button, not just at list management).
-- The category filter menu needs a clearly labeled, always-reachable "close/done" control inside the menu itself
-  (not just outside-tap/Escape) so it's usable when the open menu covers most of a small screen; this control is
-  shared by both list surfaces since the filter component is defined once.
-- Feedback dialog and the admin feedback panel follow the existing dialog/panel visual conventions already
-  established elsewhere (a `Paper` panel with the standard error/loading/empty/content branch order for the admin
-  feedback list; a standard modal form for composing feedback with a character counter against the 2000-char limit).
-- Admin pagination controls need previous/next affordances, a page indicator, and a total count, all operable at a
-  320px viewport with no horizontal overflow.
+- Shopping-view rows keep their existing accessible name (toggle label naming the item); store info is added to the
+  row's accessible description instead, omitted when the item has no stores. Store chips are presentational only,
+  never separate affordances, and must not crowd out the check control or name at 320px.
+- The FAB is bottom-right, fixed, reachable through scrolling, respects safe-area insets; the page reserves bottom
+  padding so it never permanently obscures the last row. Adding an item is now a valid shopping-view action (editing
+  and deleting stay management-only) — a deliberate change from the prior read-only-except-checking rule; the
+  shopping empty-state copy is revised to point at the button.
+- The category filter menu needs a clearly labeled, always-reachable close control inside the menu itself, shared by
+  both list surfaces since the filter component is defined once.
+- The feedback dialog and admin feedback panel follow existing dialog/panel conventions: a `Paper` panel with the
+  standard error/loading/empty/content branch order; a standard modal form with a character counter against 2000.
+- Admin pagination needs prev/next affordances, a page indicator, and a total count, operable at 320px with no
+  horizontal overflow.
 
 ## Cross-Story Dependencies
 
-- The backend health-check story (9.1) should land first, since later stories are verified against an E2E gate that
-  can currently abort spuriously on a cold-started backend.
-- Admin pagination (9.2) should land early: end-to-end test data hygiene degrades further with every additional
-  suite run, so delaying pagination compounds an existing test-flakiness problem.
-- The category-deletion cascade (9.3) should land before or together with the shopping-view add button (9.11): the
-  cascade's category-validation logic on item save is what prevents the add button from creating items in a
-  just-deleted category.
-- The multi-store change (9.6) touches schema, mappers, repository, the one-time migration, codegen, and E2E
-  GraphQL together and ships as one indivisible unit within a single app release.
-- The small-cleanups story (9.12) runs last, after every AppShell-touching story, so it only removes tokens/dead code
-  that are actually unconsumed by that point.
-- Feedback sending (9.9) and feedback review (9.10) share the same backend feedback slice and admin-restriction rule
-  and are natural predecessor/successor work, though the epic does not mandate the exact ordering between them
-  beyond the constraints above.
-- Item store data must not be lost when the store-to-stores migration runs, and it is intentionally non-repeatable —
-  any change to item storage in story 9.6 must coordinate with this one-shot migration timing.
+- The health-check story (9.1) lands first — later stories are verified against a gate that can otherwise abort on a
+  cold-started backend.
+- Admin pagination (9.2) lands early — E2E data hygiene degrades further with every additional suite run.
+- The category-deletion cascade (9.3) lands before or with the shopping-view add button (9.11): its category
+  validation on item save is what stops the FAB creating items in a just-deleted category.
+- The multi-store change (9.6) touches schema, mappers, repository, the one-time migration, codegen, and E2E GraphQL
+  together as one indivisible story/release.
+- Small cleanups (9.12) run last, after every AppShell-touching story, so only still-unconsumed tokens/dead code are
+  removed.
+- Feedback sending (9.9) and review (9.10) share the same backend feedback slice and admin-restriction rule; natural
+  predecessor/successor but not mandated in strict order beyond the constraints above.
+- The store-to-stores migration (9.6) is one-shot and non-repeatable — coordinate any later item-storage change with
+  its timing.

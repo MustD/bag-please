@@ -70,7 +70,6 @@ class UserService(
         if (!verifyPassword(currentPassword, user.passwordHash)) raise(AuthError.WrongCurrentPassword)
         val newHash = hashPassword(newPassword)
         repository.save(user.copy(passwordHash = newHash))
-        Unit
     }
 
     // One page of regular users, sorted by username ascending (Story 9.2).

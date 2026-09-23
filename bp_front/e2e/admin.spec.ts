@@ -17,7 +17,7 @@ import {countUsersApi, createUserApi, deleteUserApi, listE2eUsers, loginApi} fro
 // (see playwright.config.ts); the mobile gate is mandatory. FR mappings are in
 // the test names.
 //
-// Managed users get a UNIQUE username per run/project (the ./db/data volume
+// Managed users get a UNIQUE username per run/project (the db_data named volume
 // persists across runs and the two projects run concurrently), so tests only
 // ever assert on rows they created — never on a total row count. Assertions that
 // exercise a managed user's own session (login, redirect) run in a FRESH browser
@@ -181,7 +181,7 @@ test('FR20/FR21 — toggling registration off hides the Register link on /auth; 
   // below is kept anyway — pre-create the observer context so only the /auth
   // load+assert sits inside the window, and restore ON in an inner finally — so
   // a stranded OFF flag cannot outlive this test and poison the NEXT run's
-  // register-based specs through the persisted ./db/data volume.
+  // register-based specs through the persisted db_data named volume.
   const offCtx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   const offPage = await offCtx.newPage()
   try {
@@ -196,7 +196,7 @@ test('FR20/FR21 — toggling registration off hides the Register link on /auth; 
       // Do NOT rethrow (a throw here would mask a failing assertion above), but
       // do NOT swallow silently either: record a genuine restore failure so a
       // stranded OFF flag — which would break the mobile link of the chain and,
-      // via the persisted ./db/data volume, the NEXT run's register-based specs
+      // via the persisted db_data named volume, the NEXT run's register-based specs
       // before global-setup re-enables it — is visible in the report instead of
       // invisible.
       await setRegistration(page, true).catch((err: unknown) => {

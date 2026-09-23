@@ -6,12 +6,8 @@ declare module '@mui/material/styles' {
   interface Theme {
     custom: {
       bp: {
-        bg2: string
-        card2: string
         navBg: string
-        sheetBg: string
         accentSoft: string
-        stripe: string
       }
     }
   }
@@ -71,12 +67,8 @@ const theme = createTheme({
   },
   custom: {
     bp: {
-      bg2: '#0E0E10',
-      card2: '#2C2C2E',
       navBg: 'rgba(0,0,0,0.78)',
-      sheetBg: '#1C1C1E',
       accentSoft: 'rgba(77,201,187,0.18)',
-      stripe: 'rgba(255,255,255,0.03)',
     },
   },
 })

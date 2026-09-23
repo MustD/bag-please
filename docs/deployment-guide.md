@@ -7,7 +7,7 @@ Docker Compose (`docker-compose.yaml`) defines three services on a single bridge
 
 | Service    | Image                                        | Port (host → container) | Notes                                                                                                                   |
 |------------|----------------------------------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `mongo`    | `mongo:8`                                    | `127.0.0.1:27217:27017` | Persistent volume `./db/data`; healthcheck; host port 27217 avoids clashing with a local MongoDB                        |
+| `mongo`    | `mongo:8`                                    | `127.0.0.1:27217:27017` | Persistent named volume `db_data`; healthcheck; host port 27217 avoids clashing with a local MongoDB                    |
 | `bp_back`  | Built from repo root (`bp_back/Dockerfile`)  | `127.0.0.1:4000:4000`   | Ktor fat JAR on `eclipse-temurin:25`; waits for mongo healthy                                                           |
 | `bp_front` | Built from repo root (`bp_front/Dockerfile`) | `127.0.0.1:2080:80`     | **Entry point** — Caddy serves the Vite `dist/` and proxies `/api` to `bp_back`; waits for mongo healthy + back started |
 
@@ -148,7 +148,7 @@ the dump exists for the one case that is not recoverable in the app — going *b
   `trusted_proxies` to the edge's exact CIDR
 - [ ] Tune `KTOR_RATE_LIMIT_ATTEMPTS` / `KTOR_RATE_LIMIT_WINDOW_SECONDS` for production (compose uses a very high value
   for E2E)
-- [ ] Back up `./db/data` regularly
+- [ ] Back up the `db_data` named volume regularly
 - [ ] Consider rotating the JWT secret (invalidates existing tokens)
 
 ## Known GLIBC Issue (MongoDB on Kernel ≥ 6.19)

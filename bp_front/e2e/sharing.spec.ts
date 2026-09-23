@@ -24,7 +24,7 @@ import {
 // `goto('/lists')` reload rather than waiting for a live update.
 //
 // Every scenario registers FRESH unique users per run/project via the register UI
-// and asserts only on self-created data (the ./db/data volume persists across
+// and asserts only on self-created data (the db_data named volume persists across
 // runs and the two projects run concurrently).
 
 // Return the owner to the lists index from a list detail screen.

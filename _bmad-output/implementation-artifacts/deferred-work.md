@@ -100,16 +100,27 @@ line number.
 - ✅ CLOSED by Story 9.1 (2026-09-15): `GET /api/health` ships. Was: Story 7.12 — there is still no backend health
   endpoint.
 
-**Own story — small cleanups:**
+**Own story — small cleanups:** ✅ ALL CLOSED by Story 9.12 (2026-09-23).
 
-- Epic 8 retro **F19b** — untrack `.idea/dataSources.xml`.
-- Story 7.1 + code review of 7-8/7-9 — `codegen.ts` is in no tsconfig project.
-- Code review of 7-8/7-9 — `./db/data` survives as a stale path in docs and E2E comments.
-- Story 7.12 — the redundant trailing `Unit` in `UserService.changePassword` (Kotlin 2.4 warning).
-- Code review of 7-14 — `dev-dist/` is not gitignored (routed in the second 2026-09-15 pass).
-- Code review of 4-1 — `ListStorage.delete()` is dead code (routed in the second 2026-09-15 pass).
-- Story 8.7 — four `custom.bp.*` theme tokens are declared and unconsumed; adopt or delete them (routed in the
-  second 2026-09-15 pass).
+- ✅ CLOSED by Story 9.12 (2026-09-23): `.idea/dataSources.xml` is gitignored and untracked (`git rm --cached`); the
+  file stays on disk. Was: Epic 8 retro **F19b** — untrack `.idea/dataSources.xml`.
+- ✅ CLOSED by Story 9.12 (2026-09-23): `codegen.ts` is added to `tsconfig.node.json`'s `include`; `tsc -b` now
+  type-checks it. Was: Story 7.1 + code review of 7-8/7-9 — `codegen.ts` is in no tsconfig project.
+- ✅ CLOSED by Story 9.12 (2026-09-23): every stale `./db/data` mention in `docs/` and `bp_front/e2e/` now describes
+  the `db_data` named volume. Was: Code review of 7-8/7-9 — `./db/data` survives as a stale path in docs and E2E
+  comments.
+- ✅ CLOSED by Story 9.12 (2026-09-23): the redundant trailing `Unit` in `UserService.changePassword` is deleted; the
+  block's last expression is `repository.save(...)`. Was: Story 7.12 — the redundant trailing `Unit` in
+  `UserService.changePassword` (Kotlin 2.4 warning).
+- ✅ CLOSED by Story 9.12 (2026-09-23): `dev-dist` is added to `bp_front/.gitignore` and the ESLint `ignores` array.
+  Was: Code review of 7-14 — `dev-dist/` is not gitignored (routed in the second 2026-09-15 pass).
+- ✅ CLOSED by Story 9.12 (2026-09-23): `ListStorage.delete()` is deleted (zero callers; `ListService.cascadeDeleteList`
+  always bypassed it). Was: Code review of 4-1 — `ListStorage.delete()` is dead code (routed in the second
+  2026-09-15 pass).
+- ✅ CLOSED by Story 9.12 (2026-09-23): the four unconsumed `custom.bp.*` tokens (`bg2`, `card2`, `sheetBg`, `stripe`)
+  are deleted from `theme.ts` and its module-augmentation type; `DESIGN.md` §3 and §11.2 updated. Was: Story 8.7 —
+  four `custom.bp.*` theme tokens are declared and unconsumed; adopt or delete them (routed in the second
+  2026-09-15 pass).
 
 ## Epic 7 close-out (2026-08-21)
 
@@ -145,12 +156,14 @@ the archive.
 
 ## Deferred from: Story 7.1 — E2E suite inside the frontend quality gates (2026-08-07)
 
-- **`codegen.ts` is still inside no tsconfig project.** `tsconfig.app.json` covers `src`, `tsconfig.node.json` covers
-  `vite.config.ts`, and `tsconfig.e2e.json` covers `e2e` + `playwright.config.ts` — `codegen.ts` is the one remaining
-  root file that `tsc -b` never sees (re-verified 2026-09-07). It *is* linted (the widened `eslint .` picks it up) but
-  it is not type-checked. Deliberately out of Story 7.1's scope (Decision 8). Low severity — the file is 44 lines of
-  codegen config. Fix by adding `codegen.ts` to `tsconfig.node.json`'s `include`; **verified sufficient on its own** —
-  no `types` change is needed alongside it (`tsc -b` exits 0), contrary to this entry's first draft.
+- ✅ CLOSED by Story 9.12 (2026-09-23): `codegen.ts` is added to `tsconfig.node.json`'s `include`; `tsc -b` now
+  type-checks it, exit 0. Was: **`codegen.ts` is still inside no tsconfig project.** `tsconfig.app.json` covers
+  `src`, `tsconfig.node.json` covers `vite.config.ts`, and `tsconfig.e2e.json` covers `e2e` + `playwright.config.ts`
+  — `codegen.ts` is the one remaining root file that `tsc -b` never sees (re-verified 2026-09-07). It *is* linted
+  (the widened `eslint .` picks it up) but it is not type-checked. Deliberately out of Story 7.1's scope
+  (Decision 8). Low severity — the file is 44 lines of codegen config. Fix by adding `codegen.ts` to
+  `tsconfig.node.json`'s `include`; **verified sufficient on its own** — no `types` change is needed alongside it
+  (`tsc -b` exits 0), contrary to this entry's first draft.
 
 ### Surfaced by the Story 7.1 code review (2026-08-07)
 
@@ -334,7 +347,11 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   build), record the answer as a rule, then either drop the dead Jackson 2 websocket converter or record it as
   intentionally load-bearing. Do this before the next Ktor or graphql-kotlin major, not after.
 
-- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+- ✅ CLOSED by Story 9.12 (2026-09-23): the redundant trailing `Unit` in `changePassword`'s `either { }` block is
+  deleted; `gradle :bp_back:compileKotlin --rerun` now emits zero `w: ` lines. (The line number below, `:65`,
+  reflects where later stories had pushed the statement by the time this entry was filed — it was at `:73` by the
+  time this closure landed, after further intervening code; same statement throughout.)
+  Was: source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
   summary: Kotlin 2.4.10 emits a compiler warning on unchanged source that 2.3.21 did not —
   `bp_back/src/main/kotlin/com/bagplease/entity/user/UserService.kt:65:9 Expression is unused.`
   evidence: established with a control rather than assumed. The catalog was stashed back to `9.3.0`/`2.3.21` and
@@ -366,7 +383,8 @@ archive). What follows is the residue it deliberately did **not** take on. All r
 
 ## Deferred from: code review of 7-14-installable-pwa (2026-08-20)
 
-- source_spec: `spec-7-14-installable-pwa.md`
+- ✅ CLOSED by Story 9.12 (2026-09-23): `dev-dist` is added to `bp_front/.gitignore` and the ESLint `ignores` array.
+  Was: source_spec: `spec-7-14-installable-pwa.md`
   summary: `dev-dist/` is not gitignored, which is a trap the first time anyone sets `devOptions.enabled`.
   evidence: `npm run dev` was run in that pass and produced no `dev-dist/`, so the spec's condition was correctly read
   as not met and neither `.gitignore` nor `eslint.config.mjs` was touched. Re-verified 2026-09-07: `dev-dist` still
@@ -378,7 +396,10 @@ archive). What follows is the residue it deliberately did **not** take on. All r
 Findings the review surfaced that are **not** fixable inside that story's boundary (version numbers and what an
 upgrade strictly requires). Several are pre-existing and were merely exposed by the bundler swap.
 
-- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+- ✅ CLOSED by Story 9.12 (2026-09-23): `codegen.ts` is now in `tsconfig.node.json`'s `include` — the tsconfig half
+  closed alongside the Story 7.1 entry above; combined with Story 7.13's earlier `npm run generate` run, the
+  `npm run generate` path is both type-checked and exercised.
+  Was: source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
   summary: **`codegen.ts` is in no tsconfig project and codegen was never run against the Vite 8 tree**, so the
   `npm run generate` path is unverified after `esbuild` left the dependency graph.
   evidence: `tsconfig.app.json` includes `src`, `tsconfig.node.json` only `vite.config.ts`, `tsconfig.e2e.json` `e2e` +
@@ -387,7 +408,9 @@ upgrade strictly requires). Several are pre-existing and were merely exposed by 
   live schema under graphql 17 and got byte-identical output, which exercised the path on the Vite 8 tree. What remains
   is the tsconfig half — see the 7.1 entry above.
 
-- source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
+- ✅ CLOSED by Story 9.12 (2026-09-23): every stale `./db/data` mention in `docs/` and `bp_front/e2e/` now describes
+  the `db_data` named volume.
+  Was: source_spec: `spec-7-8-7-9-types-node-26-and-vite-8.md`
   summary: **`./db/data` survives as a stale path across the docs and E2E comments** after `md` switched the mongo
   mount to the named volume `bag-please_db_data`.
   evidence: re-verified 2026-09-07 — `docs/deployment-guide.md:10,101,117` still teaches it as the persistent volume
@@ -566,7 +589,9 @@ in that section. `verifyMembership`'s existence leak was accepted, and the `GqlI
 resolved (`GqlItem` is `@GraphQLName("Item")` and `GqlItemInput` is `@GraphQLName("ItemInput")` — separate classes).
 All three are in the archive.
 
-- `ListStorage.delete()` dead code — the method exists but `ListService.deleteList` bypasses it (calls
+- ✅ CLOSED by Story 9.12 (2026-09-23): `ListStorage.delete()` is deleted; no callers existed, and no test covered it
+  either (`bp_back/src/test/kotlin` has no `ListStorage` test file), so nothing else needed removing. Was: `ListStorage.delete()`
+  dead code — the method exists but `ListService.deleteList` bypasses it (calls
   `listRepository.delete` + `evictFromCache` directly, `ListService.kt:117-123`); latent inconsistency that could cause
   a double-delete if future code routes through `listStorage.delete()`. Re-verified 2026-09-07.
 ## Deferred from: code review of 1-2-login-token-system-session-security-backend (2026-05-08)
@@ -709,8 +734,11 @@ code (`git diff --stat bp_front/src/ bp_front/e2e/ bp_back/` is empty at
 are the places where the measurement disagreed with what was already written down.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-7-write-down-the-design-this-app-actually-has.md`
-  status: **OPEN — four `custom.bp.*` tokens are declared and unconsumed.**
-  summary: `bp_front/src/theme.ts` declares SIX `custom.bp.*` tokens and only **two** have a consumer. `bg2`
+  status: **✅ CLOSED by Story 9.12 (2026-09-23).**
+  closed_by: `_bmad-output/implementation-artifacts/spec-9-12-small-cleanups.md`
+  summary of the fix: the four unconsumed tokens (`bg2`, `card2`, `sheetBg`, `stripe`) are deleted from `theme.ts`'s
+  value object and module-augmentation type; `DESIGN.md` §3 and §11.2 updated to the resulting two-token state.
+  Was: summary: `bp_front/src/theme.ts` declares SIX `custom.bp.*` tokens and only **two** have a consumer. `bg2`
   (`#0E0E10`, `theme.ts:74`), `card2` (`#2C2C2E`, `:75`), `sheetBg` (`#1C1C1E`, `:77`) and `stripe`
   (`rgba(255,255,255,0.03)`, `:79`) are read by nothing in `src/`.
   evidence: Measured 2026-09-09 — `grep -rn 'custom\.bp' bp_front/src | grep -v 'src/theme.ts'` returns exactly two

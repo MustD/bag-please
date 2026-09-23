@@ -24,7 +24,7 @@ import {
 //
 // Every scenario registers a FRESH unique regular user per run/project via the
 // register UI — `admin` is blocked from list resources and there is no seeded
-// account (the ./db/data volume persists across runs and the two projects run
+// account (the db_data named volume persists across runs and the two projects run
 // concurrently), so tests only ever assert on rows they created, never on totals.
 
 // Create a list via the index overlay and wait for its row (refetch-driven, no

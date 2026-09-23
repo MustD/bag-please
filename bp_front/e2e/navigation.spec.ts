@@ -18,7 +18,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 //
 // Every scenario registers a FRESH unique regular user per run/project via the
 // register UI — `admin` is blocked from all list resources and there is no seeded
-// regular account, while the ./db/data volume persists across runs and the two
+// regular account, while the db_data named volume persists across runs and the two
 // projects run concurrently — so tests only ever assert on lists they created,
 // never on totals. The admin scenario uses the guaranteed first-boot admin.
 //

@@ -1,7 +1,7 @@
 // One-time suite setup: enable public registration so the real register flow
 // (Scenario 1) can succeed. This is environment prep — the registration and
 // login endpoints themselves stay real in every test; we only flip a shared
-// backend flag once, up front. The ./db/data volume persists across runs, so
+// backend flag once, up front. The db_data named volume persists across runs, so
 // this is written idempotently (set to true; never assume a starting value) —
 // which is also what recovers a flag stranded OFF by a crashed prior run.
 //

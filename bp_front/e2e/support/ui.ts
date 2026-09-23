@@ -13,7 +13,7 @@ import {ADMIN} from './api'
 //      playwright.config.ts); the mobile gate is mandatory.
 //   3. Every scenario registers a FRESH unique user per run/project — `admin` is
 //      blocked from all list resources and there is no seeded regular account,
-//      while the ./db/data volume persists across runs and the two projects run
+//      while the db_data named volume persists across runs and the two projects run
 //      concurrently — so tests only ever assert on data they created, never on
 //      totals. `uniqueUsername` therefore takes the CALLER's prefix: each spec
 //      keeps its own namespace (`acct`, `admin`, `attrib`, `lists`, `nav`,

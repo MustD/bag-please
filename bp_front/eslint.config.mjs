@@ -10,6 +10,7 @@ export default tseslint.config(
     {
         ignores: [
             'dist',
+            'dev-dist',
             'src/__generated__',
             'test-results',
             'playwright-report',

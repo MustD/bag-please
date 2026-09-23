@@ -18,7 +18,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 // Runs on chromium + mobile (Pixel 7); the mobile gate is mandatory. Every
 // scenario registers a FRESH unique user through the register UI (`admin` is
 // blocked from all list resources) and asserts only on data it created — the
-// ./db/data volume persists across runs and both projects run concurrently.
+// db_data named volume persists across runs and both projects run concurrently.
 //
 // The shopping view is always reached by page.goto(`/list/:id`), never through
 // Story 6.2's title/back links, so 6.1 stands alone.

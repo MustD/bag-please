@@ -24,7 +24,7 @@ import {
 // the mobile gate is mandatory. FR mappings are in the test names.
 //
 // Every scenario registers FRESH unique users per run/project via the register
-// UI — `admin` is blocked from list resources and the ./db/data volume persists
+// UI — `admin` is blocked from list resources and the db_data named volume persists
 // across runs while the two projects run concurrently — so tests only ever
 // assert on data they created, never on totals.
 

@@ -9,7 +9,7 @@ import {PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 // the test names.
 //
 // Every non-admin scenario registers a FRESH unique user per run/project via
-// the register UI (the ./db/data volume persists across runs, and the two
+// the register UI (the db_data named volume persists across runs, and the two
 // projects run concurrently), so tests only ever assert on data they created.
 // The admin scenario uses the guaranteed first-boot admin/admin account purely
 // to assert the ABSENCE of the change-password affordance.
