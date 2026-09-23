@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: 09-18-2026 12:00
+last_updated: 09-23-2026 12:00
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -114,14 +114,14 @@ development_status:
   epic-9: in-progress
   9-1-the-test-run-waits-until-the-backend-is-ready: done
   9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: done
-  9-3-deleting-a-category-deletes-its-items-for-everyone: review
-  9-4-deleting-a-user-leaves-no-phantom-memberships: review
-  9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: review
-  9-6-an-item-can-be-in-several-stores: review
-  9-7-home-is-in-the-account-menu: review
-  9-8-the-category-filter-menu-can-be-closed-on-a-phone: review
-  9-9-a-user-can-send-feedback-from-any-screen: backlog
-  9-10-the-admin-reviews-and-clears-feedback: backlog
+  9-3-deleting-a-category-deletes-its-items-for-everyone: done
+  9-4-deleting-a-user-leaves-no-phantom-memberships: done
+  9-5-checking-an-item-through-an-edit-keeps-the-scheduler-working: done
+  9-6-an-item-can-be-in-several-stores: done
+  9-7-home-is-in-the-account-menu: done
+  9-8-the-category-filter-menu-can-be-closed-on-a-phone: done
+  9-9-a-user-can-send-feedback-from-any-screen: done
+  9-10-the-admin-reviews-and-clears-feedback: done
   9-11-an-item-can-be-added-from-the-shopping-screen: backlog
   9-12-small-cleanups: backlog
   epic-9-retrospective: optional
@@ -317,7 +317,7 @@ action_items:
       a large user table, not only a test-harness problem; it is not scheduled and
       is deliberately not blocking anything"
     owner: "md"
-    status: open  # SCHEDULED IN EPIC 9 (2026-09-15) as FR13 amended (20 per page, username ascending); close when that story is done
+    status: done  # CLOSED BY Story 9.2 (ee92b17): the admin `users` field is server-paged (FR13 amended: 20 per page, username ascending). Closed at an SS fix reconciliation 2026-09-23, not by the story itself. Was: SCHEDULED IN EPIC 9 (2026-09-15)
   - id: "epic-8-retro-item-31-f1-the-shopping-screen-list-id-still-tru"
     epic: 8
     action: "F1 - the shopping screen /list/:id still truncates item names at the
@@ -338,7 +338,7 @@ action_items:
       Cover it in the FR61 empty-category spec, which today selects only the stocked
       category."
     owner: "Amelia"
-    status: open  # ROUTED TO EPIC 9 (2026-09-15): rides the FR61 filter confirm-control story
+    status: done  # CLOSED BY Story 9.8 (0e69a45): a category explicitly selected in the /lists/:id filter survives even when empty (keepEmpty || selected). Closed at an SS fix reconciliation 2026-09-23. Was: ROUTED TO EPIC 9 (2026-09-15)
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-33-f4-long_item_name-two-line-clamp-measure"
     epic: 8
@@ -356,7 +356,7 @@ action_items:
       Reserve the name, or key testids off group.key instead of group.name (also covers
       the accepted duplicate-name case)."
     owner: "Amelia"
-    status: open  # ROUTED TO EPIC 9 (2026-09-15): rides the FR61 filter confirm-control story
+    status: done  # CLOSED BY Story 9.8 (0e69a45): the synthetic Uncategorized bucket's row testid keys off its sentinel group.key, so it no longer collides with a real category of that name. Resolved by de-keying only (AR-E9-14, no reserved-name rule); the identical VISIBLE label remains a known residual recorded in spec-9-8. Closed at an SS fix reconciliation 2026-09-23. Was: ROUTED TO EPIC 9 (2026-09-15)
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-35-f19-supersede-the-stale-bmad-build-auto"
     epic: 8
