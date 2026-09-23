@@ -130,16 +130,18 @@ export async function addCategory(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
 }
 
-// Add an item through the overlay. `stores` exercises the store field on the ADD
-// dialog (Story 6.1, multi-value since Story 9.6); omit it to leave the item
-// store-less.
-export async function addItem(
+// Fill and submit an ALREADY-OPEN `add-item-dialog`, and wait for it to close.
+// Story 9.11 split this out of `addItem`: the same dialog now opens from two
+// places — the management screen's `add-item-button` and the shopping view's
+// `shopping-add-item-fab` — and it is one dialog (AR-E9-10), so it is filled by
+// one definition (NFR-E8-5). `stores` exercises the store field (Story 6.1,
+// multi-value since Story 9.6); omit it to leave the item store-less.
+export async function fillAddItemDialog(
   page: Page,
   categoryName: string,
   itemName: string,
   stores?: readonly string[],
 ): Promise<void> {
-  await page.getByTestId('add-item-button').click()
   await expect(page.getByTestId('add-item-dialog')).toBeVisible()
   await page.getByTestId('add-item-name').fill(itemName)
   // Scoped role=combobox: the category Select must stay the ONLY combobox in
@@ -157,6 +159,17 @@ export async function addItem(
   }
   await page.getByTestId('add-item-submit').click()
   await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
+}
+
+// Add an item through the management screen's overlay (/lists/:id).
+export async function addItem(
+  page: Page,
+  categoryName: string,
+  itemName: string,
+  stores?: readonly string[],
+): Promise<void> {
+  await page.getByTestId('add-item-button').click()
+  await fillAddItemDialog(page, categoryName, itemName, stores)
   await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
 }
 

@@ -1242,4 +1242,32 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await page.getByTestId('delete-feedback-confirm').click()
     await expect(page.getByTestId('delete-feedback-dialog')).toHaveCount(0)
   })
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.11 — the shopping-view FAB and the no-categories add dialog at the
+  // floor. The FAB is `position: fixed` bottom-right with safe-area offsets, so
+  // the gate is that it sits fully on screen and widens nothing; the dialog's
+  // no-categories branch (guidance + "Manage list" link, no form) is a new
+  // dialog body, so it gets the same dialog-floor shape as the others here.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the shopping add-item FAB and its no-categories dialog stay inside the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'fab', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, LONG_LIST_NAME)
+
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('shopping-add-item-fab'), 'the shopping add-item FAB')
+    await expectNoHorizontalOverflow(page)
+
+    await page.getByTestId('shopping-add-item-fab').click()
+    await expect(page.getByTestId('add-item-no-categories')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('add-item-dialog').getByRole('dialog'), 'the add-item dialog')
+    await expectNotClipped(page.getByTestId('add-item-no-categories'))
+    await expectInsideViewport(page.getByTestId('add-item-cancel'), 'the add-item cancel control')
+    await expectInsideViewport(page.getByTestId('add-item-manage-list'), 'the manage-list link')
+    await expectNoHorizontalOverflow(page)
+  })
 })

@@ -177,19 +177,26 @@ is forwarded on **both** `/lists` branches (2 and 4) and on neither of the other
 > `/lists/:id` manages a list, `/list/:id` shops it. The two screens differ on purpose in places, and those
 > differences stay." It has no single code anchor because it is a rule *about* the code; what follows is the code it
 > produced.
+>
+> **RULING — adding is a shopping-view action. UX-DR-E9-8** (`md`, 2026-09-15; `epics.md:427-433`; Story 9.11 / FR68). The split above held that
+> `/list/:id` was "read + check only". `md` ruled that ADDING an item is a valid shopping action — you notice a missing
+> item while you are in the shop — so the shopping view gained one add affordance (a FAB opening the SAME
+> `AddItemDialog`, list fixed; see §5.3.3). This relaxes the rule by exactly that one action: editing and deleting
+> items, and all category CRUD, stay management-only, and the split is otherwise unchanged.
 
 | | `/lists/:id` — **manage** | `/list/:id` — **use** |
 | --- | --- | --- |
-| Component | `ListDetailPage.tsx` (477 lines) | `ListShoppingPage.tsx` (507 lines) |
-| Purpose comment | `ListDetailPage.tsx:42-48` | `ListShoppingPage.tsx:225-231` |
-| Add / edit / delete categories & items | **yes** — 5 dialogs | **no** — read + check only |
-| Check / uncheck an item | **no** | **yes** (`ListShoppingPage.tsx:373-386`) |
-| Checked-status filter (All / To buy / Done) | **no** (props omitted) | **yes** (`ListShoppingPage.tsx:445-446`) |
-| Category filter + name search | **yes** (`ListDetailPage.tsx:197-204`) | **yes** (`ListShoppingPage.tsx:440-447`) |
+| Component | `ListDetailPage.tsx` (508 lines) | `ListShoppingPage.tsx` (626 lines) |
+| Purpose comment | `ListDetailPage.tsx:42-48` | `ListShoppingPage.tsx:247-256` |
+| Add an item | **yes** — `add-item-button` / per-category "+" | **yes** since Story 9.11 (UX-DR-E9-8) — `shopping-add-item-fab`, same `AddItemDialog` (§5.3.3) |
+| Edit / delete items; add / edit / delete categories | **yes** — dialogs | **no** — management-only |
+| Check / uncheck an item | **no** | **yes** (`ListShoppingPage.tsx:440-460`) |
+| Checked-status filter (All / To buy / Done) | **no** (props omitted) | **yes** (`ListShoppingPage.tsx:532-533`) |
+| Category filter + name search | **yes** (`ListDetailPage.tsx:197-204`) | **yes** (`ListShoppingPage.tsx:527-534`) |
 | Realtime subscription | **no** — refetch-driven | **yes** — two `subscribeToMore` |
-| List switcher chips | **no** | **yes** (`ListShoppingPage.tsx:414-436`) |
+| List switcher chips | **no** | **yes** (`ListShoppingPage.tsx:501-523`) |
 | Forbidden viewer | inline `severity="info"` notice | `<Navigate to="/lists" replace/>` |
-| `document.title` | untouched | set to `<list> · Bag Please` (`ListShoppingPage.tsx:320-325`) |
+| `document.title` | untouched | set to `<list> · Bag Please` (`ListShoppingPage.tsx:368-373`) |
 
 ### 4.1 What the two screens SHARE — one definition each, by contract
 
@@ -358,20 +365,24 @@ recorded in `deferred-work.md`; neither is reachable by clicking.
 
 ### 5.3 `/list/:id` — shopping (`ListShoppingPage.tsx`)
 
-Always present: back link (`:393-401`), header (`:403-411`), switcher chips (`:414-436`), filter row (`:440-447`),
-and the action-error alert when set (`:449-453`).
+Always present: back link (`:480-488`), header (`:490-498`), switcher chips (`:501-523`), filter row (`:527-534`),
+the action-error alert when set (`:536-540`), and — since Story 9.11 — the add-item FAB `shopping-add-item-fab`
+(`:604-623`) plus its (closed) `AddItemDialog` (`:625-631`). The FAB is the one exception to "always": it renders
+only once both the items and categories queries have data, never in the loading or query-error branch (§5.3.3).
 
 | Branch | testid | Anchor |
 | --- | --- | --- |
-| forbidden | **no branch — `<Navigate to="/lists" replace/>`** | `:369-371` |
-| query error | `shopping-notice` — `<Alert severity="error" role="alert">` | `:455-458` |
-| loading | `shopping-loading` | `:459-462` |
-| empty (`items.length === 0`) | `shopping-empty` — "Nothing to shop yet", pointing at the management screen | `:463-471` |
-| filtered to nothing | `shopping-no-matches` | `:472-477` |
-| content | group `Paper`s, `shopping-group-<name>`, rows divided | `:478-503` |
+| forbidden | **no branch — `<Navigate to="/lists" replace/>`** | `:424-426` |
+| query error | `shopping-notice` — `<Alert severity="error" role="alert">` | `:542-545` |
+| loading | `shopping-loading` | `:546-549` |
+| empty, ≥1 category (`items.length === 0`) | `shopping-empty` — "Nothing to shop yet" + "Use the Add item button to add the first item." | `:550-562` |
+| empty, 0 categories | `shopping-empty` — "Nothing to shop yet" + "Add categories and items from the list management screen." | `:550-562` |
+| filtered to nothing | `shopping-no-matches` | `:563-568` |
+| content | group `Paper`s, `shopping-group-<name>`, rows divided | `:569-601` |
 
-The empty state's copy — "Add categories and items from the list management screen" (`:469`) — is the manage-vs-use
-split surfacing as guidance rather than as a control.
+The empty state's hint branches on `categories.length` (Story 9.11): with a category to put an item in, it points at
+the FAB on this screen; with none, only list management can help, so the old copy — the manage-vs-use split
+surfacing as guidance — stays for that case.
 
 #### 5.3.1 The row is one control
 
@@ -418,10 +429,40 @@ row.
 
 #### 5.3.2 Toggling: no optimistic update
 
-`handleToggle` (`:373-386`) awaits `checkItem` / `uncheckItem` and, on failure, does nothing to the cache — "the
+`handleToggle` (`:440-460`) awaits `checkItem` / `uncheckItem` and, on failure, does nothing to the cache — "the
 normalized cache is untouched on failure, so the row's indicator reverts to the server state automatically"
-(`:382-383`) — and surfaces the reason inline as `shopping-action-error` (`:449-453`). Revert-by-cache plus an inline
+(`:449-450`) — and surfaces the reason inline as `shopping-action-error` (`:536-540`). Revert-by-cache plus an inline
 alert, never a toast, never a rollback animation.
+
+#### 5.3.3 Adding from the shopping view (Story 9.11, FR68, UX-DR-E9-8 / UX-DR-E9-9)
+
+- **One dialog.** The FAB opens `components/AddItemDialog.tsx` — the same component `/lists/:id` uses (AR-E9-10), with
+  the route's `listId` fixed: there is no list picker, and the category `Select` is still the dialog's only combobox.
+- **The FAB.** Stock MUI `Fab`, `color="primary"`, `AddIcon`, `aria-label="Add item"` (its accessible name — the only
+  `Add item` button on the page), `position: fixed` bottom-right at `theme.spacing(2)` plus
+  `env(safe-area-inset-bottom|right)`. It sits after the page content in DOM order, so it is the next tab stop after
+  the last row. The safe-area terms are inert today: `bp_front/index.html`'s viewport meta has no
+  `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to 0 until it opts in. Gated on
+  `!loading && !queryError`: while `CategoriesQuery` is in flight `categories` is `[]`, and a
+  FAB pressed then would show the no-categories guidance for a list that has categories.
+- **Bottom padding.** The page `Box` reserves `calc(56px + theme.spacing(4) + env(safe-area-inset-bottom))` below the
+  content, so scrolled to the bottom the last row is fully clear of the FAB and still tappable at its right edge
+  (`shopping.spec.ts`, "the FAB never covers the last row"; only the 320px project can go red there — at desktop the
+  `md` container never reaches the FAB's column).
+- **A list switch closes the dialog.** The `useItemFilter` list-switch callback also sets the dialog closed, so it
+  never stays open retargeted at another list (e.g. after a back gesture to a previous `/list/:id`).
+- **No categories → guidance, not a form (UX-DR-E9-9).** When `categories.length === 0`, `AddItemDialog` renders
+  "This list has no categories yet…" (`add-item-no-categories`), a Cancel (`add-item-cancel`) and a contained
+  "Manage list" link to `/lists/<id>` (`add-item-manage-list`). No `<form>`, no inputs, no disabled submit. The
+  management screen's own `add-item-button` stays `disabled` at zero categories, so it never reaches this branch.
+- **The new row appears without a reload or a spinner.** `AddItemDialog`'s `onAdded` receives the saved `ListItem`,
+  and the shopping page upserts it into the cached `ItemsQuery{listId}` by id — not `refetch()`, which under Apollo
+  4's `notifyOnNetworkStatusChange` would flip `loading` and swap the list for the spinner. The subscription's echo of
+  the same save then finds the id already present and replaces rather than appends: one row. Other members get it
+  through the existing item subscription (§10); no backend change.
+- **Still management-only:** editing or deleting an item, and all category CRUD. A category deleted by a co-member
+  while the dialog is open makes the save fail with the mapped copy in `add-item-error` (the Story 9.3 path); the
+  dialog stays open.
 
 ### 5.4 `/admin` (`AdminPage.tsx`)
 
@@ -604,9 +645,10 @@ before they did.
 
 ## 8. Dialog conventions
 
-Ten dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDialog`, `EditCategoryDialog`,
+Eleven dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDialog`, `EditCategoryDialog`,
 `AddItemDialog`, `EditItemDialog`, `ShareMembersDialog`, `CreateUserDialog`, `DeleteUserDialog`,
-`ResetPasswordDialog`, `ConfirmDialog`.
+`DeleteFeedbackDialog`, `ResetPasswordDialog`, `ConfirmDialog`. (Supersedes "Ten": re-measured at Story 9.11.
+`AddItemDialog` renders its `Dialog` in two branches since that story — see §5.3.3 — which is why §14 counts 12 lines.)
 
 **`CreateListDialog.tsx` is the canonical form dialog.** Its shape, and what each part is for:
 
@@ -801,7 +843,7 @@ they bear, and are listed after the table.
 
 | Ruling | Identifier | Where it was decided | Its code today |
 | --- | --- | --- | --- |
-| **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns") | §4; `keepEmpty` at `order.ts:120-131` |
+| **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay. Relaxed by **UX-DR-E9-8** (Story 9.11): adding an item is also a shopping action | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns"); **UX-DR-E9-8** at `epics.md:427-433` | §4; `keepEmpty` at `order.ts:120-131`; §5.3.3 |
 | **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:136-142, 151-164` |
 | **No toast, snackbar or banner** — state changes are confirmed by the UI changing | **UX-DR-E8-10**, carried from **UX-DR-E7-7** | `epics.md:1243-1245`, `epics.md:1157-1161` | no `Snackbar` in `src/`; 11 comments asserting it |
 | **The shopping row is a closed extension surface** — the store chips and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx` — `ShoppingItemRow`, its chip block and its `addedBy` block |
@@ -861,7 +903,9 @@ grep -rn 'role="alert"' bp_front/src
 # expect 23 lines: 22 rendered attributes + 1 comment (ConfirmDialog.tsx:31) — see §6.2
 
 grep -rn 'maxWidth="xs"' bp_front/src/components
-# expect 10 lines, one per dialog
+# expect 12 lines across 11 dialogs: AddItemDialog.tsx has TWO (its no-categories branch and its
+# form branch, Story 9.11). Supersedes "10 lines, one per dialog" — DeleteFeedbackDialog (Story
+# 9.10) had already made it 11 without this line being re-measured.
 
 grep -rn 'role="status"' bp_front/src
 # expect AdminPage.tsx:236 only (was :158; the line moved when Story 9.2 added the pager)

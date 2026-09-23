@@ -8,10 +8,12 @@ import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
+import Fab from '@mui/material/Fab'
 import Link from '@mui/material/Link'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
@@ -31,6 +33,7 @@ import {byCreatedAtAsc, groupItemsByCategory, type ItemGroup} from '@/lib/lists/
 import {type CheckedFilter, matchesItemFilter, useItemFilter} from '@/lib/lists/itemFilter'
 import {graphqlErrorMessage, isForbiddenError, itemSaveErrorMessage} from '@/lib/admin/adminErrors'
 import ListFilters from '@/components/ListFilters'
+import AddItemDialog from '@/components/AddItemDialog'
 
 // How far a pointer may travel between down and up and still count as a tap
 // (Story 8.3, FR60). A tap and the first moments of a scroll are the SAME
@@ -245,9 +248,12 @@ function ShoppingItemRow({item, onToggle}: ShoppingItemRowProps) {
 // grouped by category, per-item check/uncheck, client-side filters (category +
 // checked-status + free-text search, combined AND), a list-switcher chip row,
 // and per-list realtime via subscribeToMore on the Items/Categories queries.
-// This is a read+check surface only: item/category CRUD stays on the Story-5.5
-// management view (/lists/:id). A member who is forbidden (admin or non-member)
-// is redirected to /lists rather than shown a broken screen.
+// Story 9.11 (FR68, UX-DR-E9-8) relaxed the old "read + check only" rule by
+// exactly one action: ADDING an item, through a fixed bottom-right FAB that opens
+// the shared AddItemDialog with this route's list fixed as the target. Editing
+// and deleting items, and all category CRUD, stay on the Story-5.5 management
+// view (/lists/:id). A member who is forbidden (admin or non-member) is
+// redirected to /lists rather than shown a broken screen.
 export default function ListShoppingPage() {
   const {id} = useParams<{id: string}>()
   const listId = id ?? ''
@@ -368,13 +374,20 @@ export default function ListShoppingPage() {
 
   const [checkedFilter, setCheckedFilter] = useState<CheckedFilter>('all')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [addItemOpen, setAddItemOpen] = useState(false)
 
   // Category selection + search live in the SHARED unit, together with both
   // render-phase adjustments the page used to carry inline (Story 8.4): the
   // list-switch reset, and the prune of selected categories that no longer
   // exist. The checked-status toggle stays here because it is shopping-only —
   // `useItemFilter`'s callback resets it alongside the rest on a list switch.
-  const [filter, setFilter] = useItemFilter(listId, categories, () => setCheckedFilter('all'))
+  // Story 9.11: a list switch also closes the add dialog, so it can never stay
+  // open retargeted at the new list (nor flash its no-categories branch while
+  // that list's categories load). The callback fires on a list switch only.
+  const [filter, setFilter] = useItemFilter(listId, categories, () => {
+    setCheckedFilter('all')
+    setAddItemOpen(false)
+  })
 
   const [checkItem] = useMutation(CheckItemMutation)
   const [uncheckItem] = useMutation(UncheckItemMutation)
@@ -412,6 +425,18 @@ export default function ListShoppingPage() {
     return <Navigate to="/lists" replace/>
   }
 
+  // Story 9.11. The saved item goes straight into the cached ItemsQuery{listId}
+  // — NOT `refetch()`: Apollo 4's `notifyOnNetworkStatusChange` would flip
+  // `loading` and swap the whole list for the spinner. Relying on the
+  // subscription echo alone is not deterministic either (one-slot DROP_OLDEST,
+  // and a just-opened socket can miss it). Keyed by id, like the subscription
+  // merge above, so whichever of the two lands second is a no-op: one row.
+  const handleAdded = (item: ListItemType) => {
+    client.cache.updateQuery({query: ItemsQuery, variables: {listId}}, data =>
+      data && !data.getItems.some(i => i.id === item.id) ? {getItems: [...data.getItems, item]} : data,
+    )
+  }
+
   const handleToggle = async (item: ListItemType, nextChecked: boolean) => {
     setActionError(null)
     try {
@@ -435,7 +460,20 @@ export default function ListShoppingPage() {
   }
 
   return (
-    <Box data-testid="list-shopping-page" sx={{flexGrow: 1, py: {xs: 3, sm: 4}}}>
+    // Bottom padding reserves the FAB's footprint (Story 9.11): its 56px height,
+    // its `spacing(2)` offset plus as much again of clearance, and the safe-area
+    // inset it also sits above — so the last row always scrolls fully clear of
+    // it. Top padding is unchanged from the old symmetric `py`. The safe-area
+    // terms (here and on the FAB) are inert today: `index.html` has no
+    // `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to 0.
+    <Box
+      data-testid="list-shopping-page"
+      sx={theme => ({
+        flexGrow: 1,
+        pt: {xs: 3, sm: 4},
+        pb: `calc(56px + ${theme.spacing(4)} + env(safe-area-inset-bottom, 0px))`,
+      })}
+    >
       <Container maxWidth="md">
         {/* Back to lists (Story 6.2, FR57) — same idiom as the management
             screen's `list-detail-back`, so there is one back-link pattern. */}
@@ -514,8 +552,12 @@ export default function ListShoppingPage() {
             <Typography variant="h6" color="text.primary" sx={{mb: 1}}>
               Nothing to shop yet
             </Typography>
+            {/* Story 9.11: with a category to put it in, the item can be added
+                right here; without one, only list management can help. */}
             <Typography variant="body2" color="text.secondary">
-              Add categories and items from the list management screen.
+              {categories.length > 0
+                ? 'Use the Add item button to add the first item.'
+                : 'Add categories and items from the list management screen.'}
             </Typography>
           </Paper>
         ) : groups.length === 0 ? (
@@ -558,6 +600,35 @@ export default function ListShoppingPage() {
           </Stack>
         )}
       </Container>
+
+      {/* Story 9.11 (FR68). After the content in DOM order, so it is the next
+          tab stop after the last row. Only once BOTH queries have data: while
+          CategoriesQuery is in flight `categories` is `[]`, and a FAB pressed
+          then would show the no-categories guidance for a list that has
+          categories. The only fixed-position surface (the app bar is sticky). */}
+      {!loading && !queryError && (
+        <Fab
+          color="primary"
+          aria-label="Add item"
+          data-testid="shopping-add-item-fab"
+          onClick={() => setAddItemOpen(true)}
+          sx={theme => ({
+            position: 'fixed',
+            bottom: `calc(${theme.spacing(2)} + env(safe-area-inset-bottom, 0px))`,
+            right: `calc(${theme.spacing(2)} + env(safe-area-inset-right, 0px))`,
+          })}
+        >
+          <AddIcon/>
+        </Fab>
+      )}
+
+      <AddItemDialog
+        open={addItemOpen}
+        listId={listId}
+        categories={categories}
+        onClose={() => setAddItemOpen(false)}
+        onAdded={handleAdded}
+      />
     </Box>
   )
 }

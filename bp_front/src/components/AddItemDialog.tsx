@@ -1,4 +1,5 @@
 import {type FormEvent, useState} from 'react'
+import {Link as RouterLink} from 'react-router-dom'
 import {useMutation} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -15,7 +16,8 @@ import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
-import {type ListCategory, SaveItemMutation} from '@/lib/lists/listsQueries'
+import Typography from '@mui/material/Typography'
+import {type ListCategory, type ListItem, SaveItemMutation} from '@/lib/lists/listsQueries'
 import {itemSaveErrorMessage} from '@/lib/admin/adminErrors'
 import StoreField from '@/components/StoreField'
 import {normalizeStores} from '@/lib/lists/storeValue'
@@ -27,7 +29,10 @@ interface Props {
   // Pre-selected category (e.g. the row the "+" was pressed under). Optional.
   defaultCategoryId?: string
   onClose: () => void
-  onAdded: () => void | Promise<unknown>
+  // Receives the SAVED item as the server returned it (Story 9.11): the
+  // shopping view writes it straight into its cached ItemsQuery instead of
+  // refetching. Callers that only refetch can ignore the argument.
+  onAdded: (item: ListItem) => void | Promise<unknown>
 }
 
 const NAME_MAX = 100
@@ -37,6 +42,13 @@ const NAME_MAX = 100
 // UUID). New items are unchecked and non-recurring (recurring UI is Story 5.6).
 // Mirrors the 5.4 form conventions: validate-on-submit (name + category
 // required), re-entry guard, real catch → inline error, Enter-submits.
+//
+// Story 9.11 (FR68, AR-E9-10): this is the ONE add dialog, opened from both the
+// management screen (/lists/:id) and the shopping view's FAB (/list/:id). The
+// target list is always the caller's `listId` — there is no list picker.
+// UX-DR-E9-9: with NO categories the dialog owns the guidance itself — a short
+// explanation plus a link to list management, and no form at all (not a
+// disabled one), because an item cannot exist without a category.
 export default function AddItemDialog({
   open,
   listId,
@@ -100,8 +112,9 @@ export default function AddItemDialog({
     setFormError(null)
     if (!validate()) return
 
+    let saved: ListItem | undefined
     try {
-      await saveItem({
+      const result = await saveItem({
         variables: {
           item: {
             id: crypto.randomUUID(),
@@ -118,6 +131,7 @@ export default function AddItemDialog({
           },
         },
       })
+      saved = result.data?.saveItem
     } catch (err) {
       // Story 9.3: mapped, not raw. Since the server rejects an out-of-list category on the CREATE
       // branch too, a dialog left open while a co-member removes the chosen category now fails with
@@ -127,7 +141,36 @@ export default function AddItemDialog({
       return
     }
     onClose()
-    void onAdded()
+    // A resolved mutation always carries `data` under the default errorPolicy;
+    // the guard only keeps a hypothetical empty result from reaching callers.
+    if (saved) void onAdded(saved)
+  }
+
+  if (categories.length === 0) {
+    return (
+      <Dialog open={open} onClose={onClose} data-testid="add-item-dialog" fullWidth maxWidth="xs">
+        <DialogTitle>Add item</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" data-testid="add-item-no-categories">
+            This list has no categories yet. Add a category first, then add items to it.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose} data-testid="add-item-cancel">
+            Cancel
+          </Button>
+          <Button
+            component={RouterLink}
+            to={`/lists/${listId}`}
+            variant="contained"
+            onClick={onClose}
+            data-testid="add-item-manage-list"
+          >
+            Manage list
+          </Button>
+        </DialogActions>
+      </Dialog>
+    )
   }
 
   return (

@@ -3,11 +3,13 @@ import {randomUUID} from 'node:crypto'
 import {expect, test, type Page} from '@playwright/test'
 
 import {gql, loginApi} from './support/api'
+import {expectInsideViewport} from './support/layout'
 import {
   addCategory,
   addItem,
   countGraphqlRequests,
   createListAndOpen,
+  fillAddItemDialog,
   openListsViaMenu,
   PASSWORD,
   registerViaUi,
@@ -1115,4 +1117,285 @@ test('FR46 — a rejected uncheck shows the mapped category copy, not the raw ba
   await expect(alert).not.toContainText('3f2a1b4c')
   // And the row reverted to server state, as every other rejected toggle does.
   await expect(row).toBeChecked()
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 9.11 — An item can be added from the shopping screen (FR68, UX-DR-E9-8,
+// UX-DR-E9-9).
+//
+// The shopping view gains ONE add affordance: a fixed bottom-right FAB
+// (`shopping-add-item-fab`) that opens the SAME `add-item-dialog` the
+// management screen uses, with the route's list fixed as the target. The FAB
+// actor is always on `page` so the mobile project (320px) renders it — see the
+// `browser.newContext()` pitfall in AGENTS.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The last shopping row in DOM order — i.e. the one the FAB could cover when
+// the page is scrolled to the bottom. Rows are the only `role="checkbox"`
+// elements on the page (Story 8.3: the row IS the checkbox).
+function lastShoppingRow(page: Page) {
+  return page.getByTestId('list-shopping-page').getByRole('checkbox').last()
+}
+
+test('FR68 — the shopping FAB adds an item to THIS list: no reload, and a co-member sees it live', async ({browser, page, baseURL}, testInfo) => {
+  const owner = uniqueUsername('shopping', 'fabowner', testInfo.project.name)
+  const member = uniqueUsername('shopping', 'fabmember', testInfo.project.name)
+  const listName = `FabAdd ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  const itemName = `Kiwis ${Date.now()}`
+
+  // The ADDER's own subscription echo is cut: every `next` frame for the
+  // ItemUpdates operation is dropped, everything else is forwarded both ways.
+  // Without this the echo alone would add the row, and a no-op (or a
+  // `refetch()`-based) `handleAdded` would pass unseen. Installed before any
+  // navigation, because it only applies to sockets opened after it.
+  const itemUpdateIds = new Set<string>()
+  let droppedItemUpdates = 0
+  await page.routeWebSocket(/\/api\/subscriptions/, ws => {
+    const server = ws.connectToServer()
+    ws.onMessage(message => {
+      if (typeof message === 'string') {
+        const frame = JSON.parse(message) as {type?: string; id?: string; payload?: {query?: string}}
+        if (frame.type === 'subscribe' && frame.id && /getItemUpdates/.test(frame.payload?.query ?? '')) {
+          itemUpdateIds.add(frame.id)
+        }
+      }
+      server.send(message)
+    })
+    server.onMessage(message => {
+      if (typeof message === 'string') {
+        const frame = JSON.parse(message) as {type?: string; id?: string}
+        if (frame.type === 'next' && frame.id && itemUpdateIds.has(frame.id)) {
+          droppedItemUpdates++
+          return
+        }
+      }
+      ws.send(message)
+    })
+  })
+
+  await registerViaUi(page, owner, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+
+  const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+  try {
+    const memberPage = await ctx.newPage()
+    await registerViaUi(memberPage, member, PASSWORD)
+
+    // SETUP ONLY — membership via the API, as in the FR52 test above.
+    const ownerToken = await loginApi(owner, PASSWORD)
+    const memberToken = await loginApi(member, PASSWORD)
+    await gql(`mutation { shareList(listId: "${listId}", username: "${member}") { id } }`, ownerToken)
+    await gql(`mutation { acceptInvite(listId: "${listId}") { id } }`, memberToken)
+
+    await memberPage.goto(`/list/${listId}`)
+    await expect(memberPage.getByTestId('list-shopping-page')).toBeVisible()
+    await expect(memberPage.getByTestId('shopping-empty')).toBeVisible()
+
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    await expect(page.getByTestId('shopping-empty')).toBeVisible()
+
+    // A reload would wipe this; its survival is the "no reload" proof.
+    await page.evaluate(() => {
+      ;(window as unknown as {__fr68Marker?: string}).__fr68Marker = 'still-here'
+    })
+
+    await page.getByTestId('shopping-add-item-fab').click()
+    const dialog = page.getByTestId('add-item-dialog')
+    await expect(dialog).toBeVisible()
+    // No list choice: the category Select is the dialog's ONLY combobox, and
+    // nothing in it names a list.
+    await expect(dialog.getByRole('combobox')).toHaveCount(1)
+
+    await fillAddItemDialog(page, categoryName, itemName, ['Aldi', 'Lidl'])
+    // The list is never swapped for the spinner (a `refetch()` would do that).
+    await expect(page.getByTestId('shopping-loading')).toHaveCount(0)
+
+    await expect(page.getByTestId(`shopping-item-${itemName}`)).toBeVisible()
+    await expect(page.getByTestId('shopping-loading')).toHaveCount(0)
+    await expect(page.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toBeVisible()
+    await expect(page.getByTestId(`shopping-item-store-${itemName}-Lidl`)).toBeVisible()
+    // Exactly one row: the local cache write and the subscription's own echo
+    // must upsert by id, never append twice.
+    await expect(page.getByTestId(`shopping-item-${itemName}`)).toHaveCount(1)
+    expect(
+      await page.evaluate(() => (window as unknown as {__fr68Marker?: string}).__fr68Marker),
+      'the page reloaded during the add',
+    ).toBe('still-here')
+    // The echo really was cut — so the row above came from the page's own
+    // cache write, not from the subscription.
+    await expect.poll(() => droppedItemUpdates, {message: 'no ItemUpdates frame was dropped'}).toBeGreaterThan(0)
+    await expect(page.getByTestId(`shopping-item-${itemName}`)).toHaveCount(1)
+
+    // The co-member gets it live through the existing item subscription (FR52).
+    await expect(memberPage.getByTestId(`shopping-item-${itemName}`)).toBeVisible()
+    await expect(memberPage.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toBeVisible()
+    await expect(memberPage.getByTestId(`shopping-item-store-${itemName}-Lidl`)).toBeVisible()
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('FR68 — scrolled to the bottom, the FAB never covers the last row, which still toggles', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'fabcover', testInfo.project.name)
+  const listName = `FabCover ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+
+  const token = await loginApi(username, PASSWORD)
+  const categoryId = await categoryIdOf(token, listId, categoryName)
+  await seedItems(token, listId, categoryId, Array.from({length: 25}, (_, i) => `Filler ${i} ${Date.now()}`))
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  const fab = page.getByTestId('shopping-add-item-fab')
+  await expect(fab).toBeVisible()
+  const lastRow = lastShoppingRow(page)
+  await expect(lastRow).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)).toBe(true)
+
+  // Reachable while scrolling, not only at the end: check mid-page first.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  await expectInsideViewport(fab, 'the shopping add-item FAB (mid-scroll)')
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+
+  await expectInsideViewport(fab, 'the shopping add-item FAB')
+  await expectInsideViewport(lastRow, 'the last shopping row')
+
+  // HONEST FAILURE SURFACE (spec Design Notes): at desktop the md container
+  // never reaches the FAB's column, so only the 320px project can go red here
+  // when the bottom padding is removed.
+  const fabBox = (await fab.boundingBox())!
+  const rowBox = (await lastRow.boundingBox())!
+  const intersects =
+    fabBox.x < rowBox.x + rowBox.width &&
+    rowBox.x < fabBox.x + fabBox.width &&
+    fabBox.y < rowBox.y + rowBox.height &&
+    rowBox.y < fabBox.y + fabBox.height
+  expect(intersects, 'the FAB overlaps the last shopping row').toBe(false)
+
+  // A tap near the row's right edge — the FAB's column — reaches the row.
+  await expect(lastRow).not.toBeChecked()
+  await lastRow.click({position: {x: rowBox.width - 8, y: rowBox.height / 2}})
+  await expect(lastRow).toBeChecked()
+})
+
+test('FR68 / UX-DR-E9-9 — with no categories the dialog explains and links to list management, with no form', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'fabnocat', testInfo.project.name)
+  const listName = `FabNoCat ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await page.getByTestId('shopping-add-item-fab').click()
+  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
+  await expect(page.getByTestId('add-item-no-categories')).toBeVisible()
+  await expect(page.getByTestId('add-item-name')).toHaveCount(0)
+  await expect(page.getByTestId('add-item-submit')).toHaveCount(0)
+  await expect(page.getByTestId('add-item-dialog').locator('form')).toHaveCount(0)
+
+  // Cancel closes it without going anywhere.
+  await page.getByTestId('add-item-cancel').click()
+  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`/list/${listId}$`))
+
+  await page.getByTestId('shopping-add-item-fab').click()
+  await page.getByTestId('add-item-manage-list').click()
+  await expect(page).toHaveURL(new RegExp(`/lists/${listId}$`))
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
+})
+
+test('FR68 — the empty state points at the Add item button, or at list management when there are no categories', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'fabempty', testInfo.project.name)
+  const listName = `FabEmpty ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+
+  // No categories: the management-screen copy stays.
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('shopping-empty')).toContainText('list management screen')
+  await expect(page.getByTestId('shopping-empty')).not.toContainText('Add item')
+
+  // One category, no items: the hint points at the button on this screen.
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await addCategory(page, categoryName)
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('shopping-empty')).toContainText('Add item button')
+  await expect(page.getByTestId('shopping-empty')).not.toContainText('list management screen')
+})
+
+test('FR68 — the FAB is a named button, next in tab order after the last row, and Enter opens the dialog', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'fabkbd', testInfo.project.name)
+  const listName = `FabKbd ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  const itemName = `Pears ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+  await addItem(page, categoryName, itemName)
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+
+  const byRole = page.getByRole('button', {name: 'Add item', exact: true})
+  await expect(byRole).toHaveCount(1)
+  await expect(byRole).toHaveAttribute('data-testid', 'shopping-add-item-fab')
+  await expectInsideViewport(byRole, 'the shopping add-item FAB')
+
+  await lastShoppingRow(page).focus()
+  await page.keyboard.press('Tab')
+  await expect(page.getByTestId('shopping-add-item-fab')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('add-item-dialog')).toBeVisible()
+  await expect(page.getByTestId('add-item-name')).toBeFocused()
+})
+
+test('FR68 — the FAB waits for the categories query: absent while loading, present once it resolves', async ({page}, testInfo) => {
+  const username = uniqueUsername('shopping', 'fabgate', testInfo.project.name)
+  const listName = `FabGate ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+
+  // Hold ONLY the Categories query. While it is in flight `categories` is `[]`,
+  // so a FAB rendered then would open the no-categories guidance for a list
+  // that has a category.
+  let release!: () => void
+  const released = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route('**/api/graphql', async route => {
+    if (/query Categories\b/.test(route.request().postData() ?? '')) {
+      await released
+      await route.continue()
+      return
+    }
+    await route.continue()
+  })
+
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('shopping-loading')).toBeVisible()
+  await expect(page.getByTestId('shopping-add-item-fab')).toHaveCount(0)
+
+  release()
+  await expect(page.getByTestId('shopping-add-item-fab')).toBeVisible()
+  await expect(page.getByTestId('shopping-loading')).toHaveCount(0)
 })

@@ -160,9 +160,19 @@ defaults. Anything claiming a fuller custom scale is describing a document, not 
 while a list scrolls under the blur. The shell is a `100dvh` flex column (`AppShell.tsx:97`) with the routed content
 in a `<Box component="main">` that grows (`AppShell.tsx:240-242`).
 
+**The shopping FAB** (Story 9.11, `ListShoppingPage.tsx:604-623`, `shopping-add-item-fab`) is the only
+fixed-position surface (the app bar is sticky): a stock `color="primary"` MUI `Fab` with `AddIcon`, `position: fixed`
+at `theme.spacing(2)` plus `env(safe-area-inset-bottom|right)` from the bottom-right corner. `/list/:id` is therefore
+the one page frame whose bottom padding is not `py` — see "Page frame" below. The safe-area terms are inert today:
+`bp_front/index.html`'s viewport meta has no `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to 0
+until it opts in.
+
 **Page frame.** All four content routes share one shape: a full-height `Box` with `py: {xs: 3, sm: 4}` wrapping a
 `<Container maxWidth="md">` — `ListsPage.tsx:84-85`, `ListDetailPage.tsx:115-116`,
-`ListShoppingPage.tsx:389-390`, `AdminPage.tsx:85-86`. The two form routes break the pattern deliberately: `/auth`
+`ListShoppingPage.tsx:469-477`, `AdminPage.tsx:85-86` — except that since Story 9.11 the shopping page splits it:
+`pt: {xs: 3, sm: 4}` as before, and a reserved
+`pb: calc(56px + theme.spacing(4) + env(safe-area-inset-bottom))` (`ListShoppingPage.tsx:473-474`) so the last row
+scrolls fully clear of the FAB. The two form routes break the pattern deliberately: `/auth`
 centres a `maxWidth: 360` column on `100dvh` with no container and no card (`AuthPage.tsx:199-210`), described in its
 own comment as "edge-to-edge on the dark background (UX 'ambient identity', no card)" (`AuthPage.tsx:20`);
 `/account/password` uses the same 360px column, centred inside the shell rather than the viewport
@@ -256,13 +266,14 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
-`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (23 raw import lines resolve to)
-— **18 distinct icons** (re-measured 2026-09-16; was 16 from 21 lines, before Story 9.2's pager added `ChevronLeft`
-and `ChevronRight`):
+`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (27 raw import lines resolve to)
+— **21 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
+icon — it reuses `Add`. Supersedes "18 distinct from 23 lines" of 2026-09-16: `Cancel`, `Feedback` and `Home` arrived
+with Stories 9.6–9.9 without this figure being re-measured):
 
-`Add`, `AdminPanelSettings`, `ArrowBack`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`, `Close`,
-`DeleteOutlined`, `EditOutlined`, `FormatListBulleted`, `GroupOutlined`, `LockReset`, `Logout`, `LogoutOutlined`,
-`PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
+`Add`, `AdminPanelSettings`, `ArrowBack`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
+`Close`, `DeleteOutlined`, `EditOutlined`, `Feedback`, `FormatListBulleted`, `GroupOutlined`, `Home`, `LockReset`,
+`Logout`, `LogoutOutlined`, `PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
 
 Conventions that hold across the set:
 
@@ -451,7 +462,7 @@ grep -rn '#[0-9A-Fa-f]\{3,8\}' bp_front/src
 # expect src/theme.ts only
 
 grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u
-# expect the 18 distinct icons in §8 (23 raw import lines collapse to 18)
+# expect the 21 distinct icons in §8 (27 raw import lines collapse to 21; re-measured at Story 9.11)
 ```
 
 If a count here disagrees with a count in `epics.md`, `epic-8-context.md` or `deferred-work.md`, **this document is
