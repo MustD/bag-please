@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: 09-23-2026 12:00
+last_updated: '09-24-2026 11:04'
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -111,7 +111,7 @@ development_status:
   8-7-write-down-the-design-this-app-actually-has: done
   epic-8-retrospective: done
 
-  epic-9: in-progress
+  epic-9: done
   9-1-the-test-run-waits-until-the-backend-is-ready: done
   9-2-the-admin-s-user-list-is-paged-instead-of-growing-forever: done
   9-3-deleting-a-category-deletes-its-items-for-everyone: done
@@ -122,9 +122,9 @@ development_status:
   9-8-the-category-filter-menu-can-be-closed-on-a-phone: done
   9-9-a-user-can-send-feedback-from-any-screen: done
   9-10-the-admin-reviews-and-clears-feedback: done
-  9-11-an-item-can-be-added-from-the-shopping-screen: backlog
-  9-12-small-cleanups: backlog
-  epic-9-retrospective: optional
+  9-11-an-item-can-be-added-from-the-shopping-screen: done
+  9-12-small-cleanups: done
+  epic-9-retrospective: done
 action_items:
   - epic: 7
     action: "Re-check typescript-eslint for TypeScript 7 support before any future
@@ -384,7 +384,7 @@ action_items:
       Both F1 and F2 are cross-story boundary defects that this rule would have caught,
       and both were predicted in prose by the epic that shipped them."
     owner: "John"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-38-process-observed-failing-is-a-gate-not-a"
     epic: 8
@@ -392,14 +392,14 @@ action_items:
       because a failed falsifiability attempt was recorded as a comment and the work
       proceeded."
     owner: "md"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-39-f19b-untrack-idea-datasources-xml-or-git"
     epic: 8
     action: "F19b - untrack .idea/dataSources.xml (or gitignore it); a tracked IDE
       file halted the unattended build loop mid-epic."
     owner: "md"
-    status: open  # ROUTED TO EPIC 9 (2026-09-15): own small-cleanups story; still tracked at 2026-09-15
+    status: done  # ROUTED TO EPIC 9 (2026-09-15): own small-cleanups story; still tracked at 2026-09-15
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
   - id: "epic-8-retro-item-40-f21-git_evidence-py-attributed-zero-of-1"
     epic: 8
@@ -409,3 +409,45 @@ action_items:
     owner: "md"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md"
+  - id: "epic-9-retro-item-41-consolidate-deletefeedbackdialog-tsx-and"
+    epic: 9
+    action: "Consolidate DeleteFeedbackDialog.tsx and DeleteUserDialog.tsx onto the
+      generic ConfirmDialog.tsx component instead of each hand-rolling its own open/loading/error
+      state machine."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
+  - id: "epic-9-retro-item-42-process-specs-for-a-new-destructive-conf"
+    epic: 9
+    action: "PROCESS - specs for a new destructive-confirm flow should name ConfirmDialog
+      reuse as an explicit constraint, so an implementer does not need to notice the
+      existing pattern unprompted."
+    owner: "John"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
+  - id: "epic-9-retro-item-43-split-itemlifecycletest-kt-1671-lines-44"
+    epic: 9
+    action: "Split ItemLifecycleTest.kt (1671 lines, 44 flat test blocks) into context-grouped
+      sections by concern (lifecycle / multi-store / category-guard)."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
+  - id: "epic-9-retro-item-44-f19-carried-from-epic-8-still-open-give"
+    epic: 9
+    action: "F19 (carried from Epic 8, still open) - give bmad-build-auto a resume
+      path for a blocked-status result superseded by a later successful follow-up
+      pass; bmad-build-auto-result-8-4-followup-review.md still reads status: blocked
+      at HEAD."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
+  - id: "epic-9-retro-item-45-f21-carried-from-epic-8-escalated-still"
+    epic: 9
+    action: "F21 (carried from Epic 8, escalated, still open) - fix git_evidence.py
+      story-id matcher: it expects dash-separated ids (9-1) but this project spells
+      commit subjects with dots (Story 9.1), so attribution silently returns empty
+      unless the caller manually reformats ids. Bit two epics in a row (Epic 8: 0/16
+      matched, Epic 9: 0/12 matched until worked around manually)."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
