@@ -1,8 +1,9 @@
 ## User feedback
 
-1. [x] Feedback screen in the app would be useful, admin should see feedbacks, delete button to remove feedback.
-2. [x] Item. A store field in a item - multi-select, as the item may be found in several stores
-3. [x] Admin page, user list. Add pagination.
-4. [x] Category filter. Add the Confirm button, as select covers almost full screen and there is no way to close it.
-5. [x] Main list page. FAB on the main list page – fast item creation.
-6. [x] Top left menu. Add a link to the main page (same link as app name click)
+1. Back to lists link seems to be not needed after epic 9
+
+## Technical debt
+
+1. Packages should be updated to the latest versions, TS 7 and Gql to 11 should be tried again
+2. Token cost reduction. Source files should be reviewed, any epic,stories and other SDLC mention removed from comments
+3. Token cost reduction. The top 30 big source files should be researched for split possibility
