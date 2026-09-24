@@ -48,13 +48,6 @@ class ListStorage(
         return updated
     }
 
-    suspend fun delete(id: UUID): List {
-        sync()
-        val list = storage.remove(id) ?: throw IllegalStateException("List not found")
-        repository.delete(id)
-        return list
-    }
-
     suspend fun getByMemberUsername(username: String): kotlin.collections.List<List> {
         sync()
         return storage.values.filter { it.memberUsernames.contains(username) }

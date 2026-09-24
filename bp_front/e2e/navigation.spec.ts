@@ -18,7 +18,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 //
 // Every scenario registers a FRESH unique regular user per run/project via the
 // register UI — `admin` is blocked from all list resources and there is no seeded
-// regular account, while the ./db/data volume persists across runs and the two
+// regular account, while the db_data named volume persists across runs and the two
 // projects run concurrently — so tests only ever assert on lists they created,
 // never on totals. The admin scenario uses the guaranteed first-boot admin.
 //
@@ -711,4 +711,199 @@ test('FR57 — every guarded route keeps a live in-app exit, and landing on home
   await expect(fresh).toHaveURL(new RegExp(`/list/${listId}$`))
   expect(await fresh.evaluate(() => window.history.length)).toBe(2)
   await fresh.close()
+})
+
+// ───────────────────────────────────────────────────────────────────────────
+// Story 9.7 — Home is in the account menu.
+//
+// The title link is inert on the home route and easy to miss; in the installed
+// PWA (no URL bar, no Back button) users look for navigation in the menu. Home
+// is the menu's first entry and goes exactly where the title link goes: off the
+// home route it navigates to `/` (HomeRedirect resolves it), on the resolved
+// home route it only closes the menu. Every case is driven through the rendered
+// menu, never an API shortcut.
+// ───────────────────────────────────────────────────────────────────────────
+
+async function openAccountMenu(page: Page): Promise<void> {
+  await page.getByTestId('user-menu-button').click()
+  await expect(page.getByTestId('menu-home')).toBeVisible()
+}
+
+// MUI unmounts the closed menu after its exit transition; the auto-retrying
+// count is the synchronisation point for "the menu closed".
+async function expectMenuClosed(page: Page): Promise<void> {
+  await expect(page.getByTestId('menu-home')).toHaveCount(0)
+}
+
+async function menuEntries(page: Page): Promise<string[]> {
+  return (await page.getByRole('menuitem').allTextContents()).map(text => text.trim())
+}
+
+test('Story 9.7/9.9 — the account menu lists Home, Lists, Change password, Feedback, Logout for a user', async ({page}, testInfo) => {
+  await registerViaUi(page, uniqueUsername('nav', 'menuuser', testInfo.project.name), PASSWORD)
+  await openAccountMenu(page)
+
+  expect(await menuEntries(page)).toEqual(['Home', 'Lists', 'Change password', 'Feedback', 'Logout'])
+  // The first entry carries a small icon like its siblings.
+  await expect(page.getByTestId('menu-home').locator('svg')).toBeVisible()
+})
+
+test('Story 9.7 — the account menu lists Home, Lists, Admin, Logout for the admin', async ({page}) => {
+  await page.goto('/auth')
+  await page.getByTestId('login-username').fill(ADMIN.username)
+  await page.getByTestId('login-password').fill(ADMIN.password)
+  await page.getByTestId('login-submit').click()
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
+  await openAccountMenu(page)
+
+  expect(await menuEntries(page)).toEqual(['Home', 'Lists', 'Admin', 'Logout'])
+})
+
+test('Story 9.7 — Home from the newer list lands on the oldest list, as the title link does', async ({page}, testInfo) => {
+  const oldest = `MenuOldest ${Date.now()}`
+  const newer = `MenuNewer ${Date.now()}`
+  await registerViaUi(page, uniqueUsername('nav', 'menuoldest', testInfo.project.name), PASSWORD)
+  await openListsViaMenu(page)
+  const oldestId = await createListAndOpen(page, oldest)
+  await page.getByTestId('list-detail-back').click()
+  await expect(page.getByTestId('lists-page')).toBeVisible()
+  await createListAndOpen(page, newer)
+
+  // Standing on the newer list's management screen (/lists/:id): not home.
+  await openAccountMenu(page)
+  await page.getByTestId('menu-home').click()
+
+  await expect(page).toHaveURL(new RegExp(`/list/${oldestId}$`))
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(page.getByTestId('shopping-header')).toContainText(oldest)
+  await expectMenuClosed(page)
+})
+
+test('Story 9.7 — Home on the resolved home route only closes the menu: no URL or history change', async ({page}, testInfo) => {
+  const listName = `MenuHome ${Date.now()}`
+  await registerViaUi(page, uniqueUsername('nav', 'menuinert', testInfo.project.name), PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+
+  // One list ⇒ /list/:id is home. Synchronise on the observed home before
+  // acting: the app bar reads the cache only, so `aria-current` is the signal
+  // that the answer is known (the same note as the title-link tests).
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  await expect(page.getByTestId('app-bar-home')).toHaveAttribute('aria-current', 'page')
+
+  const historyBefore = await page.evaluate(() => window.history.length)
+  await openAccountMenu(page)
+  await page.getByTestId('menu-home').click()
+
+  await expectMenuClosed(page)
+  await expect(page).toHaveURL(new RegExp(`/list/${listId}$`))
+  await expect(page.getByTestId('home-redirect-loading')).toHaveCount(0)
+  await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+  expect(await page.evaluate(() => window.history.length)).toBe(historyBefore)
+})
+
+test('Story 9.7 — a user with no lists has Home and Lists, and Home is a no-op on /lists', async ({page}, testInfo) => {
+  await registerViaUi(page, uniqueUsername('nav', 'menunolists', testInfo.project.name), PASSWORD)
+  await openListsViaMenu(page)
+  await expect(page.getByTestId('app-bar-home')).toHaveAttribute('aria-current', 'page')
+
+  const historyBefore = await page.evaluate(() => window.history.length)
+  await openAccountMenu(page)
+  await expect(page.getByTestId('menu-home')).toBeVisible()
+  await expect(page.getByTestId('menu-lists')).toBeVisible()
+  await page.getByTestId('menu-home').click()
+
+  await expectMenuClosed(page)
+  await expect(page).toHaveURL(/\/lists$/)
+  await expect(page.getByTestId('lists-page')).toBeVisible()
+  expect(await page.evaluate(() => window.history.length)).toBe(historyBefore)
+})
+
+test('Story 9.7 — the admin reaches /admin through Home, and on /admin Home only closes the menu', async ({page}) => {
+  await page.goto('/auth')
+  await page.getByTestId('login-username').fill(ADMIN.username)
+  await page.getByTestId('login-password').fill(ADMIN.password)
+  await page.getByTestId('login-submit').click()
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
+
+  // Leave /admin through the menu's Lists entry so Home is a real transition.
+  await openAccountMenu(page)
+  await page.getByTestId('menu-lists').click()
+  await expect(page).toHaveURL(/\/lists$/)
+  await expect(page.getByTestId('lists-page')).toBeVisible()
+
+  await openAccountMenu(page)
+  await page.getByTestId('menu-home').click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByTestId('admin-page')).toBeVisible()
+  await expectMenuClosed(page)
+
+  // Now home: the app bar knows it without a request (admin skips the query).
+  await expect(page.getByTestId('app-bar-home')).toHaveAttribute('aria-current', 'page')
+  const historyBefore = await page.evaluate(() => window.history.length)
+  await openAccountMenu(page)
+  await page.getByTestId('menu-home').click()
+  await expectMenuClosed(page)
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByTestId('admin-page')).toBeVisible()
+  expect(await page.evaluate(() => window.history.length)).toBe(historyBefore)
+})
+
+test('Story 9.7 — Home is reachable and activatable from the keyboard alone', async ({page}, testInfo) => {
+  const oldest = `KeyOldest ${Date.now()}`
+  const newer = `KeyNewer ${Date.now()}`
+  await registerViaUi(page, uniqueUsername('nav', 'menukeys', testInfo.project.name), PASSWORD)
+  await openListsViaMenu(page)
+  const oldestId = await createListAndOpen(page, oldest)
+  await page.getByTestId('list-detail-back').click()
+  await expect(page.getByTestId('lists-page')).toBeVisible()
+  await createListAndOpen(page, newer)
+
+  // Focus the menu button, open with Enter; MUI moves focus to the first item.
+  await page.getByTestId('user-menu-button').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('menu-home')).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  await expect(page).toHaveURL(new RegExp(`/list/${oldestId}$`))
+  await expect(page.getByTestId('shopping-header')).toContainText(oldest)
+  await expectMenuClosed(page)
+})
+
+test('Story 9.7 — while the Lists query fails, `/` resolves to /lists and the title link stays live', async ({page}, testInfo) => {
+  await registerViaUi(page, uniqueUsername('nav', 'menuerror', testInfo.project.name), PASSWORD)
+
+  // Characterisation of behaviour the code already has: resolve mode turns a
+  // failed lists query into /lists (HomeRedirect must not spin forever), and
+  // observe mode never reads that error, so the app bar does not decide it is
+  // "already home" from a failure.
+  await page.route('**/api/graphql', async route => {
+    const post = route.request().postData()
+    let operationName: string | undefined
+    if (post !== null) {
+      try {
+        operationName = (JSON.parse(post) as {operationName?: string}).operationName
+      } catch {
+        operationName = undefined
+      }
+    }
+    if (operationName !== 'Lists') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({status: 500, contentType: 'application/json', body: '{"errors":[{"message":"boom"}]}'})
+  })
+
+  // A full load, so `/` resolves from a cold cache through the failing query.
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/lists$/)
+  await expect(page.getByTestId('lists-page')).toBeVisible()
+  await expect(page.getByTestId('home-redirect-loading')).toHaveCount(0)
+  await expect(page.getByTestId('app-bar-home')).toBeVisible()
+  await expect(page.getByTestId('app-bar-home')).not.toHaveAttribute('aria-current', 'page')
+
+  await page.unroute('**/api/graphql')
 })

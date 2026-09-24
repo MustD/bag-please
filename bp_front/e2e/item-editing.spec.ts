@@ -18,7 +18,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 // Runs on chromium + mobile (Pixel 7); the mobile gate is mandatory. Every
 // scenario registers a FRESH unique user through the register UI (`admin` is
 // blocked from all list resources) and asserts only on data it created — the
-// ./db/data volume persists across runs and both projects run concurrently.
+// db_data named volume persists across runs and both projects run concurrently.
 //
 // The shopping view is always reached by page.goto(`/list/:id`), never through
 // Story 6.2's title/back links, so 6.1 stands alone.
@@ -33,10 +33,21 @@ async function saveEditDialog(page: Page): Promise<void> {
   await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
 }
 
-// Change only the store on an existing item, through the UI.
-async function setStoreViaEdit(page: Page, itemName: string, store: string): Promise<void> {
+// Add one store to an existing item, through the UI. Enter is the store field's
+// commit key — it preventDefaults, so it adds a chip instead of submitting.
+async function addStoreViaEdit(page: Page, itemName: string, store: string): Promise<void> {
   await openEditDialog(page, itemName)
   await page.getByTestId('edit-item-store').fill(store)
+  await page.getByTestId('edit-item-store').press('Enter')
+  await expect(page.getByTestId(`edit-item-store-chip-${store.trim()}`)).toBeVisible()
+  await saveEditDialog(page)
+}
+
+// Remove one store from an existing item, through the UI.
+async function removeStoreViaEdit(page: Page, itemName: string, store: string): Promise<void> {
+  await openEditDialog(page, itemName)
+  await page.getByTestId(`edit-item-store-chip-remove-${store}`).click()
+  await expect(page.getByTestId(`edit-item-store-chip-${store}`)).toHaveCount(0)
   await saveEditDialog(page)
 }
 
@@ -47,13 +58,13 @@ interface ApiItem {
   name: string
   category: string
   checked: boolean
-  store: string | null
+  stores: string[]
   recurring: string | null
 }
 
 async function fetchItem(listId: string, itemName: string, token: string): Promise<ApiItem> {
   const data = await gql<{getItems: ApiItem[]}>(
-    `{ getItems(listId: "${listId}") { id name category checked store recurring } }`,
+    `{ getItems(listId: "${listId}") { id name category checked stores recurring } }`,
     token,
   )
   const item = data.getItems.find(i => i.name === itemName)
@@ -103,7 +114,7 @@ test('FR40 — renaming an item and moving it to another category persists acros
   await expect(page.getByTestId(`item-row-${before}`)).toHaveCount(0)
 })
 
-test('FR44 — a store can be set (trimmed), changed and cleared, seen via the shopping-view chip', async ({page}, testInfo) => {
+test('FR44 — several stores can be added (trimmed, deduped), removed one by one, and cleared', async ({page}, testInfo) => {
   const username = uniqueUsername('item_editing', 'store', testInfo.project.name)
   const listName = `Store ${Date.now()}`
   const categoryName = `Produce ${Date.now()}`
@@ -114,33 +125,100 @@ test('FR44 — a store can be set (trimmed), changed and cleared, seen via the s
   await addCategory(page, categoryName)
   await addItem(page, categoryName, itemName)
 
-  // No store yet → no chip on the shopping view.
+  // No stores yet → no chip and no container on the shopping view.
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId(`shopping-item-${itemName}`)).toBeVisible()
-  await expect(page.getByTestId(`shopping-item-store-${itemName}`)).toHaveCount(0)
+  await expect(page.getByTestId(`shopping-item-stores-${itemName}`)).toHaveCount(0)
 
-  // Set it, padded — the value is trimmed on save (never stored with padding).
+  // Add one, padded — the name is trimmed, never stored with padding.
   await page.goto(`/lists/${listId}`)
   await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  await setStoreViaEdit(page, itemName, '  Aldi  ')
+  await addStoreViaEdit(page, itemName, '  Aldi  ')
   await page.goto(`/list/${listId}`)
-  await expect(page.getByTestId(`shopping-item-store-${itemName}`)).toHaveText('Aldi')
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toHaveText('Aldi')
 
-  // Change it.
+  // Add a SECOND one: the item is in both shops now, which is the whole story.
   await page.goto(`/lists/${listId}`)
   await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  await setStoreViaEdit(page, itemName, 'Lidl')
+  await addStoreViaEdit(page, itemName, 'Lidl')
   await page.goto(`/list/${listId}`)
-  await expect(page.getByTestId(`shopping-item-store-${itemName}`)).toHaveText('Lidl')
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Lidl`)).toBeVisible()
 
-  // Clear it with whitespace only → null, not '', so the chip is gone entirely
-  // (an empty string would render an empty chip).
+  // A duplicate by case-insensitive KEY is refused inline, with the reason, and
+  // no save is attempted: the field still holds exactly the names it had.
   await page.goto(`/lists/${listId}`)
   await expect(page.getByTestId('list-detail-page')).toBeVisible()
-  await setStoreViaEdit(page, itemName, '   ')
+  await openEditDialog(page, itemName)
+  await page.getByTestId('edit-item-store').fill('  lidl  ')
+  await page.getByTestId('edit-item-store').press('Enter')
+  await expect(page.getByTestId('edit-item-store-duplicate')).toContainText('already added')
+  // …and it is ANNOUNCED: an alert, and the invalid input points at it, so a
+  // screen-reader user hears why the text they typed vanished.
+  await expect(page.getByTestId('edit-item-store-duplicate')).toHaveAttribute('role', 'alert')
+  await expect(page.getByTestId('edit-item-store')).toHaveAccessibleDescription(/already added/)
+  await expect(page.getByTestId('edit-item-store')).toHaveValue('')
+  await expect(page.getByTestId('edit-item-store-chip-Lidl')).toBeVisible()
+  await expect(page.getByTestId('edit-item-store-chip-lidl')).toHaveCount(0)
+  await page.getByTestId('edit-item-cancel').click()
+  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
+
+  // Remove ONE store; the other survives.
+  await removeStoreViaEdit(page, itemName, 'Aldi')
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Lidl`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toHaveCount(0)
+
+  // Remove the last one → the container is gone entirely, not an empty chip row.
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await removeStoreViaEdit(page, itemName, 'Lidl')
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId(`shopping-item-${itemName}`)).toBeVisible()
-  await expect(page.getByTestId(`shopping-item-store-${itemName}`)).toHaveCount(0)
+  await expect(page.getByTestId(`shopping-item-stores-${itemName}`)).toHaveCount(0)
+})
+
+test('FR44 — the store field is fully keyboard-operable, and the category Select stays the only combobox', async ({page}, testInfo) => {
+  const username = uniqueUsername('item_editing', 'keys', testInfo.project.name)
+  const listName = `Keys ${Date.now()}`
+  const categoryName = `Pantry ${Date.now()}`
+  const itemName = `Oats ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+  await addItem(page, categoryName, itemName, ['Aldi'])
+
+  await openEditDialog(page, itemName)
+
+  // The field has a VISIBLE associated label, and the dialog still holds exactly
+  // one combobox — the category Select. A second one would break every scoped
+  // `getByRole('combobox')` in the suite, which is why this is not an
+  // Autocomplete (UX decision kept, not re-opened, by Story 9.6).
+  await expect(page.getByTestId('edit-item-dialog').getByRole('combobox')).toHaveCount(1)
+  // `exact` because the chip container ("Selected stores") and each chip's
+  // remove button ("Remove store <name>") are labelled too — this asserts the
+  // INPUT has a visible associated label, which is the accessibility contract.
+  await expect(page.getByTestId('edit-item-dialog').getByLabel('Store', {exact: true})).toBeVisible()
+
+  // Type a name and commit it with Enter — the dialog must NOT submit.
+  await page.getByTestId('edit-item-store').focus()
+  await page.keyboard.type('Rewe')
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('edit-item-store-chip-Rewe')).toBeVisible()
+  await expect(page.getByTestId('edit-item-dialog')).toBeVisible()
+
+  // Remove an individual store by keyboard: the per-chip control is a real
+  // button, so Enter activates it.
+  await page.getByTestId('edit-item-store-chip-remove-Aldi').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('edit-item-store-chip-Aldi')).toHaveCount(0)
+  await expect(page.getByTestId('edit-item-store-chip-Rewe')).toBeVisible()
+
+  await saveEditDialog(page)
+  await page.goto(`/list/${listId}`)
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Rewe`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-store-${itemName}-Aldi`)).toHaveCount(0)
 })
 
 test('FR44 — store suggestions are absent on a store-less list, then appear and are clickable', async ({page}, testInfo) => {
@@ -178,25 +256,32 @@ test('FR44 — store suggestions are absent on a store-less list, then appear an
 
   // Add an item WITH a store straight from the add dialog (no second trip
   // through an editor), then a second store-less item.
-  await addItem(page, categoryName, first, 'Aldi')
+  await addItem(page, categoryName, first, ['Aldi'])
   await addItem(page, categoryName, second)
 
   // The edit dialog now offers Aldi as a clickable suggestion, and clicking it
-  // fills the still-freely-editable field.
+  // ADDS it as a chip (it no longer fills a single-value field). The input
+  // stays empty and freely typable.
   await openEditDialog(page, second)
   await expect(page.getByTestId('edit-item-store-suggestions')).toBeVisible()
   const chip = page.getByTestId('edit-item-store-suggestion-Aldi')
   await expect(chip).toBeVisible()
   await chip.click()
-  await expect(page.getByTestId('edit-item-store')).toHaveValue('Aldi')
-  // Still typable after the chip click.
+  await expect(page.getByTestId('edit-item-store-chip-Aldi')).toBeVisible()
+  await expect(page.getByTestId('edit-item-store')).toHaveValue('')
+  // A suggestion already selected is no longer offered: it would be a duplicate
+  // key, and the field would refuse it.
+  await expect(page.getByTestId('edit-item-store-suggestion-Aldi')).toHaveCount(0)
+  // Still typable after the chip click — and this second name is committed by
+  // BLUR (the Save button's pointerdown), not by Enter, which is what keeps
+  // "type a name, click Save" from silently dropping it.
   await page.getByTestId('edit-item-store').fill('Aldi Nord')
-  await expect(page.getByTestId('edit-item-store')).toHaveValue('Aldi Nord')
   await saveEditDialog(page)
 
   await page.goto(`/list/${listId}`)
-  await expect(page.getByTestId(`shopping-item-store-${second}`)).toHaveText('Aldi Nord')
-  await expect(page.getByTestId(`shopping-item-store-${first}`)).toHaveText('Aldi')
+  await expect(page.getByTestId(`shopping-item-store-${second}-Aldi`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-store-${second}-Aldi Nord`)).toBeVisible()
+  await expect(page.getByTestId(`shopping-item-store-${first}-Aldi`)).toBeVisible()
 })
 
 test('FR40 — editing a checked item keeps it checked (full-document upsert regression)', async ({page}, testInfo) => {
@@ -209,7 +294,7 @@ test('FR40 — editing a checked item keeps it checked (full-document upsert reg
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
   await addCategory(page, categoryName)
-  await addItem(page, categoryName, before, 'Aldi')
+  await addItem(page, categoryName, before, ['Aldi'])
 
   // Check it off through the shopping UI.
   await page.goto(`/list/${listId}`)
@@ -219,20 +304,20 @@ test('FR40 — editing a checked item keeps it checked (full-document upsert reg
   await expect(row).toBeChecked()
 
   // Rename it from the management screen. `saveItem` is a full-document upsert,
-  // so a payload missing `checked`/`store` would silently un-check the item and
-  // wipe its store.
+  // so a payload missing `checked`/`stores` would silently un-check the item and
+  // wipe its stores.
   await page.goto(`/lists/${listId}`)
   await expect(page.getByTestId('list-detail-page')).toBeVisible()
   await openEditDialog(page, before)
-  await expect(page.getByTestId('edit-item-store')).toHaveValue('Aldi')
+  await expect(page.getByTestId('edit-item-store-chip-Aldi')).toBeVisible()
   await page.getByTestId('edit-item-name').fill(after)
   await saveEditDialog(page)
   await expect(page.getByTestId(`item-row-${after}`)).toBeVisible()
 
-  // Still checked, still carrying its store.
+  // Still checked, still carrying its stores.
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId(`shopping-item-${after}`)).toBeChecked()
-  await expect(page.getByTestId(`shopping-item-store-${after}`)).toHaveText('Aldi')
+  await expect(page.getByTestId(`shopping-item-store-${after}-Aldi`)).toBeVisible()
 })
 
 test('FR40 — editing an item preserves its recurring cadence', async ({page}, testInfo) => {
@@ -254,7 +339,7 @@ test('FR40 — editing an item preserves its recurring cadence', async ({page}, 
   const seeded = await fetchItem(listId, before, token)
   await gql(
     `mutation { saveItem(item: {id: "${seeded.id}", listId: "${listId}", name: "${before}", ` +
-      `category: "${seeded.category}", checked: false, recurring: "WEEKLY"}) { id recurring } }`,
+      `category: "${seeded.category}", checked: false, recurring: "WEEKLY", stores: []}) { id recurring } }`,
     token,
   )
 
@@ -285,7 +370,7 @@ test('FR40 — saving an unchanged item issues no SaveItem mutation and closes t
   await openListsViaMenu(page)
   await createListAndOpen(page, listName)
   await addCategory(page, categoryName)
-  await addItem(page, categoryName, itemName, 'Aldi')
+  await addItem(page, categoryName, itemName, ['Aldi'])
 
   // Observing traffic — this does not fake or substitute for the behaviour under
   // test, it is the only way to see an absent request. Attached AFTER setup, so
@@ -307,7 +392,7 @@ test('FR40 — saving an unchanged item issues no SaveItem mutation and closes t
   // and the dialog closes exactly as on a successful save.
   await openEditDialog(page, itemName)
   await expect(page.getByTestId('edit-item-name')).toHaveValue(itemName)
-  await expect(page.getByTestId('edit-item-store')).toHaveValue('Aldi')
+  await expect(page.getByTestId('edit-item-store-chip-Aldi')).toBeVisible()
   await saveEditDialog(page)
   await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
   expect(saveItemRequests).toBe(0)
@@ -315,8 +400,22 @@ test('FR40 — saving an unchanged item issues no SaveItem mutation and closes t
   // A real change still sends one, proving the counter is wired to something.
   await openEditDialog(page, itemName)
   await page.getByTestId('edit-item-store').fill('Lidl')
+  await page.getByTestId('edit-item-store').press('Enter')
   await saveEditDialog(page)
   await expect.poll(() => saveItemRequests).toBe(1)
+
+  // Story 9.6 — a CASING-ONLY edit is a real change and must be sent. Store
+  // identity is the lowercased key, but the stored casing is display data, so
+  // the dialog compares by exact string equality over the normalized arrays.
+  await openEditDialog(page, itemName)
+  await page.getByTestId('edit-item-store-chip-remove-Lidl').click()
+  await page.getByTestId('edit-item-store').fill('LIDL')
+  await page.getByTestId('edit-item-store').press('Enter')
+  await saveEditDialog(page)
+  await expect.poll(() => saveItemRequests).toBe(2)
+  await openEditDialog(page, itemName)
+  await expect(page.getByTestId('edit-item-store-chip-LIDL')).toBeVisible()
+  await page.getByTestId('edit-item-cancel').click()
 })
 
 test('FR40 — a co-member (not the owner) can edit, and the change lands live on another member\'s shopping view', async ({browser, page, baseURL}, testInfo) => {
@@ -357,7 +456,7 @@ test('FR40 — a co-member (not the owner) can edit, and the change lands live o
     await page.goto(`/list/${listId}`)
     await expect(page.getByTestId('list-shopping-page')).toBeVisible()
     await expect(page.getByTestId(`shopping-item-${before}`)).toBeVisible()
-    await expect(page.getByTestId(`shopping-item-store-${before}`)).toHaveCount(0)
+    await expect(page.getByTestId(`shopping-item-stores-${before}`)).toHaveCount(0)
 
     // The CO-MEMBER edits an item the OWNER added, from the management screen.
     // No client-side owner gate may block this (AC3).
@@ -366,15 +465,19 @@ test('FR40 — a co-member (not the owner) can edit, and the change lands live o
     await openEditDialog(memberPage, before)
     await memberPage.getByTestId('edit-item-name').fill(after)
     await memberPage.getByTestId('edit-item-store').fill('Aldi')
+    await memberPage.getByTestId('edit-item-store').press('Enter')
+    await memberPage.getByTestId('edit-item-store').fill('Lidl')
+    await memberPage.getByTestId('edit-item-store').press('Enter')
     await saveEditDialog(memberPage)
     // The dialog closed rather than surfacing an error → the save succeeded.
     await expect(memberPage.getByTestId('edit-item-error')).toHaveCount(0)
     await expect(memberPage.getByTestId(`item-row-${after}`)).toBeVisible()
 
-    // The owner sees both the rename and the new store LIVE, without reloading,
+    // The owner sees both the rename and BOTH new stores LIVE, without reloading,
     // through the existing per-list subscription and cache merge (AC4).
     await expect(page.getByTestId(`shopping-item-${after}`)).toBeVisible()
-    await expect(page.getByTestId(`shopping-item-store-${after}`)).toHaveText('Aldi')
+    await expect(page.getByTestId(`shopping-item-store-${after}-Aldi`)).toBeVisible()
+    await expect(page.getByTestId(`shopping-item-store-${after}-Lidl`)).toBeVisible()
     await expect(page.getByTestId(`shopping-item-${before}`)).toHaveCount(0)
   } finally {
     await ctx.close()
@@ -581,4 +684,108 @@ test('FR40 — a rejected save keeps the dialog open and shows the backend messa
   } finally {
     await ctx.close()
   }
+})
+
+test('FR44 — Enter in an EMPTY store field submits the dialog, like Enter in every other field', async ({page}, testInfo) => {
+  const username = uniqueUsername('item_editing', 'emptyenter', testInfo.project.name)
+  const listName = `EmptyEnter ${Date.now()}`
+  const categoryName = `Produce ${Date.now()}`
+  const itemName = `Kiwis ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, categoryName)
+  await addItem(page, categoryName, itemName)
+
+  await openEditDialog(page, itemName)
+  await page.getByTestId('edit-item-name').fill(`${itemName} edited`)
+  // Nothing typed in the store field: Enter has no draft to commit, so it must
+  // fall through to the form's own submit instead of silently doing nothing.
+  await page.getByTestId('edit-item-store').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
+  await expect(page.getByTestId(`item-row-${itemName} edited`)).toBeVisible()
+
+  // A NON-empty draft is still committed as a chip, not submitted (asserted in
+  // full by the keyboard test above); a whitespace-only draft counts as empty.
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await openEditDialog(page, `${itemName} edited`)
+  await page.getByTestId('edit-item-store').fill('   ')
+  await page.getByTestId('edit-item-store').press('Enter')
+  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
+})
+
+test('9.6 — an orphaned item cannot be saved untouched: the dialog stays open and says why', async ({page}, testInfo) => {
+  const username = uniqueUsername('item_editing', 'orphan', testInfo.project.name)
+  const listName = `Orphan ${Date.now()}`
+  const keptName = `Kept ${Date.now()}`
+  const goneName = `Gone ${Date.now()}`
+  const itemName = `Orphaned ${Date.now()}`
+  await registerViaUi(page, username, PASSWORD)
+  await openListsViaMenu(page)
+  const listId = await createListAndOpen(page, listName)
+  await addCategory(page, keptName)
+  await addCategory(page, goneName)
+  await addItem(page, goneName, itemName)
+
+  // No API path can orphan an item any more (Story 9.3), so the fixture is built
+  // at the wire: the `Categories` response loses the item's category while the
+  // `Items` response is untouched — exactly what legacy data looks like to the
+  // client. Only that one operation is rewritten; everything else passes through.
+  await page.route('**/api/graphql', async route => {
+    let operationName: string | undefined
+    try {
+      operationName = (JSON.parse(route.request().postData() ?? '') as {operationName?: string}).operationName
+    } catch {
+      operationName = undefined
+    }
+    if (operationName !== 'Categories') {
+      await route.continue()
+      return
+    }
+    let res
+    try {
+      res = await route.fetch()
+    } catch {
+      await route.abort()
+      return
+    }
+    const body = await res.json() as {data?: {getCategories?: Array<{name: string}>}}
+    if (body.data?.getCategories) {
+      body.data.getCategories = body.data.getCategories.filter(c => c.name !== goneName)
+    }
+    await route.fulfill({response: res, json: body})
+  })
+
+  let saveItemRequests = 0
+  page.on('request', req => {
+    if (
+      req.method() === 'POST' &&
+      req.url().includes('/api/graphql') &&
+      (req.postData() ?? '').includes('"SaveItem"')
+    ) {
+      saveItemRequests += 1
+    }
+  })
+
+  await page.goto(`/lists/${listId}`)
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await openEditDialog(page, itemName)
+
+  // Save WITHOUT touching anything. Before the guard this passed validation, hit
+  // the "nothing changed" short-circuit and closed silently, the orphan still
+  // orphaned and the user none the wiser.
+  await page.getByTestId('edit-item-submit').click()
+  await expect(page.getByTestId('edit-item-dialog')).toBeVisible()
+  await expect(page.getByTestId('edit-item-dialog')).toContainText('Choose a category')
+  expect(saveItemRequests).toBe(0)
+
+  // Choosing a real category clears it and the save goes through.
+  await page.getByTestId('edit-item-category').click()
+  await page.getByTestId(`edit-item-category-option-${keptName}`).click()
+  await expect(page.getByTestId('edit-item-dialog')).not.toContainText('Choose a category')
+  await page.getByTestId('edit-item-submit').click()
+  await expect(page.getByTestId('edit-item-dialog')).toHaveCount(0)
+  expect(saveItemRequests).toBe(1)
 })

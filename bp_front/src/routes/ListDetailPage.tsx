@@ -87,12 +87,35 @@ export default function ListDetailPage() {
   // management screen and a category you cannot see is a category you cannot
   // fill. The shopping view hides empty groups always.
   //
+  // `selectedCategoryIds` (Story 9.8, AR-E9-14, F2) is the OTHER half: filtering
+  // explicitly TO a category that has NOTHING IN IT AT ALL must not drop it —
+  // "filter to the one category I care about" and "hide it because it has
+  // nothing in it right now" are two different asks, and before this story the
+  // second silently won.
+  //
+  // Deliberately NOT `filter.categoryIds` as-is. `groupItemsByCategory` only
+  // ever sees the ALREADY-FILTERED `items` below, so from inside it "empty"
+  // cannot distinguish "genuinely has nothing" from "has items, but every one
+  // was filtered out by the search box" — and the latter must still be
+  // dropped: AC4 (Story 8.4) already covers "a card with zero MATCHING items
+  // goes while a filter is active", and that rule is unchanged by this story
+  // (`grep -rn 'zzz-no-match' e2e/lists.spec.ts` is the regression control for
+  // it). So the id list passed here is narrowed to categories with NO items on
+  // the list AT ALL — computed from the unfiltered `items` above, before
+  // `matchesItemFilter` runs — which is exactly the "Zzz Empty" shape AR-E9-14
+  // describes and never the "everything in it got searched away" shape AC4
+  // already owns.
+  //
   // No `useMemo`: this component memoises nothing today, and adding one here
   // alone would imply the rest of its render is cheap by comparison.
+  const categoryIdsWithItems = new Set(items.map(item => item.category))
   const groups = groupItemsByCategory(
     categories,
     items.filter(item => matchesItemFilter(item, filter)),
-    {keepEmpty: !filterActive},
+    {
+      keepEmpty: !filterActive,
+      selectedCategoryIds: filter.categoryIds.filter(id => !categoryIdsWithItems.has(id)),
+    },
   )
 
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
@@ -241,8 +264,17 @@ export default function ListDetailPage() {
               // narrowing at the closure boundary and let `undefined`/`null`
               // through on a path the JSX guard swears is unreachable.
               const category = group.category
+              // Story 9.8 (F5) — the synthetic "Uncategorized" bucket's testid is
+              // keyed off `group.key` (its sentinel id), NOT `group.name`, so a
+              // REAL category a member happens to name "Uncategorized" can never
+              // collide with it: two rows would otherwise share one testid and
+              // `getByTestId` would match both, tripping Playwright strict mode.
+              // Every real category keeps its name-based testid unchanged — the
+              // ~60 existing name-keyed assertions across the suite depend on it,
+              // and real categories never collide with each other by construction.
+              const rowTestId = category === null ? `category-row-${group.key}` : `category-row-${group.name}`
               return (
-              <Paper key={group.key} data-testid={`category-row-${group.name}`}>
+              <Paper key={group.key} data-testid={rowTestId}>
                 <Box
                   sx={{
                     display: 'flex',
@@ -440,15 +472,14 @@ export default function ListDetailPage() {
         onConfirm={async () => {
           if (!removeCategoryTarget) return
           const target = removeCategoryTarget
-          // The backend's deleteCategory does NOT cascade to items — removing a
-          // category alone would strand its items (orphaned by a dangling
-          // category id, hidden by the group filter, and unreachable for
-          // removal). So delete this category's items first, then the category,
-          // honouring the confirm copy ("items are removed with it"). If an item
-          // delete fails, it propagates and the category is left intact.
-          for (const item of items.filter(i => i.category === target.id)) {
-            await deleteItem({variables: {id: item.id, listId}})
-          }
+          // ONE request. Since Story 9.3 the server cascades: deleteCategory
+          // removes the category and then every item of it — soft-deleted rows
+          // included — so the confirm copy ("items are removed with it") is now
+          // a description of what the server does rather than of a loop run
+          // here. The loop that used to live here walked only the items THIS
+          // client happened to hold, so anything a co-member had added since the
+          // last refetch outlived its category as an orphan, and a mid-loop
+          // failure left the category gone with items behind.
           await deleteCategory({variables: {id: target.id, listId}})
           void refetch().catch(() => {})
         }}

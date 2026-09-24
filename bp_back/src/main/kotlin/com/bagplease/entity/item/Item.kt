@@ -9,7 +9,7 @@ data class Item(
     val checked: Boolean = false,
     val category: UUID,
     val listId: UUID,
-    val store: String? = null,
+    val stores: List<String> = emptyList(),
     val recurring: Recurring? = null,
     val addedBy: String? = null,
     val deleted: Boolean = false,

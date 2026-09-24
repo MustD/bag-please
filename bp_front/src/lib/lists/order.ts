@@ -129,17 +129,35 @@ export interface ItemGroup<C, I> {
 // The synthetic bucket is never subject to `keepEmpty` — it is only created when
 // it has members, so "no orphans ⇒ no group" holds on both screens by
 // construction.
+//
+// `selectedCategoryIds` (Story 9.8, AR-E9-14) is the SELECTION-AWARE half of
+// empty-category retention, additive to `keepEmpty` rather than a replacement
+// for it: a category renders empty when `keepEmpty` says so OR when its id is
+// in this list. THIS FUNCTION cannot tell "genuinely has nothing" from "had
+// items, but every one was filtered OUT" — it only ever sees the caller's
+// already-filtered `items` — so it trusts the caller's list completely; get
+// the caller wrong and either an always-empty category stays hidden or a
+// search-emptied one wrongly reappears (AC4, Story 8.4, still applies to the
+// latter and is unchanged by this story). `/lists/:id` is the one caller: it
+// passes the subset of `filter.categoryIds` that have NO items anywhere on the
+// list at all (computed from the UNFILTERED items, before the search box
+// narrows anything) — see its call site for why. `/list/:id` never passes it:
+// an empty category is noise while shopping regardless of selection (AC5
+// stays screen-owned, not filter-owned). Optional, so every existing call site
+// (including `order.spec.ts`'s pure-function tests) that never heard of a
+// selection keeps compiling unchanged.
 export function groupItemsByCategory<
   C extends {id: string; name: string},
   I extends {id: string; name: string; category: string},
 >(
   categories: readonly C[],
   items: readonly I[],
-  {keepEmpty}: {keepEmpty: boolean},
+  {keepEmpty, selectedCategoryIds}: {keepEmpty: boolean; selectedCategoryIds?: readonly string[]},
 ): ItemGroup<C, I>[] {
   // A Set, not a Map: only membership is asked, and this runs on every
   // `/lists/:id` render (that screen memoises nothing, deliberately).
   const known = new Set(categories.map(category => category.id))
+  const selected = new Set(selectedCategoryIds)
   const byCategory = new Map<string, I[]>()
   const orphans: I[] = []
   for (const item of items) {
@@ -159,7 +177,7 @@ export function groupItemsByCategory<
       category,
       items: [...(byCategory.get(category.id) ?? [])].sort(byNameThenId),
     }))
-    .filter(group => keepEmpty || group.items.length > 0)
+    .filter(group => keepEmpty || group.items.length > 0 || selected.has(group.category.id))
   // LAST, always — an orphan is an exception state, not a peer of the real
   // categories, and burying it alphabetically among them would read as one.
   if (orphans.length > 0) {

@@ -44,10 +44,11 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         // The API surface is untouchable. The load-bearing case is
-        // GET /api/graphiql: it is a NAVIGATION, so without this denylist the
-        // worker answers it with the SPA shell — and it is this project's only
-        // backend-readiness check. runtimeCaching stays EMPTY: nothing under
-        // /api (GraphQL HTTP, auth REST) may ever be served from a cache.
+        // GET /api/health (Story 9.1): it is a NAVIGATION, so without this
+        // denylist the worker answers it with the SPA shell — and it is this
+        // project's backend-readiness check. runtimeCaching stays EMPTY:
+        // nothing under /api (GraphQL HTTP, auth REST) may ever be served from
+        // a cache.
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [],
         cleanupOutdatedCaches: true,

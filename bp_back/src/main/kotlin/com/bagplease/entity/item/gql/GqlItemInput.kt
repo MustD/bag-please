@@ -10,6 +10,10 @@ data class GqlItemInput(
     val checked: Boolean,
     val category: String,
     val listId: ID,
-    val store: String? = null,
+    // Story 9.6 — `[String!]!` in the schema, REQUIRED, with no Kotlin default on purpose.
+    // `stores` is an input-owned field the update branch copies straight onto the stored item, so an
+    // omitted argument could only mean "clear every store" — a silent data loss for any caller that
+    // forgot it. Making it required turns that into a validation error the caller can see.
+    val stores: List<String>,
     val recurring: String? = null,
 )

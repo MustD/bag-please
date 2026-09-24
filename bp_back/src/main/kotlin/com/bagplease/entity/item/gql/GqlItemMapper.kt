@@ -14,7 +14,7 @@ object GqlItemMapper {
             checked = item.checked,
             category = item.category.toString(),
             listId = ID(item.listId.toString()),
-            store = item.store,
+            stores = item.stores,
             recurring = item.recurring?.name,
             addedBy = item.addedBy,
             deleted = item.deleted,
@@ -30,7 +30,7 @@ object GqlItemMapper {
             checked = input.checked,
             category = UUID.fromString(input.category),
             listId = UUID.fromString(input.listId.toString()),
-            store = input.store,
+            stores = input.stores,
             recurring = input.recurring?.let {
                 runCatching { Recurring.valueOf(it) }.getOrElse {
                     throw IllegalArgumentException("Invalid recurring value: $it. Valid: ONE_TIME, WEEKLY, BIWEEKLY, MONTHLY")

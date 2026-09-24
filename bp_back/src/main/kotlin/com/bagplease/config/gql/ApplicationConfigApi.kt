@@ -2,19 +2,10 @@ package com.bagplease.config.gql
 
 import com.bagplease.config.ApplicationConfig
 import com.bagplease.config.ApplicationConfigService
-import com.bagplease.plugins.GQL_CALL_PRINCIPAL
-import com.bagplease.plugins.GraphQLForbiddenException
+import com.bagplease.plugins.requireAdmin
 import com.expediagroup.graphql.server.operations.Mutation
 import com.expediagroup.graphql.server.operations.Query
 import graphql.schema.DataFetchingEnvironment
-import io.ktor.server.auth.jwt.JWTPrincipal
-
-private fun DataFetchingEnvironment.requireAdmin() {
-    val principal = graphQlContext.get<JWTPrincipal>(GQL_CALL_PRINCIPAL)
-        ?: throw GraphQLForbiddenException("Forbidden")
-    val role = principal.payload.getClaim("role").asString() ?: ""
-    if (role != "admin") throw GraphQLForbiddenException("Forbidden")
-}
 
 @Suppress("unused")
 class ApplicationConfigQueries(private val service: ApplicationConfigService) : Query {

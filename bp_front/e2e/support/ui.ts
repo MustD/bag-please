@@ -1,5 +1,7 @@
 import {expect, type Page} from '@playwright/test'
 
+import {ADMIN} from './api'
+
 // Shared UI-driven E2E helpers (Story 7.2 extraction). Three facts every spec
 // header used to repeat, stated once here:
 //
@@ -11,13 +13,18 @@ import {expect, type Page} from '@playwright/test'
 //      playwright.config.ts); the mobile gate is mandatory.
 //   3. Every scenario registers a FRESH unique user per run/project — `admin` is
 //      blocked from all list resources and there is no seeded regular account,
-//      while the ./db/data volume persists across runs and the two projects run
+//      while the db_data named volume persists across runs and the two projects run
 //      concurrently — so tests only ever assert on data they created, never on
 //      totals. `uniqueUsername` therefore takes the CALLER's prefix: each spec
 //      keeps its own namespace (`acct`, `admin`, `attrib`, `lists`, `nav`,
 //      `sharing`, `shopping`, `item_editing`).
 
 export const PASSWORD = 'e2e-password-123'
+
+// The guaranteed first-boot admin — one definition for the whole suite
+// (NFR-E8-5), declared in ./api.ts so the runner-free setup/teardown phases can
+// share it, and re-exported here for the specs.
+export {ADMIN}
 
 export function uniqueUsername(prefix: string, label: string, projectName: string): string {
   return `${prefix}_e2e_${label}_${projectName}_${Date.now()}`
@@ -46,6 +53,32 @@ export async function registerViaUi(page: Page, username: string, password: stri
   await expect(page.getByTestId('app-bar')).toBeVisible()
 }
 
+// Sign in through the login form. Any account — the admin included.
+export async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
+  await page.goto('/auth')
+  await page.getByTestId('login-username').fill(username)
+  await page.getByTestId('login-password').fill(password)
+  await page.getByTestId('login-submit').click()
+}
+
+// Sign in as the admin and open the panel through the role-gated menu
+// affordance (FR30) — never by navigating to /admin directly.
+//
+// Moved here from admin.spec.ts by Story 9.2: narrow-viewport.spec.ts needs the
+// same entry to assert the /admin floor, and a second copy in a spec is the
+// duplication NFR-E8-5 forbids.
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await loginViaUi(page, ADMIN.username, ADMIN.password)
+  // Admin lands on /admin via the `/` redirect (Story 5.6); assert authenticated
+  // route-agnostically, then reach the panel through the role-gated menu.
+  await expect(page).not.toHaveURL(/\/auth$/)
+  await expect(page.getByTestId('app-bar')).toBeVisible()
+  await page.getByTestId('user-menu-button').click()
+  await page.getByTestId('menu-admin').click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByTestId('admin-page')).toBeVisible()
+}
+
 // Open the lists index via the AppShell user-menu affordance (not by navigating
 // to /lists directly) — proves the nav entry routes there.
 export async function openListsViaMenu(page: Page): Promise<void> {
@@ -70,6 +103,24 @@ export async function createListAndOpen(page: Page, name: string): Promise<strin
   return page.url().split('/lists/')[1]
 }
 
+// Owner-side sharing through the Share & Members dialog (UI, never the
+// shareList/acceptInvite API). Lives here rather than in a spec because two
+// specs drive it since Story 9.4 — sharing.spec.ts and admin.spec.ts — and a
+// second copy in a spec is the duplication NFR-E8-5 forbids.
+//
+// `openShareDialog` leaves the dialog OPEN so the caller can assert on the
+// members list or on an error.
+export async function openShareDialog(page: Page, listName: string): Promise<void> {
+  await page.getByTestId(`manage-members-${listName}`).click()
+  await expect(page.getByTestId('share-members-dialog')).toBeVisible()
+}
+
+export async function shareWith(page: Page, listName: string, username: string): Promise<void> {
+  await openShareDialog(page, listName)
+  await page.getByTestId('share-username-input').fill(username)
+  await page.getByTestId('share-submit').click()
+}
+
 export async function addCategory(page: Page, name: string): Promise<void> {
   await page.getByTestId('add-category-button').click()
   await expect(page.getByTestId('add-category-dialog')).toBeVisible()
@@ -79,20 +130,46 @@ export async function addCategory(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId(`category-row-${name}`)).toBeVisible()
 }
 
-// Add an item through the overlay. `store` exercises the Story 6.1 store field
-// on the ADD dialog; omit it to leave the item store-less.
-export async function addItem(page: Page, categoryName: string, itemName: string, store?: string): Promise<void> {
-  await page.getByTestId('add-item-button').click()
+// Fill and submit an ALREADY-OPEN `add-item-dialog`, and wait for it to close.
+// Story 9.11 split this out of `addItem`: the same dialog now opens from two
+// places — the management screen's `add-item-button` and the shopping view's
+// `shopping-add-item-fab` — and it is one dialog (AR-E9-10), so it is filled by
+// one definition (NFR-E8-5). `stores` exercises the store field (Story 6.1,
+// multi-value since Story 9.6); omit it to leave the item store-less.
+export async function fillAddItemDialog(
+  page: Page,
+  categoryName: string,
+  itemName: string,
+  stores?: readonly string[],
+): Promise<void> {
   await expect(page.getByTestId('add-item-dialog')).toBeVisible()
   await page.getByTestId('add-item-name').fill(itemName)
   // Scoped role=combobox: the category Select must stay the ONLY combobox in
   // this dialog, which is why the store field is a plain input with Chip
-  // suggestions rather than an Autocomplete.
+  // suggestions rather than an Autocomplete. Story 9.6 KEPT that constraint when
+  // the field went multi-value, and this line is what enforces it.
   await page.getByTestId('add-item-dialog').getByRole('combobox').click()
   await page.getByTestId(`add-item-category-option-${categoryName}`).click()
-  if (store !== undefined) await page.getByTestId('add-item-store').fill(store)
+  // Each name is committed with Enter — the store field's commit key, which
+  // preventDefaults so it adds a chip instead of submitting the form.
+  for (const store of stores ?? []) {
+    await page.getByTestId('add-item-store').fill(store)
+    await page.getByTestId('add-item-store').press('Enter')
+    await expect(page.getByTestId(`add-item-store-chip-${store.trim()}`)).toBeVisible()
+  }
   await page.getByTestId('add-item-submit').click()
   await expect(page.getByTestId('add-item-dialog')).toHaveCount(0)
+}
+
+// Add an item through the management screen's overlay (/lists/:id).
+export async function addItem(
+  page: Page,
+  categoryName: string,
+  itemName: string,
+  stores?: readonly string[],
+): Promise<void> {
+  await page.getByTestId('add-item-button').click()
+  await fillAddItemDialog(page, categoryName, itemName, stores)
   await expect(page.getByTestId(`item-row-${itemName}`)).toBeVisible()
 }
 
@@ -122,6 +199,29 @@ export async function withCategoryMenu(page: Page, body: () => Promise<void>): P
   await body()
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+}
+
+// Story 9.8 — the sibling of `withCategoryMenu` that dismisses through the new
+// `filter-category-confirm` control instead of Escape. `withCategoryMenu` itself
+// is left untouched: Escape/outside-tap dismissal is still exercised by every
+// caller it already has, and this story adds a SECOND way to close the menu
+// rather than replacing the first. Also asserts focus lands back on the
+// category control (AC), which `withCategoryMenu` has never needed to check —
+// Escape's focus-return behaviour is native `<select>`-adjacent browser
+// behaviour, not something this story changes.
+//
+// The FOCUSED node is `filter-category`'s own `role="combobox"` CHILD, not the
+// outer element `data-testid="filter-category"` sits on — MUI's Select renders
+// the testid on the field's root wrapper and puts the actual tabbable node
+// inside it. `narrow-viewport.spec.ts`'s existing floor test already reaches
+// that same child the same way (`control.getByRole('combobox')`).
+export async function confirmCategoryMenu(page: Page, body: () => Promise<void>): Promise<void> {
+  await page.getByTestId('filter-category').click()
+  await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+  await body()
+  await page.getByTestId('filter-category-confirm').click()
+  await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+  await expect(page.getByTestId('filter-category').getByRole('combobox')).toBeFocused()
 }
 
 // Count GraphQL round trips (AC6). EVERY POST to the endpoint, not a named

@@ -1,11 +1,13 @@
 # bag-please — Closed Epics Archive
 
 Verbatim bodies of the closed epics, moved out of `epics.md` on 2026-09-07 to keep the live
-planning file small. Epics 1–7 are all closed, each with a retrospective in
-`_bmad-output/implementation-artifacts/`. Nothing here was edited — only relocated.
+planning file small. Epics 1–8 are all closed, each with a retrospective in
+`_bmad-output/implementation-artifacts/`. Nothing here was edited — only relocated. Epic 8 was
+appended on 2026-09-15, when `epics.md` was re-initialised for Epic 9; the Epic 1–8 requirements
+inventory it carried is recoverable from git (`epics.md` at commit `b056451`).
 
 This file is part of the epic set: sprint planning must be run with BOTH files, e.g.
-`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–7
+`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–8
 are reported as orphans and dropped from `sprint-status.yaml`.
 
 ---
@@ -2749,3 +2751,569 @@ retro identified when its predecessor's seven action-item rows came back 0/7
 
 ---
 
+
+## Epic 8: Small UX Fixes From Real Use
+
+**Delivers:** FR60, FR61, FR62, FR63 · NFR-E8-1 … NFR-E8-6 · UX-DR-E8-1 … UX-DR-E8-13
+**Backend:** frozen in practice. The AR-E8-0 unfreeze is authorised and **unspent** — no story below needs it.
+**Branch:** `epic8-ui-ux`, cut from `main` at `424fd92` — Epic 7 retro action D1 discharged (AR-E8-9).
+**Epic-wide, binding on every story below:** no story adds a toast, snackbar or banner; state changes are confirmed by
+the UI changing (UX-DR-E8-10, carried forward from UX-DR-E7-7). The visual language, dark theme and type scale are
+unchanged — this is a fixes epic, not a redesign (UX-DR-E8-11).
+
+The eight defects below were reported by `md` from using the running app, not derived from a specification. Both UX
+specs on file are stale (AR-E8-8), so every requirement here was verified against the shipped source on 2026-09-05 and
+the code is authoritative wherever a planning document disagrees.
+
+**The eight reports.** "Report #N" is the epic's most-used cross-reference and is defined here, once:
+
+1. Checking an item off means aiming at the small checkbox rather than tapping the row (FR60, UX-DR-E8-1) — Story 8.3.
+2. A long item name is truncated instead of wrapping on the management screen (UX-DR-E8-2) — Story 8.2.
+3. The list title is squeezed to an ellipsis by its two action buttons at narrow widths (UX-DR-E8-3) — Story 8.2.
+4. The category filter selects only one category at a time (FR61, UX-DR-E8-4) — Story 8.4.
+5. The management screen has no category filter (FR61, UX-DR-E8-5) — Story 8.4.
+6. The management screen has no item search (FR61, UX-DR-E8-6) — Story 8.4.
+7. The two list screens order categories and items differently (FR62, UX-DR-E8-8) — Story 8.5.
+8. A mistyped category name can only be corrected by deleting the category and every item in it (FR63, UX-DR-E8-12) —
+   Story 8.6.
+
+Seven stories cover eight reports: #2 and #3 are both Story 8.2, and #4, #5 and #6 are all Story 8.4. Story 8.1
+delivers the gate that lets #2 and #3 be proven, and Story 8.7 delivers no report at all.
+
+### Story 8.1: Move the Mobile Gate to the Width People Actually Use
+
+As the person who has to trust this project's test suite, I want the mobile E2E project to render at the narrow
+viewport real phones have, So that a layout defect fails the gate instead of reaching my hand.
+
+**Delivers:** NFR-E8-1, NFR-E8-2, NFR-E8-3, UX-DR-E8-9 (AR-E8-1, AR-E8-2, AR-E8-2a)
+**Files:** `bp_front/playwright.config.ts`, `bp_front/e2e/support/*`, plus whatever the measurement in AC1 implicates
+**Reuses:** the existing `mobile` project and its `devices['Pixel 7']` descriptor — this story changes one viewport
+value, it does not add a project (AR-E8-2)
+
+**Acceptance Criteria:**
+
+**AC1 — measure before anything is fixed, and report the number (AR-E8-2a)**
+
+**Given** 66 specs run in the `mobile` project and not one has ever rendered below 412px, so reports #2 and #3 are the
+two defects `md` happened to hit rather than necessarily the only two that exist
+**When** the viewport is retargeted and the suite is run once
+**Then** the count and identity of every newly-failing test is recorded in the story record before any layout is
+touched
+**And** that list is brought to `md` as a scoping decision — absorb them into Epic 8, or file them in
+`deferred-work.md` — because a substantially larger count changes what this epic is
+**And** the measurement is taken with `retries: 0`, since a retry-masked red is the failure mode Story 7.3 existed to
+delete
+**And** what this AC accepts is binary and belongs to the story: **the number was measured and reported.** The scoping
+decision that follows is `md`'s, and is explicitly **not** this story's to make or to pass and fail on
+
+**AC2 — the `mobile` project renders at the NFR-E8-1 floor**
+
+**Given** the `mobile` project in `playwright.config.ts` is a bare `{...devices['Pixel 7']}`, whose 412px width
+nobody ever chose deliberately and which has not been examined since Story 5.1
+**When** the project is retargeted
+**Then** its viewport width is the NFR-E8-1 floor of 320px
+**And** the `devices['Pixel 7']` descriptor is otherwise retained, because the Chrome-on-Android user agent and touch
+emulation are what the project was ever for
+**And** **no new Playwright project is created** — the ruling is explicit that adding one is the wrong shape (AR-E8-2)
+
+**AC3 — Story 7.3's race stays closed, and this is asserted rather than assumed (AR-E8-2)**
+
+**Given** the `@registration-toggle` chain's `dependencies: ['chromium', 'mobile']` is a mutual-exclusion mechanism for
+a shared Mongo document, and every spec registers users through the UI because there is no login fixture (NFR18)
+**When** the change is complete
+**Then** there are still exactly two viewport projects, so `dependencies` still names every project that registers
+**And** the structural invariant is **re-measured, never quoted** —
+`npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c` — and the result recorded with its date
+**And** the total test count is unchanged by this story, since no project was added
+
+**AC4 — clipping and overflow are two assertions, not one, and the clipping one is the load-bearing half
+(NFR-E8-3, AR-E8-3a)**
+
+**Given** a document-level overflow check **cannot detect either reported defect**: `noWrap` sets `overflow: hidden`
+(`Typography.js:88-90`), a clipped element does not expand its ancestors, and so
+`document.documentElement.scrollWidth <= clientWidth` stays green while reports #2 and #3 are on screen
+**When** the gate is built
+**Then** it provides **two** helpers with different jobs, both in the Story 7.2 shared support module and each with
+exactly one definition (NFR-E8-5)
+**And** `expectNotClipped(locator)` asserts `scrollWidth <= clientWidth` on the **text element**, which holds precisely
+when that text is not truncated — this is the assertion that catches reports #2 and #3
+**And** `expectNoHorizontalOverflow(page)` is the document-level check, retained for the different class of defect it
+does catch: something that genuinely widens the page, which a third control on a row or an over-wide dialog will
+produce
+**And** neither is presented as a substitute for the other, because the first draft of this story proposed only the
+second and it would have gated nothing
+**And** `expectNotClipped` is observed **failing** against `/lists/:id`'s item name and list title at 320px before it
+is accepted — the two reported defects are its proof, which is the whole reason this story precedes Story 8.2
+
+**AC5 — gates**
+
+**Given** the epic's standing constraints
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — `npm run lint` and `npm run build` pass, `git diff` shows no change under
+`bp_back/`, and the suite's state is recorded honestly: if AC1's measurement leaves known reds outstanding, they are named in the story record and filed,
+not silently retried
+
+### Story 8.2: A Long Name and a Full Header Fit on a Narrow Phone
+
+As someone managing a list one-handed on a phone, I want item names to wrap instead of vanishing and the list header to
+keep its buttons on screen, So that I can read what is on my list and act on it without a wider device.
+
+**Delivers:** UX-DR-E8-2, UX-DR-E8-3, UX-DR-E8-9, NFR-E8-1 (AR-E8-3) — reports #2 and #3
+**Files:** `bp_front/src/routes/ListDetailPage.tsx`, one spec
+**Reuses:** Story 8.1's overflow helper and the retargeted `mobile` project — this story adds no test infrastructure
+
+**Acceptance Criteria:**
+
+**AC1 — a long item name wraps to two lines instead of truncating (UX-DR-E8-2, report #2)**
+
+**Given** the `item-name` Typography in `ListDetailPage.tsx` renders `noWrap` under a fixed `{xs: 150, sm: 400}` cap,
+so on a narrow phone the user sees an ellipsis where the item's name should be
+**When** a list contains an item whose name does not fit on one line at 320px
+**Then** the name wraps and up to **two** lines are shown before it is ellipsised
+**And** the two-line bound is enforced, so a pathological name cannot grow the row taller than the controls beside it
+**And** the fixed pixel cap is **removed**, not retuned — the name takes the room the flex row actually has (AR-E8-3)
+**And** the assertion is Story 8.1's `expectNotClipped` on the name element: a name that fits within two lines is not
+truncated. A document-level overflow check cannot detect this and must not be used as its gate (AR-E8-3a)
+**And** the horizontal gap between the name and the edit/remove controls is reduced, giving the name back the space the
+cap was protecting
+
+**AC2 — at the narrow floor the action buttons wrap to their own line (UX-DR-E8-3, report #3)**
+
+**Given** report #3 is a **squeeze, not an overflow** (AR-E8-3, corrected): `noWrap` sets `overflow: hidden`, which
+already resolves the title's `min-width: auto` to zero, so it shrinks all the way to an ellipsis while the two buttons
+take the remaining width — **adding `minWidth: 0` is a no-op and must not be implemented as the fix**
+**When** the management screen is rendered at 320px with a long list name
+**Then** the "+ Category" and "+ Item" buttons wrap onto their own row beneath the title, and the title takes the full
+width of its own row (`md`'s ruling, UX-DR-E8-3)
+**And** the title is **not clipped** at that width — asserted with Story 8.1's `expectNotClipped`, not by a
+document-level overflow check, which cannot see this defect (AR-E8-3a)
+**And** both buttons keep their text labels, remain fully visible and remain activatable
+**And** the page does not scroll horizontally
+**And** at desktop widths the header is unchanged — the wrap is a narrow-floor behaviour, not a redesign of the screen
+
+**AC3 — the category-name row is fixed in the same pass (AR-E8-3, third bullet)**
+
+**Given** the `category-name` Typography in `ListDetailPage.tsx` is the identical `noWrap` + `{xs: 160}` construct
+beside two IconButtons, unreported
+only because `md` had not hit it yet
+**When** a category has a long name at 320px
+**Then** it behaves consistently with AC1's item name and does not overflow its row
+**And** leaving it as the third instance of a construct this story exists to delete is explicitly not acceptable
+
+**AC4 — the app-bar username chip is audited and the outcome recorded either way**
+
+**Given** `AppShell.tsx:193` caps the username at `{xs: 140}` and was deliberately capped so the bar survives ~360px —
+it is in the audit but not automatically in scope (AR-E8-3)
+**When** the app bar is rendered at 320px with a long username
+**Then** one of three outcomes is recorded: it is fixed in this story, it is confirmed correct at the floor, or it
+goes into `deferred-work.md` with its measurement — it does not pass silently
+
+**AC5 — the fixes are proven at the floor, and the tests were seen failing first**
+
+**Given** the epic's standing constraint that every new test is observed failing before it is accepted, and that Story
+8.1 delivered a gate which can now fail
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — the above are covered by specs passing on **both** `chromium` and the retargeted `mobile` project against the
+production image, manually exercised first
+**And** each new assertion was confirmed **failing** against the pre-fix layout
+**And** both of Story 8.1's helpers are applied to `/lists/:id` and pass — `expectNotClipped` on the title, the
+category name and the item name, and `expectNoHorizontalOverflow` on the page (NFR-E8-3, AR-E8-3a)
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+### Story 8.3: Check Off an Item by Tapping Its Row
+
+As someone shopping with one hand and a basket in the other, I want to tap anywhere on an item to check it off, So that
+I am not aiming at a small checkbox in a wide row while walking.
+
+**Delivers:** FR60 (UX-DR-E8-1, AR-E8-4, AR-E8-8a) — report #1
+**Files:** `bp_front/src/routes/ListShoppingPage.tsx`, one spec
+**Reuses:** the existing `CheckItemMutation` / `UncheckItemMutation` pair and the cache-reverts-on-failure behaviour —
+no mutation, query or error path changes
+
+**Acceptance Criteria:**
+
+**AC1 — the whole row toggles (FR60, report #1)**
+
+**Given** the `Checkbox` at `ListShoppingPage.tsx:415` is currently the only toggle affordance, in a row that is 300px
+or more wide
+**When** I activate any part of an item's row — the name, the store chip, the `addedBy` avatar, or the space between
+them
+**Then** that item's checked state toggles
+**And** every one of those four regions is asserted individually, because "the whole row" is exactly the kind of claim
+that ships with a dead zone in it
+
+**AC2 — the row is one control, not a control containing a control (UX-DR-E8-1)**
+
+**Given** a checkbox nested inside a clickable row is the standard way to produce two tab stops, a doubled screen-reader
+announcement, and a handler that fires twice
+**When** the row is inspected
+**Then** it exposes exactly **one** accessible name, **one** checked state, and **one** tab stop
+**And** keyboard activation toggles the item exactly once
+**And** a single pointer activation issues exactly **one** mutation — asserted by counting network calls, not by
+observing the final state, since a double-fire of check-then-uncheck settles on the right answer while being wrong
+**And** the accessible name the checkbox carries today (``Toggle ${item.name}``) moves to the row rather than being
+lost
+
+**AC3 — the next state is passed explicitly, not read off the DOM event (AR-E8-4)**
+
+**Given** `ListShoppingPage.tsx:237` `handleToggle(item, event)` derives `nextChecked` from `event.target.checked`, and
+a row-level activation has no such event
+**When** the handler is reworked
+**Then** it takes the next state explicitly and the `Checkbox` no longer owns that decision
+**And** the existing failure behaviour is preserved unchanged: the normalised cache is untouched on error, the control
+reverts to server state on its own, and the reason is surfaced in the existing inline `shopping-action-error` alert
+
+**AC4 — a scroll that starts on a row does not check the item**
+
+**Given** on a phone a tap and the start of a scroll are the same gesture until they are not, and today the ~40px
+checkbox absorbs that ambiguity — you are either on the box or you are scrolling. Making the whole row a target means
+every scroll begun on a row is a candidate accidental check-off, one-handed, in a shop, where the failure mode is
+buying the wrong thing
+**When** a pointer or touch goes down on a row, moves beyond a small movement threshold, and lifts
+**Then** the item's checked state is **unchanged** and no mutation is issued
+**And** this is driven as a real gesture — pointer/touch down, move, up — not as a synthetic `click`, because a `click`
+handler on a div fires after a touch that moved and a synthetic click would never reproduce it
+**And** it is asserted on the `mobile` project specifically, where the gesture is real
+**And** an ordinary stationary tap still toggles, so the guard is confirmed not to have over-fired
+
+**AC5 — a one-timer check still removes the row (FR42 interaction)**
+
+**Given** the `ItemUpdates` handler drops a row on a `SAVED` carrying `deleted: true`, and the backend one-timer path is
+live even though its UI is deferred
+**When** a row-level activation checks an item
+**Then** the realtime path behaves exactly as it does through the checkbox today
+**And** this is asserted rather than assumed, because the activation surface changed and the subscription did not
+
+**AC6 — coverage and gates**
+
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — the above are covered by FR60-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
+against the production image, manually exercised first and observed failing before acceptance
+**And** the mobile assertions exercise a real touch activation, not a synthetic click
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+### Story 8.4: One Filter and Search, on Both List Screens
+
+As someone with a long list, I want to narrow it by category and by name on whichever screen I am on, and to pick more
+than one category at a time, So that I can work on the chilled aisle and the veg aisle together instead of scrolling
+past everything else.
+
+**Delivers:** FR61 (UX-DR-E8-4, UX-DR-E8-5, UX-DR-E8-6, UX-DR-E8-7, UX-DR-E8-10; AR-E8-5, AR-E8-6; NFR-E8-4,
+NFR-E8-5) — reports #4, #5, #6
+**Files:** a new shared filter component under `bp_front/src/components/`,
+`bp_front/src/routes/ListShoppingPage.tsx`, `bp_front/src/routes/ListDetailPage.tsx`, specs
+**Reuses:** the shopping view's existing category `Select`, `TextField` search and AND-combined predicate — this story
+extracts and extends what Story 5.6 shipped rather than authoring a second one
+
+**Acceptance Criteria:**
+
+**AC1 — the category filter selects more than one category (FR61, UX-DR-E8-4, report #4)**
+
+**Given** `categoryFilter` is a single `string` and the predicate is `item.category !== categoryFilter`, so choosing
+Dairy hides Produce
+**When** I open the category filter and choose two categories
+**Then** items from both are shown
+**And** the control remains a MUI `Select` made `multiple` with checkboxes in the menu and a summary of the chosen
+categories in the closed control — **not** a chip row (`md`'s ruling, UX-DR-E8-4)
+**And** selecting nothing means all categories, preserving today's empty-value default and its "All categories"
+affordance
+
+**AC2 — one component, mounted twice (UX-DR-E8-7, NFR-E8-5)**
+
+**Given** the two surfaces have already drifted apart once and report #7 *is* that drift
+**When** the story is complete
+**Then** the category filter and the search box have exactly **one** definition in `src/`, used by both
+`ListShoppingPage` and `ListDetailPage`
+**And** the filter predicate likewise has one definition
+**And** a second copy of either is a review failure — the rule Story 7.5 applied to `byCreatedAtAsc` after two
+divergent sorts shipped
+
+**AC3 — the management screen gains both controls (FR61, reports #5 and #6)**
+
+**Given** `ListDetailPage` has no filter or search control of any kind today
+**When** it renders
+**Then** it offers the same multi-select category filter and the same case-insensitive item-name search, combined by AND
+**And** the shopping view's checked-status toggle (All / To buy / Done) is **not** added there — it is meaningless while
+managing a list, and the shared component accommodates its absence rather than rendering a disabled control
+(UX-DR-E8-7)
+
+**AC4 — empty categories are hidden while filtering and shown otherwise (`md`'s ruling, FR61)**
+
+**Given** the management screen deliberately shows empty categories because the "No items yet." line is where a user
+adds their first item — while a search returning eleven "No items yet." rows and one match is not a search result
+**When** no filter and no search term are active on `/lists/:id`
+**Then** every category is shown, empty ones included, each keeping its add-item affordance
+**When** a category filter or a search term **is** active
+**Then** only categories with at least one matching item are shown
+**And** the shopping view is unchanged: it hides empty groups always, because there an empty category is only noise
+**And** both branches are asserted, since this is the one place the two surfaces intentionally differ
+
+**AC5 — a stale selection is pruned, once, in the shared unit (AR-E8-5)**
+
+**Given** `ListShoppingPage` carries two render-phase adjustments that keep the filter honest — reset on list switch,
+and drop a `categoryFilter` whose category no longer exists after a live `CategoryUpdates` deletion
+**When** the filter becomes a set
+**Then** the second generalises to "prune every selected id that no longer exists" and both live in the shared unit,
+not re-derived per screen
+**And** they remain **render-phase adjustments**, because the project lint forbids set-state-in-effect
+**And** deleting a selected category live on the shopping view leaves the remaining selections intact rather than
+resetting the whole filter
+
+**AC6 — filtering stays client-side and instant (NFR-E8-4)**
+
+**Given** both surfaces already hold the full item and category sets in the Apollo cache
+**When** I type in the search box or change the category selection
+**Then** no query, no `refetch` and no round trip is issued, and the app does not enter a loading state
+**And** the management screen gains **no** `subscribeToMore` — it is refetch-driven by Story 6.1's explicit design and
+the shared component must not assume a subscription exists (AR-E8-6)
+
+**AC7 — coverage and gates**
+
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — the above are covered by FR61-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
+against the production image, manually exercised first and observed failing before acceptance
+**And** the multi-select control is exercised at 320px, where a menu with checkboxes and a summary line is most likely
+to overflow (NFR-E8-1)
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+### Story 8.5: The Same List Reads the Same Way on Both Screens
+
+As someone who arranges a list on one screen and shops it on the other, I want both screens to show the same order, and
+I want an item whose category was deleted to still be findable, So that the app does not quietly disagree with itself.
+
+**Delivers:** FR62 (UX-DR-E8-8, AR-E8-7, AR-E8-7a) — report #7 plus the orphan gap
+**Files:** a shared comparator module under `bp_front/src/lib/lists/`,
+`bp_front/src/routes/ListDetailPage.tsx`, `bp_front/src/routes/ListShoppingPage.tsx`, specs
+**Reuses:** the shopping view's existing `sortByName` and its synthetic `Uncategorized` grouping — both are lifted to
+one definition rather than reimplemented
+
+**Acceptance Criteria:**
+
+**AC1 — categories are ordered identically on both surfaces (FR62, report #7)**
+
+**Given** the shopping view sorts categories with `localeCompare` while `ListDetailPage` renders them in raw query
+order with no sort at all
+**When** the same list is opened on `/list/:id` and on `/lists/:id`
+**Then** the categories appear in the same sequence
+**And** that sequence is by name, the shopping view's order being canonical (`md`'s ruling)
+
+**AC2 — items are ordered identically within a category (FR62)**
+
+**Given** the shopping view sorts items by name while the management view renders `items.filter(...)` in query order —
+the same divergence one level down, found during planning rather than reported
+**When** the same category is viewed on both screens
+**Then** its items appear in the same sequence, by name
+
+**AC3 — one comparator, one definition (NFR-E8-5)**
+
+**Given** this project has already shipped two divergent `createdAt` sorts, which Story 7.5 had to consolidate
+**When** the story is complete
+**Then** the ordering comparator has exactly one definition in `src/`, used by both surfaces
+**And** it sits beside `byCreatedAtAsc` in `lib/lists/`, the module that exists because of the previous instance of
+this defect
+
+**AC4 — an orphaned item is visible where it can be deleted (AR-E8-7, `md`'s ruling)**
+
+**Given** the shopping view groups items whose category id has no local match into a synthetic `Uncategorized` bucket,
+and the management screen has none — so an item orphaned by a category deletion is visible while shopping and
+invisible on the only screen that can delete it, recoverable today only with direct database access
+**When** a list contains an item whose category no longer exists
+**Then** `/lists/:id` shows it in an `Uncategorized` group
+**And** **the edit control works from there and can move the item into a real category** — `md`'s ruling
+(2026-09-05). Offering only deletion would make the app's answer to "your category was deleted and your item survived"
+be "delete that too"; `EditItemDialog` already carries a category selector and the edit button is already on the row,
+so re-categorising is the recovery and it costs one assertion
+**And** the item's remove control also works from there, for the orphan the user does not want to keep
+**And** the group is absent when there are no orphans, exactly as on the shopping view
+
+**AC5 — the management screen's deliberate differences are preserved**
+
+**Given** FR62 is about order, and the two screens differ elsewhere on purpose
+**When** the changes land
+**Then** the management screen still shows **empty** categories when no filter or search is active, with its "No items
+yet." affordance intact (Story 8.4 AC4)
+**And** the shopping view still hides empty groups always
+**And** neither behaviour is changed by this story
+
+**AC6 — the orphan cause is recorded and explicitly not fixed here (AR-E8-7a)**
+
+**Given** `deleteCategory` does not cascade, so `ListDetailPage`'s remove-category handler deletes items client-side in
+a `for` loop with an `await` and no transaction — a mid-loop failure leaves surviving items pointing at a category
+about to stop existing
+**When** the story is completed
+**Then** the cause is recorded in `deferred-work.md` with its mechanism, distinct from the symptom this story fixes
+**And** it is **not** fixed here: making the delete atomic needs the AR-E8-0 unfreeze that nothing else in this epic
+uses, and would do nothing for orphans already in the data
+
+**AC7 — coverage and gates**
+
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — the above are covered by FR62-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
+against the production image, manually exercised first and observed failing before acceptance
+**And** the orphan case is produced through the UI — create a category with an item, delete the category, observe the
+item — rather than by writing a dangling category id directly into MongoDB, which the API-only test-data rule forbids
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+
+### Story 8.6: Rename a Category Instead of Destroying It
+
+As a list member who mistyped a category name, I want to rename it, So that fixing one word does not cost me every item
+in that aisle.
+
+**Delivers:** FR63 (UX-DR-E8-12, UX-DR-E8-13; AR-E8-10 … AR-E8-13) — report #8
+**Files:** a rename dialog under `bp_front/src/components/`, `bp_front/src/routes/ListDetailPage.tsx`, one spec
+**Reuses:** the existing `SaveCategoryMutation` document and the `saveCategory` upsert that has been in place since
+Story 5.5 — **no backend change, no schema change, no `npm run generate`** (AR-E8-10); and `EditItemDialog`'s form
+conventions, which this dialog mirrors rather than reinvents
+
+**Acceptance Criteria:**
+
+**AC1 — a category can be renamed from the management screen (FR63, report #8)**
+
+**Given** the only correction available today is deleting the category, whose own confirmation says "Items in this
+category are removed with it. This cannot be undone." — so the route from "Diary" to "Dairy" destroys the aisle
+**When** I activate the edit control on a category row
+**Then** a dialog opens pre-filled with the current name
+**And** saving renames the category in place
+**And** its items remain attached to it, and nothing else about the category changes
+**And** the control sits beside the existing add-item and remove-category buttons, in the same idiom Story 6.1
+established for items (UX-DR-E8-12)
+
+**AC2 — the save sends the full entity, `listId` included (`md`'s ruling, AR-E8-12)**
+
+**Given** `CategoryRepository.kt:35-43` applies `Updates.set("listId", …)` unconditionally, so a save carrying the
+wrong `listId` **moves the category to another list**, taking its name and stranding its items behind a category id
+their list no longer contains
+**When** the dialog submits
+**Then** it sends a complete `CategoryInput` — `id`, `name`, and the `listId` loaded with the category — matching
+`AddCategoryDialog`'s existing payload shape, so create and rename have one shape rather than two
+**And** a test pins the round trip: the `listId` returned by the query is the `listId` sent with the save
+**And** the id is the loaded category's id, never regenerated
+
+**AC3 — validation matches the add dialog**
+
+**Given** `AddCategoryDialog` validates on submit with a required name and a 100-character maximum
+**When** the rename dialog is used
+**Then** it applies the same rules, with the same inline error treatment, the same re-entry guard, and Enter-submits via
+a native `<form>`
+**And** saving an unchanged name is permitted and is a no-op to the user — it is not an error state
+
+**AC4 — the rename reaches other members live, with no new subscription code (AR-E8-10)**
+
+**Given** `CategoryService.kt:33-38` already emits on `categoryUpdateChannel`, and the shopping view's
+`CategoryUpdates` handler already upserts a known id
+**When** one member renames a category
+**Then** another member viewing `/list/:id` sees the new name without refreshing
+**And** no subscription is added to `ListDetailPage`, which stays refetch-driven by Story 6.1's design (AR-E8-6)
+
+**AC5 — the resurrection outcome is the decided one and is not "fixed" (`md`'s ruling, AR-E8-11)**
+
+**Given** `saveCategory` upserts, so saving a hard-deleted category id recreates it — unreachable until now, because no
+frontend path has ever sent an existing category id, and **this story makes it reachable for the first time**
+**When** a member saves a rename while another member has deleted that category
+**Then** the category is recreated, empty, and this is **accepted behaviour**: unlike BUG-E6-3 for items the
+resurrected object carries no false data, it strands nothing (the cascade removed its items first), and the recovery is
+the remove-category control the user already has
+**And** the story adds **no** client-side existence check and does **not** spend the AR-E8-0 unfreeze
+**And** its coverage does **not** assert that the save fails — it asserts the recreated category is present and empty,
+so the decision is pinned rather than left to be rediscovered as a bug
+**And** the outcome is asserted for **both** members, because they reach it by different paths: the member who saved
+is on the refetch-driven management screen, while the other member is on the subscription-driven shopping view. One
+assertion covers one path and leaves the other unverified
+
+**AC6 — the third control does not undo Story 8.2 (UX-DR-E8-13)**
+
+**Given** this adds roughly 40px of controls to a category row whose name was truncating on the reported device, which
+is why this story is sequenced after Story 8.2 and not before
+**When** the row is rendered at 320px with a long category name
+**Then** the page does not scroll horizontally, no control is clipped, and Story 8.2's category-name behaviour still
+holds
+**And** Story 8.1's `expectNotClipped` is applied to the category name and passes, and
+`expectNoHorizontalOverflow` is applied to the page and passes — the third control is exactly the change most likely
+to produce genuine overflow rather than silent clipping, so both helpers matter here (AR-E8-3a)
+
+**AC7 — the tests do not hold a name-keyed locator across the rename (AR-E8-13)**
+
+**Given** the management screen keys its rows as ``category-row-${category.name}`` and the shopping view as
+``shopping-group-${group.name}`` — name-keyed selectors, in the one story whose purpose is changing the name
+**When** the rename spec runs
+**Then** it re-queries after the save rather than holding a locator across the mutation
+**And** category names are not unique and this story does not make them so; a rename that collides with an existing
+name is out of scope and recorded, not guarded
+
+**AC8 — coverage and gates**
+
+**When** the story is completed
+**Then** — discharging NFR-E8-6 — the above are covered by FR63-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
+against the production image, manually exercised first and observed failing before acceptance
+**And** `npm run lint` and `npm run build` pass, and `git diff` shows **no change under `bp_back/`** — the whole point
+of AR-E8-10 is that this story needs none
+
+### Story 8.7: Write Down the Design This App Actually Has
+
+As the next person or agent to work on this frontend, I want one current document describing how the app looks and
+behaves, So that I am not the fourth in a row to re-derive it by reading the code.
+
+**Delivers:** AR-E8-8, UX-DR-E8-11 — the epic's closing story
+**Files:** `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` and `EXPERIENCE.md`; superseded banners on
+`ux-design-specification.md` and `ux-design-specification-epic-4.md`
+**Reuses:** nothing — but it **describes** rather than prescribes, and everything in it is checked against shipped code
+
+**Acceptance Criteria:**
+
+**AC1 — the spine describes what is deployed, not what was once planned**
+
+**Given** `ux-design-specification.md` describes the Next.js app Epic 5 replaced and `ux-design-specification-epic-4.md`
+describes a bottom-tab design that never shipped, so Epics 6, 7 and 8 each re-derived the design by reading source
+**When** the story is complete
+**Then** `DESIGN.md` records the deployed visual identity — the dark palette and the `custom.bp.*` tokens as they exist
+in `theme.ts`, the type scale, the component defaults, and the surface treatments
+**And** `EXPERIENCE.md` records the deployed information architecture, the route map, screen states, and the navigation
+model
+**And** every claim is verified against the source at the time of writing, with the commit it was verified at recorded
+
+**AC2 — it captures the decisions that are not in the code (AR-E8-8)**
+
+**Given** reading the code tells you what the app does and never what it meant, and several load-bearing rulings live
+only in epic prose or review records
+**When** the document is written
+**Then** it records at minimum: the **manage-vs-use** boundary (`/lists/:id` manages, `/list/:id` uses) and that it is
+`md`'s ruling, not an accident; the **inert-but-present** home link rule (AR-E7-8); the **no-toast** convention; and
+FR60's consequence that the shopping item row is now a **closed** extension surface (AR-E8-8a)
+**And** each is attributed to where it was decided, so a future reader can tell a ruling from a habit
+
+**AC3 — it is a description, and its accuracy is checkable**
+
+**Given** the Epic 7 retrospective's largest finding (**D2**) is that stories write authoritative text that steers later
+work and nothing verifies it, and this story is pure prose
+**When** the document is written
+**Then** every factual claim names the file it can be checked against
+**And** no figure is copied from another planning document — counts, tokens and values are re-measured in this pass
+**And** it is written **after** the epic's implementation stories, so it describes verified reality rather than
+prescribing unverified intent (`md`'s ruling)
+
+**AC4 — the stale specs are marked, not deleted**
+
+**Given** both existing specs are retained for history
+**When** the story is complete
+**Then** each carries a banner at the top naming what superseded it and from which epic it stopped being accurate
+**And** neither file is deleted
+
+**AC5 — the known gaps are recorded and explicitly not acted on (UX-DR-E8-11)**
+
+**Given** this was a fixes epic and not a redesign
+**When** the document is written
+**Then** light mode, a design-token overhaul, and the Epic 4 bottom-tab navigation are recorded as **known gaps** with
+the reason each is out of scope
+**And** none of them is implemented by this story
+**And** anything Story 8.1's measurement filed rather than fixed (AR-E8-2a) is cross-referenced here, so the narrow-
+viewport picture is in one place
+
+**AC6 — it is scheduled, not conditional**
+
+**Given** this project has deferred a written-down obligation before and it took four epics to discharge (FR9)
+**When** the epic closes
+**Then** this story is completed or explicitly re-planned by `md` — it does not lapse into `deferred-work.md` by
+default
+**And** NFR-E8-6 (E2E against the production artifact on both viewports, observed failing before acceptance) is
+**deliberately not applicable** to this story, which ships no code — recorded so its absence reads as a decision
+rather than an omission. Its analogue here is AC3: every factual claim names the file it can be checked against

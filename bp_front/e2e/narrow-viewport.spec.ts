@@ -1,15 +1,21 @@
+import {randomUUID} from 'node:crypto'
+
 import {expect, type Locator, type Page, test, type TestInfo} from '@playwright/test'
 import {expectInsideViewport, expectNoHorizontalOverflow, expectNotClipped, NARROW_FLOOR_PX,} from './support/layout'
 import {
   addCategory,
   addItem,
+  ADMIN,
+  confirmCategoryMenu,
   createListAndOpen,
+  loginAsAdmin,
   openListsViaMenu,
   PASSWORD,
   registerViaUi,
   uniqueUsername,
   withCategoryMenu,
 } from './support/ui'
+import {createUserApi, gql, loginApi} from './support/api'
 
 // Story 8.1 — Move the Mobile Gate to the Width People Actually Use.
 //
@@ -107,6 +113,34 @@ const UNBREAKABLE_LIST_NAME = 'Supercalifragilisticexpialidociousaurusrexinatori
 const UNBREAKABLE_CATEGORY_NAME = 'Refrigeratedpasteurisedhomogenisedchilleddairy'
 const UNBREAKABLE_ITEM_NAME = 'Semiskimmedorganichomogenisedmilktwolitrebottle'
 
+// Story 9.6 — three store names, each long enough that the three together
+// cannot sit on one line inside the ~190px the item's text column leaves at the
+// floor. They are what makes the shopping row's chip block WRAP rather than
+// widen: an unwrapped row would push the check glyph and the item name off the
+// screen, which is exactly NFR-E8-1's third clause.
+const LONG_STORE_NAMES = [
+  'Neighbourhood organic grocer',
+  'Riverside discount supermarket',
+  'Central station convenience shop',
+]
+
+// The /admin floor case's fixture (Story 9.2, AR-E9-6b). 42 characters, which is
+// roughly what `uniqueUsername` produces and comfortably past what the removed
+// `maxWidth: {xs: 140}` cap could show.
+const ADMIN_FLOOR_NAME_LENGTH = 42
+
+// A name that sorts onto the FIRST page: a leading digit precedes every letter
+// under the binary collation the server sorts by, and every other username the
+// suite creates starts with a lowercase word. /admin opens on page 1, so the row
+// is on screen without this test walking a pager it is not testing. The `_e2e_`
+// marker keeps it inside the teardown sweep.
+function adminFloorUsername(projectName: string): string {
+  const base = `0_e2e_adminfloor_${projectName}_${Date.now()}`
+  return base.length >= ADMIN_FLOOR_NAME_LENGTH
+    ? base.slice(0, ADMIN_FLOOR_NAME_LENGTH)
+    : base.padEnd(ADMIN_FLOOR_NAME_LENGTH, 'x')
+}
+
 // MUI's default `sm`, which is the breakpoint ListDetailPage's header stacks
 // below (the theme declares no custom `breakpoints`, verified 2026-09-05). Named
 // because the boundary test asserts AT it and just below it, and two bare 600s
@@ -143,6 +177,20 @@ async function shortListAtFloor(page: Page, testInfo: TestInfo, label: string): 
   await addCategory(page, 'Veg')
   await addItem(page, 'Veg', 'Peas')
   return listId
+}
+
+// SETUP ONLY (Story 9.8, AR-E9-14 sibling) — bulk categories via the API, the
+// same idiom `seedItems`/`categoryIdOf` use in shopping.spec.ts:275-302. Driving
+// 30 add-category dialogs through the UI is the same environment preparation at
+// 30x the runtime for a case that is about the MENU'S geometry, not the
+// add-category flow.
+async function seedCategories(token: string, listId: string, names: ReadonlyArray<string>): Promise<void> {
+  for (const name of names) {
+    await gql(
+      `mutation { saveCategory(category: { id: "${randomUUID()}", name: "${name}", listId: "${listId}" }) { id } }`,
+      token,
+    )
+  }
 }
 
 // Inject a throwaway element, hand it to an assertion, and always remove it.
@@ -741,6 +789,44 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expectInsideViewport(page.getByTestId('app-bar-home'), 'the app-bar home link')
   })
 
+  test('[P1] an item in three stores does not push the shopping row off the floor', async ({page}, testInfo) => {
+    // Story 9.6. The shopping row shows one chip PER store inside its closed
+    // control surface, and the chips live in the same `minWidth: 0` box as the
+    // item name. Three long names is the case that decides whether that block
+    // wraps or widens — and a row that widens takes the check glyph and the name
+    // with it, which no amount of vertical space fixes.
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'stores', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, LONG_LIST_NAME)
+    await addCategory(page, LONG_CATEGORY_NAME)
+    await addItem(page, LONG_CATEGORY_NAME, LONG_ITEM_NAME, LONG_STORE_NAMES)
+
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    const row = page.getByTestId(`shopping-item-${LONG_ITEM_NAME}`)
+    await expect(row).toBeVisible()
+
+    // Every chip is really on screen — the whole point of showing them.
+    for (const store of LONG_STORE_NAMES) {
+      await expect(page.getByTestId(`shopping-item-store-${LONG_ITEM_NAME}-${store}`)).toBeVisible()
+    }
+
+    // The page does not scroll sideways…
+    await expectNoHorizontalOverflow(page)
+    // …the check glyph and the name are still fully inside the viewport (the
+    // third clause, which the overflow helper cannot see: a row clipped by an
+    // `overflow: hidden` ancestor widens nothing)…
+    await expectInsideViewport(
+      page.getByTestId(`shopping-item-indicator-${LONG_ITEM_NAME}`),
+      'the shopping-row check glyph',
+    )
+    await expectInsideViewport(row.getByText(LONG_ITEM_NAME, {exact: true}), 'the shopping-row item name')
+    // …and the chip block is not clipped: it grew DOWNWARDS, by wrapping.
+    await expectNotClipped(page.getByTestId(`shopping-item-stores-${LONG_ITEM_NAME}`))
+  })
+
   test('[P1] an open dialog does not overflow the floor', async ({page}, testInfo) => {
     // Dialogs are the other classic fixed-width offender and are invisible to a
     // route sweep, because they only exist while open.
@@ -918,6 +1004,270 @@ test.describe('Story 8.1: the narrow viewport gate', () => {
     await expect(summary).toContainText(LONG_CATEGORY_NAME)
     await expectInsideViewport(control, 'the category filter control with a selection')
     await expectInsideViewport(summary, 'the category filter summary with a selection')
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.8 (AR-E9-14 sibling) — the confirm control, at the floor, under a
+  // realistic worst-case category count.
+  //
+  // Before this story the menu never self-closed and had no confirm control at
+  // all, so at 320px with many categories it covered most of the screen with no
+  // discoverable way out short of Escape or an outside tap. 30 categories is
+  // enough that, without the sticky footer, the control would sit below the
+  // menu's own scrollable overflow — `expectInsideViewport`'s `ratio: 1` check
+  // is what catches that: a control clipped away by a scrolled ancestor is
+  // exactly the failure mode it exists to see (support/layout.ts).
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the category filter confirm control stays reachable at 320px with 30 categories', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const username = uniqueUsername('narrow', 'filtermany', testInfo.project.name)
+    await registerViaUi(page, username, PASSWORD)
+    const token = await loginApi(username, PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, `FilterMany ${Date.now()}`)
+    const stamp = Date.now()
+    const categoryNames = Array.from({length: 30}, (_, i) => `Cat ${String(i).padStart(2, '0')} ${stamp}`)
+    await seedCategories(token, listId, categoryNames)
+
+    // Reload so this client's (refetch-driven, no-subscription) cache picks up
+    // the 30 API-seeded categories.
+    await page.reload()
+    await expect(page.getByTestId('list-detail-page')).toBeVisible()
+    await expect(page.getByTestId(`category-row-${categoryNames[29]}`)).toBeVisible()
+
+    await page.getByTestId('filter-category').click()
+    await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+
+    const confirm = page.getByTestId('filter-category-confirm')
+    await expectInsideViewport(confirm, 'the category filter confirm control at the floor with 30 categories')
+    await expectNoHorizontalOverflow(page)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+
+    // The fix is claimed for "either list screen" (support/ui.ts's shared
+    // `ListFilters`, mounted under both `list-detail-filters` and
+    // `shopping-filters`) — so the same seeded 30 categories are checked again
+    // on /list/:id, the shopping view, not just /lists/:id above. The 30
+    // seeded categories carry no items, and the shopping view NEVER renders an
+    // empty category as a group (`keepEmpty: false`, unconditionally — see
+    // `order.ts`), so `shopping-group-*` is the wrong readiness signal here;
+    // the filter's own category option is what confirms the data loaded.
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+
+    await page.getByTestId('filter-category').click()
+    await expect(page.getByTestId(`filter-category-option-${categoryNames[29]}`)).toBeVisible()
+    await expect(page.getByTestId('filter-category-option-all')).toBeVisible()
+
+    const shoppingConfirm = page.getByTestId('filter-category-confirm')
+    await expectInsideViewport(
+      shoppingConfirm,
+      'the category filter confirm control at the floor with 30 categories on /list/:id',
+    )
+    await expectNoHorizontalOverflow(page)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-category-option-all')).toHaveCount(0)
+  })
+
+  // The confirm control's OTHER half — closing, committing, and returning focus
+  // — is a behavioural gate rather than a geometry one, so it runs on both
+  // viewport projects like the rest of the suite, through the shared
+  // `confirmCategoryMenu` helper (support/ui.ts) so this file cannot drift from
+  // how lists.spec.ts / shopping.spec.ts close the same menu.
+  test('[P1] the category filter confirm control closes the menu, keeps selections applied, and returns focus', async ({page}, testInfo) => {
+    const username = uniqueUsername('narrow', 'filterconfirm', testInfo.project.name)
+    await registerViaUi(page, username, PASSWORD)
+    await openListsViaMenu(page)
+    await createListAndOpen(page, `FilterConfirm ${Date.now()}`)
+    await addCategory(page, 'Produce')
+    await addCategory(page, 'Bakery')
+
+    await confirmCategoryMenu(page, async () => {
+      await page.getByTestId('filter-category-option-Produce').click()
+      await page.getByTestId('filter-category-option-Bakery').click()
+    })
+
+    // Both toggles are still applied — the summary lists both names, in the
+    // menu's own alphabetical order.
+    await expect(page.getByTestId('filter-category')).toContainText('Bakery, Produce')
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.2 (AR-E9-6b) — /admin at the floor.
+  //
+  // THE MISSING HALF. `admin.spec.ts` carries no project guard, so /admin has
+  // always RENDERED at 320px in the `mobile` project — it simply made no layout
+  // assertion there, which is why the username cell's `noWrap` +
+  // `maxWidth: {xs: 140}` cap survived Story 8.2's sweep of the same construct
+  // on /lists/:id. The cap is gone (the name wraps); this is what keeps it gone,
+  // and it covers the pager the same story added.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] a long username and the pager stay inside the floor on /admin', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const username = adminFloorUsername(testInfo.project.name)
+    expect(username, 'the 42-character case AR-E9-6b names').toHaveLength(ADMIN_FLOOR_NAME_LENGTH)
+    const token = await loginApi(ADMIN.username, ADMIN.password)
+    await createUserApi(token, username, PASSWORD)
+
+    await loginAsAdmin(page)
+
+    // The NAME element, not the row: `expectNotClipped` must measure the box the
+    // text lives in (support/layout.ts). With the cap removed the name wraps, so
+    // it is the HEIGHT branch that carries this assertion — the same handover
+    // Story 8.2 made on the other screen.
+    const name = page.getByTestId(`admin-user-row-${username}`).getByTestId('admin-user-name')
+    await expectNotClipped(name)
+    await expectInsideViewport(name, 'the username cell')
+
+    // NFR-E8-1's third clause, on the controls this story introduced. `prev` is
+    // disabled on the first page and still has to be fully on screen.
+    //
+    // SCROLLED INTO VIEW FIRST, deliberately. A full page of 20 usernames that
+    // WRAP at 320px is taller than the viewport, so the pager sits below the
+    // fold and `toBeInViewport` — which does not auto-scroll — reported
+    // `viewport ratio 0` (measured). That is ordinary vertical scrolling, not
+    // the defect NFR-E8-1 names: its third clause is about a control pushed off
+    // an edge or clipped away by an ancestor, which is still exactly what these
+    // two assertions catch once the control is scrolled to.
+    await page.getByTestId('admin-users-prev').scrollIntoViewIfNeeded()
+    await expectInsideViewport(page.getByTestId('admin-users-prev'), 'the previous-page control')
+    await expectInsideViewport(page.getByTestId('admin-users-next'), 'the next-page control')
+
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.7 put Home first in the account menu, which made it four entries
+  // tall; Story 9.9 added a fifth (Feedback). The menu is anchored to the right
+  // edge of the bar, so the floor gate is that every entry — each new one
+  // included — is fully on screen at 320px.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] every account-menu entry is inside the viewport at the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'menu', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+
+    await page.getByTestId('user-menu-button').click()
+    for (const id of ['menu-home', 'menu-lists', 'menu-change-password', 'menu-feedback', 'menu-logout']) {
+      await expectInsideViewport(page.getByTestId(id), id)
+    }
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.9 — the feedback dialog at the floor. Text field and buttons must
+  // stay fully reachable at 320px, the same shape as the other dialog-floor
+  // assertions in this file (e.g. the add-category dialog above).
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the feedback dialog does not overflow the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'feedback', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+
+    await page.getByTestId('user-menu-button').click()
+    await page.getByTestId('menu-feedback').click()
+    await expect(page.getByTestId('feedback-dialog')).toBeVisible()
+
+    await expectInsideViewport(page.getByTestId('feedback-dialog'), 'the feedback dialog')
+    await expectInsideViewport(page.getByTestId('feedback-text'), 'the feedback text field')
+    await expectInsideViewport(page.getByTestId('feedback-cancel'), 'the feedback cancel control')
+    await expectInsideViewport(page.getByTestId('feedback-submit'), 'the feedback submit control')
+    await expectNoHorizontalOverflow(page)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.10 — the admin Feedback panel and its delete-confirm dialog at the
+  // floor. A long, unbroken feedback text is what makes the panel's text
+  // column WRAP rather than widen the page (same shape as the /admin username
+  // cell above) — the delete button must stay reachable alongside it, and the
+  // confirm dialog (which quotes the text) must not overflow either.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the admin Feedback panel and delete-confirm dialog stay inside the floor', async ({
+                                                                                                   page,
+                                                                                                   browser,
+                                                                                                   baseURL,
+                                                                                                 }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    const longText =
+      'Pleaseaddadarkiconthemewithcustomisablecoloursandhighcontrastoptionsforoutdoorreadability ' +
+      Date.now()
+    const username = uniqueUsername('narrow', 'feedbackpanel', testInfo.project.name)
+
+    const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
+    try {
+      const senderPage = await ctx.newPage()
+      await registerViaUi(senderPage, username, PASSWORD)
+      await openListsViaMenu(senderPage)
+      await senderPage.getByTestId('user-menu-button').click()
+      await senderPage.getByTestId('menu-feedback').click()
+      await expect(senderPage.getByTestId('feedback-dialog')).toBeVisible()
+      await senderPage.getByTestId('feedback-text').fill(longText)
+      await senderPage.getByTestId('feedback-submit').click()
+      await expect(senderPage.getByTestId('feedback-dialog')).toHaveCount(0)
+    } finally {
+      await ctx.close()
+    }
+
+    await loginAsAdmin(page)
+
+    await page.getByText(longText).scrollIntoViewIfNeeded()
+    await expectNotClipped(page.getByText(longText))
+    await expectInsideViewport(page.getByText(longText), 'the feedback text')
+
+    const deleteButton = page.getByRole('button', {name: `Delete feedback from ${username}`})
+    await deleteButton.scrollIntoViewIfNeeded()
+    await expectInsideViewport(deleteButton, 'the delete-feedback control')
+    await expectNoHorizontalOverflow(page)
+
+    await deleteButton.click()
+    await expect(page.getByTestId('delete-feedback-dialog')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('delete-feedback-dialog'), 'the delete-feedback dialog')
+    await expectInsideViewport(page.getByTestId('delete-feedback-cancel'), 'the delete-feedback cancel control')
+    await expectInsideViewport(page.getByTestId('delete-feedback-confirm'), 'the delete-feedback confirm control')
+    await expectNoHorizontalOverflow(page)
+
+    await page.getByTestId('delete-feedback-confirm').click()
+    await expect(page.getByTestId('delete-feedback-dialog')).toHaveCount(0)
+  })
+  // ───────────────────────────────────────────────────────────────────────────
+  // Story 9.11 — the shopping-view FAB and the no-categories add dialog at the
+  // floor. The FAB is `position: fixed` bottom-right with safe-area offsets, so
+  // the gate is that it sits fully on screen and widens nothing; the dialog's
+  // no-categories branch (guidance + "Manage list" link, no form) is a new
+  // dialog body, so it gets the same dialog-floor shape as the others here.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  test('[P1] the shopping add-item FAB and its no-categories dialog stay inside the floor', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the floor is emulated by the mobile project')
+
+    await registerViaUi(page, uniqueUsername('narrow', 'fab', testInfo.project.name), PASSWORD)
+    await openListsViaMenu(page)
+    const listId = await createListAndOpen(page, LONG_LIST_NAME)
+
+    await page.goto(`/list/${listId}`)
+    await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('shopping-add-item-fab'), 'the shopping add-item FAB')
+    await expectNoHorizontalOverflow(page)
+
+    await page.getByTestId('shopping-add-item-fab').click()
+    await expect(page.getByTestId('add-item-no-categories')).toBeVisible()
+    await expectInsideViewport(page.getByTestId('add-item-dialog').getByRole('dialog'), 'the add-item dialog')
+    await expectNotClipped(page.getByTestId('add-item-no-categories'))
+    await expectInsideViewport(page.getByTestId('add-item-cancel'), 'the add-item cancel control')
+    await expectInsideViewport(page.getByTestId('add-item-manage-list'), 'the manage-list link')
     await expectNoHorizontalOverflow(page)
   })
 })

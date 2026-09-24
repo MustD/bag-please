@@ -1,6 +1,5 @@
 import {expect, test} from '@playwright/test'
 
-import {loginApi} from './support/api'
 import {decodePng, maskableSafeZoneViolations} from './support/png'
 import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
 
@@ -159,20 +158,19 @@ test('NFR-E7-7 — the worker reaches activated, controls the page, and answers 
   }
 })
 
-test('NFR-E7-7 — /api/graphiql stays the backend readiness check while the worker controls the page', async ({page}) => {
+test('NFR-E7-7 — /api/health reaches Ktor while the worker controls the page', async ({page}) => {
   await page.goto('/auth')
   await expect(page.getByTestId('auth-page')).toBeVisible()
   await waitForController(page)
 
-  // GraphiQL is a NAVIGATION, so without navigateFallbackDenylist the worker
-  // answers it with the precached SPA shell and this project's only
-  // backend-readiness check starts silently lying. It is Bearer-guarded, so the
-  // navigation carries an admin token — this is environment preparation for
-  // reaching the screen, not a shortcut for the behaviour under test.
-  await page.setExtraHTTPHeaders({Authorization: `Bearer ${await loginApi('admin', 'admin')}`})
-  await page.goto('/api/graphiql')
+  // GET /api/health (Story 9.1) is a NAVIGATION, so without
+  // navigateFallbackDenylist the worker answers it with the precached SPA shell
+  // (a 200 with no Ktor behind it) and this project's backend-readiness check
+  // starts silently lying. It is unauthenticated, so no header is needed.
+  const response = await page.goto('/api/health')
 
-  await expect(page).toHaveTitle('GraphiQL')
+  expect(response?.status()).toBe(200)
+  await expect(page.locator('body')).toHaveText('OK')
   // The SPA shell's root mount must be absent — that is the exact failure the
   // denylist prevents.
   await expect(page.locator('#root')).toHaveCount(0)

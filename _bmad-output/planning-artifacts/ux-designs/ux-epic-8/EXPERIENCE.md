@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '3af2d575e852ca186467c67a051e5ddc77a6fe6d'
-verified_on: '2026-09-09'
+verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
+verified_on: '2026-09-16'
 ---
 
 # EXPERIENCE.md — Bag Please information architecture & behaviour
@@ -57,25 +57,37 @@ Two structural facts worth stating explicitly because they are easy to misread f
 ### 1.1 `AppShell` is the only chrome
 
 Everything under `RouteGuard` renders inside `AppShell` (`App.tsx:22`), which is a sticky top `AppBar` plus an
-`<Outlet/>` (`AppShell.tsx:96-243`). There is no bottom navigation, no drawer, no sidebar and no breadcrumb anywhere
+`<Outlet/>` (`AppShell.tsx:114-266`). There is no bottom navigation, no drawer, no sidebar and no breadcrumb anywhere
 in `src/`. `/auth` is outside the shell entirely and has no app bar at all.
 
-The bar holds exactly three things: the **"Bag Please" home link** (`AppShell.tsx:126-165`), the **username identity
-chip** that opens the menu (`AppShell.tsx:167-198`), and the **overflow menu** (`AppShell.tsx:200-236`).
+The bar holds exactly three things: the **"Bag Please" home link** (`AppShell.tsx:143-183`), the **username identity
+chip** that opens the menu (`AppShell.tsx:184-215`), and the **overflow menu** (`AppShell.tsx:217-259`).
 
-**Menu contents, and their conditions** (`AppShell.tsx:208-235`):
+**Menu contents, in order, and their conditions** (`AppShell.tsx:225-258`):
 
 | Item | Shown | Anchor |
 | --- | --- | --- |
-| Lists → `/lists` | always | `AppShell.tsx:208-213` |
-| Change password → `/account/password` | `role !== 'admin'` | `AppShell.tsx:214-221` |
-| Admin → `/admin` | `role === 'admin'` | `AppShell.tsx:222-229` |
-| Logout | always; `disabled` while the logout call is in flight | `AppShell.tsx:230-235` |
+| Home → `/` (see below) | always | `AppShell.tsx:225-230` |
+| Lists → `/lists` | always | `AppShell.tsx:231-236` |
+| Change password → `/account/password` | `role !== 'admin'` | `AppShell.tsx:237-244` |
+| Admin → `/admin` | `role === 'admin'` | `AppShell.tsx:245-252` |
+| Logout | always; `disabled` while the logout call is in flight | `AppShell.tsx:253-258` |
 
 Change password is hidden for admin because "the backend 403-forbids that account from that endpoint"
-(`AppShell.tsx:25-27`); the Admin item is "the sole entry point to `/admin`" (`AppShell.tsx:27-28`). Logout
+(`AppShell.tsx:27-28`); the Admin item is "the sole entry point to `/admin`" (`AppShell.tsx:28-29`). Logout
 invalidates the server session then calls `clearAuth()`, and does **not** navigate — flipping `username` to `null`
-makes `RouteGuard` do the redirect, so there is one navigator (`AppShell.tsx:77-92`).
+makes `RouteGuard` do the redirect, so there is one navigator (`AppShell.tsx:94-109`).
+
+**Home is the first entry, and is the title link's twin** (Story 9.7, `goHome`, `AppShell.tsx:73-77`). Users look for
+navigation in the menu, and the title link is inert on the home route and easy to miss — in the installed PWA, with no
+URL bar and no Back button, an empty `/lists` would otherwise be one menu away from a dead end. It does not re-derive
+home (AR-E6-7 / AR-E7-8): off the resolved home route it navigates to `/`, so `HomeRedirect` resolves it exactly as it
+does for the title link (admin → `/admin`, no lists → `/lists`, otherwise the oldest list), including from a cold
+cache. On the resolved home route (`alreadyHome`, `AppShell.tsx:58`) it only closes the menu: no `navigate`, no URL
+change, no history entry — "resolved" being the operative word: `alreadyHome` reads the cache-only observer, so in the same
+measured cold-cache window as the title link (§7.2), and while the lists query is failing, Home still navigates and costs
+one history entry before `HomeRedirect` replaces it. The Lists entry stays. It is a plain MUI `MenuItem`, so keyboard reach and activation come
+with it (`menu-home`).
 
 ---
 
@@ -115,43 +127,46 @@ the same no-flash shape as `RouteGuard`.
 
 `ChangePasswordPage.tsx:40` — `if (role === 'admin') return <Navigate to="/" replace/>`, placed after the hooks so
 hook order stays stable (`:37-39`). This is why `/account/password` shows only one guard in the route table but is
-effectively admin-proof twice over (the menu item is also hidden at `AppShell.tsx:214`).
+effectively admin-proof twice over (the menu item is also hidden at `AppShell.tsx:237`).
 
 ---
 
 ## 3. How `/` resolves — five branches, one implementation
 
-`/` is not a screen. It is `HomeRedirect` (`HomeRedirect.tsx:22-39`), which renders a spinner or a `<Navigate …
-replace/>`. The **decision** lives in one hook, `useHomePath` (`bp_front/src/lib/lists/homePath.ts:31-49`), so that
+`/` is not a screen. It is `HomeRedirect` (`HomeRedirect.tsx:24-42`), which renders a spinner or a `<Navigate …
+replace/>`. The **decision** lives in one hook, `useHomePath` (`bp_front/src/lib/lists/homePath.ts:42-62`), so that
 "two implementations of 'which list is home' is the defect class this hook exists to close"
 (`homePath.ts:9-13`).
 
 | # | Condition | Result | Anchor |
 | --- | --- | --- | --- |
-| 1 | `role === 'admin'` | `/admin` — and the lists query is **skipped entirely**, because the backend forbids admin from every list resource | `homePath.ts:41`, skip at `:37` |
-| 2 | lists query errored | `/lists` — graceful; the index surfaces its own notice | `homePath.ts:45` |
-| 3 | no data yet (`!data`) | `null` → HomeRedirect shows a spinner | `homePath.ts:46`; spinner `HomeRedirect.tsx:28-34` |
-| 4 | data, zero lists | `/lists` | `homePath.ts:48` |
-| 5 | data, ≥1 list | `` `/list/${oldest.id}` `` — oldest by `byCreatedAtAsc` | `homePath.ts:49` |
+| 1 | `role === 'admin'` | `/admin` — and the lists query is **skipped entirely**, because the backend forbids admin from every list resource | `homePath.ts:52`, skip at `:48` |
+| 2 | **resolve mode only:** lists query errored | `/lists` — graceful; the index surfaces its own notice. Observe mode never reads the error and falls through to branch 3 | `homePath.ts:57` |
+| 3 | no data yet (`!data`) | `null` → HomeRedirect shows a spinner; the app bar reads it as not-already-home | `homePath.ts:58`; spinner `HomeRedirect.tsx:30-36` |
+| 4 | data, zero lists | `/lists` | `homePath.ts:60` |
+| 5 | data, ≥1 list | `` `/list/${oldest.id}` `` — oldest by `byCreatedAtAsc` | `homePath.ts:61` |
 
-**Branch order is load-bearing** and the code says so (`homePath.ts:26-30`): `!data` must precede the empty-list
+**Branch order is load-bearing** and the code says so (`homePath.ts:30-41`): `!data` must precede the empty-list
 check, or a cold cache in `observe` mode reads as `[]` → `/lists` and the app bar goes inert on `/lists` for a user
-who actually owns lists.
+who actually owns lists. And in resolve mode the error branch must stay **before** `!data`: a failed query has no
+data, so reordering them would leave `HomeRedirect` on its spinner forever. Story 9.7 therefore gates the error branch
+on `mode === 'resolve'` instead of moving it, so observe mode can never resolve to `/lists` from an error (which would
+make the title link inert on `/lists` while the lists query is failing).
 
-**Two modes, one hook** (`homePath.ts:15-24, 36-39`):
+**Two modes, one hook** (`homePath.ts:15-28, 47-50`):
 
 - `'resolve'` — `HomeRedirect`, which *performs* the redirect: `fetchPolicy: 'cache-first'`, so it fetches and shows
-  its spinner while the answer is unknown.
-- `'observe'` — `AppShell`'s title link, which only *decorates* an answer that already exists:
+  its spinner while the answer is unknown. The only mode that turns a query error into `/lists`.
+- `'observe'` — `AppShell`'s title link and Home menu entry, which only *decorate* an answer that already exists:
   `fetchPolicy: 'cache-only'`, so the app bar never fires the membership-gated lists request itself. A cold cache
   yields `null`, which reads as **not already-home**, so the link stays live. That direction is deliberate: "fail
-  toward navigating, never toward a dead control" (`homePath.ts:23-24`, UX-DR-E7-4).
+  toward navigating, never toward a dead control" (`homePath.ts:24-25`, UX-DR-E7-4).
 
-Every redirect is `replace` so `/` never lingers in history (`HomeRedirect.tsx:21,39`). The one-time `welcome` signal
-is forwarded on **both** `/lists` branches (2 and 4) and on neither of the others (`HomeRedirect.tsx:36-39`).
+Every redirect is `replace` so `/` never lingers in history (`HomeRedirect.tsx:23,41`). The one-time `welcome` signal
+is forwarded on **both** `/lists` branches (2 and 4) and on neither of the others (`HomeRedirect.tsx:38-41`).
 
 > **RULING — the app bar must never re-derive home.** **AR-E6-7**, restated as **AR-E7-8** (`epics.md:599-605`). The
-> code anchor for compliance is `homePath.ts:38` (`'observe'` ⇒ `cache-only`) and `AppShell.tsx:48`.
+> code anchor for compliance is `homePath.ts:49` (`'observe'` ⇒ `cache-only`) and `AppShell.tsx:53`.
 
 ---
 
@@ -162,19 +177,26 @@ is forwarded on **both** `/lists` branches (2 and 4) and on neither of the other
 > `/lists/:id` manages a list, `/list/:id` shops it. The two screens differ on purpose in places, and those
 > differences stay." It has no single code anchor because it is a rule *about* the code; what follows is the code it
 > produced.
+>
+> **RULING — adding is a shopping-view action. UX-DR-E9-8** (`md`, 2026-09-15; `epics.md:427-433`; Story 9.11 / FR68). The split above held that
+> `/list/:id` was "read + check only". `md` ruled that ADDING an item is a valid shopping action — you notice a missing
+> item while you are in the shop — so the shopping view gained one add affordance (a FAB opening the SAME
+> `AddItemDialog`, list fixed; see §5.3.3). This relaxes the rule by exactly that one action: editing and deleting
+> items, and all category CRUD, stay management-only, and the split is otherwise unchanged.
 
 | | `/lists/:id` — **manage** | `/list/:id` — **use** |
 | --- | --- | --- |
-| Component | `ListDetailPage.tsx` (477 lines) | `ListShoppingPage.tsx` (507 lines) |
-| Purpose comment | `ListDetailPage.tsx:42-48` | `ListShoppingPage.tsx:225-231` |
-| Add / edit / delete categories & items | **yes** — 5 dialogs | **no** — read + check only |
-| Check / uncheck an item | **no** | **yes** (`ListShoppingPage.tsx:373-386`) |
-| Checked-status filter (All / To buy / Done) | **no** (props omitted) | **yes** (`ListShoppingPage.tsx:445-446`) |
-| Category filter + name search | **yes** (`ListDetailPage.tsx:197-204`) | **yes** (`ListShoppingPage.tsx:440-447`) |
+| Component | `ListDetailPage.tsx` (508 lines) | `ListShoppingPage.tsx` (626 lines) |
+| Purpose comment | `ListDetailPage.tsx:42-48` | `ListShoppingPage.tsx:247-256` |
+| Add an item | **yes** — `add-item-button` / per-category "+" | **yes** since Story 9.11 (UX-DR-E9-8) — `shopping-add-item-fab`, same `AddItemDialog` (§5.3.3) |
+| Edit / delete items; add / edit / delete categories | **yes** — dialogs | **no** — management-only |
+| Check / uncheck an item | **no** | **yes** (`ListShoppingPage.tsx:440-460`) |
+| Checked-status filter (All / To buy / Done) | **no** (props omitted) | **yes** (`ListShoppingPage.tsx:532-533`) |
+| Category filter + name search | **yes** (`ListDetailPage.tsx:197-204`) | **yes** (`ListShoppingPage.tsx:527-534`) |
 | Realtime subscription | **no** — refetch-driven | **yes** — two `subscribeToMore` |
-| List switcher chips | **no** | **yes** (`ListShoppingPage.tsx:414-436`) |
+| List switcher chips | **no** | **yes** (`ListShoppingPage.tsx:501-523`) |
 | Forbidden viewer | inline `severity="info"` notice | `<Navigate to="/lists" replace/>` |
-| `document.title` | untouched | set to `<list> · Bag Please` (`ListShoppingPage.tsx:320-325`) |
+| `document.title` | untouched | set to `<list> · Bag Please` (`ListShoppingPage.tsx:368-373`) |
 
 ### 4.1 What the two screens SHARE — one definition each, by contract
 
@@ -298,9 +320,10 @@ Always present: a "Back to lists" link (`:117-125`), the header (`:137-176`) and
 fault. This is the difference from `/list/:id`, which uses `severity="error"` for its query notice
 (`ListShoppingPage.tsx:456`); recorded as measured, and the two screens genuinely differ here.
 
-**Both empty branches key off `groups`, not `categories`** (`:206-212`): a list whose only category was removed
-under a stale client has zero categories while orphaned items still exist, and the old gate showed "No categories
-yet" over an item that was right there.
+**Both empty branches key off `groups`, not `categories`** (`:206-212`): a list can hold zero categories while
+pre-cascade orphaned items still exist, and the old gate showed "No categories yet" over an item that was right
+there. Since Story 9.3 the producer of that state is legacy data rather than a stale client, but the branch stays —
+the data it guards against is still on disk.
 
 **The filter row's gate is three clauses, and the third is a dead-end guard**
 (`:178-196`, condition at `:197`): `!error && (categories.length > 0 || items.length > 0 || filterActive)`. It is
@@ -314,38 +337,52 @@ to clear it.
 fixed order: add-item, **rename**, remove. The destructive control stays last, and the rename was inserted *between*
 rather than appended for exactly that reason (`:287-291`). On the synthetic `Uncategorized` bucket all three are
 absent; each orphaned item keeps its own edit and remove controls, and that pair is the recovery path that justifies
-rendering the bucket on this screen at all (`:269-275`).
+rendering the bucket on this screen at all (`:269-275`). Since Story 9.3 the bucket serves pre-existing orphans only.
 
 **Mutation feedback is refetch, not optimism**: every dialog's success callback calls `refetch()` unawaited
 (`:388-390, 399-401, 412-414, 424-426, 453, 471`), so "a failed refetch is never reported as a failed mutation".
 
-**Remove-category is a client-side cascade** (`:440-454`): the backend's `deleteCategory` does not cascade, so this
-handler deletes the category's items in a `for` loop with an `await` inside it (`:449-451`) and only then the
-category (`:452`). There is no transaction. **The failure residue is partially-deleted items under a category that
-is still there**, not orphans: each item delete is awaited, so a failure at item four *propagates out of the handler
-before `deleteCategory` runs* and the category is left intact — the code says exactly that at `:447-448` ("If an item
-delete fails, it propagates and the category is left intact"). The user sees the `ConfirmDialog` stay open with an
-inline error over a category that has lost some of its items. A dropped connection or a closed tab mid-loop leaves
-the same state with no error shown. That cause is recorded in `epics.md` (AR-E8-7's neighbourhood,
-`epics.md:833-851`) and deliberately not scoped into Epic 8; the separate *orphan* symptom — items whose category id
-no longer resolves, however they got that way — is what the `Uncategorized` bucket surfaces.
+**Remove-category is a SERVER-side cascade** (Story 9.3). The confirm handler sends exactly one mutation —
+`deleteCategory` — and then refetches; there is no item loop here any more. The server verifies membership, deletes
+the category, removes every item of it (soft-deleted rows included) and emits **one** event, the category `DELETED`.
+That event is authoritative for the category's children: `/list/:id` prunes them from its own `ItemsQuery` cache
+locally, because the item flow is one-slot / `DROP_OLDEST` and a per-item fan-out would arrive truncated.
+
+**The failure residue is a deleted category with some items still present.** The server's two writes (Mongo, then the
+in-memory cache) are independent, with no session — the same non-transactional shape `deleteList` has, and the same
+absence of any atomicity claim. What it is NOT any more is an orphan factory: the loop it replaced walked only the
+items the removing CLIENT happened to hold, so anything a co-member had added since that client's last refetch
+outlived its category. `/lists/:id` is refetch-driven with no subscription (AR-E8-6), so that set was stale by
+construction whenever anyone else had written.
+
+Creating a fresh orphan is closed off at the other end too: `saveItem` rejects a category that is not on the target
+list on the CREATE branch as well as the UPDATE branch, and `uncheckItem` refuses to resurrect an item whose category
+is gone. The `Uncategorized` bucket therefore surfaces **pre-existing** orphans in practice — data written before this
+cascade shipped. No ordinary use of the app adds to it: no successful call on the item surface can leave an item under
+a category that is not on its list. It is not sealed, though — `saveCategory` still has no `listId`-stability guard, so
+re-saving a category onto another list strands the first list's items, and the cascade is not transactional. Both are
+recorded in `deferred-work.md`; neither is reachable by clicking.
 
 ### 5.3 `/list/:id` — shopping (`ListShoppingPage.tsx`)
 
-Always present: back link (`:393-401`), header (`:403-411`), switcher chips (`:414-436`), filter row (`:440-447`),
-and the action-error alert when set (`:449-453`).
+Always present: back link (`:480-488`), header (`:490-498`), switcher chips (`:501-523`), filter row (`:527-534`),
+the action-error alert when set (`:536-540`), and — since Story 9.11 — the add-item FAB `shopping-add-item-fab`
+(`:604-623`) plus its (closed) `AddItemDialog` (`:625-631`). The FAB is the one exception to "always": it renders
+only once both the items and categories queries have data, never in the loading or query-error branch (§5.3.3).
 
 | Branch | testid | Anchor |
 | --- | --- | --- |
-| forbidden | **no branch — `<Navigate to="/lists" replace/>`** | `:369-371` |
-| query error | `shopping-notice` — `<Alert severity="error" role="alert">` | `:455-458` |
-| loading | `shopping-loading` | `:459-462` |
-| empty (`items.length === 0`) | `shopping-empty` — "Nothing to shop yet", pointing at the management screen | `:463-471` |
-| filtered to nothing | `shopping-no-matches` | `:472-477` |
-| content | group `Paper`s, `shopping-group-<name>`, rows divided | `:478-503` |
+| forbidden | **no branch — `<Navigate to="/lists" replace/>`** | `:424-426` |
+| query error | `shopping-notice` — `<Alert severity="error" role="alert">` | `:542-545` |
+| loading | `shopping-loading` | `:546-549` |
+| empty, ≥1 category (`items.length === 0`) | `shopping-empty` — "Nothing to shop yet" + "Use the Add item button to add the first item." | `:550-562` |
+| empty, 0 categories | `shopping-empty` — "Nothing to shop yet" + "Add categories and items from the list management screen." | `:550-562` |
+| filtered to nothing | `shopping-no-matches` | `:563-568` |
+| content | group `Paper`s, `shopping-group-<name>`, rows divided | `:569-601` |
 
-The empty state's copy — "Add categories and items from the list management screen" (`:469`) — is the manage-vs-use
-split surfacing as guidance rather than as a control.
+The empty state's hint branches on `categories.length` (Story 9.11): with a category to put an item in, it points at
+the FAB on this screen; with none, only list management can help, so the old copy — the manage-vs-use split
+surfacing as guidance — stays for that case.
 
 #### 5.3.1 The row is one control
 
@@ -370,22 +407,62 @@ Activation is a **pointer pair with a movement threshold**, not a click:
   not scroll the page under the focused row.
 
 Because `role="checkbox"` makes the row's children presentational and the author-supplied `aria-label` displaces
-name-from-content, the store chip and the `addedBy` name would otherwise be announced by nothing at all. They come
+name-from-content, the store chips and the `addedBy` name would otherwise be announced by nothing at all. They come
 back as the row's accessible **description** via a visually-hidden span (`:72-75`, `:202-220`), which leaves the
 accessible **name** exactly `` `Toggle ${item.name}` ``.
 
+**Story 9.6 made the store PLURAL and changed nothing else about the row.** An item carries a list of stores, so the
+single chip became a wrapping row of chips inside the same `minWidth: 0` text column as the item name — they grow the
+row DOWNWARDS, never sideways, which is what keeps the check glyph and the name on screen at the 320px floor
+(`narrow-viewport.spec.ts`, "an item in three stores does not push the shopping row off the floor"). The description
+segment is `` `Stores: A, B` `` and is **omitted entirely** when the item has none — no empty segment, and no chip
+container either. The accessible **name** is still exactly `` `Toggle ${item.name}` `` (`shopping.spec.ts` pins the
+string verbatim), and the chips are still presentational: activating one toggles the item, like any other part of the
+row.
+
 > **RULING — the shopping row is a CLOSED surface. AR-E8-8a** (`epics.md:853-858`). "Once the whole row is one
-> control, the store chip and the `addedBy` avatar inside it can no longer become affordances of their own — a
+> control, the store chips and the `addedBy` avatar inside it can no longer become affordances of their own — a
 > filter-by-store chip, or a 'show me what Anna added' avatar — without breaking the single-control rule FR60 exists
-> to create." Both live inside the row today (store chip `:176-185`, `addedBy` `:187-201`) and are inert by design.
+> to create." Both live inside the row today (store chips — one per store since Story 9.6 — and `addedBy`) and are
+> inert by design.
 > A later epic wanting either affordance is **re-opening a decision**, not treating the row as free space.
 
 #### 5.3.2 Toggling: no optimistic update
 
-`handleToggle` (`:373-386`) awaits `checkItem` / `uncheckItem` and, on failure, does nothing to the cache — "the
+`handleToggle` (`:440-460`) awaits `checkItem` / `uncheckItem` and, on failure, does nothing to the cache — "the
 normalized cache is untouched on failure, so the row's indicator reverts to the server state automatically"
-(`:382-383`) — and surfaces the reason inline as `shopping-action-error` (`:449-453`). Revert-by-cache plus an inline
+(`:449-450`) — and surfaces the reason inline as `shopping-action-error` (`:536-540`). Revert-by-cache plus an inline
 alert, never a toast, never a rollback animation.
+
+#### 5.3.3 Adding from the shopping view (Story 9.11, FR68, UX-DR-E9-8 / UX-DR-E9-9)
+
+- **One dialog.** The FAB opens `components/AddItemDialog.tsx` — the same component `/lists/:id` uses (AR-E9-10), with
+  the route's `listId` fixed: there is no list picker, and the category `Select` is still the dialog's only combobox.
+- **The FAB.** Stock MUI `Fab`, `color="primary"`, `AddIcon`, `aria-label="Add item"` (its accessible name — the only
+  `Add item` button on the page), `position: fixed` bottom-right at `theme.spacing(2)` plus
+  `env(safe-area-inset-bottom|right)`. It sits after the page content in DOM order, so it is the next tab stop after
+  the last row. The safe-area terms are inert today: `bp_front/index.html`'s viewport meta has no
+  `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to 0 until it opts in. Gated on
+  `!loading && !queryError`: while `CategoriesQuery` is in flight `categories` is `[]`, and a
+  FAB pressed then would show the no-categories guidance for a list that has categories.
+- **Bottom padding.** The page `Box` reserves `calc(56px + theme.spacing(4) + env(safe-area-inset-bottom))` below the
+  content, so scrolled to the bottom the last row is fully clear of the FAB and still tappable at its right edge
+  (`shopping.spec.ts`, "the FAB never covers the last row"; only the 320px project can go red there — at desktop the
+  `md` container never reaches the FAB's column).
+- **A list switch closes the dialog.** The `useItemFilter` list-switch callback also sets the dialog closed, so it
+  never stays open retargeted at another list (e.g. after a back gesture to a previous `/list/:id`).
+- **No categories → guidance, not a form (UX-DR-E9-9).** When `categories.length === 0`, `AddItemDialog` renders
+  "This list has no categories yet…" (`add-item-no-categories`), a Cancel (`add-item-cancel`) and a contained
+  "Manage list" link to `/lists/<id>` (`add-item-manage-list`). No `<form>`, no inputs, no disabled submit. The
+  management screen's own `add-item-button` stays `disabled` at zero categories, so it never reaches this branch.
+- **The new row appears without a reload or a spinner.** `AddItemDialog`'s `onAdded` receives the saved `ListItem`,
+  and the shopping page upserts it into the cached `ItemsQuery{listId}` by id — not `refetch()`, which under Apollo
+  4's `notifyOnNetworkStatusChange` would flip `loading` and swap the list for the spinner. The subscription's echo of
+  the same save then finds the id already present and replaces rather than appends: one row. Other members get it
+  through the existing item subscription (§10); no backend change.
+- **Still management-only:** editing or deleting an item, and all category CRUD. A category deleted by a co-member
+  while the dialog is open makes the save fail with the mapped copy in `add-item-error` (the Story 9.3 path); the
+  dialog stays open.
 
 ### 5.4 `/admin` (`AdminPage.tsx`)
 
@@ -401,6 +478,14 @@ Two `Paper` panels: the registration toggle (`:92-126`) and the users table (`:1
 | users empty | `admin-users-empty` — gated `users.length === 0 && !usersError` (`:177`), so on a users-query error with zero rows this is **suppressed** and the empty `Table` renders under the error alert instead | `:177-185` |
 | users error | `admin-users-error` (rendered above, not instead of, the table) | `:167-171` |
 | users content | `Table` of `admin-user-row-<username>` | `:186-237` |
+
+**The delete confirmation states the cascade (Story 9.4).** `DeleteUserDialog` reads `ownedListCount` off the row it
+was opened with (`shown`, the retained copy that survives MUI's close transition — never `user`, which is already null
+while the dialog fades), and when it is greater than zero appends one sentence to the existing copy: *"This also
+deletes the N list/lists they own, with their items and categories."* At zero the sentence is omitted and the copy is
+unchanged. The number is a field on the `User` GraphQL type, joined at the GQL boundary from the in-memory list cache
+(`UserAdminQueries.users`), not stored on the domain user — so the page pays one cache scan, not one query per row. It
+is truthful only as of the page's last fetch, which is why the panel re-reads on every create and delete.
 
 The toggle mutation writes the server-confirmed value straight into the cache with `writeQuery` rather than
 refetching, so there is no desync window in which a failed refetch strands the UI on the old value (`:44-63`).
@@ -502,7 +587,7 @@ comment states the convention: "Errors are shown inline (dialog/panel alert) —
 
 | Route | In-app exits |
 | --- | --- |
-| `/lists` | app-bar home link; app-bar menu (Lists / Admin / Change password / Logout) |
+| `/lists` | app-bar home link; app-bar menu (Home / Lists / Change password or Admin / Logout) |
 | `/lists/:id` | its own "Back to lists" link (`ListDetailPage.tsx:117-125`) + app bar |
 | `/list/:id` | its own "Back to lists" link (`ListShoppingPage.tsx:393-401`), the switcher chips (`:414-436`) + app bar |
 | `/account/password` | **app bar only** |
@@ -521,12 +606,12 @@ place without unmounting, which is exactly why `useItemFilter` carries a list-sw
 
 ### 7.2 The home link is inert-but-PRESENT
 
-`AppShell.tsx:127-164`. When the resolved home is the current route (`alreadyHome`, `:53`), the link:
+`AppShell.tsx:144-181`. When the resolved home is the current route (`alreadyHome`, `:58`), the link:
 
 - keeps its `href`, its link role, its focusability, its focus ring and its type scale;
-- gains `aria-current="page"` and nothing else (`:134`);
+- gains `aria-current="page"` and nothing else (`:151`);
 - suppresses the navigation with `preventDefault()` **only for a plain primary activation** — `button === 0` and no
-  Ctrl/Cmd/Shift/Alt (`:135-147`). Modified clicks mean "open home in a new tab" and keep working; middle click fires
+  Ctrl/Cmd/Shift/Alt (`:152-164`). Modified clicks mean "open home in a new tab" and keep working; middle click fires
   `auxclick` and never reaches `onClick` at all. Enter on a focused anchor dispatches a `button: 0` click, so keyboard
   activation is covered by the same line.
 
@@ -540,12 +625,12 @@ place without unmounting, which is exactly why `useItemFilter` carries a list-sw
 > redirects with `replace`, so a launch at `start_url: '/'` leaves history exactly **one** entry deep. On
 > `/account/password` and `/admin` the app-bar link is the screen's **only** in-app exit — invisible as a risk in a
 > browser, single-point-of-failure without chrome. And for the admin account home resolves to `/admin`
-> (`homePath.ts:41`), so the inert guard fires on the very route with no other affordance: harmless only by
+> (`homePath.ts:52`), so the inert guard fires on the very route with no other affordance: harmless only by
 > coincidence, which is precisely why a vanishing title would never have been caught.
 >
-> The rationale is repeated verbatim in the code at `AppShell.tsx:119-125`, which is the reason it survived.
+> The rationale is repeated verbatim in the code at `AppShell.tsx:136-142`, which is the reason it survived.
 
-**Consequence, measured and knowingly accepted** (`AppShell.tsx:40-47`): on a cold page load of the home route the
+**Consequence, measured and knowingly accepted** (`AppShell.tsx:45-52`): on a cold page load of the home route the
 app bar reads an empty cache for ~100ms, so the link is live in that window and a click inside it still costs a
 history entry. Closing it would mean the app bar issuing its own request, which AR-E7-8 forbids. **Any test asserting
 the inert state must synchronise on `aria-current` rather than race it** — two of the six specs failed 2-of-6 runs
@@ -553,16 +638,17 @@ before they did.
 
 > **RULING — UX-DR-E7-6b** (`epics.md:1153-1155`): nothing about the installed app may depend on being able to read
 > or edit the URL. That promotes every graceful-redirect branch from politeness to the only recovery path:
-> `homePath.ts:45` (lists-query error → `/lists`) and `ListShoppingPage.tsx:369-371` (FORBIDDEN → `/lists`). Neither
+> `homePath.ts:57` (lists-query error → `/lists`, resolve mode) and `ListShoppingPage.tsx:369-371` (FORBIDDEN → `/lists`). Neither
 > may be narrowed.
 
 ---
 
 ## 8. Dialog conventions
 
-Ten dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDialog`, `EditCategoryDialog`,
+Eleven dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDialog`, `EditCategoryDialog`,
 `AddItemDialog`, `EditItemDialog`, `ShareMembersDialog`, `CreateUserDialog`, `DeleteUserDialog`,
-`ResetPasswordDialog`, `ConfirmDialog`.
+`DeleteFeedbackDialog`, `ResetPasswordDialog`, `ConfirmDialog`. (Supersedes "Ten": re-measured at Story 9.11.
+`AddItemDialog` renders its `Dialog` in two branches since that story — see §5.3.3 — which is why §14 counts 12 lines.)
 
 **`CreateListDialog.tsx` is the canonical form dialog.** Its shape, and what each part is for:
 
@@ -582,6 +668,17 @@ Ten dialogs, all `fullWidth maxWidth="xs"`: `CreateListDialog`, `AddCategoryDial
 (`:84-109`). The mutation fires only from the confirm button — confirmation-first (`:28-31`). It stays open on
 failure, showing `{testId}-error` inline (`:89-93`). Its callers pass a description that names the cascade in prose
 ("Items in this category are removed with it. This cannot be undone." — `ListDetailPage.tsx:432-437`).
+
+**The multi-value store field's commit key is Enter — the one per-field exception to "Enter submits."** `StoreField`
+(shared by `AddItemDialog` and `EditItemDialog`) is a chip input: the user types a name and it becomes a removable
+chip. Both dialogs are native forms that submit on Enter (the canonical shape above), and Enter is also the gesture
+users expect from a chip input, so the store input `preventDefault()`s and **commits the draft instead of submitting**
+(Story 9.6, UX-DR-E9-6). **Blur commits the same draft**, which is what keeps "type Lidl, click Save" from silently
+dropping the name: the button's `pointerdown` blurs the input, React flushes the commit, and the click then submits a
+payload that already holds it. A duplicate by case-insensitive key is refused with an inline message and no save
+attempt. The field is deliberately **not** an `Autocomplete`: the category `Select` must stay the only
+`role=combobox` in either dialog, which is what the E2E helpers' scoped `getByRole('combobox')` depends on. Story 9.6
+re-examined that constraint and **kept** it.
 
 **The open-transition seeding pattern.** A dialog whose props are cleared by the parent the instant it closes must
 retain what it was showing, or the content blanks out during MUI's close animation. Both implementations adjust state
@@ -631,7 +728,9 @@ is filed, see §13.
   `-submit` or `-confirm`** — the two are not interchangeable and a spec must use the right one:
   - `-submit` on the form dialogs — `create-list-submit`, `add-category-submit`, `edit-category-submit`,
     `add-item-submit`, `edit-item-submit`, `create-user-submit`.
-  - **`-confirm` on the destructive/confirmation dialogs** — `delete-user-confirm` (`DeleteUserDialog.tsx:94`),
+  - **`-confirm` on the destructive/confirmation dialogs** — `delete-user-confirm` (`DeleteUserDialog.tsx:100`, whose
+    dialog keeps its bespoke shape and its `delete-user-dialog` / `-error` / `-cancel` / `-confirm` testids unchanged
+    through Story 9.4; only the confirmation copy grew the cascade sentence),
     `reset-password-confirm` (`ResetPasswordDialog.tsx:117`), and every `ConfirmDialog` instance, which derives
     `${testId}-confirm` / `-cancel` / `-error` from its `testId` prop (`ConfirmDialog.tsx:17-18, 85, 90, 96, 104`) —
     so `delete-list-dialog-confirm`, `leave-list-dialog-confirm`, `remove-category-dialog-confirm`,
@@ -640,6 +739,13 @@ is filed, see §13.
     `share-submit` with **no matching `share-cancel`** — the dismiss control is `share-members-close` — its field is
     `share-username-input` and its error is `share-error`, not `share-members-*`. It is the one dialog whose testids
     are not derived from its own root testid.
+- **Per-store ids are keyed by NAME, nested under the owner's key** (Story 9.6). On the shopping row:
+  `shopping-item-stores-<item>` on the chip container (absent when the item has no stores) and
+  `shopping-item-store-<item>-<store>` per chip. In either item dialog, under the `{testIdPrefix}` the dialog passes
+  (`add-item` / `edit-item`): `-store` (the text input), `-store-chips` (the selected-store container),
+  `-store-chip-<name>`, `-store-chip-remove-<name>`, `-store-suggestions`, `-store-suggestion-<name>`,
+  `-store-suggestions-error` and `-store-duplicate` (the inline refusal). They inherit the name-keying defect below.
+
 - **Shared filter controls**: `filter-category`, `filter-category-option-all`,
   `filter-category-option-<name>`, `filter-search`, `filter-checked`, `filter-checked-{all|unchecked|checked}`
   (`ListFilters.tsx:117,119,127,144,146-148,158`). The *row* testid is passed in — `list-detail-filters` on
@@ -650,7 +756,9 @@ is filed, see §13.
   `admin-user-row-<username>`, and the three membership ones on the pending-invites surface (§5.1.1) —
   `pending-invite-<listName>`, `accept-invite-<listName>`, `decline-invite-<listName>`
   (`PendingInvites.tsx:72,81,90`). `ShareMembersDialog` adds two more, keyed by username rather than list name:
-  `member-row-<username>` and `remove-member-<username>` (`ShareMembersDialog.tsx:151,159`).
+  `member-row-<username>` and `remove-member-<username>` (`ShareMembersDialog.tsx:151,159`). Exception: since Story 9.8
+  the synthetic "Uncategorized" orphan bucket alone is key-derived (its sentinel id, not its name), so it renders as a
+  row distinct from any real category actually named "Uncategorized"; every real category stays name-keyed as above.
 
 > **This is a known defect, decided and re-filed, not an oversight.** Story 8.4 decided to KEEP name-keyed testids
 > (`deferred-work.md:1935-1949`): Epic 8's contract keys both surfaces by name, which is what makes a shopping-side
@@ -681,6 +789,15 @@ because the stream echoes the caller's own actions: `DELETED` or a `SAVED` carry
 one-timer check) drops the row; a `SAVED` with `deleted: false` upserts (`ListShoppingPage.tsx:264-281`,
 `listsQueries.ts:266-274`).
 
+**A category `DELETED` event prunes TWO caches** (Story 9.3). `updateQuery` can only ever return the query it is
+attached to, so the categories subscription returns the pruned `getCategories` *and* reaches across to
+`ItemsQuery{listId}` through `client.cache.updateQuery`, dropping every item of the removed category. This is the
+only `cache.` call in `src/`. It is deferred one microtask so the items write is not nested inside the cache
+transaction Apollo is running for the categories update — a nested write can land without broadcasting, which would
+leave the rows on screen under the synthetic `Uncategorized` bucket after their group had gone. The server emits no
+per-item events for a cascade on purpose: the item flow is `extraBufferCapacity = 1` / `DROP_OLDEST`, so a fan-out
+would be truncated for any subscriber not consuming instantly.
+
 **`/lists/:id` is refetch-driven and deliberately has no subscription.** The code says so twice, at
 `ListDetailPage.tsx:404-406` (item edits) and `:417-420` (category renames): "no `subscribeToMore` here; the shopping
 view's existing per-list subscription already propagates an edit live to other members." This is why
@@ -710,7 +827,7 @@ render-phase update is load-bearing: an unconditional `setValue` would re-render
    user to `/auth?expired=1` (`RouteGuard.tsx:8-10, 24`), and the banner clears the moment the user engages the form.
 6. Password change ends in a clean sign-out with a confirmation on `/auth` (§5.5).
 7. Logout invalidates the server session, then `clearAuth()` lets the guard redirect; the menu item is disabled while
-   the call is in flight so it cannot double-fire (`AppShell.tsx:82-92`, `:230`).
+   the call is in flight so it cannot double-fire (`AppShell.tsx:99-109`, `:253`).
 
 The guard renders `null`, never a spinner, on every one of these transitions (`RouteGuard.tsx:29`,
 `AdminGuard.tsx:19`), so the app never flashes a redirect.
@@ -726,10 +843,10 @@ they bear, and are listed after the table.
 
 | Ruling | Identifier | Where it was decided | Its code today |
 | --- | --- | --- | --- |
-| **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns") | §4; `keepEmpty` at `order.ts:120-131` |
-| **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:119-125, 134-147` |
+| **Manage vs. use** — `/lists/:id` manages a list, `/list/:id` shops it; the two screens differ on purpose and those differences stay. Relaxed by **UX-DR-E9-8** (Story 9.11): adding an item is also a shopping action | `md`'s ruling | `epic-8-context.md:132-133` ("UX & Interaction Patterns"); **UX-DR-E9-8** at `epics.md:427-433` | §4; `keepEmpty` at `order.ts:120-131`; §5.3.3 |
+| **Inert-but-present home link** — never removed, hidden or disabled; `aria-current` is the only added attribute | **AR-E7-8**, with its rationale in **AR-E7-8a** | `epics.md:599-605`, `epics.md:606-630` | `AppShell.tsx:136-142, 151-164` |
 | **No toast, snackbar or banner** — state changes are confirmed by the UI changing | **UX-DR-E8-10**, carried from **UX-DR-E7-7** | `epics.md:1243-1245`, `epics.md:1157-1161` | no `Snackbar` in `src/`; 11 comments asserting it |
-| **The shopping row is a closed extension surface** — the store chip and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx:61-223`, chip `:176-185`, `addedBy` `:187-201` |
+| **The shopping row is a closed extension surface** — the store chips and `addedBy` avatar may not become affordances | **AR-E8-8a** | `epics.md:853-858` | `ListShoppingPage.tsx` — `ShoppingItemRow`, its chip block and its `addedBy` block |
 
 **The other rulings cited inline**, each at the point it bears:
 
@@ -737,7 +854,7 @@ they bear, and are listed after the table.
 | --- | --- | --- |
 | The closing story writes this contract; describe, don't prescribe; the stale specs are marked superseded, not deleted | **AR-E8-8** (`epics.md:859-870`) | this document's premise; `DESIGN.md` §13 |
 | Nothing about the installed app may depend on reading or editing the URL | **UX-DR-E7-6b** (`epics.md:1153-1155`) | §7.2 |
-| A cold/unknown answer must fail toward navigating, never toward a dead control | **UX-DR-E7-4** (`epics.md:1125`) | §3 (`homePath.ts:23-24`) |
+| A cold/unknown answer must fail toward navigating, never toward a dead control | **UX-DR-E7-4** (`epics.md:1125`) | §3 (`homePath.ts:24-25`) |
 | The category filter is a multi-select with a text summary, not a chip row | **UX-DR-E8-4** (`epics.md:1202`) | §4.1 |
 | The checked-status toggle is shopping-only; the shared component omits it rather than disabling it | **UX-DR-E8-7** (`epics.md:1220`) | §4, §4.1 |
 | The shared filter must not assume the subscription only one of its two hosts has | **AR-E8-6** (`epics.md:829`) | §4.1, §10 |
@@ -786,14 +903,17 @@ grep -rn 'role="alert"' bp_front/src
 # expect 23 lines: 22 rendered attributes + 1 comment (ConfirmDialog.tsx:31) — see §6.2
 
 grep -rn 'maxWidth="xs"' bp_front/src/components
-# expect 10 lines, one per dialog
+# expect 12 lines across 11 dialogs: AddItemDialog.tsx has TWO (its no-categories branch and its
+# form branch, Story 9.11). Supersedes "10 lines, one per dialog" — DeleteFeedbackDialog (Story
+# 9.10) had already made it 11 without this line being re-measured.
 
 grep -rn 'role="status"' bp_front/src
-# expect AdminPage.tsx:158 only
+# expect AdminPage.tsx:236 only (was :158; the line moved when Story 9.2 added the pager)
 
 grep -n 'NARROW_FLOOR_PX' bp_front/e2e/support/layout.ts bp_front/playwright.config.ts
-# expect 6 lines: the single declaration (layout.ts:32) plus one comment there (:100),
-# and in the config the import (:2), two uses (:31, :32) and one comment (:6)
+# expect 5 lines: the single declaration (layout.ts:32), and in the config the import (:2),
+# two uses (:31, :32) and one comment (:6). (Supersedes "6 lines … plus one comment there
+# (:100)": re-measured at Story 9.1, layout.ts has no second NARROW_FLOOR_PX line.)
 ```
 
 If a claim here disagrees with the source, **the source wins** and this document is stale: correct it, and name the

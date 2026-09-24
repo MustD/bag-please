@@ -1,6 +1,16 @@
 import {expect, type Page, test} from '@playwright/test'
 
-import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, registerViaUi, uniqueUsername} from './support/ui'
+import {
+  addCategory,
+  addItem,
+  createListAndOpen,
+  openListsViaMenu,
+  openShareDialog,
+  PASSWORD,
+  registerViaUi,
+  shareWith,
+  uniqueUsername,
+} from './support/ui'
 
 // Sharing & Membership E2E (Story 5.7). UI-driven for every asserted behaviour:
 // the sharing itself is driven through the owner's Share & Members dialog and the
@@ -14,21 +24,8 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 // `goto('/lists')` reload rather than waiting for a live update.
 //
 // Every scenario registers FRESH unique users per run/project via the register UI
-// and asserts only on self-created data (the ./db/data volume persists across
+// and asserts only on self-created data (the db_data named volume persists across
 // runs and the two projects run concurrently).
-
-// Owner-side share through the Share & Members dialog (UI, not API). Leaves the
-// dialog open so the caller can assert on the members list or an error.
-async function openShareDialog(page: Page, listName: string): Promise<void> {
-  await page.getByTestId(`manage-members-${listName}`).click()
-  await expect(page.getByTestId('share-members-dialog')).toBeVisible()
-}
-
-async function shareWith(page: Page, listName: string, username: string): Promise<void> {
-  await openShareDialog(page, listName)
-  await page.getByTestId('share-username-input').fill(username)
-  await page.getByTestId('share-submit').click()
-}
 
 // Return the owner to the lists index from a list detail screen.
 async function backToLists(page: Page): Promise<void> {

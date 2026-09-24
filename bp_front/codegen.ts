@@ -30,7 +30,15 @@ const config: CodegenConfig = {
     './src/__generated__/': {
       preset: 'client',
       presetConfig: {
-        fragmentMasking: true,
+        // Story 9.6 — masking OFF. It exists to stop a component reading fields
+        // it did not ask for, and nothing in this project used a fragment until
+        // `ListItemFields`, which exists to make the five item-returning
+        // documents IDENTICAL rather than to hide anything. With masking on, a
+        // spread turns `ItemsQuery['getItems'][number]` into a `$fragmentRefs`
+        // marker and every consumer needs `useFragment`; off, it flattens into
+        // each operation type so `ListItem` stays a plain object that the
+        // realtime merge, both dialogs and `itemFilter` can pass around.
+        fragmentMasking: false,
       },
       config: {
         // Apollo Client always includes `__typename` fields.

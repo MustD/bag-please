@@ -68,6 +68,15 @@ class ListMemberRepository(db: MongoDatabase) {
         col.deleteOne(Filters.eq("_id", "${listId}_${userId}"))
     }
 
+    // Every membership row a user holds, in ANY status (Story 9.4). Deliberately
+    // carries no status clause: a DECLINED row is invisible to `findActiveByListId`
+    // but still a live `list_members` document, and stranding it is the leak this
+    // exists to close. The `userId` index above serves the filter.
+    suspend fun deleteAllForUser(userId: UUID): Int {
+        val result = col.deleteMany(Filters.eq("userId", userId.toString()))
+        return result.deletedCount.toInt()
+    }
+
     suspend fun deleteAllInList(listId: UUID): Int {
         val result = col.deleteMany(Filters.eq("listId", listId.toString()))
         return result.deletedCount.toInt()

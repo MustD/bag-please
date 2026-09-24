@@ -86,4 +86,4 @@ run = "npx npm-check-updates --format group"
 
 [tasks."update:back-ls"]
 description = "List available Gradle dependency updates (does not modify files)"
-run = "./gradlew dependencyUpdates"
+run = "gradle dependencyUpdates"

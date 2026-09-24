@@ -56,7 +56,12 @@ class ItemRepository(
             Updates.set(MongoItem::checked.name, item.checked),
             Updates.set(MongoItem::category.name, item.category.toString()),
             Updates.set("listId", item.listId.toString()),
-            Updates.set("store", item.store),
+            // Story 9.6 / AR-E9-3 — set the new field and UNSET the legacy one in the same update,
+            // so every write self-heals a row the startup migration has not reached (or one written
+            // by an older image during a rollback window). Nothing else in this collection writes
+            // `store` any more, and nothing reads it.
+            Updates.set("stores", item.stores),
+            Updates.unset("store"),
             Updates.set("recurring", item.recurring?.name),
             Updates.set("addedBy", item.addedBy),
             Updates.set("deleted", item.deleted),
@@ -73,6 +78,24 @@ class ItemRepository(
 
     suspend fun deleteAllInList(listId: UUID): Int {
         val result = col.deleteMany(Filters.eq("listId", listId.toString()))
+        return result.deletedCount.toInt()
+    }
+
+    /**
+     * Story 9.3 — the Mongo half of `deleteCategory`'s cascade. Scoped by BOTH `listId` and `category`
+     * even though a category id is globally unique: the `("listId","_id")` index makes `listId` the
+     * cheap prefix, and a category-only filter would be a cross-list write in a code path whose whole
+     * point is that it runs under one list's membership check.
+     * `deleteMany` is deliberately unconditional on `deleted` — a soft-deleted row is still a row
+     * pointing at a category that is about to stop existing.
+     */
+    suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID): Int {
+        val result = col.deleteMany(
+            Filters.and(
+                Filters.eq("listId", listId.toString()),
+                Filters.eq(MongoItem::category.name, categoryId.toString()),
+            )
+        )
         return result.deletedCount.toInt()
     }
 

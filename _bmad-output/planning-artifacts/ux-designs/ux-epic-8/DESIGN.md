@@ -6,8 +6,8 @@ status: 'current'
 supersedes:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-verified_at_commit: '3af2d575e852ca186467c67a051e5ddc77a6fe6d'
-verified_on: '2026-09-09'
+verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
+verified_on: '2026-09-16'
 ---
 
 # DESIGN.md — Bag Please visual contract
@@ -33,10 +33,10 @@ The behavioural half of this contract — routes, guards, screen states, dialog 
 
 ## 1. The theme is one file, and it is small
 
-The entire visual contract is `bp_front/src/theme.ts` — **84 lines**, a single `createTheme(…)` call exported as the
-default (`theme.ts:29`, `:84`), applied once at the root together with `CssBaseline` (`main.tsx:45-46`).
+The entire visual contract is `bp_front/src/theme.ts` — **76 lines**, a single `createTheme(…)` call exported as the
+default (`theme.ts:25`, `:76`), applied once at the root together with `CssBaseline` (`main.tsx:45-46`).
 
-There is no second theme, no `CssVarsProvider`, and no per-route theme override. The comment at `theme.ts:26-28`
+There is no second theme, no `CssVarsProvider`, and no per-route theme override. The comment at `theme.ts:22-24`
 records why the plain `ThemeProvider` was chosen: "Epic 5 ships dark-mode only (the design's own default); a plain MUI
 ThemeProvider dark theme is intentional — CssVarsProvider is not required."
 
@@ -48,69 +48,59 @@ palette reference (`'primary.main'`, `'text.secondary'`, `'background.default'`)
 
 ## 2. Palette — dark, and only dark
 
-`theme.ts:30-53`. `mode: 'dark'` is hardcoded at **`theme.ts:31`**; there is no light branch anywhere in `src/`.
+`theme.ts:26-49`. `mode: 'dark'` is hardcoded at **`theme.ts:27`**; there is no light branch anywhere in `src/`.
 
 | Role | Value | Anchor |
 | --- | --- | --- |
-| `background.default` | `#000000` | `theme.ts:33` |
-| `background.paper` | `#1C1C1E` | `theme.ts:34` |
-| `primary.main` | `#4DC9BB` (teal accent) | `theme.ts:37` |
-| `error.main` | `#FF453A` | `theme.ts:40` |
-| `success.main` | `#30D158` | `theme.ts:43` |
-| `warning.main` | `#FFD60A` | `theme.ts:46` |
-| `text.primary` | `#FFFFFF` | `theme.ts:49` |
-| `text.secondary` | `rgba(235,235,245,0.6)` | `theme.ts:50` |
-| `divider` | `rgba(84,84,88,0.5)` | `theme.ts:52` |
+| `background.default` | `#000000` | `theme.ts:29` |
+| `background.paper` | `#1C1C1E` | `theme.ts:30` |
+| `primary.main` | `#4DC9BB` (teal accent) | `theme.ts:33` |
+| `error.main` | `#FF453A` | `theme.ts:36` |
+| `success.main` | `#30D158` | `theme.ts:39` |
+| `warning.main` | `#FFD60A` | `theme.ts:42` |
+| `text.primary` | `#FFFFFF` | `theme.ts:45` |
+| `text.secondary` | `rgba(235,235,245,0.6)` | `theme.ts:46` |
+| `divider` | `rgba(84,84,88,0.5)` | `theme.ts:48` |
 
 **Deliberate absences, each verifiable by reading the same block:**
 
-- **No `secondary` palette key.** `theme.ts:36-47` declares `primary`, `error`, `success`, `warning` and nothing
+- **No `secondary` palette key.** `theme.ts:32-43` declares `primary`, `error`, `success`, `warning` and nothing
   else, so `color="secondary"` anywhere in the app would resolve to MUI's default purple. Nothing uses it.
 - **No `info` key**, though `severity="info"` alerts exist (`ListDetailPage.tsx:214`, `ListsPage.tsx:115`) — they
   render in MUI's default info blue, which is the one place a non-palette hue reaches the screen.
 - **No `mode: 'light'` path, no `colorSchemes`, no `prefers-color-scheme` handling.** See §11, Known Gaps.
 
-The seed is recorded at `theme.ts:26`: "Dark palette, seeded from `design/theme.js` (dark) + the dark teal accent."
+The seed is recorded at `theme.ts:22`: "Dark palette, seeded from `design/theme.js` (dark) + the dark teal accent."
 `design/theme.js` is Epic 4 material and is *not* the authority — `theme.ts` is.
 
 ---
 
-## 3. `custom.bp.*` — six declared tokens, two consumed
+## 3. `custom.bp.*` — two declared tokens, both consumed
 
-`theme.ts` augments MUI's `Theme` with a `custom.bp` namespace (module augmentation at `theme.ts:5-24`, values at
-`theme.ts:72-81`) so that "later stories can reach the design tokens that don't map onto MUI's palette"
+`theme.ts` augments MUI's `Theme` with a `custom.bp` namespace (module augmentation at `theme.ts:5-20`, values at
+`theme.ts:68-73`) so that "later stories can reach the design tokens that don't map onto MUI's palette"
 (`theme.ts:3-4`).
 
 | Token | Value | Anchor | Status |
 | --- | --- | --- | --- |
-| `bg2` | `#0E0E10` | `theme.ts:74` | **declared, unconsumed** |
-| `card2` | `#2C2C2E` | `theme.ts:75` | **declared, unconsumed** |
-| `navBg` | `rgba(0,0,0,0.78)` | `theme.ts:76` | **consumed** — `AppShell.tsx:102` |
-| `sheetBg` | `#1C1C1E` | `theme.ts:77` | **declared, unconsumed** |
-| `accentSoft` | `rgba(77,201,187,0.18)` | `theme.ts:78` | **consumed** — `WelcomeBanner.tsx:37` |
-| `stripe` | `rgba(255,255,255,0.03)` | `theme.ts:79` | **declared, unconsumed** |
+| `navBg` | `rgba(0,0,0,0.78)` | `theme.ts:70` | **consumed** — `AppShell.tsx:102` |
+| `accentSoft` | `rgba(77,201,187,0.18)` | `theme.ts:71` | **consumed** — `WelcomeBanner.tsx:37` |
 
-> **RE-MEASURED, and it contradicts the planning text.** `epics.md:1247-1251` (UX-DR-E8-11) says the closing story
-> "**documents** the deployed design — including the `custom.bp.*` tokens in `theme.ts`", which reads as a namespace
-> in use. It is not: `grep -rn 'custom\.bp' bp_front/src | grep -v 'src/theme.ts'` returns **exactly two hits**, both
-> named above. **Four of the six tokens have zero consumers** and are recorded here as declared-and-unconsumed, never
-> as in-use tokens. The correction is filed in `deferred-work.md` under Story 8.7.
-
-`sheetBg` (`#1C1C1E`) is byte-identical to `background.paper` (`theme.ts:34`), so even if it were adopted it would
-add no new surface value. `bg2`, `card2` and `stripe` name a two-tier surface system and a zebra-stripe treatment
-that the deployed app does not have.
+Story 9.12 removed the other four declared tokens (`bg2`, `card2`, `sheetBg`, `stripe`), which had zero consumers —
+see the closed entry in `deferred-work.md` ("Own story — small cleanups"). Every remaining `custom.bp.*` token is
+in use.
 
 ---
 
 ## 4. Typography
 
-`theme.ts:54-64` declares exactly three things:
+`theme.ts:50-60` declares exactly three things:
 
-- **`fontFamily`** (`theme.ts:55`): `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+- **`fontFamily`** (`theme.ts:51`): `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
   sans-serif`. A system stack — no webfont is loaded anywhere (`index.html:1-18` links no font, and there is no
   `@font-face` in `src/`).
-- **`body1`** (`theme.ts:56-59`): `fontSize: '1.0625rem'` (17px at a 16px root), `lineHeight: 1.3`.
-- **`body2`** (`theme.ts:60-63`): `fontSize: '0.8125rem'` (13px), `lineHeight: 1.4`.
+- **`body1`** (`theme.ts:52-55`): `fontSize: '1.0625rem'` (17px at a 16px root), `lineHeight: 1.3`.
+- **`body2`** (`theme.ts:56-59`): `fontSize: '0.8125rem'` (13px), `lineHeight: 1.4`.
 
 **Every other variant is MUI's default.** That is not an omission this document is papering over — it is what the
 screens use. `h4` is the page title on `/lists` (`ListsPage.tsx:99`), `/lists/:id` (`ListDetailPage.tsx:148`),
@@ -127,13 +117,13 @@ defaults. Anything claiming a fuller custom scale is describing a document, not 
 
 ## 5. Component defaults — there are exactly three
 
-`theme.ts:65-71`. The whole `components` block:
+`theme.ts:61-67`. The whole `components` block:
 
 | Component | Override | Anchor |
 | --- | --- | --- |
-| `MuiButton` | `styleOverrides.root = {borderRadius: 8, textTransform: 'none'}` | `theme.ts:66-68` |
-| `MuiTextField` | `defaultProps = {variant: 'outlined'}` | `theme.ts:69` |
-| `MuiAppBar` | `defaultProps = {elevation: 0}` | `theme.ts:70` |
+| `MuiButton` | `styleOverrides.root = {borderRadius: 8, textTransform: 'none'}` | `theme.ts:62-64` |
+| `MuiTextField` | `defaultProps = {variant: 'outlined'}` | `theme.ts:65` |
+| `MuiAppBar` | `defaultProps = {elevation: 0}` | `theme.ts:66` |
 
 **Deliberate absences:**
 
@@ -156,13 +146,23 @@ defaults. Anything claiming a fuller custom scale is describing a document, not 
 **The app bar** (`AppShell.tsx:98-106`) is the one surface with a bespoke treatment:
 `bgcolor: theme => theme.custom.bp.navBg` (`:102`), `backdropFilter: 'blur(20px)'` (`:103`), and
 `borderBottom: 1px solid ${theme.palette.divider}` (`:104`) instead of a shadow — which is what `MuiAppBar`'s
-`elevation: 0` default (`theme.ts:70`) makes possible. It is `position="sticky"` (`AppShell.tsx:99`), so it stays put
+`elevation: 0` default (`theme.ts:66`) makes possible. It is `position="sticky"` (`AppShell.tsx:99`), so it stays put
 while a list scrolls under the blur. The shell is a `100dvh` flex column (`AppShell.tsx:97`) with the routed content
 in a `<Box component="main">` that grows (`AppShell.tsx:240-242`).
 
+**The shopping FAB** (Story 9.11, `ListShoppingPage.tsx:604-623`, `shopping-add-item-fab`) is the only
+fixed-position surface (the app bar is sticky): a stock `color="primary"` MUI `Fab` with `AddIcon`, `position: fixed`
+at `theme.spacing(2)` plus `env(safe-area-inset-bottom|right)` from the bottom-right corner. `/list/:id` is therefore
+the one page frame whose bottom padding is not `py` — see "Page frame" below. The safe-area terms are inert today:
+`bp_front/index.html`'s viewport meta has no `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to 0
+until it opts in.
+
 **Page frame.** All four content routes share one shape: a full-height `Box` with `py: {xs: 3, sm: 4}` wrapping a
 `<Container maxWidth="md">` — `ListsPage.tsx:84-85`, `ListDetailPage.tsx:115-116`,
-`ListShoppingPage.tsx:389-390`, `AdminPage.tsx:85-86`. The two form routes break the pattern deliberately: `/auth`
+`ListShoppingPage.tsx:469-477`, `AdminPage.tsx:85-86` — except that since Story 9.11 the shopping page splits it:
+`pt: {xs: 3, sm: 4}` as before, and a reserved
+`pb: calc(56px + theme.spacing(4) + env(safe-area-inset-bottom))` (`ListShoppingPage.tsx:473-474`) so the last row
+scrolls fully clear of the FAB. The two form routes break the pattern deliberately: `/auth`
 centres a `maxWidth: 360` column on `100dvh` with no container and no card (`AuthPage.tsx:199-210`), described in its
 own comment as "edge-to-edge on the dark background (UX 'ambient identity', no card)" (`AuthPage.tsx:20`);
 `/account/password` uses the same 360px column, centred inside the shell rather than the viewport
@@ -193,7 +193,12 @@ the row's own bounds (`ListShoppingPage.tsx:144-148`). Everything else uses MUI'
 This is the one part of the visual contract that is genuinely inconsistent across the app. It is recorded here as
 measured, not tidied.
 
-### 7.1 `noWrap` with a numeric cap — **four** sites
+### 7.1 `noWrap` with a numeric cap — **three** sites
+
+> **RE-MEASURED 2026-09-16 (Story 9.2).** The census below was **four**; the `/admin` username cell
+> (`AdminPage.tsx:200`, `{xs: 140, sm: 260}`) is **gone** — Story 9.2 removed it as AR-E9-6b, so the name wraps with
+> `overflowWrap: 'anywhere'` and carries a `data-testid="admin-user-name"`. That row is struck from the table below and
+> the count is now three. The deferred-work entry the block quote below argues with is closed by the same story.
 
 > **RE-MEASURED, and the census figure in `deferred-work.md` is superseded — as a SCOPING call, not a miscount.**
 > The Story 8.2 entry (`deferred-work.md:1860-1868`, quoted sentence at `:1862-1864`) states, twice-corrected and
@@ -216,8 +221,9 @@ measured, not tidied.
 | --- | --- | --- |
 | App-bar username chip | `{xs: 140, sm: 220}` | `AppShell.tsx:192-193` |
 | `/lists` row name | `{xs: 200, sm: 420}` | `ListsPage.tsx:195` |
-| `/admin` username cell | `{xs: 140, sm: 260}` | `AdminPage.tsx:200` |
 | `/list/:id` `addedBy` attribution | `100` | `ListShoppingPage.tsx:197` |
+
+(Removed by Story 9.2: `/admin` username cell, `{xs: 140, sm: 260}`, `AdminPage.tsx:200`.)
 
 ### 7.2 `noWrap` with no numeric cap — three sites
 
@@ -250,12 +256,14 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
-`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (21 raw import lines resolve to)
-— **16 distinct icons**:
+`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (27 raw import lines resolve to)
+— **21 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
+icon — it reuses `Add`. Supersedes "18 distinct from 23 lines" of 2026-09-16: `Cancel`, `Feedback` and `Home` arrived
+with Stories 9.6–9.9 without this figure being re-measured):
 
-`Add`, `AdminPanelSettings`, `ArrowBack`, `CheckBox`, `CheckBoxOutlineBlank`, `Close`, `DeleteOutlined`,
-`EditOutlined`, `FormatListBulleted`, `GroupOutlined`, `LockReset`, `Logout`, `LogoutOutlined`, `PersonAddAlt1`,
-`PersonRemoveOutlined`, `Storefront`.
+`Add`, `AdminPanelSettings`, `ArrowBack`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
+`Close`, `DeleteOutlined`, `EditOutlined`, `Feedback`, `FormatListBulleted`, `GroupOutlined`, `Home`, `LockReset`,
+`Logout`, `LogoutOutlined`, `PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
 
 Conventions that hold across the set:
 
@@ -263,17 +271,18 @@ Conventions that hold across the set:
   `LogoutOutlined`, `PersonRemoveOutlined`); filled for the primary/menu ones.
 - **`fontSize="small"` wherever an icon sits beside text or inside a row.** Three different hosts, all consistent:
   an `IconButton` child (`ListDetailPage.tsx:284,298,308,359,369`, `ListsPage.tsx:159,170,183`,
-  `AdminPage.tsx:215,228`, `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
+  `AdminPage.tsx:299,312,352,367` (re-measured 2026-09-16; was `:215,228`, and the last two are Story 9.2's pager
+  chevrons), `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
   `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`); and an icon inside a text
   `Link` on the two back links (`ListDetailPage.tsx:123`, `ListShoppingPage.tsx:399`).
 - **`color="error"` marks the destructive path.** Nine sites, and they are not all controls. Seven are: the row
-  `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:221`,
+  `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:305` (was `:221`),
   `ShareMembersDialog.tsx:156`) and the delete-user confirm `Button` (`DeleteUserDialog.tsx:91`). The other two are
   **error TEXT, not controls** — the bare `Typography role="alert"` on `/auth` (`AuthPage.tsx:286`) and
   `/account/password` (`ChangePasswordPage.tsx:196`), which are the alert-idiom deviations recorded in
   `EXPERIENCE.md` §6.2. So "destructive ⇒ `color="error"`" holds; the converse does not.
 - **Every icon-only control has an `aria-label` naming its target**, e.g. `` `Remove category ${group.name}` ``
-  (`ListDetailPage.tsx:304`), `` `Delete ${user.username}` `` (`AdminPage.tsx:220`),
+  (`ListDetailPage.tsx:304`), `` `Delete ${user.username}` `` (`AdminPage.tsx:304`, was `:220`),
   `` `Remove ${member.username}` `` (`ShareMembersDialog.tsx:157`). **Most, but not all, are also wrapped in a
   `Tooltip`**: only four files import `Tooltip` (`AdminPage.tsx`, `ListsPage.tsx`, `ListDetailPage.tsx`,
   `ShareMembersDialog.tsx`), and `WelcomeBanner.tsx:23-29`'s dismiss button carries
@@ -284,8 +293,8 @@ Conventions that hold across the set:
   They are *not* a `Checkbox` component — see `EXPERIENCE.md` §5.3.1.
 
 **App identity mark.** `bp_front/public/favicon.svg` — a 32×32 rounded-square (`rx="7"`) in `#1C1C1E` carrying a teal
-`#4DC9BB` shopping-bag glyph. Those are exactly `background.paper` (`theme.ts:34`) and `primary.main`
-(`theme.ts:37`); the mark is the palette. It is linked as the tab icon at `index.html:5` and shipped into the PWA
+`#4DC9BB` shopping-bag glyph. Those are exactly `background.paper` (`theme.ts:30`) and `primary.main`
+(`theme.ts:33`); the mark is the palette. It is linked as the tab icon at `index.html:5` and shipped into the PWA
 build via `includeAssets: ['favicon.svg']` (`vite.config.ts:23`).
 
 ---
@@ -331,12 +340,12 @@ Recorded so an absence is not mistaken for an oversight. Where this pass could n
 
 | Absent | Decided? | Evidence |
 | --- | --- | --- |
-| Light mode / any `prefers-color-scheme` handling | **Decided.** | `theme.ts:26-28`, `vite.config.ts:31-35`, **RULING UX-DR-E8-11** (`epics.md:1247-1251`) |
-| A `secondary` palette key | **Undetermined.** No decision is recorded anywhere; nothing uses `color="secondary"`, so it has never been needed. | `theme.ts:36-47` |
-| A top-level `shape` / global border radius | **Undetermined.** The `borderRadius: 8` on `MuiButton` (`theme.ts:67`) suggests a rounding intent that was never globalised. | `theme.ts:65-71` |
-| A `MuiPaper` / `MuiDialog` / `MuiAlert` theme override | **Undetermined.** Consistency is achieved by every call site passing the same props (all 10 dialogs are `fullWidth maxWidth="xs"`). | `theme.ts:65-71`; the 10 `Dialog` call sites |
+| Light mode / any `prefers-color-scheme` handling | **Decided.** | `theme.ts:22-24`, `vite.config.ts:31-35`, **RULING UX-DR-E8-11** (`epics.md:1247-1251`) |
+| A `secondary` palette key | **Undetermined.** No decision is recorded anywhere; nothing uses `color="secondary"`, so it has never been needed. | `theme.ts:32-43` |
+| A top-level `shape` / global border radius | **Undetermined.** The `borderRadius: 8` on `MuiButton` (`theme.ts:63`) suggests a rounding intent that was never globalised. | `theme.ts:61-67` |
+| A `MuiPaper` / `MuiDialog` / `MuiAlert` theme override | **Undetermined.** Consistency is achieved by every call site passing the same props (all 10 dialogs are `fullWidth maxWidth="xs"`). | `theme.ts:61-67`; the 10 `Dialog` call sites |
 | A toast / snackbar layer | **Decided.** No `Snackbar` exists in `src/`; measured this pass, every `toast`/`snackbar` string in `src/` is a comment asserting its absence (11 occurrences across 10 files). See the note below on the one in-flow banner that does ship. | **RULING UX-DR-E8-10** (`epics.md:1243-1245`), carried from **UX-DR-E7-7** (`epics.md:1157-1161`) |
-| A webfont | **Undetermined**, but consistent: the stack is native-first (`theme.ts:55`) and no font is linked in `index.html`. | `theme.ts:55`, `index.html:1-18` |
+| A webfont | **Undetermined**, but consistent: the stack is native-first (`theme.ts:51`) and no font is linked in `index.html`. | `theme.ts:51`, `index.html:1-18` |
 | An offline UI / cached-data indicator | **Decided.** | **RULING UX-DR-E7-7** (`epics.md:1157-1161`): "There is no offline mode in scope"; `vite.config.ts:52` `runtimeCaching: []` |
 
 **The one banner that does ship, and how it squares with the ruling.** `WelcomeBanner.tsx` (43 lines) renders a
@@ -370,18 +379,17 @@ section, §12.
 
 **Out of scope because** Epic 8 is a fixes epic, not a redesign — **RULING UX-DR-E8-11** (`epics.md:1247-1251`,
 `md`, 2026-09-05: "small ux fixes based on real usage"). Adding it is not a theme tweak: `mode: 'dark'` is hardcoded
-(`theme.ts:31`), the PWA chain is black in three places on the explicit reasoning that there is no light variant
+(`theme.ts:27`), the PWA chain is black in three places on the explicit reasoning that there is no light variant
 (`vite.config.ts:31-35`, `index.html:7-10`), and the app-bar treatment is a translucent black over blur
 (`AppShell.tsx:102-103`). A light mode is a cross-cutting story with its own UX ruling, not a token swap.
 
-### 11.2 A design-token overhaul — including the four dead tokens
+### 11.2 A design-token overhaul
 
-**Out of scope because** UX-DR-E8-11 freezes the visual language for this epic. What a future overhaul inherits,
-measured in §3: `bg2`, `card2`, `sheetBg` and `stripe` are declared in `theme.ts:72-81` and typed in the module
-augmentation at `theme.ts:5-24` with **zero consumers**. `sheetBg` duplicates `background.paper` exactly. The
-overhaul question is therefore not "which values" but "does the two-tier surface + stripe system these four tokens
-describe belong in this app at all" — adopt them or delete them, but the current state (a typed namespace two-thirds
-of which nothing reads) is the gap. The truncation inconsistencies in §7 belong to the same overhaul.
+**Out of scope because** UX-DR-E8-11 freezes the visual language for this epic. The four dead tokens this section
+used to catalog (`bg2`, `card2`, `sheetBg`, `stripe` — a two-tier surface system and a zebra-stripe treatment the
+app never adopted) were removed by Story 9.12 rather than adopted; see §3. A future overhaul now inherits a clean
+two-token `custom.bp` namespace with no dead weight. The truncation inconsistencies in §7 remain a candidate for
+the same overhaul.
 
 ### 11.3 Epic 4 bottom-tab navigation
 
@@ -431,8 +439,10 @@ grep -rn 'custom\.bp' bp_front/src | grep -v 'src/theme.ts'
 # expect exactly 2 lines: AppShell.tsx:102 (navBg), WelcomeBanner.tsx:37 (accentSoft)
 
 grep -rn 'noWrap' bp_front/src
-# expect 9 lines: the 4 numeric-cap sites (§7.1), the 3 uncapped ones (§7.2),
-# and 2 PROSE COMMENTS at ListDetailPage.tsx:133-134 explaining why the title has none
+# expect 9 lines: the 3 numeric-cap sites (§7.1), the 3 uncapped ones (§7.2), and 3 PROSE
+# COMMENTS — ListDetailPage.tsx:133-134 (why the title has none) and AdminPage.tsx:279
+# (why the /admin cell no longer has one). Re-measured 2026-09-16: the TOTAL is unchanged
+# at 9, but the composition moved — Story 9.2 turned the /admin cap into a comment.
 
 grep -rniE 'snackbar|toast' bp_front/src
 # expect 11 lines across 10 files, every one a comment; no Snackbar is imported or rendered
@@ -441,11 +451,11 @@ grep -rn '#[0-9A-Fa-f]\{3,8\}' bp_front/src
 # expect src/theme.ts only
 
 grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u
-# expect the 16 distinct icons in §8 (21 raw import lines collapse to 16)
+# expect the 21 distinct icons in §8 (27 raw import lines collapse to 21; re-measured at Story 9.11)
 ```
 
 If a count here disagrees with a count in `epics.md`, `epic-8-context.md` or `deferred-work.md`, **this document is
-the one that was measured** — at `3af2d575e852ca186467c67a051e5ddc77a6fe6d`, on 2026-09-09. If it disagrees with the
+the one that was measured** — at `15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb`, on 2026-09-16. If it disagrees with the
 source, the source wins and this document is stale: correct it, and name the figure it supersedes.
 
 **Who re-verifies, and when.** This document goes stale the same way the two specs it supersedes did — silently. The

@@ -11,7 +11,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 //
 // Runs on chromium + mobile (Pixel 7); the mobile gate is mandatory. The scenario
 // registers FRESH unique users through the register UI (`admin` is blocked from
-// all list resources) and asserts only on data it created — the ./db/data volume
+// all list resources) and asserts only on data it created — the db_data named volume
 // persists across runs and both projects run concurrently.
 //
 // What this guards: `saveItem` used to reconstruct the item from `ItemInput`,

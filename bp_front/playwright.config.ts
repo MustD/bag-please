@@ -47,11 +47,28 @@ const PIXEL_7_AT_FLOOR = {
 // fail the run.
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:2080'
 
+// Tests that must run while NOTHING ELSE IS TOUCHING SHARED BACKEND STATE.
+//
+// One definition, consumed by all four projects below: the two viewport projects
+// grepInvert it, the two chained projects grep it. Adding a tag here is the
+// whole wiring — see the "Four projects, not two" note under `projects`.
+//
+//   @registration-toggle (Story 7.3) — `registrationEnabled` is a single shared
+//     Mongo document and the FR20/FR21 test flips it OFF for real.
+//   @serial-users (Story 9.2) — the FR13/FR15 last-page test must arrange the
+//     users table's TOTAL to sit at a page boundary, and the suite creates ~4
+//     users/second while it runs.
+const SERIALIZED = /@registration-toggle|@serial-users/
+
 export default defineConfig({
   testDir: './e2e',
   // Enable public registration once before the suite (see e2e/global-setup.ts)
   // so the real register → auto-login flow can succeed.
   globalSetup: './e2e/global-setup.ts',
+  // Delete every user the run created (Story 9.2). This is the D4 mechanism:
+  // without it the users table grows ~120 rows a run forever. It never fails the
+  // run — see e2e/global-teardown.ts.
+  globalTeardown: './e2e/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -61,14 +78,48 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
   },
+  // Story 9.1 — the webServer waits for a backend that is actually READY.
+  //   * FOREGROUND compose, not `-d` / `--wait`: Playwright treats any exit of
+  //     the command before `url` is ready as fatal ("Process from
+  //     config.webServer exited early", zero tests run). `-d` exits once the
+  //     containers start and `--wait` once they are started/healthy — neither
+  //     means Ktor is warm. A long-lived foreground process never exits early on
+  //     a healthy start.
+  //   * `--abort-on-container-failure`: a failed build, a port-bind error or a
+  //     container that crashes on startup (e.g. a migration error in bp_back)
+  //     ends the command at once, and Playwright reports the early exit with the
+  //     piped stderr — instead of polling a 502 for the full 600 s.
+  //   * `--force-recreate`: a failed port bind can leave a bp_front container
+  //     with no published port; reusing it would leave :2080 dead and burn the
+  //     600 s timeout silently, so containers are always recreated.
+  //   * `url` is GET /api/health (unauthenticated, not rate limited): 200 only
+  //     when Ktor answers AND pings Mongo. Caddy's 502 (Ktor not up) and the
+  //     endpoint's 503 (Mongo unreachable) both count as not ready, so
+  //     Playwright keeps polling. It targets the compose-managed Caddy entrypoint
+  //     directly, independent of E2E_BASE_URL: docker compose starts :2080, not
+  //     the edge.
+  //   * `stdout: 'ignore'`: attached compose streams every container's logs to
+  //     stdout, which would drown the report. `stderr: 'pipe'`: compose's build,
+  //     pull and port-bind errors go to stderr — exactly the failure output that
+  //     must surface.
+  //   * Teardown: `gracefulShutdown` SIGTERM makes compose STOP the containers
+  //     it started (the default SIGKILL kills only the client and leaves them
+  //     running). 60 s covers three containers' 10 s stop grace. It is a stop,
+  //     never a `down -v`: the named `db_data` volume is always kept.
+  //   * Reuse: Playwright reuses a running stack (`reuseExistingServer`, left
+  //     untouched) ONLY when /api/health already answers 200-403. A running
+  //     stack answering 503 (Mongo paused) or 404 (an older image without the
+  //     endpoint) is NOT reused: compose rebuilds, recreates and attaches to it,
+  //     and teardown then stops it.
   webServer: {
-    command: 'docker compose up -d --build',
+    command: 'docker compose up --build --force-recreate --abort-on-container-failure',
     // Relative to this config's directory → the repo root.
     cwd: '..',
-    // Readiness probe targets the compose-managed Caddy entrypoint directly,
-    // independent of E2E_BASE_URL: docker compose starts :2080, not the edge.
-    url: 'http://localhost:2080',
+    url: 'http://localhost:2080/api/health',
     reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+    stderr: 'pipe',
+    gracefulShutdown: {signal: 'SIGTERM', timeout: 60_000},
     // Cold runs build the backend + frontend images before the stack is ready.
     timeout: 600 * 1000,
   },
@@ -111,8 +162,10 @@ export default defineConfig({
   //     the tag and the tagged test simply runs in chromium+mobile while both
   //     toggle projects collect zero — and the total is *unchanged*, because the
   //     tag reroutes a test rather than duplicating it. The INVARIANT to check is
-  //     therefore structural, not numeric: exactly ONE test in each
-  //     `registration-toggle-*` project, everything else split evenly across the
+  //     therefore structural, not numeric: each `registration-toggle-*` project
+  //     collects exactly one test per pattern in `SERIALIZED` (TWO since Story
+  //     9.2 added `@serial-users` — the projects are named for the first tag they
+  //     carried, not for the only one), everything else split evenly across the
   //     two viewport projects (every untagged test runs in both, so a new spec is
   //     +2 runs). Read it with:
   //       npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c
@@ -185,20 +238,86 @@ export default defineConfig({
   //         (NFR-E8-5: one test owns that row). Counts measured with the command
   //         above on the post-fix build; the skip SPLIT read off a
   //         `--reporter=json` run, not inferred.
+  //       2026-09-16 (Story 9.2, pre-story baseline at 15ec65b): 230 = 114 / 114
+  //         / 1 / 1 — i.e. the 2026-09-09 row above was ALREADY STALE by 6
+  //         before this story changed anything (Story 9.1 and unrecorded specs).
+  //         Measured in a throwaway worktree at the baseline commit, not quoted.
+  //       2026-09-16 (Story 9.2): 236 = 116 / 116 / 2 / 2 (+6 against that 230).
+  //         The arithmetic, and note it is NOT the usual tests x 2 because one of
+  //         the three is TAGGED: two untagged tests at +2 runs each = +4 (the
+  //         FR13 pager walk in admin.spec.ts and the /admin floor case in
+  //         narrow-viewport.spec.ts), plus ONE `@serial-users` test at +2 = the
+  //         delete-last-page case, which lands in the two chained projects
+  //         instead of the two viewport ones — which is why those columns moved
+  //         off 1 for the first time since this ledger began. OF WHICH 23 ARE
+  //         SKIPS — 22 in chromium (the mobile-only narrow-viewport set, now
+  //         including this story's /admin floor case) and 1 in mobile (the
+  //         above-the-breakpoint header test). Counts from the command above;
+  //         the skip SPLIT read off a `--reporter=json` run (213 expected, 23
+  //         skipped, 0 unexpected, 0 flaky), not inferred.
+  //       2026-09-17 (Story 9.3): 238 = 117 / 117 / 2 / 2 — +2 runs against the
+  //         Story 9.2 row's 236, and the flat-looking delta hides three moves, so
+  //         read the per-file test names rather than this number. ADDED: the
+  //         two-member category cascade and the stale-add rejection, both untagged
+  //         in lists.spec.ts (+4 runs). RETIRED: `FR62 — an item orphaned by a
+  //         category removal…` (-2 runs) — its fixture was the client-side delete
+  //         loop this story deleted, and with `saveItem` now rejecting an
+  //         out-of-list category on the CREATE branch too there is no
+  //         API-reachable way left to produce an orphan. OF WHICH 23 ARE SKIPS,
+  //         unchanged from the Story 9.2 row (22 chromium, 1 mobile): none of the
+  //         moved tests carries a project guard. Counts from the command above on
+  //         the post-fix production image; the run itself reported 215 passed, 23
+  //         skipped, 0 failed.
+  //       2026-09-17 (Story 9.3 REVIEW): 240 = 118 / 118 / 2 / 2 — +2 on the row
+  //         above. ADDED: one untagged case in shopping.spec.ts, `FR46 — a
+  //         rejected uncheck shows the mapped category copy…` (+2 runs), pinning
+  //         the review fix that routes `uncheckItem`'s orphan rejection through
+  //         `itemSaveErrorMessage`. Nothing retired or moved. OF WHICH 23 ARE
+  //         SKIPS, unchanged (22 chromium, 1 mobile): the new case carries no
+  //         project guard. Counts from the command above on the post-fix
+  //         production image; the run itself reported 217 passed, 23 skipped,
+  //         0 failed. The new case was observed RED on both viewport projects
+  //         (raw `Category <uuid> does not belong to list <uuid>` in
+  //         `shopping-action-error`) before the fix, and green after.
+  //       2026-09-18 (Story 9.4): 242 = 118 / 118 / 3 / 3 — +2 on the row above,
+  //         and the FIRST row where the chained projects move without the
+  //         viewport ones. ADDED: one case in admin.spec.ts, `FR15 — deleting a
+  //         list owner states the owned-list count and takes the list from its
+  //         members`, TAGGED `@serial-users` (+2 runs, one per chained project).
+  //         The tag is not decoration: the case has to keep two specific rows on
+  //         the page the admin panel is showing while a third actor works, and
+  //         `around` — the panel's only way to locate a row — is set by a create,
+  //         so it pads the users table to a page boundary exactly as the
+  //         last-page case does. Nothing retired or moved. OF WHICH 23 ARE SKIPS,
+  //         unchanged (22 chromium, 1 mobile): the new case carries no project
+  //         guard, and being tagged it is absent from the viewport projects
+  //         rather than skipped in them. Counts from the command above on the
+  //         post-fix production image; the full run reported 219 passed, 23
+  //         skipped, 0 failed. (Driving the chained projects by hand, run ONE
+  //         project at a time — `--no-deps` on both at once runs them
+  //         CONCURRENTLY and breaks the serialisation both tagged cases depend
+  //         on.) The new case's two rows are swept by their own teardown: they
+  //         carry a `zzzzz_` prefix that sorts AFTER the `zzzz` tail the
+  //         last-page case arranges, and leaving them behind moved that case's
+  //         last page on the second chained project. The new case
+  //         was observed RED on both chained projects before the fix
+  //         (`expect(page).toHaveURL(/\/lists$/)` receiving `/list/<uuid>`: with
+  //         the purge disabled the member kept access to the deleted owner's
+  //         list), and green after.
   //   * `--project=chromium` (or `mobile`) on its own runs NO FR20/FR21 case at
   //     all — it is grepInverted out of both, and reports as absent, not skipped.
   projects: [
     {
       name: 'chromium',
       use: {...devices['Desktop Chrome']},
-      grepInvert: /@registration-toggle/,
+      grepInvert: SERIALIZED,
     },
     {
       name: 'mobile',
       // Renders at NFR-E8-1's floor — see PIXEL_7_AT_FLOOR above for why the
       // descriptor is kept and only the widths are overridden.
       use: PIXEL_7_AT_FLOOR,
-      grepInvert: /@registration-toggle/,
+      grepInvert: SERIALIZED,
     },
     // Runs only after BOTH viewport projects finish → nothing is registering
     // while the flag is OFF. `fullyParallel: false` is a guard for the future,
@@ -209,7 +328,7 @@ export default defineConfig({
     {
       name: 'registration-toggle-chromium',
       use: {...devices['Desktop Chrome']},
-      grep: /@registration-toggle/,
+      grep: SERIALIZED,
       dependencies: ['chromium', 'mobile'],
       fullyParallel: false,
     },
@@ -233,7 +352,7 @@ export default defineConfig({
       // floor in a normal run" (NFR-E8-2) untrue of the admin-panel half, and put
       // two Pixel 7 projects in this file at two different widths.
       use: PIXEL_7_AT_FLOOR,
-      grep: /@registration-toggle/,
+      grep: SERIALIZED,
       dependencies: ['registration-toggle-chromium'],
       fullyParallel: false,
     },

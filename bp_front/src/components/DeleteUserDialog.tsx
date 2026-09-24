@@ -24,7 +24,9 @@ interface Props {
 // are confirmation-first: the mutation fires only from the confirm button, never
 // on row click. The consequence (sign-out of the deleted user's sessions) is
 // stated in plain language. Errors (e.g. NOT_FOUND) surface inline; the row is
-// not optimistically removed before success.
+// not optimistically removed before success. Since Story 9.4 the copy also states
+// how many lists the deletion destroys — deleting a user cascades the lists they
+// own, and that consequence has to be visible before the confirm.
 export default function DeleteUserDialog({user, onClose, onDeleted}: Props) {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteUser, {loading}] = useMutation(DeleteUserMutation)
@@ -46,6 +48,11 @@ export default function DeleteUserDialog({user, onClose, onDeleted}: Props) {
       setFormError(null)
     }
   }
+
+  // Read off `shown`, not `user`: `user` is already null during MUI's close
+  // transition, and a count that blinked to 0 as the dialog faded would be the
+  // last thing the admin saw. 0 omits the sentence entirely (Story 9.4).
+  const ownedListCount = shown?.ownedListCount ?? 0
 
   const handleCancel = () => {
     if (loading) return
@@ -74,7 +81,9 @@ export default function DeleteUserDialog({user, onClose, onDeleted}: Props) {
       <DialogContent>
         <DialogContentText>
           Delete <strong>{shown?.username}</strong>? This permanently removes the account and signs
-          them out of all sessions. This cannot be undone.
+          them out of all sessions.{ownedListCount > 0 && ` This also deletes the ${ownedListCount} ${
+            ownedListCount === 1 ? 'list' : 'lists'
+          } they own, with their items and categories.`} This cannot be undone.
         </DialogContentText>
         {formError && (
           <Alert severity="error" role="alert" data-testid="delete-user-error" sx={{mt: 2}}>

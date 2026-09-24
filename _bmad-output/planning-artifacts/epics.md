@@ -1,2214 +1,1070 @@
 ---
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation', 'epic4-step-01-validate-prerequisites', 'epic4-step-02-design-epics', 'epic4-story-4.1', 'epic4-story-4.2', 'epic4-story-4.3', 'epic4-story-4.4', 'epic4-story-4.5', 'epic4-story-4.6', 'epic4-story-4.7', 'epic4-story-4.8', 'epic6-step-01-validate-prerequisites', 'epic6-step-02-design-epics', 'epic6-story-6.1', 'epic6-story-6.2', 'epic6-step-03-create-stories', 'epic6-step-04-final-validation', 'epic7-step-01-validate-prerequisites', 'epic7-step-02-design-epics', 'epic7-story-7.1', 'epic7-story-7.2', 'epic7-story-7.3', 'epic7-story-7.4', 'epic7-story-7.5', 'epic7-story-7.6', 'epic7-story-7.7', 'epic7-story-7.8', 'epic7-story-7.9', 'epic7-story-7.10', 'epic7-story-7.11', 'epic7-story-7.12', 'epic7-story-7.13', 'epic7-story-7.14', 'epic7-story-7.15', 'epic7-step-03-create-stories', 'epic7-step-04-final-validation', 'epic8-step-01-validate-prerequisites', 'epic8-step-02-design-epics', 'epic8-story-8.1', 'epic8-story-8.2', 'epic8-story-8.3', 'epic8-story-8.4', 'epic8-story-8.5', 'epic8-story-8.6', 'epic8-story-8.7', 'epic8-step-03-create-stories', 'epic8-step-04-final-validation']
-status: complete  # Epic 8 planned and validated 2026-09-05
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'epic9-story-9.1', 'epic9-story-9.2', 'epic9-story-9.3', 'epic9-story-9.4', 'epic9-story-9.5', 'epic9-story-9.6', 'epic9-story-9.7', 'epic9-story-9.8', 'epic9-story-9.9', 'epic9-story-9.10', 'epic9-story-9.11', 'epic9-story-9.12', 'step-03-create-stories', 'step-04-final-validation']
+status: complete  # Epic 9 planned and validated 2026-09-15
 inputDocuments:
+  # Re-initialised from the template for Epic 9 on 2026-09-15 (md's choice). Epics 1–8 bodies are
+  # verbatim in epics-archive.md; the previous requirements inventory is in git at b056451.
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/ux-design-specification.md
-  - docs/architecture-bp_back.md
-  - docs/architecture-bp_front.md
-  - docs/integration-architecture.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/ARCHITECTURE-SPINE.md
+  # Reviewer-gate reports; every finding was folded into the final spine (see its .memlog.md).
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-rubric.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-currency.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-adversarial.md
   - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
-  # Added for Epic 6 (2026-07-28). The Epic 4 UX spec above is stale on presentation
-  # from Epic 5 onward — see the UX source note in the Epic 6 UX-DR section.
-  - _bmad-output/project-context.md
+  # UX design contract (bmad-ux spine pair, status: current, verified 2026-09-09):
+  - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/EXPERIENCE.md
   - _bmad-output/implementation-artifacts/deferred-work.md
-  - _bmad-output/implementation-artifacts/epic-5-retro-2026-07-28.md
-  # Epic 6 requirements were verified against the shipped code, which is authoritative
-  # over the planning docs where they disagree:
-  - bp_front/src/components/AddItemDialog.tsx
+  - _bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md
+  - docs/feedback.md
+  # Shipped code is authoritative where it disagrees with a planning document. Spot-checked 2026-09-15:
+  - bp_back/src/main/kotlin/com/bagplease/entity/user/gql/UserAdminApi.kt
+  - bp_back/src/main/kotlin/com/bagplease/config/gql/ApplicationConfigApi.kt
+  - bp_back/src/main/kotlin/com/bagplease/plugins/Migration.kt
+  - bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt
+  - bp_back/src/main/resources/application.yaml
   - bp_front/src/components/AppShell.tsx
+  - bp_front/src/components/StoreField.tsx
+  - bp_front/src/components/ListFilters.tsx
   - bp_front/src/routes/ListDetailPage.tsx
-  - bp_front/src/routes/ListShoppingPage.tsx
-  - bp_front/src/routes/HomeRedirect.tsx
-  - bp_front/src/lib/lists/listsQueries.ts
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/ItemApi.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemInput.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/gql/GqlItemMapper.kt
-  # Added for Epic 7 (2026-07-29). The Epic 6 retrospective's "Prepared For Epic 7"
-  # section is the standing input — it scoped and owned six action items so that no
-  # re-derivation is needed. The two UX specs above remain listed for history but are
-  # stale from Epic 5 onward and Epic 7 changes almost no pixels (see UX-DR-E7-1).
-  - _bmad-output/implementation-artifacts/epic-6-retro-2026-07-29.md
-  # Live package registries queried during planning (2026-07-29), not read off a doc:
-  #   npm outdated in bp_front/, and repo1.maven.org maven-metadata.xml for every
-  #   coordinate in gradle/libs.versions.toml. Versions in AR-E7-9 are from that audit.
-  # Epic 7 requirements verified against the shipped code, which is authoritative over
-  # the planning docs where they disagree:
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/Item.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemService.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/ItemStorage.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/item/mongo/ItemRepository.kt
-  - bp_front/src/routes/HomeRedirect.tsx
-  - bp_front/package.json
-  - bp_front/tsconfig.app.json
-  - bp_front/tsconfig.node.json
-  - bp_front/eslint.config.mjs
-  - bp_front/playwright.config.ts
-  - gradle/libs.versions.toml
-  # Added for Epic 8 (2026-09-05). The standing input is the Epic 7 retro's
-  # "Prepared For Epic 8" section; the epic's actual scope is `md`'s own list of
-  # seven UX defects observed while using the running app, given in planning.
-  # BOTH UX specs above are stale (Next.js app / never-shipped bottom tabs) —
-  # the epic's closing story replaces them, see AR-E8-8. Requirements were verified against the
-  # shipped code, which is authoritative over the planning docs:
-  - _bmad-output/implementation-artifacts/epic-7-retro-2026-08-21.md
-  - bp_front/src/routes/ListShoppingPage.tsx
-  - bp_front/src/routes/ListDetailPage.tsx
-  - bp_front/src/components/AppShell.tsx
-  - bp_front/src/theme.ts
-  - bp_front/playwright.config.ts
 ---
 
 # bag-please - Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for bag-please, decomposing the requirements from the
-PRD, UX Design Specification, and Architecture documents into implementable stories for the
-**User Registration & Authentication** feature.
+This document provides the complete epic and story breakdown for bag-please, decomposing the requirements from the PRD,
+UX Design if it exists, and Architecture requirements into implementable stories.
 
-**Epic set:** this file holds the live epic (Epic 8) plus the shared Overview, Requirements Inventory and Epic List.
-The closed Epics 1–7 live verbatim in [`epics-archive.md`](./epics-archive.md). The two files are one epic set —
-sprint planning must be run with **both** (`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the
-story keys for Epics 1–7 are reported as orphans and dropped from `sprint-status.yaml`.
+**Epic set:** this file holds the live epic (**Epic 9 — User Feedback Pass**). Closed Epics 1–8 live verbatim in
+[`epics-archive.md`](./epics-archive.md). The two files are one epic set — sprint planning must be run with **both**
+(`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the story keys for Epics 1–8 are reported as orphans
+and dropped from `sprint-status.yaml`.
+
+**Scope source:** `prd.md` → "Epic 9 — User Feedback Pass (Planned)", which maps `docs/feedback.md` items 1–6 and the
+"Routed to Epic 9" index at the top of `deferred-work.md`.
 
 ## Requirements Inventory
 
 ### Functional Requirements
 
+Every active FR in `prd.md`, condensed. **Bold** = new or amended for Epic 9 and stated in full; the rest are delivered
+(Epics 1–8) and listed so a story can cite them without re-reading the PRD.
+
+**User Authentication**
 FR1: Unregistered user can create an account with a username and password
 FR2: Registered user can authenticate with their username and password
-FR3: Authenticated user can log out of the application
-FR4: System automatically authenticates a user immediately after successful registration, without a separate login step
-FR5: System displays a one-time welcome message the first time a user successfully logs in after registration
-FR6: System issues a short-lived access token upon successful authentication
-FR7: System issues a long-lived refresh token upon successful authentication
-FR8: System silently renews the access token using a valid refresh token when the access token is expired, without user
-interaction
-FR9: System redirects the user to the login screen with a session-expiry message when the refresh token is no longer
-valid
-FR10: System invalidates the user's refresh token when they log out
+FR3: Authenticated user can log out
+FR4: System auto-authenticates a user immediately after successful registration
+FR5: System shows a one-time welcome message on the first login after registration
+
+**Session Management**
+FR6: System issues a short-lived access token on authentication
+FR7: System issues a long-lived refresh token on authentication
+FR8: System silently renews an expired access token with a valid refresh token
+FR9: System redirects to login with a session-expiry message when the refresh token is invalid
+FR10: System invalidates the refresh token on logout
+
+**User Account**
 FR11: Authenticated user can change their own password
-FR12: System displays the authenticated user's name in the application navigation on all screens
-FR13: Admin can view a list of all registered user accounts
-FR14: Admin can create a new user account with a username and initial password
+FR12: System shows the authenticated user's name in the navigation on all screens
+
+**Admin User Management**
+**FR13 (amended): Admin can view a list of all registered user accounts. The list is paginated: one page shows at most
+20 users in a stable order (username, ascending), with controls to move between pages and a display of the total user
+count. Creating or deleting a user keeps the admin on a valid page — deleting the only user on the last page moves back
+one page.**
+FR14: Admin can create a user with a username and initial password
 FR15: Admin can delete a user account
 FR16: Admin can reset any user's password
-FR17: System requires explicit admin confirmation before executing destructive user management actions (delete, reset
-password)
-FR18: Admin account credentials are supplied via environment variables and are not stored in the user database
-FR19: Admin can change their own password only by updating environment variables
-FR20: Admin can enable or disable public user self-registration at runtime
-FR21: System hides the registration option from the login screen when public registration is disabled
-FR22: Application configuration changes take effect immediately without requiring a service restart
-FR23: Application configuration is persisted as a runtime entity in the database
-FR24: System enforces role-based access control, distinguishing admin and regular user permissions on all protected
-operations
-FR25: System limits authentication and registration attempts from a single IP address within a time window
-FR26: System prevents users from registering a username reserved by the admin account
-FR27: System returns a consistent, non-distinguishing error message for all authentication failures
-FR28: System includes the authenticated user's identity and role in the request context for all API operations
-FR29: Unauthenticated users accessing protected routes are redirected to the login screen
-FR30: Authenticated admin users can access the user management interface
-FR31: Non-admin users accessing admin-only interfaces are denied access
-FR32: System provides guidance on the login screen for users who cannot access their account (contact admin)
-FR33: System displays a specific message when a user is redirected to login due to session expiry
+FR17: Destructive user-management actions (delete, reset password) require explicit admin confirmation
+FR18: Admin credentials come from environment variables, not the user database
+FR19: Admin changes their own password only via environment variables
 
-#### Epic 4 — List Management
+**Application Configuration**
+FR20: Admin can enable/disable public self-registration at runtime
+FR21: The registration option is hidden on the login screen when registration is disabled
+FR22: Configuration changes take effect without a restart
+FR23: Configuration is persisted as a runtime entity in the database
 
-FR34: User can create a named shopping list with an emoji icon and an optional description
+**User Feedback (new)**
+**FR66: A regular user can send feedback — an idea, a feature request, or a problem — from any authenticated screen.
+The account menu carries a Feedback entry that opens a form with a single free-text field (required, at most 2000
+characters). Submitting stores the entry with the submitter's username and the submission time, confirms that it was
+sent, and returns the user to the screen they came from; cancelling sends nothing. A user does not see, edit, or delete
+feedback after sending it. The admin account's menu does not show the Feedback entry (FR56).**
+**FR67: The admin can review user feedback in the admin area: all entries, newest first, each showing its text, the
+submitter's username, and the submission time. Feedback text is displayed as plain text, never interpreted as markup.
+The admin can delete an entry after explicit confirmation (as FR17 requires); deletion is permanent. This is the triage
+point — the admin carries what is worth keeping into project planning outside the app, then deletes the entry; feedback
+has no status, reply, or tagging in the app. Deleting a user account does not delete that user's feedback.**
+
+**Security & Access Control**
+FR24: Role-based access control distinguishes admin and regular users on all protected operations
+FR25: Authentication and registration attempts are rate-limited per IP
+FR26: Users cannot register the admin's reserved username
+FR27: All authentication failures return one non-distinguishing message
+FR28: The authenticated identity and role are in the request context of every API operation
+
+**Navigation & Access Routing**
+FR29: Unauthenticated users on protected routes are redirected to login
+FR30: Admin users can access the user management interface
+FR31: Non-admin users are denied admin-only interfaces
+FR32: The login screen guides users who cannot access their account (contact admin)
+FR33: A specific message is shown on redirect to login after session expiry
+
+**List Management**
+FR34 (amended 2026-09-15, no work): User can create a named list with an emoji icon; the optional description is
+dropped by decision
 FR35: User can view all lists they own or are a member of
-FR36: User can switch between lists using a chip-row switcher in the shopping view; the active list is always visible in the chip row, the toolbar title, and the URL
-FR37: Only the list owner can delete a list; deletion permanently removes the list, all its items, and all its categories from the database; active subscribers to the list are disconnected on deletion; non-owner members cannot delete — they can leave the list instead (see FR55)
-FR38: The active list is identified by URL (/list/[listId]); navigating to that URL loads the list's items; / redirects to the user's oldest list by creation date, or to /lists if the user has no lists
+FR36: User switches lists with a chip-row switcher on the shopping view; the active list is visible in chips, title, URL
+FR37: Only the owner can delete a list; deletion removes the list, its items and categories; subscribers are
+disconnected; non-owners leave instead
+FR38: The active list is identified by `/list/[listId]`; `/` redirects to the oldest list, or `/lists` when none
 
-#### Epic 4 — List Sharing & Membership
+**List Sharing & Membership**
+FR39: Owner shares by exact username, creating a pending invite the invitee accepts or rejects; specific errors for
+unknown user, existing member, or self
+FR40: All members have full item write access; the owner can remove any member; the removed member's items remain
+FR41: A user only views/modifies items and categories of lists they are an accepted member of; unauthorized
+`/list/[listId]` redirects to `/lists`
+FR55: A non-owner member can leave a shared list; their items remain
 
-FR39: List owner can share a list with another registered user by exact username match; sharing creates a pending invite; the invited user sees the invite with Accept and Reject buttons on the Lists page; the list is not accessible to the invited user until they accept; sharing with an unknown username, an existing member, or oneself produces a specific descriptive error message
-FR40: All list members (owner and shared users) can add, check off, edit, and delete items in a shared list; no owner/member role distinction exists within a list for item operations; the list owner can remove any member at any time — the removed member's items remain on the list and the removal takes effect on the member's next list data access (active subscription terminates via membership re-evaluation on next emitted event)
-FR41: A user can only view and modify items and categories in lists they own or have been accepted as a member of; pending invites do not grant access; unauthorized access to /list/[listId] redirects to /lists
-FR55: A non-owner list member can leave a shared list at any time; leaving removes the user from the member array immediately; items they added remain on the list
+**Item Lifecycle**
+FR42: *(Deferred since Epic 5, not re-scoped.)* One-timer items soft-delete on check-off with undo
+FR43: *(Deferred since Epic 5, not re-scoped.)* Recurring items (weekly/biweekly/monthly) restored by the scheduler
+**FR44 (amended): User can assign an item to zero, one, or several stores, since the same item can often be bought in
+more than one place. Both the add-item and edit-item dialogs offer a multi-value store field that suggests stores derived
+from existing item data and also accepts a new store name. Store names are trimmed; names differing only in letter case
+count as the same store and are not held twice on one item. A store is thus recognised consistently across items — the
+groundwork for showing only one store's items while shopping there (Phase 3). The shopping-view item row shows every
+store the item carries, and all of them stay inside the row's single check target (FR60).**
+FR45: Each item shows its `addedBy` username on the shopping-view row
+FR54: An hourly scheduler restores recurring items whose cadence elapsed and hard-deletes one-timers soft-deleted over
+an hour ago
+FR58: Item save is a merge — `addedBy`, `checkedAt`, `deleted`/`deletedAt` survive; create vs update is decided by
+whether the id exists on the target list; an id on a different list, or a category outside the target list, is rejected
 
-#### Epic 4 — Item Lifecycle
+**Data Scoping & Migration**
+FR46: All new items and categories are associated with a list at creation
+FR47: The one-time Epic 4 migration moves unscoped data to a default "Groceries" list, recorded in `app_migrations`
+**FR56 (amended): The admin account is restricted only to user management, application configuration, and reviewing
+user feedback (FR67); admin callers are rejected by all list-related GQL operations (`createList`, `lists`, `items`,
+`categories`, `shareList`, `deleteList`, and all subscription operations); the admin cannot create, own, view, or be a
+member of any list, and does not send feedback (FR66).**
+**FR69 (new): No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
+as its only store, and an item without one has no stores. The conversion runs once, on the first startup of the release
+that ships multi-store items, and does not re-run.**
 
-FR42: User can designate an item as a one-timer at creation or via edit; checking off a one-timer soft-deletes it (deleted: true, deletedAt: now) and removes it from the list view with a directional exit animation; an undo snackbar is available until the user navigates away from the current screen — tapping undo clears the soft-delete flag and restores the item; the hourly background scheduler (FR54) permanently removes items soft-deleted for more than one hour
-FR43: User can set an item as recurring (weekly, biweekly, or monthly); the cadence and any changes to it are configured in the item editor; the hourly background scheduler (FR54) restores recurring items whose cadence has elapsed since check-off: weekly = 7 days, biweekly = 14 days, monthly = 30 days; each cycle produces exactly one restoration regardless of how many cycles have been missed; restored items have checked: false
-FR44: User can optionally specify a store for an item; the item editor surfaces pre-populated store suggestions derived from existing item data
-FR45: Each item displays the username of the user who added it (addedBy) as an avatar or label on the item row in the shopping view
-FR54: A background scheduler service runs every hour; it performs two tasks: (a) restores recurring items whose cadence has elapsed since check-off by setting checked: false; (b) permanently hard-deletes one-timer items that have been soft-deleted for more than one hour; compound indexes on the items collection back both queries (index definitions are in the architecture document)
+**Navigation & UX**
+FR48, FR49: *(Superseded — Epic 4 bottom-tab design that never shipped.)*
+FR50: The lists index shows owned/member lists plus pending invites; a zero-lists state shows onboarding guidance
+FR51: Item creation and editing happen in overlays without leaving the current view
+**FR57 (amended): From any authenticated screen the user can return to the application home destination in one action:
+the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
+oldest list by creation date, the lists index when they own none, the admin area for the admin account); the shopping
+view additionally offers a back-to-lists affordance matching the list management screen's existing back link. No screen
+is a navigational dead end requiring the browser back button. The account menu also carries a Home entry that goes to
+the same destination as the title link, for users who look for navigation in the menu rather than on the title; on the
+home route the Home entry simply closes the menu.**
+FR59: The app is installable from Chrome on Android as a standalone WebAPK (manifest + PNG icons + service worker); no
+offline capability
+FR60: The whole shopping-view item row is one check target and one accessible control
+**FR61 (amended): Item filtering and search are available on both list surfaces with the same controls and semantics:
+a category filter accepting several categories (none selected = all) and a free-text name search, combined with AND;
+the shopping view keeps its checked-status toggle, which is not added to the management screen. Empty categories show on
+the management screen only when no filter or search is active; the shopping view always hides empty groups. The open
+category menu covers most of a phone screen, so it carries an explicit confirm control that closes it; selections apply
+as they are toggled, so confirming only closes and there is no cancel-and-revert. Tapping outside the menu or pressing
+Escape still closes it too.**
+FR62: Categories and their items are ordered by name identically on `/list/:id` and `/lists/:id`
+FR63: A list member can rename a category from the management screen; the rename reaches other members in real time
+**FR68 (new): The shopping view (`/list/:id`) offers a floating add button that adds an item to the list being viewed
+without leaving the screen. It opens the same add-item dialog the list management screen uses (name, category, store(s)
+per FR44) with the current list as the fixed target; the new item appears on the shopping view on save and reaches other
+members in real time (FR52). The button stays reachable while scrolling and never permanently covers the last item row
+or its controls. If the list has no categories yet, the dialog says a category is needed first and offers a way to the
+list management screen.**
 
-#### Epic 4 — Data Scoping & Migration
+**Real-Time Collaboration & Authentication**
+FR52: Item check-off, add, edit and delete reach other members' shopping views live via GraphQL subscription
+FR53: WebSocket subscriptions require a valid JWT in `connectionParams`; the backend closes on expiry; the frontend
+disposes the socket before clearing auth
 
-FR46: All newly created items and categories are associated with a specific list at creation time; no unscoped global items exist after Epic 4
-FR47: On first application startup after Epic 4 deployment, all existing items and categories without a listId are migrated to a default list (name: "Groceries", emoji: "🛒") owned by the most recently created non-admin user in the database; if no non-admin users exist, startup fails with a descriptive error; the migration writes a completion record to app_migrations and does not re-run on subsequent startups
-FR56: The admin account is restricted to user management and application configuration only; admin callers are rejected by all list-related GQL operations (createList, lists, items, categories, shareList, deleteList, and all subscription operations); the admin cannot create, own, view, or be a member of any list
-
-#### Epic 4 — Navigation & UX
-
-FR48: Bottom tab navigation (Today, Lists, Household) is the primary navigation chrome, replacing the existing AppBar and navigation drawer; the Household tab displays the current user's list memberships and allows list owners to remove members from lists they own
-FR49: The Today tab displays the active list's items organized by category with a progress strip; category groups disappear from view when all items in the group are checked off; a completion state is shown when all items across all categories are checked; the Today tab includes a + button to add a new item directly — if the user has multiple lists, a list selector is shown so they can choose which list to add to
-FR50: The Lists tab displays all lists the user owns or is a member of, plus a pending invites section showing lists awaiting accept or reject; a zero-lists state with no pending invites shows an onboarding message with guidance to create a first list, category, and item
-FR51: All item creation and editing occurs in bottom sheet overlays without navigating away from the shopping view; the create-list sheet contains a name field (required) and a description field (optional); closing any sheet returns the user to their exact scroll position
-
-#### Epic 4 — Real-Time Collaboration & WebSocket Auth
-
-FR52: Item updates (check-off, add, edit, delete) from any list member appear in real-time on all other members' shopping views via GraphQL subscription without requiring a manual refresh
-FR53: WebSocket subscription connections require a valid JWT supplied in connectionParams on connection establishment; unauthenticated connections are rejected; the backend closes the connection when the token expires; the frontend disposes the connection before clearing auth state on logout or password reset
-
-#### Epic 6 — Item Editing & Home Navigation
-
-FR57: From any authenticated screen the user can return to the application home destination in one action; the "Bag
-Please" title in the app bar is a link to `/`, which resolves (per FR38) to the user's oldest list or, with no lists, to
-the lists index; the shopping view additionally offers an explicit back affordance to the lists index, matching the one
-the list management view already provides
-
-**Also delivered in Epic 6 (previously undelivered portions of existing FRs, not new requirements):**
-
-- **FR40 — the `edit` verb.** FR40 grants every list member the right to "add, check off, **edit**, and delete items".
-  Add, check-off, and delete shipped in Epic 5; **edit has no UI on any surface**. Epic 6 delivers item editing (name
-  and category) on the list management view, available to every member with no owner/member distinction.
-- **FR44 — the store write path.** FR44 requires that a user "can optionally specify a store for an item" and that "the
-  item editor surfaces pre-populated store suggestions derived from existing item data". Epic 5 shipped only the *read*
-  side (the store chip on the shopping row); no UI can set or clear a store, and the backend's
-  `itemStoreSuggestions(listId)` query is unused. Epic 6 delivers the store field with suggestions in **both the create
-  and the edit dialog** (`md`, 2026-07-28). Scoping it to the edit dialog alone was rejected in review: it would have
-  turned "specify a store for an item" into "edit an item you already created to give it a store", satisfying the FR's
-  letter and not its substance.
-
-**Explicitly still deferred:** FR42 (one-timer) and FR43 (recurring cadence) remain deferred as Epic 5 left them. Their
-lifecycle control lives in the item editor per FR43, so Epic 6 builds the editor **without** it; undeferring them is a
-later epic and depends on the `checkedAt` preservation gap recorded in AR-E6-3.
-
-#### Epic 7 — Correctness, Test Harness & Dependency Currency
-
-FR58: Saving an item that already exists modifies only the fields the item editor sends. The item's recorded author
-(`addedBy`), its check-off timestamp (`checkedAt`), and its soft-delete state (`deleted`, `deletedAt`) survive the save
-unchanged. Create and update are discriminated by **whether the item id already exists on the target list**, never by
-whether an id was supplied: the client generates the id with `crypto.randomUUID()` for new items as well as for edits,
-so an id is always present. A save whose id is not found on the target list creates the item, with `addedBy` set from
-the caller; a save whose id is found merges the input onto the stored item. A save naming an id that exists on a
-**different** list is rejected with an error and moves nothing, and a save naming a category that does not belong to
-the target list is rejected rather than being written as a dangling reference.
-
-**Also delivered in Epic 7 (correctness restored on already-shipped FRs, not new requirements):**
-
-- **FR45 — `addedBy` stops being reassigned.** FR45 requires each item to display "the username of the user who added
-  it". BUG-E6-1 makes an edit re-attribute authorship to the editor, so the shopping view's avatar silently shows the
-  wrong person on any shared list. FR58 restores FR45's truth condition.
-- **FR54 — the recurring scheduler stops losing items.** FR54's restore pass `continue`s when `checkedAt == null`.
-  BUG-E6-2 clears `checkedAt` on every edit, so an edited recurring item is never restored. FR58 is the recorded
-  prerequisite for undeferring FR42/FR43.
-- **FR40 — an edit stops being able to resurrect a deleted item.** FR40 grants every member add/check/edit/delete.
-  BUG-E6-3 lets a stale open dialog re-create an item another member just deleted, or orphan it under a deleted
-  category (recoverable only with direct database access). FR58's explicit create-vs-update rule closes both outcomes.
-- **FR38 — `/` resolves to the genuinely oldest list.** FR38 says `/` redirects to "the user's oldest list by creation
-  date". `HomeRedirect` compares `createdAt` lexicographically against variable-precision `Instant.toString()` output,
-  so `…:05Z` sorts after `…:05.100Z` and the wrong list wins roughly once in a thousand list pairs.
-- **FR57 — the home affordance is a no-op when it is already home.** FR57 says the user can "return to the application
-  home destination in one action". Activating it while already standing on the resolved destination currently costs a
-  spinner flash and a dead history entry, so Back appears to do nothing once.
-
-FR59: The application is installable from Chrome on Android as a real standalone app, not a bookmark shortcut: Chrome's
-menu offers **"Install app"**, and the installed app has its own launcher icon, its own entry in the task switcher, and
-runs with no browser URL bar. Chrome builds a WebAPK only when all three of HTTPS, a linked manifest with PNG icons at
-192×192 **and** 512×512, and a registered service worker with a fetch handler are satisfied simultaneously; missing any
-one silently downgrades the result to a shortcut with no error.
-
-**Explicitly still deferred after Epic 7:** FR42 (one-timer) and FR43 (recurring) — FR58 discharges their recorded
-technical prerequisite, but `md` is reconsidering the requirements themselves before they are scoped, so they are not in
-this epic. FR34 (list description) still needs a `List.description` backend field and a schema change; it is out of
-Epic 7's scoped unfreeze (AR-E7-0).
-
-FR60: Anywhere on an item's row in the shopping view toggles that item's checked state, not the checkbox alone. The
-whole row is one activation target — the name, the store chip, the `addedBy` avatar and the empty space between them
-all toggle. The row is a single control to assistive technology as well: one accessible name, one checked state, one
-keyboard activation, rather than a checkbox with three inert siblings beside it.
-
-FR61: Item filtering and search are available on **both** list surfaces, with the same controls and the same semantics.
-The shopping view (`/list/:id`) and the management view (`/lists/:id`) each offer a category filter and a free-text name
-search, combined with AND. The category filter accepts **more than one category at a time**: selecting Dairy and Produce
-shows the items of both, and selecting none shows all. The shopping view keeps its checked-status toggle (All / To buy /
-Done), which has no meaning on the management surface and is not added there.
-
-The two surfaces share the controls and the predicate, and differ in **what an empty category means**. `md`'s ruling
-(2026-09-05): on the management screen, a category with no matching items is **hidden while a filter or a search is
-active, and shown when neither is** — so the screen keeps the empty-category affordance that is where a user adds
-their first item, and a search still behaves like a search. The shopping view is unchanged: it hides empty groups
-always, because there an empty category is only noise.
-
-FR62: Categories and the items inside them appear in the same order on both list surfaces. Categories are ordered by
-name, and items are ordered by name within their category, on `/list/:id` and `/lists/:id` alike. A user who arranges a
-list on one screen and then shops it on the other reads the same sequence in both places.
-
-FR63: A list member can rename a category from the list management screen. Each category row carries an edit affordance
-beside its existing add-item and remove controls; activating it opens a dialog pre-filled with the current name, and
-saving renames the category in place — its items stay attached to it and nothing else about it changes. The rename
-propagates to other members in real time on the shopping view, the same way an added or removed category already does.
-The scope is the **name only**: category has no other user-editable attribute today, and this requirement does not
-introduce one.
-
-**Explicitly still deferred after Epic 8:** FR42 (one-timer) and FR43 (recurring) — unchanged from Epic 7; the technical
-prerequisite is discharged and `md` has still not re-scoped the requirements. FR34 (list description) still needs a
-`List.description` backend field. Epic 8 authorises a scoped backend unfreeze **if a UX requirement demands one**
-(AR-E8-0), but none of FR60–FR63 does: all four are frontend-only against the existing schema.
+**Epic 9 FR scope:** FR13, FR44, FR56, FR57, FR61 (amended); FR66, FR67, FR68, FR69 (new).
+**Still deferred:** FR42, FR43 (not re-scoped by md). Phase 3 single-store shopping mode is not in Epic 9.
 
 ### NonFunctional Requirements
 
-NFR1: User passwords are hashed using bcrypt with cost factor 12; plaintext passwords are never stored or logged
-NFR2: Refresh tokens are stored in MongoDB with a TTL index matching their 30-day expiry; expired tokens are
-automatically purged
-NFR3: Refresh tokens are delivered exclusively via httpOnly, SameSite=Strict cookies; never accessible to JavaScript
-NFR4: Access tokens are short-lived (15 minutes); refresh tokens are long-lived (30 days)
+**Security**
+NFR1: Passwords hashed with bcrypt cost 12; plaintext never stored or logged
+NFR2: Refresh tokens stored in MongoDB with a 30-day TTL index
+NFR3: Refresh tokens delivered only via httpOnly `SameSite=Strict` cookies
+NFR4: Access tokens 15 minutes; refresh tokens 30 days
 NFR5: All client-server communication uses HTTPS in production
-NFR6: Authentication endpoints are rate-limited per IP address to prevent brute-force attacks
-NFR7: No passwords, raw tokens, or credential material appear in application logs
-NFR8: JWT payloads contain only username and role claims; no sensitive user data is embedded in tokens
-NFR9: Authentication operations (login, register, token refresh) complete in under 1 second under normal load
-NFR10: Auth UI screens (login, registration) render without perceptible layout shift or blocking on mobile devices
-NFR11: System supports a small user base (tens of users) in v1; no horizontal scaling or distributed session management
-required
-NFR12: ApplicationConfig is read directly from MongoDB on each request; no in-memory cache required for v1 given the low
-read frequency of admin config operations
-NFR13: All input fields on auth forms have visible, associated labels
-NFR14: Auth forms are fully keyboard-navigable (tab order, submit on Enter)
-NFR15: Form error messages are associated with their corresponding input fields
-NFR16: Text and interactive elements on auth screens meet minimum colour contrast for readability
-NFR17: The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
-production artifact (built SPA served by Caddy + backend + MongoDB) on both a desktop and a mobile viewport, and must
-pass with zero failures before any story in any epic is marked done; it is deliberately not pointed at the Vite dev
-server
-NFR18: E2E tests use browser-level isolation (no shared auth state across test files) and are UI-driven — each spec
-registers its own fresh user and signs in through the form; there is deliberately no login fixture and no
-`storageState`; direct API calls are permitted only to prepare the environment, never for the behaviour under
-assertion
+NFR6: Authentication endpoints are rate-limited per IP
+NFR7: No passwords, raw tokens or credential material in logs
+NFR8: JWT payloads carry only username and role
 
-#### Epic 4 — Lists & Sharing
+**Performance & Scalability**
+NFR9: Login, register and refresh complete in under 1 second under normal load
+NFR10: Auth screens render without perceptible layout shift on mobile
+NFR11: Small user base (tens of users); no horizontal scaling
+NFR12: ApplicationConfig may be cached in memory; writes invalidate immediately
 
-NFR-L1: Subscription events are scoped per-list; a subscriber to list A receives no events originating from list B under any circumstances; scoping is enforced at both subscribe time (membership gate) and per-event (membership re-evaluation via takeWhile)
-NFR-L2: Every service-layer method that reads or writes list-scoped data verifies the caller's list membership before accessing data; the membership check precedes all data access including read-only queries; no exceptions
-NFR-L3: The Epic 4 data migration is idempotent; running it against an already-migrated database produces no changes, no duplicate lists, and no errors; idempotency is guaranteed by an app_migrations completion record checked at startup
-NFR-L4: No list's items or categories are accessible to users not listed as members of that list at any layer of the stack (GQL resolver, service, storage); unauthorized access returns a GQL error, not an empty result
-NFR-L5: WebSocket subscription connections require a valid JWT supplied in connectionParams; the backend validates the token before establishing any subscription stream; the connection is closed when the validated token expires; the clearAuth() frontend function disposes the WebSocket client before clearing auth state to prevent orphaned in-flight events reaching React state after logout
+**Accessibility**
+NFR13: Every input field has a visible, associated label
+NFR14: Forms are fully keyboard-navigable (tab order, submit on Enter)
+NFR15: Form error messages are associated with their fields
+NFR16: Text and interactive elements meet minimum colour contrast
 
-#### Epic 6 — Item Editing & Home Navigation
+**Test gate**
+NFR17: A Playwright E2E suite covers every delivered flow, runs against the production artifact (Caddy-served SPA +
+backend + MongoDB) on a desktop and a mobile viewport, and passes with zero failures before any story is marked done
+NFR18: E2E tests use browser-level isolation and are UI-driven — each spec registers a fresh user and signs in through
+the form; no login fixture, no `storageState`; direct API calls only to prepare the environment, never for the behaviour
+under assertion; sessions are never faked by intercepting requests
 
-NFR-E6-1: An item edit never silently discards a field the editor does not expose; every value the edit form does not
-render is round-tripped from the current item into the `saveItem` input so a save is a modification, not a
-reconstruction. The two fields that are structurally impossible to round-trip (`addedBy`, `checkedAt` — absent from
-`ItemInput`) are the documented exception recorded in AR-E6-3 NFR-E6-2: The home affordance and the item edit affordance
-are reachable and operable on both the `chromium` and
-`mobile` (Pixel 7) Playwright projects; the app-bar title link must not displace or truncate the username chip at a
-~360px viewport NFR-E6-3: Both new affordances are keyboard-operable and screen-reader-labelled: the app-bar home link
-is a real link element (focusable, Enter-activated, discoverable as a link), and each per-row edit control carries an
-item-specific accessible name rather than a bare "Edit"
+**Narrow viewport**
+NFR64: A 320px CSS width is a supported viewport — nothing overflows horizontally, no control is pushed off-screen, and
+no text is clipped except where a story has measured the clipping and recorded the decision to keep it
+NFR65: The 320px floor is gated by the E2E suite on every phone-emulating project, asserted mechanically, never by eye
 
-#### Epic 7 — Correctness, Test Harness & Dependency Currency
+**Lists & Sharing**
+NFR-L1: Subscription events are scoped per list, at subscribe time and per event (`takeWhile` membership re-check)
+NFR-L2: Every service method touching list-scoped data verifies membership before any access, reads included
+NFR-L3: The Epic 4 migration is idempotent via an `app_migrations` completion record
+NFR-L4: No list data is reachable by non-members at any layer; unauthorized access is a GQL error, not an empty result
+NFR-L5: Subscriptions validate the `connectionParams` JWT before any stream, close on expiry, and `clearAuth()` disposes
+the socket first
 
-NFR-E7-1: **Dependency currency.** At epic close every direct dependency in `bp_front/package.json` and
-`gradle/libs.versions.toml` is either at its latest stable release or is deliberately held back with the reason
-recorded in **`deferred-work.md`** — the ledger both dev workflows read — **not** in `project-context.md`, which is a
-rules file for agents rather than a debt ledger. A held-back major with a blocking peer range is tracked debt and must
-live where tracked debt lives; this is the same distinction that made Story 6.1's AC15 execute while the FR9 item was
-orphaned. "We did not get to it" is not a reason; a failing upgrade with a named symptom is.
-
-NFR-E7-2: **The E2E suite is green at `retries: 0`, and stays green.** Two consecutive full runs at `retries: 0` pass
-on both `chromium` and `mobile` with no flake. Today the suite is green only under CI's `retries: 2`, and the
-`registrationEnabled` race has been accepted seven times across two epics. A probabilistic pass does not satisfy this
-NFR. **The measurement is taken twice: once when Story 7.3 claims it, and again at epic close** — because eleven
-stories run after 7.3, six of them dependency majors and one of them adding a service worker, and an NFR asserted once
-and then assumed for the rest of an epic is the same failure mode as a test that has never been seen to fail.
-
-NFR-E7-3: **`bp_front/e2e/` is inside both static gates.** `npm run lint` lints the spec files and `tsc -b`
-type-checks them, so the claim "lint and build pass" becomes a true statement about the suite the project treats as its
-hard gate. It covers nothing there today.
-
-NFR-E7-4: **Every backend behaviour change ships Kotest coverage, and every new test is observed failing first.** The
-existing suite stays green, and each new assertion is proven non-vacuous by breaking the behaviour it guards, watching
-it go red, and restoring — the Epic 6 convention, applied to backend tests as well as Playwright specs.
-
-NFR-E7-5: **The dependency upgrades change no user-visible behaviour.** After every bump the dark theme tokens, the
-~360px and desktop layouts, and every existing E2E assertion hold unchanged. A rendering difference is an upgrade
-failure, not an accepted cosmetic drift.
-
-NFR-E7-6: **Each major version bump is independently attributable.** A major lands, is verified green on its own, and
-only then does the next one start — so a break names its own cause. Bundling majors into one commit is forbidden.
-
-NFR-E7-7: **The service worker never intercepts the API surface.** `/api/*` (GraphQL HTTP and the auth REST endpoints)
-and `/api/subscriptions` (the WebSocket upgrade) are excluded from navigation fallback **and** from runtime caching; no
-API response is ever served from cache, and no authenticated response is ever written to one. The concrete test is
-`GET /api/graphiql`: it is a *navigation*, it is the project's documented backend-readiness check, and without an
-explicit denylist the service worker returns the SPA shell for it instead.
-
-NFR-E7-8: **Adding the service worker does not regress NFR-E7-2.** After the PWA story, two consecutive full runs at
-`retries: 0` still pass on both `chromium` and `mobile`. A service worker is a global request interceptor introduced
-into a suite where every spec navigates; it is landed last precisely so that any resulting flake is attributable to it
-and to nothing else.
-
-NFR-E8-1: **The app is usable down to a 320px CSS viewport width.** No screen overflows horizontally, no control is
-clipped, and no interactive element is pushed off-screen at 320px. The concrete driver is the Galaxy Z Fold 5 cover
-display (~344px CSS), which is narrower than anything the project has ever rendered: today's `mobile` E2E project
-emulates a Pixel 7 at **412px**, so every existing "mobile" assertion passes at a width 68px wider than the device the
-defects were reported on. 320px is the floor rather than 344px so the requirement outlives one handset.
-
-NFR-E8-2: **The narrow viewport is covered by the E2E gate, not by inspection.** The suite renders at the NFR-E8-1
-floor as part of a normal run, so a future story that reintroduces a fixed pixel cap fails the gate rather than
-reaching a phone.
-
-**`md`'s ruling (2026-09-05): retarget the existing `mobile` project to 320px — do not add a third one.** The project
-keeps its `devices['Pixel 7']` descriptor (Chrome-on-Android UA, touch emulation — the parts that were ever the point)
-with the viewport width overridden to the NFR-E8-1 floor. The reasoning, which supersedes the third-project framing the
-planning pass reached for first: the 412px figure has never caught a defect and is wider than the phone the defects
-were reported on; a fluid layout that holds at 320px holds at 412px, and the converse is exactly what shipped reports
-#2 and #3. The consequences are all favourable — the test count and runtime are unchanged, and because there are still
-only two viewport projects, the `@registration-toggle` chain's `dependencies: ['chromium', 'mobile']` remains complete
-and Story 7.3's race stays closed with no further work (AR-E8-2). What is given up is the *claim* of gating at 412px,
-which was a claim about a width nothing was measured at.
-
-NFR-E8-3: **Horizontal overflow is asserted mechanically, never by eye.** "Fits on screen" is checked as a measured
-property, by three assertions with three different jobs — element-level clipping (`el.scrollWidth > el.clientWidth`
-on the TEXT element, which is the load-bearing one: see AR-E8-3a), document-level overflow
-(`document.documentElement.scrollWidth <= clientWidth`), and per-element bounding-box containment for the controls
-named in the UX-DRs — because a screenshot review cannot fail a pipeline and truncation is silent by design (`noWrap`
-renders an ellipsis, not an error). All three ship in `e2e/support/layout.ts` as `expectNotClipped`,
-`expectNoHorizontalOverflow` and `expectInsideViewport`, one definition each (NFR-E8-5).
-
-NFR-E8-4: **Filtering and search stay client-side and instant.** FR61 adds no query, no round trip and no
-`refetch`; both surfaces already hold the full item and category sets in the Apollo cache. Typing in the search box
-does not put the app in a loading state.
-
-NFR-E8-5: **The two list surfaces cannot drift apart again without a gate failing.** FR61 and FR62 are one
-implementation used twice, not two implementations kept in step by prose. The ordering comparator and the filter
-predicate each have exactly one definition in `src/`, and a second copy is a review failure — the same rule Story 7.5
-applied to `byCreatedAtAsc` after two divergent `createdAt` sorts shipped.
-
-NFR-E8-6: **Every Epic 8 change is verified against the production artifact on desktop and at the narrow floor**,
-UI-driven, FR-mapped, manually exercised before the test is written, and **observed failing before it is accepted** —
-the Epic 6/7 non-negotiables carried forward unchanged.
+**Epic 9 NFR scope:** NFR17, NFR18, NFR64, NFR65 bind every story; NFR-L2 binds the category and user cascades (the
+admin-gated purge is its single caller-less exception, AR-E9-8); NFR13–NFR15 bind the feedback and multi-store dialogs.
 
 ### Additional Requirements
 
-From Architecture (Backend):
+From `ARCHITECTURE-SPINE.md` (Epic 9, final 2026-09-15), its inherited invariants, and the routed deferred work.
+Identifiers are `AR-E9-n`; where one restates an architecture decision, the AD number is given.
 
-- AR1: New auth REST endpoints replace the current single `/api/login` endpoint — `POST /auth/register`,
-  `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` — all under Ktor's `/api/` root path
-- AR2: Admin operations are exposed via GraphQL mutations/queries (not REST): `users` query, `createUser`,
-  `deleteUser`, `resetUserPassword` mutations, `applicationConfig` query, `setRegistrationEnabled` mutation. Auth
-  endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`, `/auth/change-password`) remain REST
-  because httpOnly cookie mechanics are not compatible with Apollo Client's response handling.
-- AR3: `User` entity vertical slice: domain model (`User`), Mongo model + mapper (`MongoUser`), `UserService` calling
-  `UserRepository` directly — no `UserStorage` in-memory cache layer. `UserStorage` is removed in Story 2.0.
-  Registration in Routing.kt (REST, not GQL).
-- AR4: `ApplicationConfig` entity for runtime flags (registration toggle): MongoDB `app_config` collection, read and
-  written directly via `ApplicationConfigRepository` — no in-memory cache. Each read hits MongoDB.
-- AR5: `Principal` must be threaded through the GraphQL context via `CustomGraphQLContextFactory` (currently
-  commented-out code in `GQL.kt`) so downstream services can use it
-- AR6: New MongoDB collections: `users`, `refresh_tokens`, `app_config`; `refresh_tokens` requires a TTL index on the
-  expiry field
-- AR7: Rate limiting must be added as a Ktor plugin (new `configure*()` function in `plugins/`), applied per-IP to
-  `/auth/login` and `/auth/register`
-- AR8: `src/test/resources/application.yaml` should replace `setUpJwt()` dynamic injection for static JWT config in
-  tests (resolves documented tech debt)
-- AR9: All new auth and admin route handlers follow the existing `configure*()` plugin pattern in `plugins/`; no inline
-  configuration in `Application.kt`
-- AR10: Test isolation rule applies to user data — tests must filter assertions by UUIDs created in the current test; no
-  test may assume the users collection is empty
+**Starter template:** none — brownfield. No new dependency; the stack is pinned as of 2026-09-15 (Kotlin 2.4.10, Ktor
+3.5.2, graphql-kotlin 10.2.1, Mongo driver 5.9.2, mongo:8, React 19.2.8, Apollo Client 4.2.11, MUI 9.3.1, TypeScript
+6.0.3, Vite 8.2.1, Playwright 1.62.1, app 0.18.0). Epic 9 upgrades nothing.
 
-From Architecture (Frontend):
+**Inherited, binding on every story**
+- AR-E9-0: Per-entity slice layout `entity/<name>/{Service,Storage,gql/,mongo/}`, one-way GQL → Service → Storage →
+  Repository. One Apollo + `graphql-ws` client; the access token lives in memory only. Nothing under `/api` is cached
+  or served as fallback by the service worker. Schema-changing stories regenerate codegen in the same story, never
+  editing `__generated__/`; backend and frontend ship in one app version (`gradle.properties` = `package.json`).
+- AR-E9-0a: Errors reuse `GraphQLForbiddenException` / `GraphQLInvalidInputException` / `GraphQLNotFoundException`; no
+  new error envelope. Kotlin GraphQL classes are `Gql*` with `@GraphQLName`; migration ids are `epic<N>-<slug>`.
+- AR-E9-0b: Backend rules are proven with Kotest + Testcontainers; every FR gets UI-driven E2E on both projects; 320px
+  assertions cover `/admin`, the feedback dialog, the FAB and the multi-store row.
 
-- AR11: Access token storage must migrate from `localStorage` to React state/context; `ApolloWrapper.tsx` SetContextLink
-  must read from context, not `localStorage`
-- AR12: A new React auth context must provide `username`, `role`, and token mutation functions (setToken, clearToken) to
-  the component tree without creating a second Apollo client instance
-- AR13: Apollo `onAuthError` callback must be enhanced to trigger silent token refresh on 401 before redirecting to
-  login
-- AR14: New App Router page files: `app/auth/register/page.tsx`, `app/admin/users/page.tsx`,
-  `app/account/password/page.tsx`
-- AR15: Any new GraphQL operations introduced (admin user management if exposed via GQL) go in
-  `src/lib/auth/Queries.tsx`; `npm run generate` must be run after any schema change
+**Feedback slice (FR66, FR67, FR56)**
+- AR-E9-1 (AD-1): New `entity/feedback/` — `Feedback`, `FeedbackService`, `mongo/FeedbackRepository` (collection
+  `feedback`), `gql/FeedbackApi` — on the user/config pattern: no Storage cache, no SharedFlow, no subscription.
+  Document: `_id` UUID stored as string (`UUIDSerializer`, filter with `id.toString()`), `text`, `username` (plain
+  string copied from the principal, no user-id reference), `createdAt` Instant. User deletion never touches the
+  collection. `com.bagplease.entity.feedback.gql` is added to the schema `packages` in `GQL.kt`.
+- AR-E9-2 (AD-2): The two private `requireAdmin()` copies (verified in `UserAdminApi.kt` and `ApplicationConfigApi.kt`)
+  become one `DataFetchingEnvironment.requireAdmin()` in new `plugins/GqlAuth.kt`, used by `UserAdminApi`,
+  `ApplicationConfigApi` and `FeedbackApi`. `sendFeedback(text: String!): Boolean!` takes only text; the service
+  rejects the admin (`caller != adminLogin`) with Forbidden, measures `text.trim().length` (UTF-16), rejects blank or
+  >2000 with `GraphQLInvalidInputException`, stores the trimmed text, sets `username` from the principal and
+  `createdAt` from the server clock. `feedback: [Feedback!]!` returns `createdAt` desc then `_id`, unpaginated;
+  `deleteFeedback(id: ID!): ID!` returns the deleted id; both `requireAdmin()`. The client validates the same trimmed
+  length with no raw `maxLength`, renders text only as React text nodes, confirms deletes with `ConfirmDialog`, and
+  never re-sorts.
 
-From Architecture (Epic 4):
+**Multi-store items (FR44, FR69, FR60) and check state**
+- AR-E9-3 (AD-3): `stores: [String!]!` replaces `store` in every layer **in one story**: `Item.stores`,
+  `MongoItem.stores = emptyList()`, `GqlItem.stores`, `ItemInput.stores`, both mappers, and `ItemRepository.save`,
+  which writes `Updates.set("stores", …)` and `Updates.unset("store")` in one update. The same story ships the
+  AR-E9-5 migration, removes `store` from the schema, updates every frontend document through the `ListItemFields`
+  fragment, and updates the raw GraphQL in `e2e/item-editing.spec.ts`. `saveItem`'s update branch copies `name`,
+  `category`, `stores`, `recurring`; check state goes through AR-E9-11.
+- AR-E9-4 (AD-4): The server is the normalization authority: `trim()` each name, drop empties, dedupe by
+  `lowercase(Locale.ROOT)` keeping first-occurrence casing and position; internal whitespace kept; applied on create
+  and update. Identity is the lowercased key; stored casing is display data. `itemStoreSuggestions` returns one name
+  per key — the lowest by (lowercase, then `compareTo`) — sorted in that order. The client mirror in
+  `lib/lists/storeValue.ts` uses `trim()` + `toLowerCase()` (never locale variants), blocks duplicate keys, and treats a
+  casing-only edit as a change; the server's result is authoritative. `STORE_MAX` per name stays client-side; a
+  matching server check may be added without an AD.
+- AR-E9-5 (AD-5): `configureMigration` runs `[epic4-list-seed, epic9-multi-store]` in order, each checking only its own
+  `app_migrations` id — today the function returns early once `epic4-list-seed` is recorded (verified,
+  `Migration.kt:33-35`), which would skip the new migration. `epic9-multi-store` processes item documents one at a
+  time where `store` exists: `stores` = normalizer(`(existing stores ?: []) + [store]`) (null/blank adds nothing), then
+  `store` is unset; completion record written last; runs before `configureGql`. Its test seeds legacy-only, `stores: []`
+  plus a leftover `store`, null/blank/padded `store`, and already-converted documents, with `epic4-list-seed` recorded.
+- AR-E9-5a: **Deploy rule:** the release carrying `epic9-multi-store` is preceded by a `mongodump` of the `db_data`
+  database; rollback = restore the dump + run the previous image. Recorded in `docs/deployment-guide.md` by that story.
+- AR-E9-11 (AD-11): One private `ItemService.applyCheckState(stored, checked, recurring, now)` used by `checkItem`,
+  `uncheckItem` and `saveItem`'s update branch: checked + `ONE_TIME` → `deleted = true`, `deletedAt = now`; checked +
+  recurring cadence → `checkedAt = stored.checkedAt ?: now` (also when only `recurring` changed); checked + no cadence
+  → nothing stamped; unchecked → clear `checkedAt`, `deleted`, `deletedAt`. Every other server-owned field survives
+  (FR58). Closes the Story 7.4 deferred entry (`checked = true` with null `checkedAt`).
+- AR-E9-12 (carry-in, rides FR44): correct the four factually wrong comments in `EditItemDialog.tsx` (Story 7-4 review
+  entry), and an orphaned item's edit dialog must no longer close silently when saved without touching the category
+  (Story 8.5/8.6 entry).
 
-- AR-E4-1: New entity `entity/list/` full vertical slice — List.kt (id, name, emoji, ownerId, members: List<UUID>, createdAt), ListStorage.kt, ListService.kt (verifyMembership, isMember, createList, deleteList, shareList), gql/GqlList.kt, GqlListMapper.kt, ListApi.kt (Query + Mutation), mongo/MongoList.kt, MongoListMapper.kt, ListRepository.kt; follows the existing entity/item/ pattern exactly
-- AR-E4-2: CallerUsername value class: `@JvmInline value class CallerUsername(val value: String)` in `features/auth/CallerUsername.kt`; constructed only in GQL resolvers from validated JWT Principal; never nullable, never from client input; never accepted from service or storage layer
-- AR-E4-3: ItemStorage and CategoryStorage refactored from flat `ConcurrentHashMap<UUID, Entity>` to nested `ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Entity>>` (listId → entityId → entity); inner map creation uses `computeIfAbsent` (not `getOrPut` — not atomic); add `evictList(listId)` method to both
-- AR-E4-4: `ListService.deleteList` owns both `ItemStorage.evictList(listId)` and `CategoryStorage.evictList(listId)` calls in sequence — this is service-layer responsibility, never called from the GQL layer; partial eviction self-heals via lazy-sync-from-Mongo guard
-- AR-E4-5: Migration in `plugins/Migration.kt`; runs in `Application.module()` before `configureRouting()`; checks `app_migrations` for `{type: "epic4-list-seed", complete: true}` idempotency guard; `MIGRATION_TARGET_USER` env var from `application.yaml`; hard-fails if env var unset and items collection non-empty; hard-fails if named user not found in users collection
-- AR-E4-6: GraphQL schema changes — new queries: `lists`; new mutations: `createList(name, emoji)`, `deleteList(id)`, `shareList(listId, username)`; modified: `items(listId: ID!)`, `categories(listId: ID!)`, `saveItem` (ItemInput gains listId, store, recurring), `itemUpdates(listId: ID!)`, `categoryUpdates(listId: ID!)`; `npm run generate` required after schema merge; frontend stories depending on these operations must not start before the schema merge
-- AR-E4-7: Subscription scoping via filtered broadcast with two-point membership enforcement — Point 1: `listService.verifyMembership(caller, listId)` throws at subscribe time; Point 2: `.takeWhile { listService.isMember(caller, listId) }` re-evaluates on every emitted event; both points are mandatory; implementing only Point 1 misses mid-session membership revocation
-- AR-E4-8: WebSocket auth — `GraphQLWsLink` `connectionParams` supplies `{Authorization: "Bearer <token>"}` from `AuthContext.accessToken`; backend validates JWT before establishing stream; closes connection on token expiry; `clearAuth()` sequence (strict ordering): `client.dispose()` → `localStorage.removeItem('token')` → clear React state
-- AR-E4-9: Frontend routing — `/list/[listId]` (Today view), `/lists` (list index, never auto-redirects), `/household`; `BPBottomNav` component replaces `AppHeader` + `Navigation`; active tab from `usePathname()`; `app/layout.tsx` removes `AppHeader`/`Navigation`, adds `BPBottomNav`; `app/page.tsx` redirects to `/list/[oldestListId]` or `/lists`
-- AR-E4-10: `ThemeProvider` (NOT `CssVarsProvider`) per UX spec override; standard `createTheme` in `lib/theme.ts`; `CssVarsProvider` explicitly deferred — the UX spec overrides the architecture.md resolved decision on this point
-- AR-E4-11: `app/store/` directory replaced entirely by `app/list/[listId]/`; no parallel coexistence allowed; store components (ItemsList.tsx, ItemView.tsx, CreateItem.tsx, etc.) migrated to new route structure or deleted; no story may leave `app/store/` as a live route alongside `app/list/[listId]/`
-- AR-E4-12: `addedBy` populated server-side from `principal.userId` in GQL resolver; not in `ItemInput`; clients cannot supply or override this field; migrated items have `addedBy: null`
-- AR-E4-13: `recurring` is `enum class Recurring { WEEKLY, BIWEEKLY, MONTHLY }` with `recurring: Recurring?` in `Item.kt`; `null` = regular item (persists across check-offs); `"one-time"` is a separate lifecycle designation (soft-delete on check-off) represented as a distinct named value, not a flag; GQL exposes recurring as String; Mongo stores enum name as string
-- AR-E4-14: Compound indexes on items collection — `{listId, _id}` for per-list retrieval; `{listId, recurring, checkedAt}` and `{deleted, deletedAt}` for hourly scheduler queries; added in `ItemRepository.init {}` block
-- AR-E4-15: Testing requirements — every list-scoped service test must include: (a) negative-path membership test (caller not a member); (b) cross-tenant isolation assertion (second user cannot access); evictList test must assert both ItemStorage and CategoryStorage empty for deleted list AND that a different list is unaffected; subscription test must exercise mid-stream membership removal via takeWhile; migration test must assert idempotency guard; Playwright must include two-actor real-time collaboration E2E test
+**Admin users pagination (FR13) and E2E data hygiene**
+- AR-E9-6 (AD-6): `users(limit: Int!, offset: Int, around: String): UserPage!` →
+  `UserPage { users: [User!]!, totalCount: Int!, offset: Int! }`, sorted by `username` asc (binary collation). Server
+  clamps `limit` 1..100 and `offset` 0..last page; `around` naming an existing username returns the page containing it.
+  Frontend page size 20; `/admin` shows `totalCount`; after create query `around: <new username>`, after delete
+  `offset: min(current, lastPage)`. `AdminUsersQuery` uses `cache-and-network`; every successful `createUser`/
+  `deleteUser` runs `cache.evict({fieldName: 'users'})` + `cache.gc()`. The unpaginated `users` field is removed.
+  Test ids: `admin-users-prev`, `admin-users-next`, `admin-users-page`, `admin-users-total`. E2E helpers act on a
+  created user only on the page the create landed on — never page-walk.
+- AR-E9-6a (carry-in D4): per-run E2E data hygiene is owed regardless of pagination (users table grows ~120 rows per
+  run; `createUserViaUi` measured 5015 ms vs a 5000 ms budget at ~5.5k rows). Mechanism chosen at story level within
+  NFR18; a retry loop is forbidden.
+- AR-E9-6b (carry-in): the `/admin` username cell `noWrap` + `{xs: 140, sm: 260}` cap and the missing floor assertion on
+  `/admin` ride FR13 — measure and fix or record, with an `expectNotClipped` assertion. `/lists` half is closed by md.
 
-From Architecture (Epic 6) — verified against the current code, not inferred from the architecture document:
+**Cascades (routed backend fixes)**
+- AR-E9-7 (AD-7): `CategoryService.deleteCategory` checks membership, deletes the category through `CategoryStorage`,
+  then calls `internal ItemService.deleteAllInCategory(listId, categoryId)`, removing every item in that category —
+  **including `deleted = true` items** — from Mongo and the per-list storage map. The cascade emits **only** the
+  category `DELETED` event (the item SharedFlow is one-slot `DROP_OLDEST`; per-item events would be dropped). Clients
+  treat category `DELETED` as authoritative for its children and prune cached items of that category. The client-side
+  item delete loop in `ListDetailPage` (verified at `:449-451`) is removed. `saveItem` rejects a category outside the
+  target list on **both** create and update branches (existing message; retire the create-hole tripwire test);
+  `uncheckItem` rejects an item whose category no longer exists; `AddItemDialog` maps that error the way
+  `EditItemDialog` does. E2E: delete a category holding ≥5 items while a second member watches `/list/:id`.
+- AR-E9-8 (AD-8): Only `ListService` writes `list_members` or `List.members`/`memberUsernames`.
+  `UserAdminMutations.deleteUser` (after `requireAdmin()`) runs in order: (1) `UserService.adminDeleteUser`; (2)
+  `ListService.purgeUser(userId, username)`; (3) `AuthService.invalidateUserSessions`. `purgeUser` is idempotent, the
+  only caller-less list-mutating entry point, writes only through `ListStorage.save` and `ListMemberRepository`, removes
+  every `list_members` row for the user in any status, strips them from non-owned lists' `members` (by id) and
+  `memberUsernames` (by name), and **deletes lists they own with full cascade** (md, 2026-09-15 — not transferred)
+  through a private `cascadeDeleteList(list)` that `deleteList` also calls. `DeleteUserDialog` (FR17) states the number
+  of owned lists that will be deleted, from new `User.ownedListCount: Int!`. List deletion emits no subscription event;
+  other members are redirected on their next Forbidden (Story 5.6), which is all the E2E asserts.
 
-- **AR-E6-0 (standing constraint): the backend is frozen for Epic 6.** Both stories are frontend-only. No Kotlin file,
-  no GraphQL schema change, no `npm run generate` run. This carries Epic 5's reframe rule 2 forward, and it is what
-  makes AR-E6-2 and AR-E6-3 constraints rather than bugs to fix. Any backend need discovered mid-story stops the story
-  and goes to `md`.
-- **AR-E6-1: `saveItem` is the edit mutation — it is a full-document upsert keyed by `id`, not a partial patch.**
-  `ItemService.saveItem` calls `storage.save(item)` with no merge against the existing document, so **every field absent
-  from `ItemInput` reverts to its `Item` default**. The existing `SaveItemMutation` document is reused as-is (same
-  operation, same variables); editing means sending the *same* `id` with changed fields. `ItemInput` = `{id, name,
-  checked, category, listId, store, recurring}` — nothing else can be sent.
-- **AR-E6-2: the edit form must round-trip `checked` and `recurring` from the current item, not send defaults**
-  (NFR-E6-1). `AddItemDialog` hardcodes `checked: false, recurring: null`, which is correct for creation and **wrong for
-  an edit**: reusing that shape would silently uncheck a checked item and strip a cadence from a recurring one. The edit
-  dialog must seed both from the item it opened on and pass them through unchanged. **Assessed in review as the single
-  most likely defect in this epic** — a one-line mistake with a mid-shop symptom (you fix a typo and an item you already
-  put in the cart jumps back onto the to-buy list). Story 6.1 therefore requires a named regression test — *edit a
-  checked item, assert it is still checked* — on **both** the `chromium` and `mobile`
-  projects. It must be an explicit AC, not left to the implementer's judgement.
-- **AR-E6-3: two fields cannot be preserved through an edit. `md`'s ruling (2026-07-28): preserve them if possible, and
-  where it is not possible, file it as a BUG — not as an accepted trade-off. The backend stays frozen either way.**
+**Readiness (carry-in F20 / Story 7.12)**
+- AR-E9-9 (AD-9): `get("/health")` inside `routing {}`, outside `authenticate` and any `rateLimit`, served at
+  `/api/health` via `rootPath: "api"` (verified in `application.yaml`). Mongo `ping` inside `withTimeout(2.seconds)`:
+  200 on success, 503 on any exception or timeout. Backend test through `testApplication` with the real config.
+  `playwright.config.ts` `webServer.url` = `http://localhost:2080/api/health`. A compose healthcheck, if added, runs on
+  `bp_front` with busybox `wget -qO- http://localhost/api/health`; no probe tool is added to the `bp_back` image. The
+  service-worker `/api` denylist is unchanged. `webServer` teardown and stdout filtering are chosen at story level.
 
-  Verified impossible frontend-only. `GqlItemInput` carries exactly seven fields (`id`, `name`, `checked`, `category`,
-  `listId`, `store`, `recurring`); `ItemApi.saveItem` calls `GqlItemMapper.mapItemFromInput(item, caller.value)`,
-  setting
-  `addedBy` from the caller unconditionally; `ItemStorage.save` overwrites the whole document. **No value the frontend
-  can send preserves these fields.** Confirmed against source, not inferred.
+**Frontend composition**
+- AR-E9-10 (AD-10): The FAB opens the existing `AddItemDialog` with the current `listId` — no second add dialog;
+  `AddItemDialog` owns the no-categories guidance. `StoreField` becomes one multi-value component (`value: string[]`)
+  used by both item dialogs. `AppShell` adds the Home and Feedback account-menu entries once; Home reuses
+  `useHomePath('observe')` and the existing `alreadyHome` comparison; the existing Lists entry stays; Feedback is
+  hidden for the `admin` role and opens a dialog rendered by `AppShell` (not a route) so the current screen stays
+  mounted. Store chips stay non-interactive inside the FR60 row; test ids `shopping-item-stores-<item>` (container) and
+  `shopping-item-store-<item>-<store>` (chip).
+- AR-E9-10a (Frontend data convention): every operation returning an `Item` spreads one fragment, `ListItemFields`, in
+  `lib/lists/listsQueries.ts`; `subscribeToMore` handlers use the generated fragment type. Admin operations live in
+  `lib/admin/adminQueries.ts`; admin collections use `cache-and-network` + evict-on-mutation.
+- AR-E9-13 (carry-in, rides FR57): the empty `/lists` dead end in the installed PWA is closed by the Home menu entry;
+  `useHomePath`'s `if (error)` branch is gated on `mode === 'resolve'` / reordered after `!data` (unreachable-in-observe
+  + branch-order entries). The cold-start home-link question is **closed as leave-as-is** (md, 2026-09-15): observe mode
+  stays `cache-only`.
+- AR-E9-14 (carry-in, rides FR61): F2 — a category explicitly selected in the filter stays rendered on `/lists/:id` even
+  when empty (e.g. `keepEmpty || filter.categoryIds.includes(group.key)`), covered in the FR61 empty-category spec.
+  F5 — resolved by **de-keying**: the synthetic `Uncategorized` bucket is keyed by a sentinel id, frontend-only;
+  `saveCategory` gains no name rule.
 
-    - **BUG-E6-1 (FR45 regression): editing an item re-attributes `addedBy` to the editor.** A member who edits another
-      member's item becomes its recorded author, and the shopping row then shows the wrong avatar. Cause diagnosed
-      above; the fix is server-side (in `ItemService.saveItem`, load the existing item by id and carry `addedBy` forward
-      on update). **Out of scope for Epic 6 — the backend is frozen (AR-E6-0) — but recorded as a known defect, not as
-      intended behaviour.** Concretely: the household where one person plans and the other shops ends up crediting the
-      shopper for the planner's work.
-    - **BUG-E6-2 (blocks FR42/FR43): `checkedAt` / `deleted` / `deletedAt` reset on every save.** Same cause, same
-      server-side fix. Zero impact today because Epic 5 authors every item with `recurring: null`, so `checkedAt` is
-      never set — but editing a checked recurring item would clear `checkedAt` and the FR54 scheduler would never
-      restore it. **This must be fixed before FR42/FR43 can be undeferred.**
-    - **Mitigation that IS in scope — no-op guard.** If the user opens the edit dialog and saves without changing
-      anything, skip the mutation entirely (compare the four editable fields against the item, close the dialog). This
-      does not fix BUG-E6-1; it stops Epic 6 from triggering it gratuitously, e.g. on an opened-and-dismissed-with-Save
-      dialog.
-    - **Both bugs must be logged in `deferred-work.md`, and that logging is an acceptance criterion of the story — not a
-      line in this section.** FR9's automated E2E was also "written down", in story prose, and was still orphaned across
-      the 5.4 → 5.5 workflow handoff. A requirements-doc mention is not a mechanism; an AC is.
-- **AR-E6-4: the store-suggestion source already exists and is unused.** `ItemQueries.itemStoreSuggestions(listId: ID!):
-  [String!]!` returns the list's distinct non-null store values (`ItemService.getStoreSuggestions`, membership-gated).
-  It has **no operation document in `listsQueries.ts`** and therefore no generated type. Authoring a query document is
-  not a schema change — but it *does* require `npm run generate` (stack on `:2080` + fresh `CODEGEN_TOKEN`), which is
-  the one codegen run Epic 6 needs. Run it before writing the component that consumes it.
-- **AR-E6-5: item edit lands on `ListDetailPage` (`/lists/:id`) only — re-confirmed by `md` after review challenge (
-  2026-07-28).** The governing principle is **separation of intent: `/lists/:id` is for *managing* a list, `/list/:id`
-  is for *using* one.** `ListShoppingPage` stays check-off-only and gains **no** edit affordance — the same reason it
-  carries no delete button. The challenge this survived is on the record: editing from the aisle now costs a round trip
-  through
-  `/lists`, which makes Story 6.2's navigation work load-bearing for Story 6.1's usability. If the return path is
-  clumsy, the aisle-edit case comes back as a defect report. The edit dialog is a new
-  `src/components/EditItemDialog.tsx` following the `AddItemDialog` conventions (validate-on-submit,
-  `if (loading) return` re-entry guard, real `catch` → inline `Alert`, `helperText={… ?? ' '}`).
-- **AR-E6-5a: the store field is shared code, not duplicated.** Story 6.1 adds `store` to **both** dialogs, so
-  `AddItemDialog` *is* modified. The store input **and** its suggestion chips must be one component both dialogs
-  import — not copy-pasted — so a later validation rule cannot land in one and miss the other. `AddItemDialog`'s
-  existing hardcoded `checked: false, recurring: null` stays correct for creation; only `EditItemDialog` round-trips
-  them (AR-E6-2).
-- **AR-E6-6: the edit is visible live to other members with no extra work** — `ItemService.saveItem` emits on
-  `itemUpdateChannel`, and `ListShoppingPage`'s `subscribeToMore` merge already upserts a `SAVED` event by `id`. No
-  subscription, cache, or merge change is needed; `ListDetailPage` has no subscription and refreshes via its existing
-  `refetch()`.
-- **AR-E6-7: the home affordance belongs in `AppShell.tsx`**, the single component wrapping every guarded screen — so
-  one change covers all of them. Target `/`, whose `HomeRedirect` already resolves oldest-list-or-`/lists` (FR38) and
-  already routes `admin` to `/admin`; do not re-implement that resolution in the app bar. Use `component={RouterLink}`
-  (declarative react-router 7 API — no `createBrowserRouter`) and **never** an imperative `navigate()`, per the standing
-  rule that `RouteGuard` is the sole owner of auth-driven redirects.
-- **AR-E6-8: `ListDetailPage` already contains the exact back-link pattern** to copy for the shopping view — MUI `Link
-  component={RouterLink} to="/lists"` + `ArrowBackIcon`, `data-testid="list-detail-back"`. Reuse it verbatim in
-  `ListShoppingPage` with its own testid rather than inventing a second idiom.
-- **AR-E6-9: styling and testing conventions are unchanged** — theme + `sx` only (no `style`/`className`); MUI v9 API
-  looked up via the `mcp__mui-mcp__fetchDocs` MCP tool before writing components, never from v5/v6 memory; testids on
-  inputs via `slotProps={{htmlInput: {'data-testid': …}}}`; every story ships FR-tagged Playwright specs passing on
-  **both** `chromium` and `mobile`, each flow manually exercised in a real browser first; each spec registers its own
-  fresh user and asserts only on data it created.
+**Small cleanups (own story, runs after the `AppShell` stories)**
+- AR-E9-15: untrack `.idea/dataSources.xml` (or gitignore it); add `codegen.ts` to `tsconfig.node.json` `include`;
+  sweep stale `./db/data` paths in `docs/deployment-guide.md` and `bp_front/e2e/` comments; drop the redundant trailing
+  `Unit` in `UserService.changePassword`; gitignore `dev-dist/` (and ESLint ignores); delete dead `ListStorage.delete()`;
+  delete the `custom.bp.*` theme tokens still unconsumed at that point (`bg2`, `card2`, `sheetBg`, `stripe` today) and
+  their module-augmentation types, updating `DESIGN.md` §3/§11.2.
 
-From Architecture (Epic 7) — verified against the current code and against live package registries, not inferred:
-
-- **AR-E7-0 (standing constraint): the backend unfreeze is scoped, not general.** Epic 7 deliberately ends the
-  three-epic `bp_back/` freeze — but only for the changes named in AR-E7-1, AR-E7-2 and AR-E7-11, plus the Gradle
-  catalog bumps in AR-E7-9. Every backend story names the files it may touch. A backend need discovered mid-story that
-  falls outside that list stops the story and goes to `md`, exactly as under the freeze. "The freeze is over" must not
-  become open season on `bp_back/` — the freeze's value was that it made every backend change a decision.
-- **AR-E7-1: the `saveItem` defect family has one cause and one fix.** `ItemApi.saveItem` calls
-  `GqlItemMapper.mapItemFromInput(item, caller.value)`, which constructs a **fresh** `Item`; `Item` defaults
-  `addedBy`, `checkedAt`, `deleted` and `deletedAt`. `ItemService.saveItem` then calls `storage.save(item)` with no
-  merge, and `ItemRepository.save` runs `Updates.set` on every field with `UpdateOptions().upsert(true)`. So every
-  field absent from `ItemInput` is written back as its default. The fix is in `ItemService.saveItem`: load the stored
-  item by (`id`, `listId`) and `copy()` only the seven fields `GqlItemInput` actually carries (`id`, `name`, `checked`,
-  `category`, `listId`, `store`, `recurring`), leaving `addedBy`, `checkedAt`, `deleted` and `deletedAt` untouched.
-  **`GqlItemInput` is unchanged, so there is no GraphQL schema change and no `npm run generate` run in this epic.**
-- **AR-E7-2: create-vs-update is discriminated by EXISTENCE IN STORAGE, never by presence of the id** (`md`,
-  2026-07-29). An earlier draft of this requirement said "absent id → create, present id → update, reject an id that
-  does not exist". **That draft was wrong and would have broken add-item entirely.** `GqlItemInput.id` is
-  non-nullable (`GqlItemInput.kt:9`) and the frontend generates the UUID client-side with `crypto.randomUUID()` for
-  *creates* as well as edits, so an id is always present and rejecting unknown ids would reject every new item.
-  `md`'s ruling: **the frontend keeps generating the UUID.** The fix therefore discriminates on the lookup:
-    - Load the stored item by (`id`, `listId`). **Found** → `copy()` only the seven fields `GqlItemInput` carries.
-      **Not found** → create it, `addedBy` set from the caller exactly as today.
-    - An id that exists on a **different** list is an error, not a cross-list move.
-    - `category` is validated as belonging to `listId` before the write, closing **BUG-E6-3b** — the
-      dangling-category outcome whose only recovery today is direct database access.
-    - **This needs no GraphQL schema change and no `npm run generate` run**, so AR-E7-1's promise holds.
-- **AR-E7-2a: BUG-E6-3a (resurrection) is NOT fixed by Story 7.4, and that is a recorded decision rather than an
-  oversight.** `ItemStorage.delete` is a hard delete (`ItemStorage.kt:41-46`), so a deleted id no longer exists and a
-  save against it takes the create branch. The merge fix does, however, **downgrade its severity**: the item returns as
-  a genuinely new row — `addedBy` is the editor, who did in fact create it, and `checkedAt` is null, correct for a new
-  item — and it is removable through the UI. The user-describable behaviour becomes *"you edited something that had
-  already been deleted, so it came back as a new item"*, which is no longer silent corruption. A real fix requires
-  making `deleteItem` a soft delete (tombstones the scheduler would then own), which is outside Epic 7's scoped
-  unfreeze. **Story 7.4 must record this in `deferred-work.md` as a severity downgrade with the proposed fix — never
-  close it silently on the grounds that the merge made it tolerable.**
-- **AR-E7-3: `checkItem`, `uncheckItem` and `runSchedulerCycle` are already correct — they `copy()` the stored item —
-  and are the reference for the pattern.** They must not regress; their existing Kotest coverage is the regression net
-  for the `ItemService` change. Note `uncheckItem` deliberately clears `checkedAt`; that is the scheduler contract, not
-  an instance of the bug.
-- **AR-E7-4: `e2e/` enters the static gates via a third tsconfig project.** Add `tsconfig.e2e.json` to the `references`
-  array in `tsconfig.json` (alongside `tsconfig.app.json` and `tsconfig.node.json`) covering `e2e`, and widen
-  `package.json`'s `"lint": "eslint src/"`. The spec files are Node-side, not browser-side: they need
-  `@playwright/test` types and `globals.node`, and `eslint-plugin-react-refresh`'s `only-export-components` rule must
-  **not** apply to them — it is the rule that forced `normalizeStore` out of `StoreField.tsx` in Epic 6, and a helper
-  module full of exported functions is exactly what AR-E7-5 requires. Expect this story to surface real pre-existing
-  errors across ~1,015 lines of Epic 6 spec code that nothing has ever type-checked; fixing them is in scope.
-- **AR-E7-5: one shared E2E support module, and it lands before the race fix.** `uniqueUsername`, `registerViaUi`,
-  `openListsViaMenu`, `createListAndOpen`, `addCategory`, `addItem`, `loginApi` and `gql` are currently re-declared in
-  `lists.spec.ts`, `shopping.spec.ts`, `sharing.spec.ts` and `item-editing.spec.ts`, differing only in the
-  `uniqueUsername` prefix. Extract them once (e.g. `e2e/support/`) and import everywhere. This is sequenced **before**
-  AR-E7-6 for a concrete reason: `registerViaUi` carries the `expect(...).toPass()` race workaround, so fixing the race
-  first would mean fixing it in four places. **This is not a login fixture and not `storageState`** — each spec still
-  registers its own fresh user through the UI and asserts only on data it created.
-- **AR-E7-6: delete the `registrationEnabled` race rather than retry it.** One Mongo `ApplicationConfig` document is
-  shared by the concurrently-running `chromium` and `mobile` projects, so the admin-toggle test's OFF window breaks
-  register-based specs in the other project. Decided approach (Epic 6 retro): registration stays **enabled** as the
-  steady state, and the registration-disabled test runs **non-parallel**. Note that `test.describe.configure({mode:
-  'serial'})` is insufficient — it serializes within a project, and the race is *across* projects; the disabled test
-  needs genuine exclusivity (its own project with a dependency, a worker-scoped lock, or equivalent). Restore the
-  enabled state in a `finally` so a failing assertion cannot leave registration off. Once the race is gone, **remove**
-  the `toPass()` workaround from the shared helper — do not leave both, or the next flake will be invisible.
-- **AR-E7-7: `HomeRedirect` must sort `createdAt` numerically.** `[...lists].sort((a, b) =>
-  a.createdAt.localeCompare(b.createdAt))[0]` runs against `GqlListMapper`'s `list.createdAt.toString()` on a
-  `java.time.Instant`, which omits the fractional part entirely when nanos are zero — so `…:05Z` compares *greater*
-  than `…:05.100Z` (`'Z'` 0x5A > `'.'` 0x2E). Fix by comparing `Date.parse(createdAt)`. **The alternative of emitting a
-  fixed-precision timestamp from the backend is rejected**: it is a wire-format change made to work around a frontend
-  comparison bug, and it would silently alter every consumer of `createdAt`.
-- **AR-E7-8: the home no-op fix belongs in `HomeRedirect`, not `AppShell`.** AR-E6-7 forbids the app bar re-deriving
-  the home path, and that ruling stands. Expose the resolved path from `HomeRedirect` (or a shared hook reading the
-  same `ListsQuery`) so the app bar can render a link that is inert when it already points at the current route.
-  Suppressing the history entry must not regress the link's nature: it stays a real anchor, reachable by Tab and
-  activated by Enter (NFR-E6-3), never a `Button` and never an imperative `navigate()`.
-  **The inert state must be inert-but-PRESENT — never removed, never hidden, never `disabled`.** See AR-E7-8a for why
-  that is a hard requirement rather than a styling preference.
-- **AR-E7-8a: Story 7.14 promotes Story 7.5's link from convenience to the app's only exit, so the two cannot be
-  planned independently.** An installed WebAPK at `display: 'standalone'` has **no URL bar and no browser back or
-  forward button**. The only navigation is the Android system back gesture, which is `history.back()` — and when the
-  history stack is exhausted it does not no-op, it **exits the app**. `HomeRedirect` redirects with
-  `<Navigate … replace/>` (`HomeRedirect.tsx:37,41,44`, and `:30` for admin), so launching at `start_url: '/'` leaves
-  the history stack exactly **one** entry deep. Consequences, all verified against the routes as shipped:
-    - On the launch screen, system back closes the app. This is correct and native-like, but it means the resolved home
-      route is the one screen where a mis-tap ejects the user mid-shop. It must be a deliberate acceptance, not a
-      discovery.
-    - **`/account/password` and `/admin` carry no back affordance of their own.** `ListDetailPage.tsx:84` and
-      `ListShoppingPage.tsx:263` each have one; those two routes do not. Their sole in-app exit is the app-bar title
-      link at `AppShell.tsx:93` — invisible as a risk in a browser, load-bearing and single-point-of-failure without
-      chrome.
-    - For the **admin** account, home resolves to `/admin` (`HomeRedirect.tsx:30`), so Story 7.5's guard suppresses the
-      title link on the very route that has no other affordance. This is harmless **by coincidence** — admin's app is
-      one screen, and `ChangePasswordPage.tsx:40` bounces admin away — which is precisely why it would never be tested.
-      Hence AR-E7-8's inert-but-present rule: a title that *vanishes* on one route is worse than one that does not
-      navigate.
-    - **No URL-bar recovery exists.** Today a user in a broken state can edit the address bar; in standalone that door
-      is gone, which promotes every graceful-redirect branch (`HomeRedirect.tsx:37`'s lists-query-error path,
-      `ListShoppingPage.tsx:233`) from defensive politeness to the only way out. None may be weakened by either story.
-    - **Required coverage, and it is cheap.** Do not attempt to emulate a WebAPK — Playwright cannot install one.
-      Assert `window.history.length` after landing on the resolved home route, and walk every guarded route asserting
-      each exposes at least one in-app navigation affordance. That catches the real defect class without pretending to
-      test the container.
-- **AR-E7-9: package upgrade sequencing, from the 2026-07-29 audit.** Already current: Testcontainers 2.0.5, bcrypt
-  0.10.2, Gradle 9.6.1. Minor/patch sweeps: `@apollo/client` 4.1.9→4.2.8, `@mui/material` + `@mui/icons-material`
-  9.0.0→9.2.0, codegen `cli` 7.0.0→7.2.0 and `client-preset` 6.0.0→6.1.0, `@playwright/test` 1.61.1→1.62.0, `react` +
-  `react-dom` 19.2.5→19.2.8, `graphql-ws` 6.0.8→6.2.0, `react-router-dom` 7.18.1→7.18.2, `rxjs` 7.8.1→7.8.2,
-  `@types/react` 19.2.14→19.2.17, `globals` 17.7.0→17.8.0; Ktor 3.4.3→3.5.1, Mongo driver 5.5.1→5.9.1, Kotest
-  6.1.11→6.2.3, Arrow 2.1.2→2.2.3, Logback 1.5.18→1.6.1.
-  **Kotlin is deliberately NOT in the minor sweep** (`md`, 2026-07-29). A Kotlin minor is not a no-migration-risk bump,
-  and `graphql-kotlin` 9.2.0 sits in the same build and may cap the supported Kotlin version — so bumping Kotlin in
-  Story 7.7 could break the backend six stories before the story allowed to fix it. Kotlin moves **with**
-  `graphql-kotlin` in Story 7.12, pinned to the newest Kotlin that `graphql-kotlin` 10.2.0 actually supports. `md`'s
-  read is that Kotlin will be fine in 99% of cases; the pairing exists so that the 1% is attributable to one story
-  instead of poisoning the sweep. Note the Kotlin serialization plugin already tracks `version.ref = "kotlin"`, so it
-  moves in lockstep automatically. Majors, each its own gated step:
-    - **Vite 7.3.6→8.1.5 with `@vitejs/plugin-react` 5.2.0→6.0.4 — one atomic step.** Plugin v6 requires Vite 8;
-      bumping either alone breaks the build. This pairing is already recorded in `project-context.md`.
-    - **TypeScript 6.0.3→7.0.2.** Interacts with AR-E7-4 — do the `e2e` tsconfig project **first**, so the TS major is
-      type-checking the whole codebase rather than 80% of it.
-    - **ESLint 9.39.5→10.8.0 with `@eslint/js` 10.0.1.** Check `typescript-eslint`, `eslint-plugin-react-hooks` v7 and
-      `eslint-plugin-react-refresh` peer ranges before starting. `react-hooks/set-state-in-effect` must survive — it is
-      load-bearing for the render-phase-adjustment convention.
-    - **`graphql` 16.14.0→17.0.2 — highest frontend risk.** It is a peer dependency of `@apollo/client`, `graphql-ws`
-      and both codegen packages simultaneously. Verify all four accept v17 **before** attempting it; if any does not,
-      hold it back and record the blocking peer range. A held-back `graphql` does not fail the story.
-    - **`graphql-kotlin` 9.2.0→10.2.0 — highest backend risk.** A major on the Ktor server integration that owns schema
-      generation, the subscription transport and the auth wrapper. Its blast radius is the entire GraphQL surface.
-    - **`@types/node` 25.6.0→26.1.2.** Types-only; verify against the Node running the build.
-- **AR-E7-10: a bump is not done until it is verified, and a failed bump is reverted, not worked around.** Each step
-  runs the frontend build + lint + the full Playwright suite on **both** projects (and `./gradlew :bp_back:test` for
-  backend bumps) before the next step starts. A bump that cannot be made green is reverted and recorded against
-  NFR-E7-1 with its symptom. Do not carry a half-migrated dependency forward.
-- **AR-E7-11: the backend safety fixes are three catalogued Epic 4 items, all low-risk.**
-    - (a) `private var synced = false` is non-volatile in `ItemStorage.kt:12`, `CategoryStorage.kt:12` and
-      `ListStorage.kt:12` — two coroutines can double-sync on startup; add `@Volatile`.
-    - (b) Invite status is untyped `"PENDING"` / `"ACCEPTED"` / `"DECLINED"` across `ListService.kt:151-152,162-163,
-      179-180`, `ListMemberRepository.kt:49,62` and `GqlListMapper.kt:17`, so a typo silently produces broken state.
-      **The enum goes in the DOMAIN model only; storage stays a `String`** — this is not a style preference, it is the
-      convention the codebase already uses and the safe choice. Precedent: `MongoItem.recurring` is `String?` while
-      `Item.recurring` is the `Recurring` enum, converted at the mapper boundary. So `ListMember.status` becomes the
-      enum (giving the compile-time checking this fix exists for) and `MongoListMember.status` stays `String`.
-      **Putting the enum in `MongoListMember` would be actively worse than the strings it replaces:**
-      kotlinx-serialization throws `SerializationException` decoding an unknown value, and
-      `listMemberRepository.findActiveByListId` is called at `ListApi.kt:30,60,72,92,104,124` — on essentially every
-      list query and mutation response — so one unexpected row would fail the whole `lists` query for every member of
-      that list, where today it merely falls through `!= "DECLINED"` and renders as a member.
-    - (c) `ListService.deleteList` cascades items → categories → list (`ListService.kt`) but never deletes the list's
-      `list_members` rows, so orphans accumulate and `getLists` silently null-maps them away; add the cascade inside
-      the same ordered block, after the category delete and before `listRepository.delete`.
-      **No backfill of already-orphaned rows is in scope** — `md`'s ruling (2026-07-29) is to assume none exist in
-      production. The fix is forward-looking only. If a future read ever surfaces an orphan, that is a new finding, not
-      a regression of this story.
-- **AR-E7-12: Epic 7 runs on a fresh `epic-7-*` branch.** Epics 5 **and** 6 both ran on `epic-4-lists`, a name two
-  epics stale by the end; it was flagged twice with no consequence.
-- **AR-E7-13: the dev-auto warnings get a measured verdict, not a fourth slip.** Both warnings are the tool flagging
-  *itself* and neither blocks anything, which is exactly why they have been ignorable. Their definitions:
-  `spec-template.md:12` — *"Aim for 900–1600 tokens. If larger, add `oversized` to frontmatter `warnings` and
-  continue"*; `step-01-clarify-and-route.md:59` — *"If the intent appears to contain multiple independently shippable
-  goals, carry `multiple-goals` forward … **Do not split or block**"*; both written into frontmatter by
-  `step-02-plan.md:19`. The story is **measure → correlate → encode**, in that order:
-    - **Measure.** Five consecutive specs carry `oversized` (5.5, 5.6, 5.7, 6.1, 6.2) against a 900–1600 token budget.
-      Approximate sizes: 5.5 ≈ 3,000 tokens (~2×), 6.2 ≈ 3,200 (~2×), **6.1 ≈ 6,000 (~4×)**. Record exact counts rather
-      than these estimates.
-    - **Correlate.** Test whether spec size predicts review findings, using data that already exists. Story 6.1 was the
-      largest spec, the only one flagged `multiple-goals`, **and** the story that produced the most review findings —
-      including six assertions that could not fail. That is one data point in favour of the warnings being real, not a
-      proof; five specs and their finding counts are enough to tell noise from signal.
-    - **Note that `multiple-goals` was CORRECT on 6.1.** The story delivered the FR40 edit verb *and* the FR44 store
-      write path across both dialogs — genuinely two independently shippable goals. The scope came from the Epic 6
-      planning review, so the tool detected scope creep the review process itself had introduced, and reported it in a
-      blocked report **before Epic 6 ran**, where it was ignored. A warning that was right is different evidence from a
-      warning that was noise.
-    - **Encode the verdict as an artifact.** If the threshold is simply wrong for this codebase — plausible, given how
-      much standing convention every bag-please spec must carry — raise or waive it in `_bmad/custom/bmad-dev-auto.toml`
-      so the field stops emitting a signal nobody acts on. If the warnings are real, land a spec-size convention in
-      `project-context.md`. **Either outcome closes the item; "we looked and the threshold is wrong" is a finished
-      result, not a failure.** What is forbidden is a finding that exists only in this epic's retrospective — the exact
-      failure mode the Epic 6 retro identified when its predecessor's seven action-item rows came back 0/7.
-    - Scope note: this is the only Epic 7 story with no code in it. It is kept because the signal has now accumulated
-      unread across three epics *and* gained a new warning type while being ignored.
-- **AR-E7-14: the PWA is `vite-plugin-pwa`, and it lands after every dependency bump.** Sequenced last among the code
-  stories for two reasons: the plugin peers on Vite, so installing it before Story 7.9 would mean migrating it twice
-  across the Vite 7→8 major; and a service worker is a **global request interceptor** added to a suite in which every
-  spec navigates, so landing it while GraphQL majors are in flight would make any flake unattributable (NFR-E7-6).
-  Concrete shape, verified against this repo:
-    - `npm i -D vite-plugin-pwa`, added to `plugins` in `vite.config.ts` with `registerType: 'autoUpdate'` and
-      `includeAssets: ['favicon.svg']`. Registration via `registerSW({immediate: true})` from `virtual:pwa-register`
-      in `src/main.tsx`.
-    - Manifest: `id: '/'`, `name` and `short_name` "Bag Please", `start_url: '/'`, `scope: '/'`,
-      `display: 'standalone'`, `theme_color: '#000000'`.
-    - **`background_color` must be `#000000`, not `#ffffff`.** It is Android's cold-launch splash colour, and
-      `src/theme.ts` sets `background.default: '#000000'` on a dark-only theme — white would flash on every launch of
-      an all-black app. This is a deliberate correction to the recipe this story came from.
-    - Icons: `bp_front/public/` currently holds **only** `favicon.svg` (305 bytes) and no PNG at any size, so the
-      icons must be generated, not merely referenced. **Chrome will not build a WebAPK icon from SVG.** Required:
-      192×192 PNG, 512×512 PNG, and a 512×512 `purpose: 'maskable'` PNG carrying ~20% padding so Android's
-      circle/squircle mask does not clip the artwork. `npx pwa-asset-generator public/favicon.svg public/icons
-      --manifest false --padding "20%"` produces them; the generated PNGs are committed.
-    - Workbox: `navigateFallback: '/index.html'` with `navigateFallbackDenylist: [/^\/api/]` and no runtime caching of
-      the API (NFR-E7-7).
-    - `index.html` currently links only `/favicon.svg` and declares no manifest and no `theme-color`; the plugin
-      injects the manifest link, and the result must be verified in the built `dist/index.html`, not assumed.
-- **AR-E7-15: two deployment-path hazards specific to this stack, both silent when wrong.**
-    - **Caddy MIME type.** `routing/Caddyfile` serves the SPA with `try_files {path} /index.html` + `file_server`, so
-      `/manifest.webmanifest` and `/sw.js` resolve from `dist/` correctly — but the Alpine-based Caddy image cannot be
-      relied on to carry `.webmanifest` in its MIME table, and a wrong `Content-Type` kills installability with no
-      error anywhere. Set `application/manifest+json` explicitly with a `header` directive rather than depending on
-      the image, and assert the served header, not the file's presence. The service worker must be served from the
-      root scope and must not be cached long-term.
-    - **Real-device verification cannot use the TLS edge domain.** `https://bag-please.localhost` neither resolves nor
-      validates on a physical phone. Use `chrome://inspect` port forwarding so the device reaches
-      `http://localhost:2080`, which Chrome treats as a secure context, making install available. Confirm in DevTools
-      → Application → Manifest, whose **Installability** section names any unmet criterion outright — that panel, not
-      the presence of a menu item, is the evidence. Note that the WebAPK path is Chrome-on-Android specific; iOS
-      Safari uses its own `apple-touch-icon` route and is explicitly **not** in scope for FR59.
-
-From Epic 8 planning (2026-09-05) — verified at the tree on branch `epic8-ui-ux`, cut from `main` at `424fd92`:
-
-- **AR-E8-0: the backend stays frozen unless a UX requirement demands otherwise, and then only in named files.** Same
-  shape as AR-E7-0. `md` authorised a scoped unfreeze during Epic 8 planning, and the planning pass then established
-  that **none of FR60–FR63 needs it** — all four are frontend-only against the existing schema. The allowance stands
-  for whatever the epic's design work turns up; it is not open season on `bp_back/`, and any story that uses it names
-  the files in its own ACs.
-
-- **AR-E8-1: the E2E `mobile` project is a Pixel 7 at 412px CSS, which is why reports #2 and #3 shipped.**
-  `bp_front/playwright.config.ts` gives both the `mobile` and `registration-toggle-mobile` projects a bare
-  `{...devices['Pixel 7']}`. Both reported layout defects occur below that
-  width, so the suite that gates every story has never rendered them. This is the mechanical reason the epic needs
-  NFR-E8-2 before it needs a layout fix — a fix landed against the current gate is unverifiable.
-
-- **AR-E8-2: a third viewport project would have reopened Story 7.3's race — which is a decisive argument for
-  retargeting `mobile` instead of adding one.** Story 7.3 built a four-project dependency chain (`chromium`, `mobile`,
-  then `registration-toggle-chromium` → `registration-toggle-mobile`) as a mutual exclusion for the shared
-  `registrationEnabled` document; the toggle chain flips that flag OFF for real, and every spec registers through the
-  UI because there is no login fixture (NFR18). A third viewport project registering users during that OFF window is
-  the Epic 7 race in a new costume, and it would have needed adding to `dependencies` as an explicit acceptance
-  criterion to stay closed. **Under `md`'s NFR-E8-2 ruling this hazard does not arise**: there are still exactly two
-  viewport projects, `dependencies: ['chromium', 'mobile']` still names both, and nothing about the chain changes.
-  Recorded because it is the reason the cheaper option is also the safer one, and because it is the constraint any
-  *future* viewport project must satisfy. The config's own comment gives the invariant to re-measure (never quote)
-  after any change here:
-  `npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c`.
-
-- **AR-E8-2a: retargeting the gate will surface defects beyond the two reported, and that is the point.** 66
-  specs ran in the `mobile` project and none had ever rendered below 412px (re-measured 2026-09-05; the epic was
-  drafted against a stale 59, and this file's own standing rule is to re-measure a count rather than quote it);
-  `AppShell.tsx:193`'s username chip (`maxWidth: {xs: 140}`), the admin user table, `AuthPage`, and every dialog are
-  unmeasured at the floor. Reports #2 and #3 are the two defects `md` happened to hit, not necessarily the only two
-  that exist. The first story must therefore
-  begin by **measuring**: make the viewport change, run the suite once, and count what goes red — before the rest of
-  the epic's story order is treated as settled. A count of two leaves the plan below intact; a substantially larger
-  count is a scoping decision for `md` (absorb them into Epic 8, or file them in `deferred-work.md`), taken with the
-  number in hand rather than discovered mid-epic.
-
-- **AR-E8-3: the three hard-coded pixel caps that cause the reported clipping**, all in `ListDetailPage.tsx` and all
-  paired with `noWrap`, which is what makes the failure silent:
-    - the `list-detail-title` Typography — `variant="h4" noWrap sx={{maxWidth: {xs: 200, sm: 460}}}`.
-      **Report #3 is a squeeze, not an overflow** — corrected 2026-09-05 after the first analysis got the mechanism
-      backwards. MUI's `noWrap` is three declarations (`Typography.js:88-90`, verified in `node_modules`):
-      `overflow: hidden`, `textOverflow: ellipsis`, `whiteSpace: nowrap`. Flexbox's automatic minimum size applies
-      **only** to a flex item whose `overflow` is
-      `visible`, so `overflow: hidden` already resolves this item's `min-width: auto` to **zero**. The title therefore
-      *can* shrink, *does* shrink, and is squeezed to an ellipsis while the two buttons take the remaining width — the
-      row never overflows the viewport. Two consequences: **adding `minWidth: 0` is a no-op** and must not be
-      prescribed as the fix, and a document-level overflow assertion cannot detect this defect (AR-E8-3a). The fix is
-      to make the *buttons* yield (`md`'s ruling, UX-DR-E8-3).
-    - the `item-name` Typography — `noWrap sx={{maxWidth: {xs: 150, sm: 400}}}`. Report #2. The Story 6.1 comment
-      records that 150px was chosen for ~360px viewports and a two-control `secondaryAction`; the request is to wrap
-      to two lines instead, which means `noWrap` is removed here rather than the cap being retuned.
-    - the `category-name` Typography — `variant="h6" noWrap sx={{maxWidth: {xs: 160, sm: 380}}}`, the same pattern
-      beside two IconButtons; not reported, but it is the third instance of the identical construct and will clip at
-      the same widths.
-  `AppShell.tsx:193`'s username chip (`maxWidth: {xs: 140, sm: 220}`) is the same family and is **in the audit, not
-  automatically in scope** — it was deliberately capped so the app bar survives ~360px.
-
-- **AR-E8-3a: a document-level overflow assertion cannot detect either reported defect — clipping is invisible to it.**
-  This corrects the gate proposed in the first planning pass. `noWrap` sets `overflow: hidden`, and a clipped element
-  does not expand its ancestors, so `document.documentElement.scrollWidth <= clientWidth` stays **green while both
-  report #2 and report #3 are on screen**. NFR-E8-3 names this hazard in its own text ("truncation is silent by
-  design — `noWrap` renders an ellipsis, not an error") and the first draft of the acceptance criteria then proposed a
-  check subject to exactly it. Both defects are clipping, so the detecting assertion is the same comparison **one level
-  down, on the text element**: `el.scrollWidth > el.clientWidth` is true precisely when that text is truncated. Keep
-  **both** assertions, with different jobs: the element-level one catches silent clipping (reports #2, #3, and the
-  `category-name`), and the document-level one catches genuine overflow, which is what a third control on a row or
-  an over-wide dialog will produce. Neither substitutes for the other.
-
-- **AR-E8-4: `handleToggle` reads its next state off the DOM event, so FR60 requires a signature change.**
-  `ListShoppingPage.tsx:237` `handleToggle(item, event)` derives `nextChecked` from `event.target.checked`. A row-level
-  click has no such event, so the next state must be passed explicitly (`!item.checked`) and the `Checkbox` must stop
-  owning the decision. The row's existing accessible name comes from the checkbox's
-  ``slotProps={{input: {'aria-label': `Toggle ${item.name}`}}}`` — FR60's "one control" clause means that name moves to
-  the row, and the nested-interactive-inside-clickable-row pattern must not produce two tab stops or a double-fire.
-
-- **AR-E8-5: the shopping view's stale-filter guards must generalise to a set, not be duplicated.**
-  `ListShoppingPage.tsx` carries two render-phase adjustments that keep the filter honest: reset on list switch, and
-  drop a `categoryFilter` whose category no longer exists (live deletion via `CategoryUpdates`). Under FR61 the second
-  becomes "prune every selected id that no longer exists", and both must be written once in the shared filter unit
-  rather than re-derived on the management screen. The project lint forbids set-state-in-effect, so these stay
-  render-phase adjustments.
-
-- **AR-E8-6: the management screen has no realtime subscription, by Story 6.1's explicit design.**
-  `ListDetailPage.tsx` is refetch-driven and deliberately carries no `subscribeToMore`. FR61/FR62 must not smuggle a
-  subscription onto it; a shared filter component is presentational and must not assume one.
-
-- **AR-E8-7: FR62 changes what the management screen renders, not only its order.** The shopping view sorts categories
-  by name **and drops empty groups**, and it appends a synthetic `Uncategorized` bucket for items whose category id has
-  no local match. The management view sorts nothing, shows every category including empty ones (with a "No items yet."
-  line, which is load-bearing there — it is where you add the first item), and has no `Uncategorized` bucket, so an
-  orphaned item is invisible on the only screen that can delete it. FR62 covers **order**; whether the management
-  screen also gains the `Uncategorized` bucket is a story-level ruling for `md`, flagged here rather than assumed.
-
-  **`md`'s ruling (2026-09-05): fix it — the management screen gains the `Uncategorized` bucket.** An item that is
-  visible while shopping and invisible on the only screen that can delete it is the same shape of defect as the eight
-  reported ones, and today its only recovery is direct database access.
-
-- **AR-E8-7a: the orphan path is real, not hypothetical — and it is an existing partial-failure mode, not a new one.**
-  `deleteCategory` does not cascade on the backend, so `ListDetailPage`'s remove-category confirm handler deletes the
-  category's items **client-side, in a `for` loop with an `await` inside it**, and only then deletes the category.
-  There is no transaction. A failure, a closed tab or a dropped connection between item three and item four leaves
-  surviving items pointing at a category that is about to stop existing. Two consequences worth separating:
-  **surfacing** existing orphans is AR-E8-7's ruling and is in this epic; **preventing** new ones would mean making the
-  delete atomic, which needs the AR-E8-0 unfreeze that nothing else in Epic 8 uses and which does nothing for orphans
-  already in the data. The cause is recorded here and **not** scoped into Epic 8; the symptom is fixed.
-
-- **AR-E8-8a: FR60 closes the shopping item row as an extension surface, deliberately.** Once the whole row is one
-  control, the store chip and the `addedBy` avatar inside it can no longer become affordances of their own — a
-  filter-by-store chip, or a "show me what Anna added" avatar — without breaking the single-control rule FR60 exists to
-  create. `md`'s whole-row ruling stands and is right for a one-handed user holding a basket; this is recorded so that
-  a later epic wanting either affordance knows it is re-opening a decision rather than treating the row as free space.
-
-- **AR-E8-8: the epic's CLOSING story writes the UX design contract this project has been missing since Epic 5.** Both existing UX
-  specs (`ux-design-specification.md`, `ux-design-specification-epic-4.md`) describe the Next.js app and the Epic 4
-  bottom-tab design, neither of which shipped; Epics 6 and 7 both worked around them by reading the code instead. Story
-  8.7 produces a `DESIGN.md` + `EXPERIENCE.md` spine describing **what is actually deployed**. The stale specs are
-  retained for history and must be marked superseded, not deleted.
-
-  **`md`'s ruling (2026-09-05): last, not first.** As originally scoped this story both *decided* the narrow-viewport
-  header layout and *documented* the deployed design — two things under one number, which is precisely the shape
-  Story 7.15 found in Story 6.1. The decision moved into Story 8.2's acceptance criteria, where a test can fail on it.
-  The document became the closing story, where it **describes** rather than prescribes and can be checked by diffing
-  it against the code that shipped, instead of being the Epic 7 retrospective's D2 finding — authoritative prose
-  steering six stories with nothing verifying it — in its purest form. It is scheduled, not conditional.
-
-- **AR-E8-9: fresh branch `epic8-ui-ux`, already cut from a `main` that has Epic 7 merged.** Epic 7 retro action D1 is
-  discharged: `main` is at `424fd92 "Epic7 maintenance (#31)"` and the branch is cut from it, so the 44-commit gap
-  that the retro warned about did not materialise.
-
-- **AR-E8-10: FR63 needs no backend work — `saveCategory` is already an id-keyed upsert.** Verified at the tree:
-  `CategoryApi.kt:42` takes a whole `GqlCategory` (id, name, listId) and `CategoryRepository.kt:35-43` issues
-  `updateOne(Filters.eq("id", …), Updates.combine(set name, set listId), UpdateOptions().upsert(true))`. Sending the
-  existing id with a new name renames in place. `AddCategoryDialog.tsx`'s own comment already records this — "Uses
-  saveCategory (upsert) — there is no addCategory". `CategoryService.kt:33-38` gates it on `verifyMembership` and emits
-  on `categoryUpdateChannel`, and the shopping view's `CategoryUpdates` handler already upserts a known id
-  (`ListShoppingPage.tsx`), so the realtime half of FR63 works with no new code on either side. The frontend query
-  document `SaveCategoryMutation` also already exists and needs no `npm run generate`.
-
-- **AR-E8-11: `Category` has three fields, so FR63 carries no FR58-class merge problem — but it does carry the
-  resurrection half.** `Category(id, name, listId)` has nothing an edit could silently clobber, which is why FR63 needs
-  no analogue of FR58's merge rule. The other half of BUG-E6-3 does apply: `upsert(true)` means saving a **hard-deleted**
-  category id recreates it. Today that is unreachable, because no frontend path has ever sent an existing category id —
-  `AddCategoryDialog` only creates. **FR63 makes it reachable for the first time**: a member with the rename dialog open
-  while a co-member deletes that category will, on save, recreate it — now empty, since `ListDetailPage`'s delete
-  cascade removed its items first. This is the same stale-dialog race Story 7.4 closed for items and never for
-  categories. It is a **story-level ruling for `md`**, not an assumption: accept it as a known race, guard it on the
-  client (re-check the category still exists before saving), or spend the AR-E8-0 unfreeze on a `saveCategory`
-  create-vs-update rule mirroring FR58.
-
-  **`md`'s ruling (2026-09-05): accept it — the category is recreated, and it is empty.** No client-side existence
-  guard, no `saveCategory` create-vs-update rule, and the AR-E8-0 unfreeze stays unspent. The reasoning the ruling
-  rests on: unlike BUG-E6-3 for items, the resurrected object carries no false data — an empty category is visibly
-  empty on both surfaces, it strands nothing (its items were already deleted by the cascade before it was), and the
-  recovery is the remove-category control the user already has, needing no database access. That is what made the item
-  version a defect and makes this one an accepted outcome. **Consequence for story authors: this is a decided
-  behaviour, not an unnoticed one.** FR63's story must not silently "fix" it with an existence check, and its E2E
-  coverage should not assert that the save fails.
-
-- **AR-E8-12: the rename payload must carry the category's current `listId`.** `Updates.set("listId", …)` is
-  unconditional, so `listId` is not merely a routing field — a save that sends the wrong one **moves the category to
-  another list**, taking its name with it and stranding its items behind a category id their list no longer contains.
-  The edit dialog must echo the loaded category's `listId` rather than reconstructing it. `verifyMembership` is checked
-  against the *submitted* `listId`, so this is also the boundary that stops a member moving a category into a list they
-  do not belong to.
-
-  **`md`'s ruling (2026-09-05): the rename sends the full entity, `listId` included.** The dialog submits a complete
-  `CategoryInput` — `id`, `name` and the `listId` loaded with the category — rather than a partial payload or a
-  reconstructed id. This matches `AddCategoryDialog`'s existing shape and the mutation's own contract
-  (`saveCategory(category: CategoryInput!)` takes a whole entity, and `Updates.combine` writes every field it is
-  given), so there is one payload shape for create and rename instead of two. An AC must pin the round trip: the
-  `listId` that comes back from the query is the `listId` that goes out with the save.
-
-- **AR-E8-13: category names are not unique and FR63 does not make them so.** Neither `AddCategoryDialog` nor
-  `CategoryService` checks for a duplicate name; two categories called "Dairy" can exist on one list today, and a
-  rename can create that collision. Out of scope for FR63 — noted because the management screen's
-  ``data-testid={`category-row-${category.name}`}`` and the shopping view's ``shopping-group-${group.name}`` are
-  **name-keyed test selectors**, so an E2E test that renames a category to an existing name would select ambiguously.
-  Story-level concern for whoever writes FR63's coverage.
+**Deferred by the architecture (not Epic 9 work):** Mongo transactions for cascades; username reuse within the token
+window after deletion; feedback pagination and a `sendFeedback` rate limit; a max stores-per-item limit; Phase 3 store
+mode; `/admin` page number in the URL; operational envelope beyond the pre-deploy `mongodump` and optional healthcheck.
 
 ### UX Design Requirements
 
-UX-DR1: Create `src/lib/theme.ts` establishing the custom MUI v9 dark theme — palette (`background.default #0e0e10`,
-`background.paper #1a1a1d`, `primary.main #4db6a8`, `primary.dark #3a9d96`, `error.main #d9534f`,
-`text.primary #e8e8e8`, `text.secondary #9e9e9e`, `divider #2e2e32`), Inter font stack loaded via `next/font/google`,
-and component defaults (`MuiButton` borderRadius 6 textTransform none, `MuiTextField` outlined variant, `MuiPaper`
-subtle border, `MuiAppBar` flat no elevation); register via `ThemeProvider` in root layout; this must be done before any
-component work
-
-UX-DR2: Update `LoginPage` (`app/auth/page.tsx`) to edge-to-edge layout (no `Paper` card, `Box + Stack` only),
-`maxWidth: 360` centred on desktop (`mx: "auto"`), inline `FormHelperText` errors (no Snackbar/floating Alert for form
-errors), `Alert severity="warning"` above the heading for session expiry message, conditional "Register" link hidden
-when registration is disabled, "Contact your admin" footer text when registration is off
-
-UX-DR3: Create `RegisterPage` at `app/auth/register/page.tsx` — edge-to-edge layout matching login, username + password
-fields with visible labels, inline `FormHelperText` for validation errors, link back to sign-in, triggers auto-login on
-success and redirects to home
-
-UX-DR4: Create `UserChip` component — rounded container (`Box` with `borderRadius: 20px`), avatar circle with username
-initial, username `Typography`; styled entirely via `theme.components` overrides, no inline `sx` for visual style;
-rendered in `AppHeader` only when user is authenticated; never shown when unauthenticated
-
-UX-DR5: Create `WelcomeBanner` component (`app/store/WelcomeBanner.tsx`) — one-time dismissible, visibility controlled
-by React `useState` flag set to `true` after auto-login post-registration (not persisted to localStorage or DB),
-teal-tinted `Box` with welcome text including username and close `IconButton`; rendered on home page; disappears on
-dismiss or page navigation
-
-UX-DR6: Create `AdminUsersPage` at `app/admin/users/page.tsx` — `Paper`-wrapped MUI `Table` listing users with columns
-for username and role; row-level `IconButton` actions for reset password and delete; "Create user" `Button`; `Switch`
-with `FormControlLabel` for registration toggle; empty state row with muted "No users yet" text; `CircularProgress`
-centred in table area while loading
-
-UX-DR7: Create reusable `ConfirmDialog` at `app/admin/ConfirmDialog.tsx` — props: `open`, `title`, `message`,
-`confirmLabel`, `confirmColor` (`"error"` | `"primary"`), `onConfirm`, `onCancel`, optional `children` for extra
-fields (e.g. new password input); `maxWidth="xs"`; initial focus on Cancel button; confirm button shows loading
-`CircularProgress` and is disabled during async operation; Escape closes dialog
-
-UX-DR8: Create `ChangePasswordPage` at `app/account/password/page.tsx` — current password field + new password field,
-submit `Button` with loading state, inline success confirmation on completion, accessible via account navigation
-
-UX-DR9: Update `AppHeader` (`app/AppHeader.tsx`) — add `UserChip` rendered when `username` is available in auth context;
-add admin-only "User Management" nav link/item visible only when user role is `admin`
-
-UX-DR10: Update `Navigation` (`app/Navigation.tsx`) — add admin-only "User Management" `MenuItem` linking to
-`/admin/users`; render conditionally based on role from auth context
-
-UX-DR11: Implement consistent form patterns across all auth/admin forms: validation fires on submit only (not on
-blur/keystroke); errors clear when the user modifies the field; Enter from any field in a single-column form submits;
-primary action button shows `CircularProgress` replacing button text and is disabled while async operation is in flight
-
-UX-DR12: Implement route guards: auth guard redirects unauthenticated users from any protected route to `/auth`
-immediately; admin guard redirects non-admin users from `/admin/*` to `/`; post-login destination is always `/` in Phase
-1
-
-UX-DR13: Apply button hierarchy rules: one `variant="contained"` primary action per screen or dialog maximum;
-`variant="outlined"` for cancel/secondary; `variant="contained" color="error"` for destructive confirm only; no Snackbar
-for form errors; no success toasts — mutations confirmed by immediate UI update (row appears/disappears, dialog closes)
-
-UX-DR14: Responsive implementation: all new screens designed mobile-first targeting ~360px viewport; auth screens use
-`Box maxWidth: 360, mx: "auto", px: 2, py: 5` (no Paper card); admin table accepts horizontal scroll on `xs`; MUI
-default breakpoints only; all spacing uses `theme.spacing()` multiples — no raw `px` values
-
-UX-DR15: Accessibility compliance: `label` prop on all `TextField` instances (never placeholder-only); `title` prop on
-all `IconButton` instances; `FormHelperText` with `error` prop for field errors (auto `aria-describedby`); Dialog MUI
-focus trap must not be suppressed; registration `Switch` wrapped in `FormControlLabel` with visible text; `Alert` for
-session expiry uses MUI's default `role="alert"`; WCAG AA contrast verified; keyboard-only navigation smoke test on each
-new screen before merge
-
-#### Epic 4 UX Design Requirements
-
-UX-DR-E4-1: `lib/theme.ts` setup — `createTheme` with standard `ThemeProvider` (NOT `CssVarsProvider`; explicitly deferred); map color tokens from `design/theme.js` to MUI palette; TypeScript module augmentation for `theme.custom.bp.{bg2, card, ter, navBg, accentSoft}`; remove Inter font import; add commented `darkPalette` stub; document contrast exceptions as code comments (teal 3.04:1 passes UI components/large text only; error red 4.02:1 marginal for body text); no `--bp-*` CSS variable direct reads in components; no-sx-color ESLint rule (flags `sx` with color/bgcolor/borderRadius/fontFamily/fontSize) delivered in this story
-
-UX-DR-E4-2: `BPBottomNav` — MUI `BottomNavigation` + `BottomNavigationAction`; 3 tabs (Today/Lists/Household) with explicit pathname→tab map for active state (not auto-derived); frosted `navBg` background (`rgba(242,242,247,0.82)`); all scrolling screens get `padding-bottom: 96px`; replaces `AppHeader` + `Navigation` in `app/layout.tsx`
-
-UX-DR-E4-3: `BPSheet` — 3-state bottom sheet (CLOSED → PEEKED → OPEN) wrapping `SwipeableDrawer`; spike must pass all 4 ACs before sheet stories are scoped: (1) iOS Safari scroll inside OPEN sheet does not close, (2) keyboard viewport push in OPEN, (3) PEEKED→OPEN height transition < 16ms, (4) back-gesture contract (OPEN→PEEKED, PEEKED→CLOSED, no route change); Escape two-step via `onKeyDown` + `stopPropagation`; `triggerRef` prop for focus restore on close; opacity crossfade under `prefers-reduced-motion` (not instant snap); `role="dialog"` `aria-modal="true"` `aria-label="{sheet title}"`
-
-UX-DR-E4-4: `BPCheck` — circular checkbox as custom `<div>` element (NOT MUI Checkbox wrapper to avoid double-role violations); `role="checkbox"`, `aria-checked`, `tabIndex={0}`; `ariaLabel` required TypeScript prop (`"Check off {name}"` unchecked, `"{name}, checked"` checked); `Space` key toggles `onChange`; 150ms ease-out animation; visible 44×44px edit icon appears on focus (keyboard/switch access primary path to SheetItemEditor, not long-press)
-
-UX-DR-E4-5: `ItemCard` — item row component; anatomy: `[BPCheck 42px] [Body flex-1 (name 17px + meta line 13px)] [LifecycleBadge?]`; `removing`/`onRemoved` props (parent sets `removing=true`; component owns transition + calls `onRemoved` on `transitionEnd` + 400ms fallback); exit animation when `removing`: height 0 + opacity 0 + translateX(24px) over 280ms ease-out; instant removal under `prefers-reduced-motion` (no flash); `ItemCardSkeleton` variant (42px circle left + two text lines); live region announcement before animation on removal; optimistic check-off with rollback on mutation failure
-
-UX-DR-E4-6: `LifecycleBadge` — trailing pill inside `ItemCard`; labels: `"1×"` (error palette), `"W"`/`"2W"`/`"M"` (accent); `role="img"`; `aria-label` follows Voice Control Label-in-Name rule (e.g. `"W — repeats weekly"`, `"1× — one-time item"`); first-encounter tooltip on 1× badge pauses check action until dismissed; `localStorage` key `bp_seen_once_tooltip`; tooltip for keyboard/AT: `aria-describedby` on row pointing to visually-hidden description
-
-UX-DR-E4-7: `ProgressStrip` — custom `Box` (NOT `LinearProgress` — scaleX internals block `width` cubic-bezier); outer 6px rounded `bgcolor: bg2 overflow: hidden`; inner `Box` `width: {pct}%` transition `320ms cubic-bezier(0.2,0.7,0.2,1)` `bgcolor: isComplete ? success.main : primary.main`; `role="progressbar"` `aria-valuenow` `aria-valuemax`; on isComplete: `aria-label="All done"`; instant width change under reduced-motion; position fixed below toolbar outside scroll container
-
-UX-DR-E4-8: `ListChipRow` — horizontal scrollable MUI `Chip` row; `role="listbox"` `aria-label="Switch list"` `aria-multiselectable="false"`; each chip `role="option"` `aria-selected={id === activeListId}`; `onListSelect` callback (parent calls `router.push('/list/[id]', { scroll: false })`); scroll-to-active (`scrollIntoView` smooth center) on mount and `activeListId` change; Skeleton chips when `lists` empty; arrow key navigation; Tab focuses selected chip first
-
-UX-DR-E4-9: `ListCard` — list card with name, emoji, `BPAvatar` member avatars, item count, ⋯ `IconButton` overflow menu (Rename/Share & Members/Delete); inline rename is the only exception to sheet-only editing rule (single text field); Delete shows blocking `Dialog` with specific list name + item count in body copy; list-level mutations (rename, share changes) must emit subscription events
-
-UX-DR-E4-10: `BPAvatar` — MUI `Avatar` base; pending overlay: semi-transparent grey `rgba(0,0,0,0.35)` absolute inset + 12px clock icon centered white; `pointer-events: none` on overlay; 200ms opacity crossfade on pending→active transition; `aria-label="{displayName}"` active, `aria-label="{displayName} (pending invite)"` pending
-
-UX-DR-E4-11: `EmptyState` — configurable component with icon/title/subtitle/action props; 3 variants: (a) Today no active list — "Choose a list to start" / "Tap a list below"; (b) Today active list no items — "Nothing here yet" + "Add item" → FAB; (c) Lists tab no lists — "No lists yet" / "Create your first list to start shopping" + "Create list" → SheetNewList; CTA label and sheet header must read as one sentence
-
-UX-DR-E4-12: `SheetItemEditor` — PEEKED state: name field focused + "Regular ·" affordance signalling lifecycle controls below; OPEN state: full form with category selector, store `TextField` with suggestion chips, lifecycle `ToggleButtonGroup` (always-one-selected, 48px min height); auto-focus via callback ref on `transitionEnd` (not `autoFocus` prop); error states per sheet error spec: Snackbar "Couldn't save · Retry"
-
-UX-DR-E4-13: `SheetNewList` — name field (required) + emoji picker; error state: Snackbar "Couldn't create list · Retry"; `SheetShare` — member list with `BPAvatar` (pending/active state) + remove affordance via action sheet ("Remove {name}? / Destructive / Cancel"); `SheetInvite` — invite link generation or username input; error state: Snackbar "Couldn't generate invite link · Retry"; "Only you" copy when no collaborators
-
-UX-DR-E4-14: Invite acceptance screen — standalone deep-linkable view at `/invite/[token]` (NOT a sheet — must survive direct URL load); accept/decline actions; on acceptance navigate `router.replace('/list/[listId]')`; on decline navigate to `/lists`; shows list name + inviter name
-
-UX-DR-E4-15: `SRContext` — `bp_front/src/contexts/SRContext.tsx`; one visually-hidden `<div aria-live="polite" aria-atomic="false">` mounted at page root; `announceToSR(message: string)` via React context; 1.5s throttle/batch for rapid subscription events (e.g. "3 items added by Alex"); announcement triggers: one-timer removal (before animation), remote item add/remove (after subscription); optimistic local mutations do NOT trigger announcements
-
-UX-DR-E4-16: Snackbar system — 5s Undo window for one-timer `deleteItem` (mutation deferred 5s; if Undo tapped, mutation cancelled); snackbar replace queue policy (no FIFO — only latest Undo affordance shown); "Removed · Undo" copy; optimistic mutations (`checkItem`, `uncheckItem`, `addItem`, `renameList`) fire NO success Snackbar; async mutations (`createList`, `deleteList`, `inviteCollaborator`, `removeCollaborator`) fire success Snackbar; error Snackbar always offers "Retry"
-
-UX-DR-E4-17: Offline state — `navigator.onLine` + WebSocket `onclose` detection; persistent (no auto-dismiss) "You're offline · List may be out of date" Snackbar; all mutation interactions disabled (FABs disabled, `ItemCard` tap inert); on reconnect: "Back online" (2s auto-dismiss) then Apollo refetch; no offline mutation queue
-
-UX-DR-E4-18: Responsive — `maxWidth: 480, mx: 'auto'` global container; `100dvh` not `100vh`; content scroll area `calc(100dvh - {BPBottomNav height}px)`; `layout.tsx` must update existing `height: '100vh'`; 44px minimum touch target on all interactive elements; `rem`-only font sizes; single breakpoint (xs < 600px, sm ≥ 600px centered); no multi-column layout
-
-UX-DR-E4-19: Accessibility testing — `@axe-core/playwright` (Option B, no Storybook) on 3 routes in CI; CI-gated tests: contrast/ARIA/labels (axe), reduced-motion (Playwright `emulateMedia`), focus management after sheet open/close, focus unchanged after subscription update; manual per-story AC: VoiceOver+iOS, TalkBack+Android, keyboard-only, 200% text zoom; 5 specific required test cases: (1) one-timer deletion under SR with focus destination, (2) subscription batching 1.5s debounce, (3) two-actor real-time E2E, (4) WS disconnect with active 5s timer, (5) authorization boundary deleteItem on foreign listId
-
-#### Epic 6 UX Design Requirements
-
-> **UX source note.** `ux-design-specification-epic-4.md` is **stale from Epic 5 onward** on presentation: its
-> `BPSheet` bottom sheets, `BPBottomNav` bottom tab bar, and light-theme-only palette were all superseded by the Epic 5
-> reframe (dark-only MUI theme, `Dialog`-based overlays, top `AppBar` + user menu, no bottom nav). Epic 6 follows the
-> **shipped Epic 5 conventions**. Two durable signals are carried over from the Epic 4 spec because they are about
-> behaviour rather than chrome: store **suggestion chips below the store input** (line 373) and **delete lives inside
-the
-> item editor, never swipe-to-delete on a row** (line 411).
-
-UX-DR-E6-1: `EditItemDialog` (`src/components/EditItemDialog.tsx`) — MUI `Dialog fullWidth maxWidth="xs"`, structurally
-a sibling of `AddItemDialog`: title "Edit item", `TextField` "Item name" (required, `maxLength` 100, `autoFocus`),
-category
-`Select` (required, the list's categories), store `TextField` (optional), Cancel + Save `DialogActions` with the Save
-button showing `CircularProgress size={20}` while in flight. Fields are seeded from the item on the closed→open
-transition via **render-phase adjustment** (`prevOpen` pattern), never a syncing `useEffect` —
-`react-hooks/set-state-in-effect` forbids it
-
-UX-DR-E6-2: Store field with suggestion chips — **one shared component used by both the create and the edit dialog**
-(AR-E6-5a): a store `TextField` with the list's distinct existing store values (from `itemStoreSuggestions`, AR-E6-4)
-rendered below it as small clickable `Chip`s that fill the field on click. The field stays freely typable (suggestions
-reduce typing, they do not constrain input); an empty or whitespace-only value clears the store (sends `null`, not
-`""`); render no chip row at all when the list has no stores yet — never an empty container or a "no suggestions"
-placeholder. The two dialogs must not drift: identical field, identical validation, identical chip behaviour
-
-UX-DR-E6-2a: The shopping view keeps **no** edit or delete affordance on the item row — `/list/:id` is the *use*
-surface,
-`/lists/:id` is the *manage* surface (AR-E6-5). This is a deliberate boundary, not an omission: no edit icon, no
-long-press editor, no swipe-to-delete (the last is an explicit Epic 4 anti-pattern — accidental deletion while scrolling
-in-aisle)
-
-UX-DR-E6-3: Per-item edit affordance on `ListDetailPage` — an edit `IconButton` (`EditOutlinedIcon`) alongside the
-existing remove `IconButton` in each item row's `secondaryAction`, wrapped in a `Tooltip` ("Edit item") and carrying an
-item-specific `aria-label` (`Edit item ${item.name}`) to match the existing `Remove item ${item.name}` idiom (NFR-E6-3).
-Both controls must remain tappable at ~360px without the item name overlapping them — tighten the existing
-`ListItemText` `noWrap`/`maxWidth` clamp as needed
-
-UX-DR-E6-4: Feedback is inline and change-confirmed, per the Epic 5 conventions — validation on submit only, field
-errors clear on modification, `helperText={fieldErrors.x ?? ' '}` to reserve vertical space, GraphQL failures surfaced
-through `graphqlErrorMessage` in an `<Alert severity="error" role="alert">` inside the dialog. **No success toast**: a
-successful save closes the dialog and the row updates. On success the order is `onClose()` → `void onDone().catch(() =>
-{})` — never `await` the refetch inside the mutation's `try`, which would report a successful write as an error
-
-UX-DR-E6-4a: Saving an unchanged item is a no-op — if none of the four editable fields differs from the item the dialog
-opened on, close without firing `saveItem` (AR-E6-3 mitigation). The user-visible behaviour is indistinguishable from a
-successful save: no error, no warning, no "nothing changed" message. This exists so a dialog that is opened and
-dismissed via Save does not needlessly re-attribute someone else's item
-
-UX-DR-E6-5: App-bar home affordance in `AppShell` — the existing "Bag Please" `Typography variant="h6"` becomes a link
-to `/` (MUI `Link`/`Typography` with `component={RouterLink}`), keeping its current type scale, weight, and colour with
-`textDecoration: 'none'` at rest and a visible hover and focus-visible state. It must not become a `Button` (no ripple,
-no uppercase, no padding shift) and must not push or truncate the username chip at ~360px (NFR-E6-2)
-
-UX-DR-E6-6: Shopping-view back affordance — "Back to lists" link above the shopping header on `/list/:id`, visually and
-structurally identical to `ListDetailPage`'s existing one (`Link component={RouterLink} to="/lists"` + `ArrowBackIcon
-fontSize="small"`, `display: inline-flex`, `gap: 0.5`, `mb: 2`), with its own `data-testid`. It sits above the
-list-title
-`Typography` and must not disturb the existing switcher-chip-row or filter-bar spacing
-
-UX-DR-E6-7: Admin behaviour is unchanged and must stay graceful — the admin account is forbidden from all list resources
-(FR56), so the app-bar home link resolves via `HomeRedirect` to `/admin` for admins. No new admin-facing surface, and no
-list affordance is added to any admin screen
-
-#### Epic 7 UX Design Requirements
-
-> **UX source note.** Epic 7 is a consolidation epic and is very nearly invisible. It adds no screen, no dialog and no
-> control. Both UX specs in `inputDocuments` remain stale from Epic 5 onward (see the Epic 6 UX source note); nothing in
-> them applies here. The requirements below exist to state what must **not** change — which is the whole UX contract of
-> an epic like this one.
-
-UX-DR-E7-1: **The dependency upgrades are visually inert.** After every bump — `@mui/material` and
-`@mui/icons-material` 9.0→9.2 above all, plus the Vite 8 / TypeScript 7 build-chain majors that change how the bundle is
-produced — the app renders identically: the same dark theme tokens from `src/theme.ts` (bg `#000`, paper `#1C1C1E`,
-primary teal `#4DC9BB`, success `#30D158`, error `#FF453A`, warning `#FFD60A`, and every `theme.custom.bp.*` value), the
-same spacing and type scale, the same layout at a ~360px viewport and on desktop. A visible difference is an upgrade
-regression to be diagnosed, not a cosmetic drift to be accepted. Verification is a real-browser pass on the `:2080`
-production stack, not only a green suite.
-
-UX-DR-E7-2: **The home no-op fix succeeds by being unnoticeable.** Activating the app-bar "Bag Please" link while
-already standing on the route `/` resolves to leaves the screen visually unchanged: no `home-redirect-loading` spinner
-flash, no scroll-position change, and no additional browser-history entry — so a single Back still leaves the screen the
-user came from. On every *other* screen the link behaves exactly as Epic 6 shipped it. It stays a real link throughout
-(Tab-reachable, Enter-activated, exposed to assistive technology as a link, `textDecoration: 'none'` at rest with a
-visible hover and focus-visible state) and must not become a `Button` or a disabled element (NFR-E6-3, UX-DR-E6-5).
-
-UX-DR-E7-3: **The item-edit surface gains nothing and loses nothing.** FR58 is entirely server-side: `EditItemDialog`,
-`AddItemDialog` and the shared store field are untouched, and no edit or delete affordance appears on the shopping view
-(UX-DR-E6-2a still holds — `/lists/:id` manages, `/list/:id` uses). The only user-visible consequence is a correction:
-the `addedBy` avatar on the shopping row stops flipping to whoever last edited the item, and a checked item edited by a
-co-member stays checked with its clock intact.
-
-UX-DR-E7-4: **The no-op guard must not swallow a real navigation.** From `/lists`, from a list the user is *not* homed
-on, from change-password, and from any admin screen, the home link still navigates and still resolves through
-`HomeRedirect` per FR38 — including the admin case, which resolves to `/admin` (FR56, UX-DR-E6-7). The suppression
-applies only when the resolved destination is the current route. A guard that over-fires turns FR57 into a dead control
-on the screens that need it most, which is the failure mode this requirement exists to prevent.
-
-UX-DR-E7-5: **Installed-app identity (FR59).** The app installs as "Bag Please" — the same name in the manifest's
-`name` and `short_name`, so the launcher label matches the app-bar title the user already knows and nothing is
-truncated on a phone home screen. The launcher icon is derived from the existing `public/favicon.svg` artwork so the
-installed app is visually continuous with the browser tab, rasterised to the three required PNGs (192, 512, and a
-512 maskable with ~20% safe-area padding). The maskable variant is not optional polish: without it Android
-letterboxes the square icon inside its adaptive-icon mask, which reads as a broken third-party install rather than an
-app.
-
-UX-DR-E7-6: **Launching the installed app looks like the app, immediately.** `theme_color` and `background_color` are
-both `#000000`, matching `src/theme.ts`'s `background.default` on the dark-only theme, so the cold-launch splash and
-the Android system bars are the app's own black rather than a white flash followed by a dark app.
-
-UX-DR-E7-6a: **Without browser chrome, in-app navigation stops being a convenience and becomes the app's only exit.**
-`display: 'standalone'` removes the URL bar *and* the browser back button, so FR57's app-bar home link and the
-shopping view's back-to-lists affordance are no longer polish — they are the whole navigation model. Two routes,
-`/account/password` and `/admin`, have no back affordance of their own and depend entirely on the app-bar title link
-(`AppShell.tsx:93`); and because Story 7.5 makes that link inert on the resolved home route, it must go **inert without
-disappearing** — a title that vanishes on one screen reads as a broken render, while one that simply does not navigate
-reads as "you are already here". The full analysis, the per-route audit and the required coverage are in AR-E7-8a. This
-is the Epic 6 UX warning arriving on schedule: the aisle-edit round trip was accepted on the understanding that
-navigation would carry it, and an installed app is where that promise is actually called in.
-
-UX-DR-E7-6b: **Nothing about the installed app may depend on being able to read or edit the URL.** No error state, no
-recovery path, and no support instruction may assume the address bar exists. The graceful-redirect branches that exist
-today are the recovery mechanism.
-
-UX-DR-E7-7: **The service worker is invisible to the user.** `registerType: 'autoUpdate'` means a new deployment is
-picked up silently on the next launch: no update toast, no "reload to update" prompt, no version banner — consistent
-with the standing convention that mutations and state changes are confirmed by the UI changing, never by a
-notification. There is no offline mode in scope: the app requires the network exactly as it does today, and no
-offline UI, cached-data indicator, or "you're offline" affordance is added by this story.
-
----
-
-**Epic 8 UX source note.** Both UX specifications above are stale: `ux-design-specification.md` describes the Next.js
-app that Epic 5 replaced, and `ux-design-specification-epic-4.md` describes a bottom-tab design (Today · Lists ·
-Household) that never shipped. Epics 6 and 7 each worked around this by reading the code. Epic 8 stops working around
-it: **the epic's closing story writes a `DESIGN.md` + `EXPERIENCE.md` spine for the app that is actually deployed** (AR-E8-8), and the
-requirements below are derived from `md`'s own use of the running app, verified against the shipped source on
-2026-09-05 — not from either stale document.
-
-UX-DR-E8-1: **The whole item row is the check target on the shopping view (FR60).** Today the `Checkbox` is the only
-thing that toggles; the name, the store chip, the `addedBy` avatar and all the space between them are inert. On a
-phone that makes the ~40px checkbox the only way to check off an item in a row that is 300px+ wide, in the one screen
-whose entire purpose is checking things off while holding a basket. The row becomes one control: one accessible name,
-one checked state, one tab stop, one keyboard activation. It must not become a control that *contains* another
-control — a checkbox nested inside a clickable row is the standard way to get two tab stops, a doubled screen-reader
-announcement, and a click that fires the handler twice.
-
-UX-DR-E8-2: **A long item name wraps to a second line instead of being truncated (report #2).** On the management
-screen the item name is `noWrap` under a fixed `{xs: 150}` cap (AR-E8-3), so on a narrow phone the user sees an
-ellipsis where the item's name should be. Two things change together: the name is allowed **up to two lines** before
-it is ellipsised — two, not unbounded, so a pathological name cannot push the row taller than the controls beside it
-— and the horizontal gap between the name and the edit/remove buttons is reduced to give the name back the space the
-cap was reserving for the controls. The fixed pixel cap goes away entirely; the name takes the room the flex row
-actually has.
-
-UX-DR-E8-3: **The list title and its two action buttons coexist at the narrow floor (report #3).** The header row on
-the management screen puts an `h4` title beside "+ Category" and "+ Item". Below roughly 360px the mechanism is a
-**squeeze, not an overflow** (AR-E8-3a): the title's `min-width` is already zero because `noWrap` sets
-`overflow: hidden`, so it shrinks all the way to an ellipsis while the buttons take the rest, and the row never
-widens the screen. Letting the title shrink is therefore not the fix — it is the defect.
-
-**`md`'s ruling (2026-09-05): the buttons wrap to their own line at the narrow floor.** The title gets the full width
-and "+ Category" and "+ Item" sit on a row beneath it. The cost is one row of vertical space that those buttons already
-occupied; the alternatives were rejected — icon-only removes the text labels from the two controls a new user most
-needs to find (and `+` would then mean two different things on one screen, since the category row already uses a bare
-`+` icon button), and a guaranteed title floor makes MUI Buttons with `startIcon` compress by wrapping their own
-labels, which is taller and worse than wrapping the row. What is not acceptable in any case is a clipped button, a
-title squeezed to nothing, or a horizontally scrolling page (NFR-E8-1).
-
-UX-DR-E8-4: **The category filter selects more than one category (FR61, report #4).** Today it is a single-value
-`Select`: choosing Dairy hides Produce. Real shopping is "the chilled aisle and the veg aisle", which the current
-control cannot express — the user has to filter twice or not at all. `md`'s ruling (2026-09-05) is to **keep the
-`Select` and make it `multiple`**, with checkboxes in the menu and a summary of the chosen categories in the closed
-control, rather than replacing it with a chip row. Selecting nothing means all categories, exactly as the empty value
-does today, so the default state and its "All categories" affordance survive the change. The stale-selection guards
-(AR-E8-5) generalise from one id to a set.
-
-UX-DR-E8-5: **The management screen gains a category filter (FR61, report #5).** A list long enough to need categories
-is long enough that managing it means working inside one of them, and the management screen currently offers no way to
-narrow the view — the user scrolls past every category to reach the one they are editing. It gets the same
-multi-select category filter as the shopping view, with the same semantics.
-
-UX-DR-E8-6: **The management screen gains item search (FR61, report #6).** Finding an item to edit or delete is today
-a visual scan of every category. The shopping view has had a free-text name search since Story 5.6; the screen where
-you actually change items has none. It gets the same control, case-insensitive on the item name, combined with the
-category filter by AND.
-
-UX-DR-E8-7: **The two filter controls are one implementation used on both screens (NFR-E8-5).** UX-DR-E8-4, -5 and -6
-describe the same category filter and the same search box appearing on two screens. `md`'s ruling (2026-09-05) is to
-**extract one shared filter component**, not to build the management screen's copy separately — the two surfaces have
-already drifted once (that drift is report #7), and prose has never been enough to keep them together in this project.
-The shopping view's checked-status toggle (All / To buy / Done) stays shopping-only: it is meaningless while managing
-a list, and the shared component must accommodate its absence rather than render a disabled control.
-
-UX-DR-E8-8: **Both screens show categories and items in the same order (FR62, report #7).** The shopping view sorts
-categories by name and items by name within each; the management view sorts **neither** — it renders whatever order the
-query returned (AR-E8-7). So the user arranges a list on one screen and finds it in a different sequence on the other,
-in an app whose two screens show the same data. `md`'s ruling (2026-09-05): **the shopping view's order is canonical
-and the management screen adopts it, items included.** One comparator, one definition, used by both (NFR-E8-5). The
-divergences the management screen keeps — showing empty categories, and its "No items yet." affordance — are
-deliberate and stay. It also gains the shopping view's synthetic `Uncategorized` bucket — `md` ruled so on
-2026-09-05 (AR-E8-7), and Story 8.5 AC4 implements it; the ruling matters because the management screen is the only
-place an orphaned item can be deleted.
-
-UX-DR-E8-9: **A phone narrower than a Pixel 7 is a supported device, and the gate must know it (NFR-E8-1, NFR-E8-2).**
-Two of the eight reports are pure layout failures on a Galaxy Z Fold 5 cover screen (~344px CSS). Every "mobile"
-assertion this project has ever run was at 412px (AR-E8-1), so the suite could not have caught either one. Fixing the
-two layouts without moving the gate would leave the next fixed pixel cap to be found the same way — by `md`, on the
-device, after it shipped. The floor is 320px (NFR-E8-1), chosen so the requirement outlives one handset.
-
-UX-DR-E8-10: **Nothing in this epic adds a toast, a snackbar or a banner.** The project's standing convention is that
-state changes are confirmed by the UI changing, and Epic 8 does not introduce a notification layer: a filter applying,
-a search narrowing the list, and a row toggling are all self-evident in the result. Carried forward from UX-DR-E7-7.
-
-UX-DR-E8-11: **The dark theme, the type scale and the existing visual language are unchanged.** This is a fixes epic,
-not a redesign (`md`, 2026-09-05: "small ux fixes based on real usage"). The closing story (8.7) **documents** the deployed design —
-including the `custom.bp.*` tokens in `theme.ts` — rather than proposing a new one. Light mode, a token overhaul, and
-the Epic 4 bottom-tab navigation are all explicitly out of scope; recording them in `DESIGN.md` as known gaps is in
-scope, and acting on them is a later epic's work.
-
-UX-DR-E8-12: **A category can be renamed from the management screen (FR63).** Every other entity on that screen can be
-corrected — an item gained an edit affordance in Story 6.1, a list is renamed from the index — but a mistyped category
-name is permanent unless the user deletes the category, which **destroys every item inside it** (the remove-category
-confirmation says so outright: "Items in this category are removed with it. This cannot be undone."). So the only route
-from "Diary" to "Dairy" today is to lose the aisle's contents and retype them. The category row gains an edit control
-beside its existing add-item and remove-category buttons, opening a dialog pre-filled with the current name — the same
-shape as `EditItemDialog`, and the same one-screen management idiom Story 6.1 established.
-
-UX-DR-E8-13: **The category row's control cluster must survive the narrow floor with a third button in it (NFR-E8-1).**
-The row already carries two IconButtons beside a `noWrap` category name capped at `{xs: 160}` (AR-E8-3, third bullet).
-FR63 adds a third, which is roughly 40px more, taken from a name that is already truncating on the reported device.
-This is why FR63 is not independent of the layout work: adding the button before the row is fixed makes report #2's
-sibling defect worse on exactly the screen `md` reported it on. Sequencing is Step 2's job; the coupling is recorded
-here.
+UX source: the `ux-epic-8` spine pair (`DESIGN.md` + `EXPERIENCE.md`, `status: current`). It **describes** the deployed
+app; Epic 9 is the first epic to change screens it documents, so its rulings bind and its descriptions must be kept true.
+
+- UX-DR-E9-1: **No toast, no snackbar, no notification layer (UX-DR-E8-10 / UX-DR-E7-7 stand).** The architecture's
+  "Notices" row ("existing snackbar pattern") is overruled by md (2026-09-15): no `Snackbar` exists in `src/`. The
+  FR66 send confirmation and the FR67 delete result follow the existing inline idiom — a success confirmation is an
+  in-flow `<Alert severity="success" role="status">` in the surface that caused it, the precedent being `/admin`'s
+  reset-password confirmation (`AdminPage.tsx`, the only `role="status"` in `src/`). A failed send keeps the dialog open
+  with the text intact and shows `feedback-error` inline, last inside `DialogContent`. A deleted feedback entry is
+  confirmed by its row disappearing (state change confirmed by the UI changing).
+- UX-DR-E9-2: **The feedback dialog follows the canonical form-dialog convention** (`CreateListDialog.tsx`): native
+  `<form onSubmit noValidate>` so Enter submits (a multi-line field needs Ctrl/Cmd+Enter or the button — decide and
+  test); validate on submit, errors clear on typing; same-tick re-entry guard; `graphqlErrorMessage(err)` inline;
+  cancel disabled while in flight, submit shows `CircularProgress size={20}`; `fullWidth maxWidth="xs"`; a visible
+  associated label and a character counter reflecting the trimmed length against 2000 (NFR13, NFR15). Test ids
+  `feedback-dialog`, `feedback-text`, `feedback-cancel`, `feedback-submit`, `feedback-error`; the confirmation
+  `feedback-sent`.
+- UX-DR-E9-3: **Account menu gains Home and Feedback** (`AppShell` menu, today: Lists, Change password [non-admin],
+  Admin [admin], Logout). Each is a `MenuItem` with a `ListItemIcon` at `fontSize="small"` from `@mui/icons-material`,
+  test ids `menu-home` and `menu-feedback`. Order: Home first, then Lists, Change password / Admin, Feedback
+  (non-admin only), Logout last. On the resolved home route the Home entry only closes the menu (no history entry).
+  The app-bar title link's inert-but-present behaviour (AR-E7-8) is untouched.
+- UX-DR-E9-4: **`/admin` gains a feedback panel** matching the existing panel shape — `Paper` with `p: {xs: 2, sm: 3}`,
+  `h6` heading — and the standard branch order error → loading → empty → content with test ids `admin-feedback-error`,
+  `admin-feedback-loading`, `admin-feedback-empty`, `admin-feedback-row-<id>` (keyed by id, not text). Each row shows
+  the text as plain text with wrapping (no truncation of feedback text at 320px), the username and the submission time;
+  a delete `IconButton` (`DeleteOutlined`, `color="error"`, `aria-label` naming the entry, `Tooltip`) opens
+  `ConfirmDialog` as `delete-feedback-dialog` (`-confirm`/`-cancel`/`-error`).
+- UX-DR-E9-5: **`/admin` users pagination** — prev/next controls with `aria-label`s, a page indicator and total count
+  (AR-E9-6 test ids), usable at 320px with no horizontal overflow. `DeleteUserDialog` states how many owned lists will be
+  deleted (AR-E9-8), naming the cascade in prose like the remove-category confirm does.
+- UX-DR-E9-6: **Multi-value store field** in both item dialogs: selected stores as removable chips, suggestions from
+  `itemStoreSuggestions`, free entry of a new name, case-insensitive duplicate prevention with the server authoritative.
+  `StoreField` today is deliberately **not** an `Autocomplete` (its comment: avoid a second `role=combobox` inside the
+  dialog) — the story must either keep that constraint or record why a combobox is now acceptable, and keep the
+  `{testIdPrefix}` testid convention (`add-item-*`, `edit-item-*`). Fits and stays keyboard-operable at 320px.
+- UX-DR-E9-7: **Shopping row shows every store, inside the closed row surface (FR60, AR-E8-8a).** Store chips are
+  presentational, never affordances. **RULING (md, 2026-09-15), overriding AD-10's "accessible name" wording:** the
+  row's accessible name stays exactly `` `Toggle ${item.name}` `` (`EXPERIENCE.md` §5.3.1); `Stores: A, B` goes in the
+  row's accessible *description* beside `addedBy`, omitted when the item has no stores. Several stores must not push the check glyph or name off the row at 320px
+  (`expectNotClipped`/`expectInsideViewport` on the multi-store row).
+- UX-DR-E9-8: **Floating add button on `/list/:id` (FR68).** MUI `Fab` with the `Add` icon, `aria-label="Add item"`,
+  test id `shopping-add-item-fab`, fixed bottom-right with safe-area inset, reachable while scrolling; the page reserves
+  bottom padding so the FAB never permanently covers the last row or its controls; inside the viewport at 320px.
+  **RULING (md, 2026-09-15) — amends the manage-vs-use ruling** (`/list/:id` was "read + check only"): adding an item is
+  now also a shopping-view action; editing and deleting stay management-only. `EXPERIENCE.md` §4's table is updated by
+  the FAB story. The shopping empty-state copy ("Add categories and items from the
+  list management screen") must be revised to match: with categories but no items it points at the FAB.
+- UX-DR-E9-9: **No-categories guidance in `AddItemDialog`** (FR68): when the list has no categories the dialog says a
+  category is needed first and offers a link/button to `/lists/:id`; it does not render a disabled form.
+- UX-DR-E9-10: **Category filter menu gets a confirm control (FR61).** Inside the `multiple` `Select` menu, a clearly
+  labelled button (e.g. "Done", test id `filter-category-confirm`) that closes the menu; selections still apply live;
+  outside tap and Escape still close; reachable without scrolling the menu at 320px (sticky at the menu bottom). The
+  closed control keeps its text summary (UX-DR-E8-4). Mounted once in `ListFilters.tsx`, so both screens get it
+  (NFR-E8-5 one-definition rule).
+- UX-DR-E9-11: **Category-deleted pruning is visible, not ghosted.** When a category is deleted, its items disappear on
+  other members' `/list/:id` via the category `DELETED` event, and on the deleting client's `/lists/:id` via its own
+  mutation result/refetch. **RULING (md, 2026-09-15):** `/lists/:id` has **no subscription by design** (AR-E8-6), so
+  AD-7's "on `/lists/:id` the handler removes cached items" applies to that screen's own delete-category mutation path
+  (prune + refetch); no subscription is added there.
+- UX-DR-E9-12: **The design contract is kept true.** Per `DESIGN.md` §13 and `EXPERIENCE.md` §14, every story that
+  changes `App.tsx`, a route component, `AppShell.tsx`, `playwright.config.ts`, `lib/lists/*` or `theme.ts` re-runs the
+  check block and corrects the documents in the same commit (menu table §1.1, `/admin` states §5.4, shopping states
+  §5.3, manage-vs-use table §4, dialog list §8, testid conventions §9.2, token table §3).
+- UX-DR-E9-13: **Visual language unchanged.** Dark-only theme, system font stack, three component overrides, outlined
+  icons for destructive/secondary actions, `color="error"` on destructive controls, `aria-label` on every icon-only
+  control. Epic 9 adds no palette key and no theme override.
 
 ### FR Coverage Map
 
-FR1: Epic 1 — Registration endpoint + RegisterPage
-FR2: Epic 1 — Login endpoint + LoginPage update
-FR3: Epic 1 — Logout endpoint + logout action
-FR4: Epic 1 — Auto-login chain after register
-FR5: Epic 1 — WelcomeBanner component
-FR6: Epic 1 — Access token (15 min JWT) issuance
-FR7: Epic 1 — Refresh token issuance + MongoDB TTL index
-FR8: Epic 1 — Silent renewal via POST /auth/refresh + Apollo 401 intercept
-FR9: Epic 1 — Session expiry redirect from frontend
-FR10: Epic 1 — Logout invalidates refresh token in MongoDB
-FR11: Epic 1 — ChangePasswordPage + endpoint
-FR12: Epic 1 — UserChip in AppHeader
-FR13: Epic 2 — GET /admin/users + AdminUsersPage table
-FR14: Epic 2 — POST /admin/users + create dialog
-FR15: Epic 2 — DELETE /admin/users/{id} + ConfirmDialog
-FR16: Epic 2 — POST /admin/users/{id}/reset-password + ConfirmDialog with new-password field
-FR17: Epic 2 — ConfirmDialog component, used for delete and reset
-FR18: Epic 1 — Admin credentials sourced from env vars in login endpoint
-FR19: Epic 2 — Documented constraint; no password field for admin in admin panel
-FR20: Epic 2 — PUT /admin/config endpoint + registration Switch UI
-FR21: Epic 2 — LoginPage conditionally hides Register link based on config
-FR22: Epic 2 — ApplicationConfig in-memory cache invalidated on write
-FR23: Epic 2 — ApplicationConfig MongoDB entity (app_config collection)
-FR24: Epic 1 — JWT role claim; backend role enforcement on all protected endpoints
-FR25: Epic 1 — Rate-limiting Ktor plugin on /auth/login + /auth/register
-FR26: Epic 1 — Reserved username check in register endpoint
-FR27: Epic 1 — Uniform "Invalid credentials" error on all auth failures
-FR28: Epic 1 — Principal threaded through GraphQL context factory
-FR29: Epic 1 — Auth guard redirecting unauthenticated to /auth
-FR30: Epic 2 — Admin nav link + /admin/users route accessible to admin
-FR31: Epic 2 — Admin guard redirecting non-admin from /admin/* to /
-FR32: Epic 2 — "Contact your admin" copy on login when registration is off
-FR33: Epic 1 — Session expiry Alert shown on login redirect
+**Epic 9 (live):**
 
-FR34: Epic 4 — createList mutation + SheetNewList
-FR35: Epic 4 — lists query + Lists tab
-FR36: Epic 4 — ListChipRow + URL routing /list/[listId]
-FR37: Epic 4 — deleteList mutation + cascade evictList + owner-only guard
-FR38: Epic 4 — app/page.tsx redirect + /list/[listId] route
-FR39: Epic 4 — shareList mutation + pending invite model + SheetShare/SheetInvite
-FR40: Epic 4 — Per-list item operations + member removal by owner (Household tab)
-FR41: Epic 4 — CallerUsername + verifyMembership in service layer + error.tsx boundary
-FR42: Epic 4 — One-timer soft-delete on check-off + undo + hourly scheduler hard-delete
-FR43: Epic 4 — Recurring field + hourly scheduler restore
-FR44: Epic 4 — store field on Item + suggestion chips in SheetItemEditor
-FR45: Epic 4 — addedBy field (server-set) + BPAvatar on ItemCard
-FR46: Epic 4 — listId required on all new items/categories
-FR47: Epic 4 — plugins/Migration.kt + app_migrations idempotency guard
-FR48: Epic 4 — BPBottomNav + Household tab (member management)
-FR49: Epic 4 — Today tab (category groups, progress strip, + button with list selector)
-FR50: Epic 4 — Lists tab (pending invites section, zero-lists state)
-FR51: Epic 4 — BPSheet overlay for all create/edit + SheetNewList/SheetItemEditor
-FR52: Epic 4 — GraphQL subscriptions with listId scoping
-FR53: Epic 4 — WebSocket JWT auth in connectionParams + clearAuth() dispose sequence
-FR54: Epic 4 — Hourly background scheduler service (recurring restore + one-timer hard-delete)
-FR55: Epic 4 — Leave list mutation (non-owner)
-FR56: Epic 4 — Admin block on all list GQL operations (service-layer enforcement)
-NFR-L1: Epic 4 — Filtered broadcast + takeWhile two-point enforcement in subscription layer
-NFR-L2: Epic 4 — verifyMembership as first step in every list-scoped service method
-NFR-L3: Epic 4 — app_migrations idempotency guard in Migration.kt
-NFR-L4: Epic 4 — Service/storage/GQL layers all return auth error for unauthorized list access
-NFR-L5: Epic 4 — WebSocket JWT validation + clearAuth() dispose ordering FR57: Epic 6 — App-bar title as a link to `/`
-in AppShell + "Back to lists" affordance on `/list/:id`
-FR40 (edit verb): Epic 6 — EditItemDialog reached from a per-row edit IconButton on `/lists/:id` (add/check/delete
-shipped in Epic 5)
-FR44 (store write path): Epic 6 — Shared store field + suggestion chips in BOTH AddItemDialog and EditItemDialog, backed
-by the previously unused `itemStoreSuggestions` query (read-side chip shipped in Epic 5)
-NFR-E6-1: Epic 6 — `checked` and `recurring` round-tripped through `saveItem`; `addedBy`/`checkedAt` documented as
-unpreservable (AR-E6-3)
-NFR-E6-2: Epic 6 — Both affordances pass on `chromium` + `mobile`; app-bar link does not displace the user chip at ~
-360px NFR-E6-3: Epic 6 — Home affordance is a real focusable link; per-row edit control carries an item-specific
-accessible name
+FR13: Epic 9 — server-paginated `users(limit, offset, around)` → `UserPage`, `/admin` pager + total (AR-E9-6)
+FR44: Epic 9 — `stores: [String!]!` in every layer, server normalizer, multi-value `StoreField`, stores on the shopping row
+FR56: Epic 9 — feedback review added to the admin's scope; `sendFeedback` rejects the admin; shared `requireAdmin`
+FR57: Epic 9 — Home entry in the `AppShell` account menu (+ `/lists` dead end, `useHomePath` branch order)
+FR61: Epic 9 — confirm control in the category filter menu (+ F2 selected-empty category, F5 de-keyed `Uncategorized`)
+FR66: Epic 9 — Feedback menu entry + `AppShell`-hosted dialog + `sendFeedback` into `entity/feedback`
+FR67: Epic 9 — `/admin` feedback panel, `feedback` query, `deleteFeedback` behind `ConfirmDialog`
+FR68: Epic 9 — floating add button on `/list/:id` opening the existing `AddItemDialog`
+FR69: Epic 9 — `epic9-multi-store` migration, independent of `epic4-list-seed`
+NFR17, NFR18, NFR64, NFR65: Epic 9 — every story (production artifact, UI-driven, desktop + 320px floor)
+NFR-L2: Epic 9 — category cascade stays membership-checked; `purgeUser` is the single admin-gated caller-less exception
 
-FR58: Epic 7 — `ItemService.saveItem` merges `ItemInput` onto the stored `Item` instead of constructing a fresh one;
-explicit create-vs-update replaces the blind upsert; `category` validated against `listId` (Story 7.4)
-FR45 (restored): Epic 7 — `addedBy` preserved on update, so an edit stops stealing authorship (BUG-E6-1, Story 7.4)
-FR54 (restored): Epic 7 — `checkedAt` preserved on update, so the hourly recurring restore stops skipping edited items
-(BUG-E6-2, Story 7.4)
-FR40 (restored): Epic 7 — an edit can no longer resurrect a deleted item or orphan it under a deleted category
-(BUG-E6-3, Story 7.4)
-FR38 (restored): Epic 7 — `HomeRedirect` compares `createdAt` numerically via `Date.parse`, so `/` reaches the genuinely
-oldest list (Story 7.5)
-FR57 (restored): Epic 7 — the app-bar home link is inert when it already points at the current route: no spinner flash,
-no dead history entry (Story 7.5)
-NFR-E7-1: Epic 7 — every direct npm and Gradle dependency at latest stable or held back with a recorded reason
-(Stories 7.7–7.13)
-NFR-E7-2: Epic 7 — the `registrationEnabled` race is deleted rather than retried; two consecutive full runs green at
-`retries: 0` on both projects (Story 7.3)
-NFR-E7-3: Epic 7 — `bp_front/e2e/` enters both static gates via a third tsconfig project and a widened lint glob
-(Story 7.1)
-NFR-E7-4: Epic 7 — backend behaviour changes ship Kotest coverage, each test observed failing before it is accepted
-(Stories 7.4, 7.6)
-NFR-E7-5: Epic 7 — no rendered difference after any bump, verified by a real-browser pass on the production stack
-(Stories 7.7–7.13)
-NFR-E7-6: Epic 7 — each major lands and is verified alone, so a break names its own cause — enforced structurally by
-one story per major (Stories 7.8–7.13)
-FR59: Epic 7 — `vite-plugin-pwa` manifest + generated PNG icons (192/512/512-maskable) + a registered service worker,
-turning Chrome-on-Android's "Add to Home screen" into a real WebAPK install (Story 7.14)
-NFR-E7-7: Epic 7 — `navigateFallbackDenylist: [/^\/api/]` and no runtime caching of the API, so the service worker
-never shadows GraphQL, the auth REST endpoints, the WebSocket upgrade, or `/api/graphiql` (Story 7.14)
-NFR-E7-8: Epic 7 — the suite stays green at `retries: 0` on both projects with the service worker registered
-(Story 7.14)
-FR60: Epic 8 — the whole shopping-view item row becomes one check target, replacing the checkbox-only affordance
-FR61: Epic 8 — one shared filter unit (multi-select category + name search) mounted on both `/list/:id` and `/lists/:id`
-FR62: Epic 8 — one shared comparator ordering categories and their items by name on both list surfaces
-FR63: Epic 8 — an edit affordance on each category row + a rename dialog, riding the existing `saveCategory` upsert
-NFR-E8-1/E8-2: Epic 8 — a 320px viewport floor, enforced by retargeting the existing `mobile` project rather than by
-inspection (Story 8.1)
-NFR-E8-3: Epic 8 — `expectNotClipped` on text elements plus `expectNoHorizontalOverflow` on the page; the clipping
-half is load-bearing, since a document-level check cannot see `noWrap` truncation (Story 8.1, AR-E8-3a)
-NFR-E8-4: Epic 8 — filtering and search stay client-side against the Apollo cache; no query, no refetch (Story 8.4)
-NFR-E8-5: Epic 8 — the filter unit and the ordering comparator each have one definition used twice
-(Stories 8.4, 8.5)
-NFR-E8-6: Epic 8 — the Epic 6/7 E2E discipline carried forward, discharged by every story's gates AC (8.1–8.6; not
-applicable to the doc-only 8.7, recorded there as a decision)
+**Delivered (Epics 1–8, bodies in `epics-archive.md`):**
+
+Epic 1: FR1–FR12, FR18, FR24–FR29, FR33
+Epic 2: FR13 (unpaginated original), FR14–FR17, FR19–FR23, FR30–FR32
+Epic 4: FR34–FR41, FR45–FR47, FR50–FR56, NFR-L1–NFR-L5 (FR44 single store, FR56 admin block)
+Epic 6: FR57 (app-bar home link, back-to-lists), FR44 store write path, FR40 edit verb
+Epic 7: FR58, FR59; FR38/FR40/FR45/FR54/FR57 restored
+Epic 8: FR60, FR61 (original), FR62, FR63, NFR64/NFR65 (as NFR-E8-1/-2)
+
+**Deferred:** FR42, FR43 (not re-scoped). **Superseded:** FR48, FR49.
 
 ## Epic List
 
-### Epic 1: User Authentication, Session Management & Identity
+### Epic 9: User Feedback Pass
 
-Users can create their own accounts, log in with personal credentials, have their session maintained silently for 30
-days, see their name in the app bar on every page, change their own password, and log out cleanly. The complete backend
-auth infrastructure (User entity, JWT tokens, refresh tokens, RBAC, rate limiting, Principal in GQL context) is in place
-as the foundation for everything that follows.
+Users can tell the admin what they want from inside the app, and the admin can read and clear it. Items carry every
+store they are sold in, with no existing store lost. An item can be added from the shopping screen without leaving it.
+The category filter menu can be closed on a phone, Home is in the account menu, and the admin's user list is
+paginated. Underneath, deleting a category or a user no longer leaves orphaned data behind, and the E2E gate waits for
+a backend that is actually ready.
 
-**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11, FR12, FR18, FR24, FR25, FR26, FR27, FR28,
-FR29, FR33
+**FRs covered:** FR13, FR44, FR56, FR57, FR61 (amended); FR66, FR67, FR68, FR69 (new)
+**NFRs binding every story:** NFR17, NFR18, NFR64, NFR65; NFR-L2 on the cascades; NFR13–NFR15 on the new dialogs
+**Carries:** AR-E9-0 … AR-E9-15, UX-DR-E9-1 … UX-DR-E9-13, and the "Routed to Epic 9" deferred-work index
+**Source:** `docs/feedback.md` items 1–6 (md's own use plus other users' feedback relayed by md)
 
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 1`; retrospective in `_bmad-output/implementation-artifacts/`.
+**Why one epic (md, 2026-09-15).** The architecture spine is final with every open question ruled and the UX contract
+describes the shipped app, so no early feedback could redirect later work. The two candidate halves (feedback/admin vs
+shopping/items) share their core files — `AppShell.tsx` (Home + Feedback), `AdminPage.tsx` (pagination + feedback
+panel), `UserAdminApi` (shared `requireAdmin` + purge), `AddItemDialog` (stores + FAB + category error) and
+`ItemService` (stores + `applyCheckState` + cascade) — and the project ships one branch, one retro and one app version
+per epic.
 
-### Epic 2: Admin User Management & Application Configuration
+**Ordering constraints for story creation:**
 
-Admin can view the full user list, create users, reset any user's password, and delete accounts — all with explicit
-confirmation dialogs on destructive actions. Admin can toggle public registration on or off at runtime. The admin panel
-is accessible only to the admin role; non-admin users are blocked. The login screen adapts to the registration state (
-link hidden / "contact admin" copy shown).
+1. The health endpoint (AR-E9-9) lands first: every later story is verified against a gate that today can abort on a
+   cold start (F20).
+2. Pagination with D4 data hygiene (AR-E9-6, -6a) lands early: the `createUserViaUi` flake grows with every suite run.
+3. The category cascade (AR-E9-7) lands before or with the FAB: its `saveItem` create-branch category check is what
+   stops the FAB creating items in a just-deleted category.
+4. The multi-store change (AR-E9-3/-4/-5/-11/-12) is one indivisible story: schema, mappers, repository, migration,
+   codegen and E2E GraphQL ship together in one app version.
+5. Small cleanups (AR-E9-15) run last, after every `AppShell` story, so only still-unconsumed tokens are deleted.
 
-**FRs covered:** FR13, FR14, FR15, FR16, FR17, FR19, FR20, FR21, FR22, FR23, FR30, FR31, FR32
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 2`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 3: Technical Foundation
-
-The high-priority deferred items from Epics 1 and 2 are cleared and the Epic 2 admin surface gains real-browser
-coverage: `/auth/register` is unreachable while registration is disabled, admin dialogs surface mutation failures
-instead of dying silently, the concurrent-registration TOCTOU path has a regression test, and an unhappy-path checklist
-is embedded in the story template. Defined in the Epic 2 retrospective, delivered in two stories, closed 2026-05-18.
-
-**FRs covered:** no new FRs — hardening and coverage for the FRs Epics 1 and 2 already delivered
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 3`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 4: Personal Lists & Sharing
-
-All data is scoped to lists. Each user owns their own lists, can share any list with other users by username, and collaborators receive full peer write access. Existing items are migrated to a default list on first deploy. The frontend moves to bottom tab navigation (Today · Lists · Household). Item lifecycle becomes explicit: one-timers auto-delete on check-off, recurring items restore automatically at the configured cadence. The backend introduces per-list authorization enforced at the service layer via `CallerUsername`, authenticated WebSocket subscriptions, and an idempotent startup migration.
-
-**FRs covered:** FR34, FR35, FR36, FR37, FR38, FR39, FR40, FR41, FR42, FR43, FR44, FR45, FR46, FR47, FR48, FR49, FR50, FR51, FR52, FR53, FR54, FR55, FR56
-**NFRs covered:** NFR-L1, NFR-L2, NFR-L3, NFR-L4, NFR-L5
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 4`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 5: Frontend Reframe — Vite + MUI + Caddy
-
-The frontend is rebuilt from scratch as a **Vite + Material UI** single-page app served by **Caddy** (replacing the
-Next.js app and nginx). The existing Ktor/GraphQL backend is consumed as-is and **must not be modified** without
-explicit confirmation. The new app re-delivers every in-scope frontend FR across auth, account, admin user management,
-lists management, the list/shopping view (with category/checked/search filters), and list sharing — keeping real-time
-collaboration. Every story ships a real-browser Playwright E2E test, manually validated before it is written.
-One-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend support remains).
-
-**FRs covered:** FR1–FR21, FR27, FR29, FR30–FR41, FR44, FR45, FR48, FR49, FR50, FR51, FR52, FR53, FR55, FR56 (frontend
-delivery on the new stack)
-**Deferred:** FR42, FR43 (one-timer / recurring item UI)
-**Supersedes:** the frontend deliverables of Epics 1, 2, and 4 (backend deliverables remain authoritative)
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 5`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 6: Item Editing & Home Navigation
-
-Two gaps the Epic 5 reframe left behind, both purely frontend. Users can **change an item they already created** —
-correct a typo, move it to the right category, set or clear the store it belongs to — instead of the delete-and-retype
-workaround that is the only option today, and they can set a store **while adding** an item rather than having to go
-back and edit it. And from anywhere in the app they can get **back to home in one action**: the app-bar title becomes a
-link to `/`, and the shopping view gains the back-to-lists affordance its sibling management screen already has. After
-this epic the item lifecycle is complete in the UI (create → edit → check → delete) and no screen is a navigational dead
-end.
-
-The epic holds a deliberate boundary: **`/lists/:id` manages a list, `/list/:id` uses one.** Editing lives on the manage
-surface; the shopping loop stays check-off-only. That makes Story 6.2's navigation work load-bearing for Story 6.1's
-usability — the two stories are independent in code and coupled in experience.
-
-**FRs covered:** FR57 (new); FR40 (the `edit` verb — its add/check/delete siblings shipped in Epic 5); FR44 (the store
-write path + suggestions, in **both** the create and edit dialog — Epic 5 shipped only the read-side chip)
-**NFRs covered:** NFR-E6-1, NFR-E6-2, NFR-E6-3 **Still deferred:** FR42, FR43 (one-timer / recurring) — the editor is
-built without the lifecycle control, and BUG-E6-2 must be fixed before they can be undeferred **Known bugs shipped with
-this epic, by decision:** BUG-E6-1 (edit re-attributes `addedBy` — FR45 regression) and BUG-E6-2 (edit resets
-`checkedAt`). Both are frontend-unfixable, both have a diagnosed server-side fix, both are filed as defects rather than
-accepted behaviour (AR-E6-3), and logging them in `deferred-work.md` is an AC of Story 6.1. **Standing constraint:**
-backend frozen (AR-E6-0), re-affirmed by `md` after the freeze was challenged in review. One
-`npm run generate` run is needed for the previously unused `itemStoreSuggestions` query (AR-E6-4) — authoring a query
-document against the existing schema, not a schema change.
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 6`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 7: Item Integrity, a Trustworthy Test Suite & Dependency Currency
-
-Three data-correctness defects are live in production today by explicit Epic 6 decision, and this epic removes all
-three with one server-side change. A co-member who fixes a typo stops **stealing authorship** of the item; editing a
-checked item stops **wiping the clock** that the recurring scheduler reads; and a dialog left open while someone else
-deletes the item can no longer **resurrect it for everyone** or strand it under a deleted category — an outcome whose
-only recovery today is direct database access. Alongside those, `/` starts resolving to the genuinely oldest list, and
-the app-bar home link stops costing a spinner flash and a dead Back press when the user is already home.
-
-Behind the user-facing repairs, the epic makes the project's own hard gate trustworthy and brings the stack current.
-**These are not user value and this epic does not claim they are** — they are what makes the repairs above verifiable.
-Today `bp_front/e2e/` is inside neither frontend quality gate, so "lint and build pass" says nothing about the ~1,015
-lines of Epic 6 spec code; the helper block is copy-pasted into four spec files; and the suite is green only under CI's
-`retries: 2`, because a shared `registrationEnabled` document races between the concurrently-running `chromium` and
-`mobile` projects — a flake accepted seven times across two epics. Epic 7 closes all three and then upgrades every
-direct npm and Gradle dependency behind that repaired gate.
-
-The epic's one genuinely new user-facing capability is **installability**: after Story 7.14 the app installs from
-Chrome on Android as a real WebAPK — its own launcher icon, its own entry in the task switcher, no URL bar — instead of
-the bookmark shortcut it degrades to today for want of PNG icons and a service worker.
-
-**FRs covered:** FR58 (new — item save is a merge, not a reconstruction); FR59 (new — installable PWA); FR45, FR54,
-FR40 (correctness restored — the three live defects); FR38, FR57 (correctness restored — wrong-list resolution and the
-home-link no-op)
-**NFRs covered:** NFR-E7-1 … NFR-E7-8
-**Still deferred:** FR42, FR43 — FR58 discharges their recorded technical prerequisite, but `md` is reconsidering the
-requirements before they are scoped. FR34 (list description) needs a `List.description` field, outside the scoped
-unfreeze.
-
-**Why one epic and not three.** The three themes look separable and are not: the package sweep must be gated by the
-repaired harness, and the race fix must be gated by the shared fixture module, so splitting would create exactly the
-cross-epic ordering dependency the epic-design rules forbid. The file overlap is meaningful rather than incidental —
-Stories 7.1, 7.2 and 7.3 all rewrite the same four spec files' helper blocks, and 7.7 then re-runs every one of them.
-The Epic 6 retrospective reached the same conclusion independently ("the obvious shape: a consolidation epic").
-
-**Story order is the epic's design, not a preference.** Each step is the gate for the next:
-
-1. **7.1** `e2e/` into lint + tsconfig — cheapest, and makes everything after it statically verifiable.
-2. **7.2** shared E2E support module — **must** precede 7.3, or the race fix lands in four copies.
-3. **7.3** delete the `registrationEnabled` race — **the pivot**: NFR-E7-2 becomes true, and every later story is
-   verified by a suite that can actually fail.
-4. **7.4** the `saveItem` merge (FR58) — the epic's highest user value and the first scoped backend unfreeze in three
-   epics, deliberately sequenced *after* the gate is trustworthy.
-5. **7.5** `HomeRedirect` numeric sort + the home no-op — one file, both FR-correctness.
-6. **7.6** backend safety fixes riding the same unfreeze — `@Volatile` `synced` flags, typed invite status,
-   `deleteList` orphan cleanup.
-7. **7.7 – 7.13** the dependency sweep — **last on purpose**: it needs the strongest gate available and re-verifies
-   everything before it. **One story per major** (`md`, 2026-07-29), which makes NFR-E7-6's independent-attributability
-   rule structural rather than an acceptance criterion someone has to remember. A major that cannot be made green is
-   reverted and held back with its symptom recorded (AR-E7-10); **a held-back major does not fail its story**, it
-   closes it with a recorded reason under NFR-E7-1.
-    - **7.7** the minor and patch sweep, npm **and** Gradle, in one pass — the ~16 bumps that carry no migration risk,
-      landed together so the majors that follow start from a current baseline.
-    - **7.8** `@types/node` 25→26 — types-only and the cheapest major; first so the sequence starts on low risk.
-    - **7.9** Vite 7→8 **with** `@vitejs/plugin-react` 5→6 — **one atomic story**, never two: plugin v6 requires Vite 8
-      and bumping either alone breaks the build (already recorded in `project-context.md`).
-    - **7.10** TypeScript 6→7 — after 7.1, so the major type-checks the whole codebase including `e2e/` rather than
-      80% of it.
-    - **7.11** ESLint 9→10 with `@eslint/js` 10 — after 7.10, because `typescript-eslint` must satisfy both at once.
-      `react-hooks/set-state-in-effect` must survive: it is load-bearing for the render-phase-adjustment convention.
-    - **7.12** `graphql-kotlin` 9→10 **together with the Kotlin bump** — the backend major, sequenced **before** 7.13
-      so that if it moves the generated schema at all, the frontend GraphQL major is verified against the final schema
-      rather than a stale one. Kotlin's target version is whatever `graphql-kotlin` 10.2.0 supports, resolved in this
-      story rather than assumed in 7.7.
-    - **7.13** `graphql` 16→17 — last, and the most likely to be held back: it is a simultaneous peer of
-      `@apollo/client`, `graphql-ws`, `@graphql-codegen/cli` and `@graphql-codegen/client-preset`.
-8. **7.14** installable PWA (FR59) — **after** every dependency bump, not before. `vite-plugin-pwa` peers on Vite, so
-   installing it earlier means migrating it twice across 7.9; and a service worker is a global request interceptor
-   added to a suite where every spec navigates, so landing it while GraphQL majors are in flight would make any
-   resulting flake unattributable. Last position is what keeps NFR-E7-8 a meaningful check (AR-E7-14, AR-E7-15).
-9. **7.15** the dev-auto warnings verdict — independent of the chain, schedulable anywhere.
-
-**Standing constraints for every Epic 7 story** are recorded as AR-E7-0 (the unfreeze is scoped to named files, not
-open season on `bp_back/`), AR-E7-10 (a failed bump is reverted and recorded, never worked around), AR-E7-12 (a fresh
-`epic-7-*` branch — Epics 5 **and** 6 both ran on `epic-4-lists`), and the Epic 6 non-negotiables carried forward:
-production-artifact E2E on desktop **and** mobile, manually exercised first, **every new test observed failing before
-it is accepted**, deferrals into `deferred-work.md`, and `sprint-status.yaml` reconciled at story close whichever dev
-workflow ran.
-
-**Closed.** Full breakdown moved to [`epics-archive.md`](./epics-archive.md) → `## Epic 7`; retrospective in `_bmad-output/implementation-artifacts/`.
-
-### Epic 8: Small UX Fixes From Real Use
-
-Eight defects `md` hit while actually shopping with the app, plus the design contract the project has been missing
-since Epic 5. On the shopping screen, **checking an item stops being a ~40px target** in a 300px-wide row — the whole
-row toggles — and the category filter stops being either/or, so "the chilled aisle **and** the veg aisle" becomes
-expressible for the first time. On the management screen, **a long item name wraps instead of vanishing behind an
-ellipsis**, the list title stops shoving its own buttons off a narrow phone, a **category filter and an item search**
-arrive so a long list can be worked on one aisle at a time, and **a mistyped category can finally be renamed** rather
-than deleted — which today destroys every item inside it. And both screens stop disagreeing about what order the same
-list is in.
-
-Underneath the eight fixes sit two structural changes that make them stick. **The project gains a supported
-narrow-viewport floor that the gate actually enforces**: two of the eight reports are pure layout failures on a Galaxy
-Z Fold 5 cover screen (~344px CSS), and every "mobile" assertion this project has ever run was at a Pixel 7's 412px —
-so the suite could not have caught either one, and without moving the gate the next fixed pixel cap gets found the same
-way, by `md`, on the device, after it shipped. **And the two list surfaces stop being able to drift apart**: the filter
-control and the ordering comparator each get one definition used twice, because report #7 *is* a drift that prose did
-not prevent.
-
-The epic's closing story writes the `DESIGN.md` + `EXPERIENCE.md` spine for the app that is actually deployed. Both existing UX
-specifications are stale — one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never
-shipped — and Epics 6 and 7 each worked around that by reading the code instead. This epic stops working around it.
-
-**This is a fixes epic, not a redesign** (`md`, 2026-09-05: "small ux fixes based on real usage"). The dark theme, the
-type scale and the visual language are unchanged; light mode, a token overhaul and the Epic 4 bottom-tab navigation are
-recorded in `DESIGN.md` as known gaps and are not acted on in this epic (UX-DR-E8-11).
-
-**FRs covered:** FR60 (new — the whole item row is the check target); FR61 (new — multi-select category filter **and**
-item search on both list surfaces); FR62 (new — one canonical order on both surfaces); FR63 (new — rename a category)
-**NFRs covered:** NFR-E8-1 … NFR-E8-6
-**Still deferred:** FR42, FR43 (one-timer / recurring) — unchanged from Epic 7; the technical prerequisite is
-discharged and `md` has still not re-scoped them. FR34 (list description) still needs a `List.description` field.
-**Backend:** frozen in practice. `md` authorised a scoped unfreeze (AR-E8-0) and the planning pass then established
-that **no story needs it** — all four FRs are frontend-only against the existing schema, and FR63 rides the
-`saveCategory` upsert that has been there since Story 5.5 (AR-E8-10).
-
-**Why one epic and not three.** The eight reports look like a grab bag and are not: six of them modify
-`ListDetailPage.tsx` and four modify `ListShoppingPage.tsx`, and two of the deliverables — the filter unit and the
-ordering comparator — are by construction *defined once and mounted in both*. That is meaningful overlap rather than
-incidental sharing, and splitting it would manufacture exactly the cross-epic ordering dependency the epic-design
-rules forbid.
-
-**Story order is the epic's design, not a preference.** Reviewed in party mode on 2026-09-05; `md` ruled on every
-open question and the order below is the result, not the proposal that went in.
-
-1. **8.1** retarget the E2E gate to the narrow floor — **the pivot**, and it must land while the layouts are **still
-   broken**. The standing non-negotiable is that every new test is observed failing before it is accepted; a 320px
-   overflow assertion written after 8.2 has fixed the overflow can never be observed failing, so it would enter the
-   suite unverified. This is Story 7.3's role, for the same reason. The story **begins by measuring** (AR-E8-2a): make
-   the viewport change, run once, count the reds, and bring the number back before the rest of this order is treated as
-   settled.
-2. **8.2** the management screen at the narrow floor (UX-DR-E8-2, -3) — the two reported layout defects, fixed against
-   a gate that can now fail. Removes the fixed `maxWidth` caps rather than retuning them (AR-E8-3). **Also carries the
-   header-layout ruling as acceptance criteria** — how the list title and its two buttons coexist at 320px is decided
-   here, where a test can fail on it, rather than in a document nothing checks.
-3. **8.3** the whole-row check toggle (FR60) — the highest-value single fix and independent of the chain; schedulable
-   anywhere, placed here so real user value lands early.
-4. **8.4** one filter unit, mounted on both surfaces (FR61) — the epic's largest story, and **one story on purpose**:
-   built per-screen it lands in two copies, which is the defect report #7 already is (UX-DR-E8-7, NFR-E8-5). Carries
-   the empty-category rule: hidden while filtering or searching, shown when neither is.
-5. **8.5** one ordering comparator, used by both surfaces (FR62), **plus the `Uncategorized` bucket on the management
-   screen** (AR-E8-7) — both are changes to the same grouping block on both pages, and both follow 8.4 because 8.4
-   rewrites that block first. Doing them before it means editing it twice.
-6. **8.6** rename a category (FR63) — **after 8.2, never before**: it adds a third IconButton to a row whose name is
-   already truncating on the reported device, so landing it first would deepen report #2 on exactly that device
-   (UX-DR-E8-13).
-7. **8.7** the UX design contract — `DESIGN.md` + `EXPERIENCE.md`, **scheduled last and scheduled for real**.
-
-**Two structural decisions the review room reached, recorded so they are not re-litigated:**
-
-- **8.4 and 8.5 stay separate stories, on budget grounds rather than aesthetic ones.** They rewrite the same twenty
-  lines and the instinct is to merge them. Story 7.15 measured this project's dev-auto spec budget at 900–1600 tokens
-  and found Story 6.1 at roughly 6k — four times over, the only story ever to trip the multiple-goals flag, and the
-  flag was **correct**: 6.1 was two shippable goals under one number, and that scope came from the review room itself.
-  8.4 is already the epic's largest story; merging 8.5 into it would build another Story 6.1, deliberately, with
-  the measurement in hand.
-
-- **The UX design contract moved from first to last, because it was two things under one number.** As proposed it both
-  *decided* the narrow-viewport header layout and *documented* the deployed design. The first must precede
-  implementation; the second can only be honest after it. Written first, the document is the Epic 7 retrospective's
-  largest finding (**D2**) in its purest form — authoritative prose that steers six stories and that no gate checks.
-  Written last, it **describes** rather than prescribes, and a description can be verified by diffing it against the
-  code that shipped. So the decision moved into 8.2's acceptance criteria and the document became the closing story.
-  It is **scheduled, not conditional**: this project has deferred a written-down obligation before and it took four
-  epics to discharge (FR9).
-
-**Standing constraints for every Epic 8 story**, carried forward from Epics 6 and 7 and re-affirmed here: E2E against
-the production artifact, desktop **and** the narrow floor, UI-driven, FR-mapped, manually exercised before the test is
-written; **every new test observed failing before it is accepted**; deferrals into `deferred-work.md`;
-`sprint-status.yaml` reconciled at story close whichever dev workflow ran; new FRs authored in planning added to
-`prd.md` in the same pass (**done** — FR60–FR63 are in both documents); and never quote a version, count or line
-number from a planning document — re-measure it in the pass.
+**Rulings recorded at epic design (md, 2026-09-15):** the shopping row keeps its accessible name and carries stores in
+its description (UX-DR-E9-7); `/lists/:id` prunes a deleted category's items via its own mutation path, having no
+subscription (UX-DR-E9-11); adding an item joins checking as a shopping-view action, editing and deleting stay
+management-only (UX-DR-E9-8).
 
 ---
 
-## Epic 8: Small UX Fixes From Real Use
+## Epic 9: User Feedback Pass
 
-**Delivers:** FR60, FR61, FR62, FR63 · NFR-E8-1 … NFR-E8-6 · UX-DR-E8-1 … UX-DR-E8-13
-**Backend:** frozen in practice. The AR-E8-0 unfreeze is authorised and **unspent** — no story below needs it.
-**Branch:** `epic8-ui-ux`, cut from `main` at `424fd92` — Epic 7 retro action D1 discharged (AR-E8-9).
-**Epic-wide, binding on every story below:** no story adds a toast, snackbar or banner; state changes are confirmed by
-the UI changing (UX-DR-E8-10, carried forward from UX-DR-E7-7). The visual language, dark theme and type scale are
-unchanged — this is a fixes epic, not a redesign (UX-DR-E8-11).
+Users can tell the admin what they want from inside the app, and the admin can read and clear it; items carry every
+store they are sold in; an item can be added from the shopping screen; the category filter menu can be closed on a
+phone; Home is in the account menu; the admin's user list is paginated. Deleting a category or a user no longer leaves
+orphaned data, and the E2E gate waits for a ready backend.
 
-The eight defects below were reported by `md` from using the running app, not derived from a specification. Both UX
-specs on file are stale (AR-E8-8), so every requirement here was verified against the shipped source on 2026-09-05 and
-the code is authoritative wherever a planning document disagrees.
+**Delivers:** FR13, FR44, FR56, FR57, FR61, FR66, FR67, FR68, FR69 · AR-E9-0 … AR-E9-15 · UX-DR-E9-1 … UX-DR-E9-13
 
-**The eight reports.** "Report #N" is the epic's most-used cross-reference and is defined here, once:
+**Binding on every story below:** the inherited slice layout, error classes and naming (AR-E9-0, AR-E9-0a); backend
+rules proven with Kotest + Testcontainers (AR-E9-0b); E2E against the production artifact on desktop **and** the 320px
+floor, UI-driven (NFR17, NFR18, NFR64, NFR65); every new test observed failing before it is accepted; schema changes regenerate codegen
+in the same story; no toast or snackbar (UX-DR-E9-1); `DESIGN.md` / `EXPERIENCE.md` corrected in the same commit as any
+screen they describe (UX-DR-E9-12); each routed `deferred-work.md` entry a story discharges is closed in place by that
+story; `sprint-status.yaml` reconciled at story close.
 
-1. Checking an item off means aiming at the small checkbox rather than tapping the row (FR60, UX-DR-E8-1) — Story 8.3.
-2. A long item name is truncated instead of wrapping on the management screen (UX-DR-E8-2) — Story 8.2.
-3. The list title is squeezed to an ellipsis by its two action buttons at narrow widths (UX-DR-E8-3) — Story 8.2.
-4. The category filter selects only one category at a time (FR61, UX-DR-E8-4) — Story 8.4.
-5. The management screen has no category filter (FR61, UX-DR-E8-5) — Story 8.4.
-6. The management screen has no item search (FR61, UX-DR-E8-6) — Story 8.4.
-7. The two list screens order categories and items differently (FR62, UX-DR-E8-8) — Story 8.5.
-8. A mistyped category name can only be corrected by deleting the category and every item in it (FR63, UX-DR-E8-12) —
-   Story 8.6.
+### Story 9.1: The test run waits until the backend is ready
 
-Seven stories cover eight reports: #2 and #3 are both Story 8.2, and #4, #5 and #6 are all Story 8.4. Story 8.1
-delivers the gate that lets #2 and #3 be proven, and Story 8.7 delivers no report at all.
-
-### Story 8.1: Move the Mobile Gate to the Width People Actually Use
-
-As the person who has to trust this project's test suite, I want the mobile E2E project to render at the narrow
-viewport real phones have, So that a layout defect fails the gate instead of reaching my hand.
-
-**Delivers:** NFR-E8-1, NFR-E8-2, NFR-E8-3, UX-DR-E8-9 (AR-E8-1, AR-E8-2, AR-E8-2a)
-**Files:** `bp_front/playwright.config.ts`, `bp_front/e2e/support/*`, plus whatever the measurement in AC1 implicates
-**Reuses:** the existing `mobile` project and its `devices['Pixel 7']` descriptor — this story changes one viewport
-value, it does not add a project (AR-E8-2)
+As md, the developer running the E2E gate,
+I want the suite to start only once the backend and its database actually answer,
+So that a cold start never aborts the gate with zero tests run.
 
 **Acceptance Criteria:**
 
-**AC1 — measure before anything is fixed, and report the number (AR-E8-2a)**
+**Given** the stack is running and MongoDB is reachable
+**When** a client sends `GET /api/health` with no credentials
+**Then** the response is `200`
+**And** the route is declared as `get("/health")` outside `authenticate` and any `rateLimit`, served at `/api/health`
+through `rootPath: "api"` (AR-E9-9)
 
-**Given** 66 specs run in the `mobile` project and not one has ever rendered below 412px, so reports #2 and #3 are the
-two defects `md` happened to hit rather than necessarily the only two that exist
-**When** the viewport is retargeted and the suite is run once
-**Then** the count and identity of every newly-failing test is recorded in the story record before any layout is
-touched
-**And** that list is brought to `md` as a scoping decision — absorb them into Epic 8, or file them in
-`deferred-work.md` — because a substantially larger count changes what this epic is
-**And** the measurement is taken with `retries: 0`, since a retry-masked red is the failure mode Story 7.3 existed to
-delete
-**And** what this AC accepts is binary and belongs to the story: **the number was measured and reported.** The scoping
-decision that follows is `md`'s, and is explicitly **not** this story's to make or to pass and fail on
+**Given** MongoDB is unreachable, or its `ping` does not answer within 2 seconds
+**When** a client sends `GET /api/health`
+**Then** the response is `503`, returned after at most the 2-second timeout rather than a hang
 
-**AC2 — the `mobile` project renders at the NFR-E8-1 floor**
+**Given** a Kotest `testApplication` test using the real application config
+**When** it requests `/api/health` with Mongo up and with Mongo down
+**Then** it observes `200` and `503` respectively
 
-**Given** the `mobile` project in `playwright.config.ts` is a bare `{...devices['Pixel 7']}`, whose 412px width
-nobody ever chose deliberately and which has not been examined since Story 5.1
-**When** the project is retargeted
-**Then** its viewport width is the NFR-E8-1 floor of 320px
-**And** the `devices['Pixel 7']` descriptor is otherwise retained, because the Chrome-on-Android user agent and touch
-emulation are what the project was ever for
-**And** **no new Playwright project is created** — the ruling is explicit that adding one is the wrong shape (AR-E8-2)
+**Given** a machine with no bag-please containers running
+**When** md runs `npm run test:e2e`
+**Then** Playwright waits on `http://localhost:2080/api/health` and the suite executes, with no
+`Process from config.webServer exited early` abort
+**And** a compose startup failure surfaces its output promptly instead of silently running out the webServer timeout
+**And** the teardown and stdout-filtering choices are recorded in the story spec
 
-**AC3 — Story 7.3's race stays closed, and this is asserted rather than assumed (AR-E8-2)**
+**Given** the service worker's `/api` denylist
+**When** `/api/health` is requested through Caddy
+**Then** it reaches Ktor (never a service-worker fallback), and no probe tool is added to the `bp_back` image
 
-**Given** the `@registration-toggle` chain's `dependencies: ['chromium', 'mobile']` is a mutual-exclusion mechanism for
-a shared Mongo document, and every spec registers users through the UI because there is no login fixture (NFR18)
-**When** the change is complete
-**Then** there are still exactly two viewport projects, so `dependencies` still names every project that registers
-**And** the structural invariant is **re-measured, never quoted** —
-`npx playwright test --list | grep -oP '^\s+\[\K[^\]]+' | sort | uniq -c` — and the result recorded with its date
-**And** the total test count is unchanged by this story, since no project was added
+**And** the deferred-work entries for Epic 8 retro F20, the Epic 5 "Playwright `webServer` gaps", the Story 7.1 review
+cold-start finding and the Story 7.12 missing health endpoint are closed in place
 
-**AC4 — clipping and overflow are two assertions, not one, and the clipping one is the load-bearing half
-(NFR-E8-3, AR-E8-3a)**
+### Story 9.2: The admin's user list is paged instead of growing forever
 
-**Given** a document-level overflow check **cannot detect either reported defect**: `noWrap` sets `overflow: hidden`
-(`Typography.js:88-90`), a clipped element does not expand its ancestors, and so
-`document.documentElement.scrollWidth <= clientWidth` stays green while reports #2 and #3 are on screen
-**When** the gate is built
-**Then** it provides **two** helpers with different jobs, both in the Story 7.2 shared support module and each with
-exactly one definition (NFR-E8-5)
-**And** `expectNotClipped(locator)` asserts `scrollWidth <= clientWidth` on the **text element**, which holds precisely
-when that text is not truncated — this is the assertion that catches reports #2 and #3
-**And** `expectNoHorizontalOverflow(page)` is the document-level check, retained for the different class of defect it
-does catch: something that genuinely widens the page, which a third control on a row or an over-wide dialog will
-produce
-**And** neither is presented as a substitute for the other, because the first draft of this story proposed only the
-second and it would have gated nothing
-**And** `expectNotClipped` is observed **failing** against `/lists/:id`'s item name and list title at 320px before it
-is accepted — the two reported defects are its proof, which is the whole reason this story precedes Story 8.2
-
-**AC5 — gates**
-
-**Given** the epic's standing constraints
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — `npm run lint` and `npm run build` pass, `git diff` shows no change under
-`bp_back/`, and the suite's state is recorded honestly: if AC1's measurement leaves known reds outstanding, they are named in the story record and filed,
-not silently retried
-
-### Story 8.2: A Long Name and a Full Header Fit on a Narrow Phone
-
-As someone managing a list one-handed on a phone, I want item names to wrap instead of vanishing and the list header to
-keep its buttons on screen, So that I can read what is on my list and act on it without a wider device.
-
-**Delivers:** UX-DR-E8-2, UX-DR-E8-3, UX-DR-E8-9, NFR-E8-1 (AR-E8-3) — reports #2 and #3
-**Files:** `bp_front/src/routes/ListDetailPage.tsx`, one spec
-**Reuses:** Story 8.1's overflow helper and the retargeted `mobile` project — this story adds no test infrastructure
+As the admin,
+I want the users table to show at most 20 accounts per page with a total count,
+So that `/admin` stays fast and usable however many accounts exist.
 
 **Acceptance Criteria:**
 
-**AC1 — a long item name wraps to two lines instead of truncating (UX-DR-E8-2, report #2)**
+**Given** 45 regular users exist
+**When** the admin opens `/admin`
+**Then** the table shows the first 20 users ordered by username ascending
+**And** `admin-users-total` shows 45, `admin-users-page` shows the current page, `admin-users-prev` is disabled and
+`admin-users-next` is enabled (FR13, UX-DR-E9-5)
 
-**Given** the `item-name` Typography in `ListDetailPage.tsx` renders `noWrap` under a fixed `{xs: 150, sm: 400}` cap,
-so on a narrow phone the user sees an ellipsis where the item's name should be
-**When** a list contains an item whose name does not fit on one line at 320px
-**Then** the name wraps and up to **two** lines are shown before it is ellipsised
-**And** the two-line bound is enforced, so a pathological name cannot grow the row taller than the controls beside it
-**And** the fixed pixel cap is **removed**, not retuned — the name takes the room the flex row actually has (AR-E8-3)
-**And** the assertion is Story 8.1's `expectNotClipped` on the name element: a name that fits within two lines is not
-truncated. A document-level overflow check cannot detect this and must not be used as its gate (AR-E8-3a)
-**And** the horizontal gap between the name and the edit/remove controls is reduced, giving the name back the space the
-cap was protecting
+**Given** the admin is on page 1 of 3
+**When** they activate next twice and then previous
+**Then** they see page 2, then page 3 holding the remaining 5 users, then page 2 again
 
-**AC2 — at the narrow floor the action buttons wrap to their own line (UX-DR-E8-3, report #3)**
+**Given** the backend
+**When** `users(limit, offset, around)` is called
+**Then** it returns `UserPage { users, totalCount, offset }` sorted by username with Mongo's default binary collation
+**And** `limit` is clamped to 1..100, `offset` to 0..last page, and an `around` naming an existing username returns the
+page containing that user with that page's `offset`
+**And** a non-admin caller is rejected with Forbidden, and the unpaginated `users` field no longer exists in the schema
+**And** Kotest covers the ordering, both clamps and `around` (AR-E9-6)
 
-**Given** report #3 is a **squeeze, not an overflow** (AR-E8-3, corrected): `noWrap` sets `overflow: hidden`, which
-already resolves the title's `min-width: auto` to zero, so it shrinks all the way to an ellipsis while the two buttons
-take the remaining width — **adding `minWidth: 0` is a no-op and must not be implemented as the fix**
-**When** the management screen is rendered at 320px with a long list name
-**Then** the "+ Category" and "+ Item" buttons wrap onto their own row beneath the title, and the title takes the full
-width of its own row (`md`'s ruling, UX-DR-E8-3)
-**And** the title is **not clipped** at that width — asserted with Story 8.1's `expectNotClipped`, not by a
-document-level overflow check, which cannot see this defect (AR-E8-3a)
-**And** both buttons keep their text labels, remain fully visible and remain activatable
-**And** the page does not scroll horizontally
-**And** at desktop widths the header is unchanged — the wrap is a narrow-floor behaviour, not a redesign of the screen
+**Given** the admin creates a user whose name sorts onto a different page
+**When** the create succeeds
+**Then** the table shows the page containing the new row (queried with `around`) and the total increases by one
 
-**AC3 — the category-name row is fixed in the same pass (AR-E8-3, third bullet)**
+**Given** the admin is on the last page, which holds a single user
+**When** they delete that user
+**Then** the table moves back one page and the total decreases by one
+**And** after any create or delete no stale or shifted cached rows are shown (`cache-and-network`, `users` evicted and
+garbage-collected on every successful mutation)
 
-**Given** the `category-name` Typography in `ListDetailPage.tsx` is the identical `noWrap` + `{xs: 160}` construct
-beside two IconButtons, unreported
-only because `md` had not hit it yet
-**When** a category has a long name at 320px
-**Then** it behaves consistently with AC1's item name and does not overflow its row
-**And** leaving it as the third instance of a construct this story exists to delete is explicitly not acceptable
+**Given** the E2E helpers that create and act on users
+**When** they run
+**Then** they act on a created user only on the page the create landed on and never walk pages
 
-**AC4 — the app-bar username chip is audited and the outcome recorded either way**
+**Given** the suite has run many times against the same persistent database
+**When** it runs again
+**Then** the create-user flow's timing does not depend on how many users earlier runs left behind (Epic 7 action D4,
+AR-E9-6a)
+**And** the mechanism stays within NFR18, uses no retry loop, is recorded in the spec, and D4's status is updated in
+`sprint-status.yaml`
 
-**Given** `AppShell.tsx:193` caps the username at `{xs: 140}` and was deliberately capped so the bar survives ~360px —
-it is in the audit but not automatically in scope (AR-E8-3)
-**When** the app bar is rendered at 320px with a long username
-**Then** one of three outcomes is recorded: it is fixed in this story, it is confirmed correct at the floor, or it
-goes into `deferred-work.md` with its measurement — it does not pass silently
+**Given** the 320px phone project and a user with a 42-character username
+**When** `/admin` renders
+**Then** the page does not overflow horizontally and the pager controls are fully inside the viewport
+**And** the username cell is either not clipped (`expectNotClipped`) or its clipping is measured and recorded as a kept
+decision (AR-E9-6b)
 
-**AC5 — the fixes are proven at the floor, and the tests were seen failing first**
+**And** the routed deferred-work entries this story discharges are closed in place: Epic 7 close-out "`AdminUsers` is
+unpaginated", the Stories 7.8 + 7.9 `createUserViaUi` size-driven flake, and the `/admin` halves of the Story 8.2 entry
+and its review
 
-**Given** the epic's standing constraint that every new test is observed failing before it is accepted, and that Story
-8.1 delivered a gate which can now fail
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — the above are covered by specs passing on **both** `chromium` and the retargeted `mobile` project against the
-production image, manually exercised first
-**And** each new assertion was confirmed **failing** against the pre-fix layout
-**And** both of Story 8.1's helpers are applied to `/lists/:id` and pass — `expectNotClipped` on the title, the
-category name and the item name, and `expectNoHorizontalOverflow` on the page (NFR-E8-3, AR-E8-3a)
-**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
+### Story 9.3: Deleting a category deletes its items for everyone
 
-### Story 8.3: Check Off an Item by Tapping Its Row
-
-As someone shopping with one hand and a basket in the other, I want to tap anywhere on an item to check it off, So that
-I am not aiming at a small checkbox in a wide row while walking.
-
-**Delivers:** FR60 (UX-DR-E8-1, AR-E8-4, AR-E8-8a) — report #1
-**Files:** `bp_front/src/routes/ListShoppingPage.tsx`, one spec
-**Reuses:** the existing `CheckItemMutation` / `UncheckItemMutation` pair and the cache-reverts-on-failure behaviour —
-no mutation, query or error path changes
+As a list member,
+I want removing a category to remove every item in it on the server,
+So that no item is left orphaned on anyone's screen.
 
 **Acceptance Criteria:**
 
-**AC1 — the whole row toggles (FR60, report #1)**
+**Given** a category holding five items, one of them soft-deleted (`deleted = true`)
+**When** a member deletes the category
+**Then** the category and all six items are gone from MongoDB and from the per-list storage cache (AR-E9-7)
+**And** Kotest asserts the soft-deleted item is included
 
-**Given** the `Checkbox` at `ListShoppingPage.tsx:415` is currently the only toggle affordance, in a row that is 300px
-or more wide
-**When** I activate any part of an item's row — the name, the store chip, the `addedBy` avatar, or the space between
-them
-**Then** that item's checked state toggles
-**And** every one of those four regions is asserted individually, because "the whole row" is exactly the kind of claim
-that ships with a dead zone in it
+**Given** a caller who is not a member of the list
+**When** they call `deleteCategory`
+**Then** it is rejected and nothing is deleted (NFR-L2)
 
-**AC2 — the row is one control, not a control containing a control (UX-DR-E8-1)**
+**Given** member B is watching `/list/:id`
+**When** member A deletes a category holding at least 5 items from `/lists/:id`
+**Then** B's screen shows neither that category's group nor any of its items, without a reload (UX-DR-E9-11)
+**And** the server emits exactly one category `DELETED` event and no per-item events
 
-**Given** a checkbox nested inside a clickable row is the standard way to produce two tab stops, a doubled screen-reader
-announcement, and a handler that fires twice
-**When** the row is inspected
-**Then** it exposes exactly **one** accessible name, **one** checked state, and **one** tab stop
-**And** keyboard activation toggles the item exactly once
-**And** a single pointer activation issues exactly **one** mutation — asserted by counting network calls, not by
-observing the final state, since a double-fire of check-then-uncheck settles on the right answer while being wrong
-**And** the accessible name the checkbox carries today (``Toggle ${item.name}``) moves to the row rather than being
-lost
+**Given** member A on `/lists/:id`
+**When** A confirms the category removal
+**Then** the category card and its items disappear from A's screen
+**And** the handler sends one `deleteCategory` request and no `deleteItem` requests (the client loop is gone)
 
-**AC3 — the next state is passed explicitly, not read off the DOM event (AR-E8-4)**
+**Given** a `saveItem` **create** whose category does not belong to the target list
+**When** it is sent
+**Then** it is rejected with the existing message, nothing is created and no `SAVED` event is emitted
+**And** the create-hole tripwire test is retired
 
-**Given** `ListShoppingPage.tsx:237` `handleToggle(item, event)` derives `nextChecked` from `event.target.checked`, and
-a row-level activation has no such event
-**When** the handler is reworked
-**Then** it takes the next state explicitly and the `Checkbox` no longer owns that decision
-**And** the existing failure behaviour is preserved unchanged: the normalised cache is untouched on error, the control
-reverts to server state on its own, and the reason is surfaced in the existing inline `shopping-action-error` alert
+**Given** an item whose category no longer exists
+**When** a member calls `uncheckItem` on it
+**Then** it is rejected
 
-**AC4 — a scroll that starts on a row does not check the item**
+**Given** `AddItemDialog` is open on a category that another member deletes
+**When** the user submits
+**Then** the dialog stays open with the mapped message in `add-item-error`, the same path `EditItemDialog` uses
 
-**Given** on a phone a tap and the start of a scroll are the same gesture until they are not, and today the ~40px
-checkbox absorbs that ambiguity — you are either on the box or you are scrolling. Making the whole row a target means
-every scroll begun on a row is a candidate accidental check-off, one-handed, in a shop, where the failure mode is
-buying the wrong thing
-**When** a pointer or touch goes down on a row, moves beyond a small movement threshold, and lifts
-**Then** the item's checked state is **unchanged** and no mutation is issued
-**And** this is driven as a real gesture — pointer/touch down, move, up — not as a synthetic `click`, because a `click`
-handler on a div fires after a touch that moved and a synthetic click would never reproduce it
-**And** it is asserted on the `mobile` project specifically, where the gesture is real
-**And** an ordinary stationary tap still toggles, so the guard is confirmed not to have over-fired
+**And** orphans already in the data still appear in the `Uncategorized` group with their edit and remove controls
+**And** the Story 8.5 "orphan CAUSE" deferred-work entry is closed in place
 
-**AC5 — a one-timer check still removes the row (FR42 interaction)**
+### Story 9.4: Deleting a user leaves no phantom memberships
 
-**Given** the `ItemUpdates` handler drops a row on a `SAVED` carrying `deleted: true`, and the backend one-timer path is
-live even though its UI is deferred
-**When** a row-level activation checks an item
-**Then** the realtime path behaves exactly as it does through the checkbox today
-**And** this is asserted rather than assumed, because the activation surface changed and the subscription did not
-
-**AC6 — coverage and gates**
-
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — the above are covered by FR60-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
-against the production image, manually exercised first and observed failing before acceptance
-**And** the mobile assertions exercise a real touch activation, not a synthetic click
-**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
-
-### Story 8.4: One Filter and Search, on Both List Screens
-
-As someone with a long list, I want to narrow it by category and by name on whichever screen I am on, and to pick more
-than one category at a time, So that I can work on the chilled aisle and the veg aisle together instead of scrolling
-past everything else.
-
-**Delivers:** FR61 (UX-DR-E8-4, UX-DR-E8-5, UX-DR-E8-6, UX-DR-E8-7, UX-DR-E8-10; AR-E8-5, AR-E8-6; NFR-E8-4,
-NFR-E8-5) — reports #4, #5, #6
-**Files:** a new shared filter component under `bp_front/src/components/`,
-`bp_front/src/routes/ListShoppingPage.tsx`, `bp_front/src/routes/ListDetailPage.tsx`, specs
-**Reuses:** the shopping view's existing category `Select`, `TextField` search and AND-combined predicate — this story
-extracts and extends what Story 5.6 shipped rather than authoring a second one
+As the admin,
+I want deleting a user to remove them from every list and delete the lists they own, after telling me how many,
+So that no phantom member and no ownerless list is left behind.
 
 **Acceptance Criteria:**
 
-**AC1 — the category filter selects more than one category (FR61, UX-DR-E8-4, report #4)**
+**Given** user U owns two lists, is an accepted member of list L owned by V, and has a pending invite to list M
+**When** the admin opens the delete dialog for U
+**Then** the dialog states that U's 2 lists will be deleted with their items and categories, read from
+`User.ownedListCount` (FR17, AR-E9-8, UX-DR-E9-5)
 
-**Given** `categoryFilter` is a single `string` and the predicate is `item.category !== categoryFilter`, so choosing
-Dairy hides Produce
-**When** I open the category filter and choose two categories
-**Then** items from both are shown
-**And** the control remains a MUI `Select` made `multiple` with checkboxes in the menu and a summary of the chosen
-categories in the closed control — **not** a chip row (`md`'s ruling, UX-DR-E8-4)
-**And** selecting nothing means all categories, preserving today's empty-value default and its "All categories"
-affordance
+**Given** that dialog
+**When** the admin confirms
+**Then** U's user record is gone and every `list_members` row for U, in any status, is gone
+**And** U no longer appears in L's `members` or `memberUsernames`
+**And** both lists U owned are deleted with all their items and categories
+**And** U's sessions are invalidated
 
-**AC2 — one component, mounted twice (UX-DR-E8-7, NFR-E8-5)**
+**Given** the delete sequence
+**When** it runs
+**Then** `adminDeleteUser` runs before `purgeUser`, so a `createList` or `acceptInvite` by U after the first step fails
+with `CallerNotFound`
+**And** Kotest covers the order
 
-**Given** the two surfaces have already drifted apart once and report #7 *is* that drift
-**When** the story is complete
-**Then** the category filter and the search box have exactly **one** definition in `src/`, used by both
-`ListShoppingPage` and `ListDetailPage`
-**And** the filter predicate likewise has one definition
-**And** a second copy of either is a review failure — the rule Story 7.5 applied to `byCreatedAtAsc` after two
-divergent sorts shipped
+**Given** a user already purged
+**When** `purgeUser` runs again
+**Then** it changes nothing and raises no error
+**And** it writes only through `ListStorage.save` and `ListMemberRepository`, so V's Share dialog stops listing U
+without a restart
 
-**AC3 — the management screen gains both controls (FR61, reports #5 and #6)**
+**Given** `deleteList` and the purge
+**When** either deletes a list
+**Then** both go through the one private `cascadeDeleteList`, and the existing `deleteList` tests stay green
 
-**Given** `ListDetailPage` has no filter or search control of any kind today
-**When** it renders
-**Then** it offers the same multi-select category filter and the same case-insensitive item-name search, combined by AND
-**And** the shopping view's checked-status toggle (All / To buy / Done) is **not** added there — it is meaningless while
-managing a list, and the shared component accommodates its absence rather than rendering a disabled control
-(UX-DR-E8-7)
+**Given** V is a member of a list U owned and has it open
+**When** U is deleted
+**Then** V's next data access to that list redirects V to `/lists` (Story 5.6), and no subscription event is emitted
 
-**AC4 — empty categories are hidden while filtering and shown otherwise (`md`'s ruling, FR61)**
+**And** a non-admin caller cannot delete a user
+**And** the Story 7-6 review "user deletion strands `list_members`" entry is closed in place
 
-**Given** the management screen deliberately shows empty categories because the "No items yet." line is where a user
-adds their first item — while a search returning eleven "No items yet." rows and one match is not a search result
-**When** no filter and no search term are active on `/lists/:id`
-**Then** every category is shown, empty ones included, each keeping its add-item affordance
-**When** a category filter or a search term **is** active
-**Then** only categories with at least one matching item are shown
-**And** the shopping view is unchanged: it hides empty groups always, because there an empty category is only noise
-**And** both branches are asserted, since this is the one place the two surfaces intentionally differ
+### Story 9.5: Checking an item through an edit keeps the scheduler working
 
-**AC5 — a stale selection is pruned, once, in the shared unit (AR-E8-5)**
-
-**Given** `ListShoppingPage` carries two render-phase adjustments that keep the filter honest — reset on list switch,
-and drop a `categoryFilter` whose category no longer exists after a live `CategoryUpdates` deletion
-**When** the filter becomes a set
-**Then** the second generalises to "prune every selected id that no longer exists" and both live in the shared unit,
-not re-derived per screen
-**And** they remain **render-phase adjustments**, because the project lint forbids set-state-in-effect
-**And** deleting a selected category live on the shopping view leaves the remaining selections intact rather than
-resetting the whole filter
-
-**AC6 — filtering stays client-side and instant (NFR-E8-4)**
-
-**Given** both surfaces already hold the full item and category sets in the Apollo cache
-**When** I type in the search box or change the category selection
-**Then** no query, no `refetch` and no round trip is issued, and the app does not enter a loading state
-**And** the management screen gains **no** `subscribeToMore` — it is refetch-driven by Story 6.1's explicit design and
-the shared component must not assume a subscription exists (AR-E8-6)
-
-**AC7 — coverage and gates**
-
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — the above are covered by FR61-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
-against the production image, manually exercised first and observed failing before acceptance
-**And** the multi-select control is exercised at 320px, where a menu with checkboxes and a summary line is most likely
-to overflow (NFR-E8-1)
-**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
-
-### Story 8.5: The Same List Reads the Same Way on Both Screens
-
-As someone who arranges a list on one screen and shops it on the other, I want both screens to show the same order, and
-I want an item whose category was deleted to still be findable, So that the app does not quietly disagree with itself.
-
-**Delivers:** FR62 (UX-DR-E8-8, AR-E8-7, AR-E8-7a) — report #7 plus the orphan gap
-**Files:** a shared comparator module under `bp_front/src/lib/lists/`,
-`bp_front/src/routes/ListDetailPage.tsx`, `bp_front/src/routes/ListShoppingPage.tsx`, specs
-**Reuses:** the shopping view's existing `sortByName` and its synthetic `Uncategorized` grouping — both are lifted to
-one definition rather than reimplemented
+As a list member with recurring items,
+I want an item that becomes checked by any path to carry the check-off time the scheduler reads,
+So that a recurring item is always restored on its cadence.
 
 **Acceptance Criteria:**
 
-**AC1 — categories are ordered identically on both surfaces (FR62, report #7)**
+**Given** `ItemService`
+**When** `checkItem`, `uncheckItem` or `saveItem`'s update branch changes check state
+**Then** all three go through one private `applyCheckState(stored, checked, recurring, now)` (AR-E9-11)
 
-**Given** the shopping view sorts categories with `localeCompare` while `ListDetailPage` renders them in raw query
-order with no sort at all
-**When** the same list is opened on `/list/:id` and on `/lists/:id`
-**Then** the categories appear in the same sequence
-**And** that sequence is by name, the shopping view's order being canonical (`md`'s ruling)
+**Given** a weekly item that was never checked (`checkedAt` null)
+**When** a `saveItem` update sends `checked: true`
+**Then** `checkedAt` is set to now
+**And** a scheduler run seven days later restores it (Kotest with a controlled clock)
 
-**AC2 — items are ordered identically within a category (FR62)**
+**Given** a checked weekly item with `checkedAt` T
+**When** a save changes only its name, or only its `recurring` value
+**Then** `checkedAt` stays T
 
-**Given** the shopping view sorts items by name while the management view renders `items.filter(...)` in query order —
-the same divergence one level down, found during planning rather than reported
-**When** the same category is viewed on both screens
-**Then** its items appear in the same sequence, by name
+**Given** a checked one-time item
+**When** its check state is applied
+**Then** `deleted = true` and `deletedAt = now`
 
-**AC3 — one comparator, one definition (NFR-E8-5)**
+**Given** a checked item with no cadence
+**When** its check state is applied
+**Then** nothing is stamped
 
-**Given** this project has already shipped two divergent `createdAt` sorts, which Story 7.5 had to consolidate
-**When** the story is complete
-**Then** the ordering comparator has exactly one definition in `src/`, used by both surfaces
-**And** it sits beside `byCreatedAtAsc` in `lib/lists/`, the module that exists because of the previous instance of
-this defect
+**Given** any item
+**When** it becomes unchecked by any path
+**Then** `checkedAt`, `deleted` and `deletedAt` are cleared
 
-**AC4 — an orphaned item is visible where it can be deleted (AR-E8-7, `md`'s ruling)**
+**And** `addedBy` and every other server-owned field survive, and the existing FR58, `checkItem` and `uncheckItem` tests
+stay green
+**And** the four factually wrong comments in `EditItemDialog.tsx` are rewritten to describe the merge and
+`applyCheckState`, with no change to the dialog's behaviour or its `checked`/`recurring` carry-forward (AR-E9-12)
+**And** the Story 7.4 `checkedAt` entry and the Story 7-4 review comments entry are closed in place
 
-**Given** the shopping view groups items whose category id has no local match into a synthetic `Uncategorized` bucket,
-and the management screen has none — so an item orphaned by a category deletion is visible while shopping and
-invisible on the only screen that can delete it, recoverable today only with direct database access
-**When** a list contains an item whose category no longer exists
-**Then** `/lists/:id` shows it in an `Uncategorized` group
-**And** **the edit control works from there and can move the item into a real category** — `md`'s ruling
-(2026-09-05). Offering only deletion would make the app's answer to "your category was deleted and your item survived"
-be "delete that too"; `EditItemDialog` already carries a category selector and the edit button is already on the row,
-so re-categorising is the recovery and it costs one assertion
-**And** the item's remove control also works from there, for the orphan the user does not want to keep
-**And** the group is absent when there are no orphans, exactly as on the shopping view
+### Story 9.6: An item can be in several stores
 
-**AC5 — the management screen's deliberate differences are preserved**
-
-**Given** FR62 is about order, and the two screens differ elsewhere on purpose
-**When** the changes land
-**Then** the management screen still shows **empty** categories when no filter or search is active, with its "No items
-yet." affordance intact (Story 8.4 AC4)
-**And** the shopping view still hides empty groups always
-**And** neither behaviour is changed by this story
-
-**AC6 — the orphan cause is recorded and explicitly not fixed here (AR-E8-7a)**
-
-**Given** `deleteCategory` does not cascade, so `ListDetailPage`'s remove-category handler deletes items client-side in
-a `for` loop with an `await` and no transaction — a mid-loop failure leaves surviving items pointing at a category
-about to stop existing
-**When** the story is completed
-**Then** the cause is recorded in `deferred-work.md` with its mechanism, distinct from the symptom this story fixes
-**And** it is **not** fixed here: making the delete atomic needs the AR-E8-0 unfreeze that nothing else in this epic
-uses, and would do nothing for orphans already in the data
-
-**AC7 — coverage and gates**
-
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — the above are covered by FR62-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
-against the production image, manually exercised first and observed failing before acceptance
-**And** the orphan case is produced through the UI — create a category with an item, delete the category, observe the
-item — rather than by writing a dangling category id directly into MongoDB, which the API-only test-data rule forbids
-**And** `npm run lint` and `npm run build` pass, and `git diff` shows no change under `bp_back/`
-
-### Story 8.6: Rename a Category Instead of Destroying It
-
-As a list member who mistyped a category name, I want to rename it, So that fixing one word does not cost me every item
-in that aisle.
-
-**Delivers:** FR63 (UX-DR-E8-12, UX-DR-E8-13; AR-E8-10 … AR-E8-13) — report #8
-**Files:** a rename dialog under `bp_front/src/components/`, `bp_front/src/routes/ListDetailPage.tsx`, one spec
-**Reuses:** the existing `SaveCategoryMutation` document and the `saveCategory` upsert that has been in place since
-Story 5.5 — **no backend change, no schema change, no `npm run generate`** (AR-E8-10); and `EditItemDialog`'s form
-conventions, which this dialog mirrors rather than reinvents
+As a list member,
+I want to give an item every store it can be bought in,
+So that I recognise it whichever store I am shopping in.
 
 **Acceptance Criteria:**
 
-**AC1 — a category can be renamed from the management screen (FR63, report #8)**
+**Given** the add-item dialog or the edit-item dialog
+**When** the user enters "Lidl", then " lidl ", then "Aldi"
+**Then** the field holds exactly Lidl and Aldi, because the duplicate by case-insensitive key is refused (FR44)
+**And** it offers suggestions from `itemStoreSuggestions`, accepts a new name, and removes a store individually
+**And** it has a visible associated label and is fully keyboard-operable (NFR13, NFR14)
+**And** the spec records whether `StoreField` keeps its no-second-combobox constraint or why it no longer applies
+(UX-DR-E9-6)
 
-**Given** the only correction available today is deleting the category, whose own confirmation says "Items in this
-category are removed with it. This cannot be undone." — so the route from "Diary" to "Dairy" destroys the aisle
-**When** I activate the edit control on a category row
-**Then** a dialog opens pre-filled with the current name
-**And** saving renames the category in place
-**And** its items remain attached to it, and nothing else about the category changes
-**And** the control sits beside the existing add-item and remove-category buttons, in the same idiom Story 6.1
-established for items (UX-DR-E8-12)
+**Given** a save sending stores `[" Lidl ", "lidl", "", "Aldi Nord"]`
+**When** the server processes it, on create or update
+**Then** the item stores `["Lidl", "Aldi Nord"]` (AR-E9-4)
+**And** an edit that only changes "Lidl" to "LIDL" is saved
+**And** `itemStoreSuggestions` returns one name per key, the lowest by (lowercase, then `compareTo`), in that order
 
-**AC2 — the save sends the full entity, `listId` included (`md`'s ruling, AR-E8-12)**
+**Given** the schema and data layers
+**When** the story ships
+**Then** `stores: [String!]!` exists on `Item` and `ItemInput` and `store` exists nowhere in the schema
+**And** `ItemRepository.save` sets `stores` and unsets `store` in one update
+**And** every frontend document returning an item spreads `ListItemFields`, codegen is regenerated, and the raw GraphQL
+in `e2e/item-editing.spec.ts` is updated (AR-E9-3, AR-E9-10a)
 
-**Given** `CategoryRepository.kt:35-43` applies `Updates.set("listId", …)` unconditionally, so a save carrying the
-wrong `listId` **moves the category to another list**, taking its name and stranding its items behind a category id
-their list no longer contains
-**When** the dialog submits
-**Then** it sends a complete `CategoryInput` — `id`, `name`, and the `listId` loaded with the category — matching
-`AddCategoryDialog`'s existing payload shape, so create and rename have one shape rather than two
-**And** a test pins the round trip: the `listId` returned by the query is the `listId` sent with the save
-**And** the id is the loaded category's id, never regenerated
+**Given** a database with `epic4-list-seed` recorded and items with: a legacy `store` "Lidl"; `store` " lidl " plus
+`stores` ["LIDL"]; a null `store`; a blank `store`; and an already converted item
+**When** the application starts
+**Then** each item's `stores` is the normalizer's result of its existing stores plus its `store`, no item keeps a
+`store` field, and `epic9-multi-store` is recorded last (FR69, AR-E9-5)
+**And** a second start changes nothing, and a fresh database starts cleanly
 
-**AC3 — validation matches the add dialog**
+**Given** an item with stores A and B on `/list/:id`
+**When** the row renders
+**Then** both stores are shown inside the row as non-interactive chips (`shopping-item-stores-<item>`,
+`shopping-item-store-<item>-<store>`)
+**And** activating anywhere on the row, chips included, toggles it (FR60)
+**And** its accessible name is exactly `Toggle <name>` and its description includes `Stores: A, B`; an item with no
+stores has no stores segment (UX-DR-E9-7)
 
-**Given** `AddCategoryDialog` validates on submit with a required name and a 100-character maximum
-**When** the rename dialog is used
-**Then** it applies the same rules, with the same inline error treatment, the same re-entry guard, and Enter-submits via
-a native `<form>`
-**And** saving an unchanged name is permitted and is a no-op to the user — it is not an error state
+**Given** the 320px phone project and an item with three long store names
+**When** the shopping view renders
+**Then** the page does not overflow horizontally and the row's check glyph and name stay inside the viewport
 
-**AC4 — the rename reaches other members live, with no new subscription code (AR-E8-10)**
+**Given** member A changes an item's stores
+**When** member B is watching `/list/:id`
+**Then** B sees the new stores without a reload
 
-**Given** `CategoryService.kt:33-38` already emits on `categoryUpdateChannel`, and the shopping view's
-`CategoryUpdates` handler already upserts a known id
-**When** one member renames a category
-**Then** another member viewing `/list/:id` sees the new name without refreshing
-**And** no subscription is added to `ListDetailPage`, which stays refetch-driven by Story 6.1's design (AR-E8-6)
+**Given** an orphaned item in the `Uncategorized` group
+**When** the user opens its edit dialog and saves without choosing a category
+**Then** the dialog does not close silently: it stays open and says a category must be chosen, and nothing is saved
+(AR-E9-12)
 
-**AC5 — the resurrection outcome is the decided one and is not "fixed" (`md`'s ruling, AR-E8-11)**
+**And** `gradle.properties` and `package.json` carry the same bumped version
+**And** `docs/deployment-guide.md` records the pre-deploy `mongodump` of `db_data` and the rollback procedure (AR-E9-5a)
+**And** the Story 8.5/8.6 orphan-dialog entry is closed in place
 
-**Given** `saveCategory` upserts, so saving a hard-deleted category id recreates it — unreachable until now, because no
-frontend path has ever sent an existing category id, and **this story makes it reachable for the first time**
-**When** a member saves a rename while another member has deleted that category
-**Then** the category is recreated, empty, and this is **accepted behaviour**: unlike BUG-E6-3 for items the
-resurrected object carries no false data, it strands nothing (the cascade removed its items first), and the recovery is
-the remove-category control the user already has
-**And** the story adds **no** client-side existence check and does **not** spend the AR-E8-0 unfreeze
-**And** its coverage does **not** assert that the save fails — it asserts the recreated category is present and empty,
-so the decision is pinned rather than left to be rediscovered as a bug
-**And** the outcome is asserted for **both** members, because they reach it by different paths: the member who saved
-is on the refetch-driven management screen, while the other member is on the subscription-driven shopping view. One
-assertion covers one path and leaves the other unverified
+### Story 9.7: Home is in the account menu
 
-**AC6 — the third control does not undo Story 8.2 (UX-DR-E8-13)**
-
-**Given** this adds roughly 40px of controls to a category row whose name was truncating on the reported device, which
-is why this story is sequenced after Story 8.2 and not before
-**When** the row is rendered at 320px with a long category name
-**Then** the page does not scroll horizontally, no control is clipped, and Story 8.2's category-name behaviour still
-holds
-**And** Story 8.1's `expectNotClipped` is applied to the category name and passes, and
-`expectNoHorizontalOverflow` is applied to the page and passes — the third control is exactly the change most likely
-to produce genuine overflow rather than silent clipping, so both helpers matter here (AR-E8-3a)
-
-**AC7 — the tests do not hold a name-keyed locator across the rename (AR-E8-13)**
-
-**Given** the management screen keys its rows as ``category-row-${category.name}`` and the shopping view as
-``shopping-group-${group.name}`` — name-keyed selectors, in the one story whose purpose is changing the name
-**When** the rename spec runs
-**Then** it re-queries after the save rather than holding a locator across the mutation
-**And** category names are not unique and this story does not make them so; a rename that collides with an existing
-name is out of scope and recorded, not guarded
-
-**AC8 — coverage and gates**
-
-**When** the story is completed
-**Then** — discharging NFR-E8-6 — the above are covered by FR63-tagged specs passing on **both** `chromium` and the retargeted `mobile` project
-against the production image, manually exercised first and observed failing before acceptance
-**And** `npm run lint` and `npm run build` pass, and `git diff` shows **no change under `bp_back/`** — the whole point
-of AR-E8-10 is that this story needs none
-
-### Story 8.7: Write Down the Design This App Actually Has
-
-As the next person or agent to work on this frontend, I want one current document describing how the app looks and
-behaves, So that I am not the fourth in a row to re-derive it by reading the code.
-
-**Delivers:** AR-E8-8, UX-DR-E8-11 — the epic's closing story
-**Files:** `_bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md` and `EXPERIENCE.md`; superseded banners on
-`ux-design-specification.md` and `ux-design-specification-epic-4.md`
-**Reuses:** nothing — but it **describes** rather than prescribes, and everything in it is checked against shipped code
+As a user,
+I want a Home entry in the account menu,
+So that I can get home from the place I look for navigation.
 
 **Acceptance Criteria:**
 
-**AC1 — the spine describes what is deployed, not what was once planned**
+**Given** a regular user or the admin on an authenticated screen that is not their home
+**When** they open the account menu and choose `menu-home`
+**Then** they land on the same destination as the app-bar title link — the oldest list, `/lists` for a user with none,
+or `/admin` for the admin (FR57)
 
-**Given** `ux-design-specification.md` describes the Next.js app Epic 5 replaced and `ux-design-specification-epic-4.md`
-describes a bottom-tab design that never shipped, so Epics 6, 7 and 8 each re-derived the design by reading source
-**When** the story is complete
-**Then** `DESIGN.md` records the deployed visual identity — the dark palette and the `custom.bp.*` tokens as they exist
-in `theme.ts`, the type scale, the component defaults, and the surface treatments
-**And** `EXPERIENCE.md` records the deployed information architecture, the route map, screen states, and the navigation
-model
-**And** every claim is verified against the source at the time of writing, with the commit it was verified at recorded
+**Given** the user is already on their resolved home route
+**When** they choose `menu-home`
+**Then** the menu closes and neither the URL nor `history.length` changes
 
-**AC2 — it captures the decisions that are not in the code (AR-E8-8)**
+**Given** the account menu
+**When** it opens
+**Then** its entries are, in order: Home, Lists, Change password (non-admin) or Admin (admin), Logout
+**And** Home carries a small `@mui/icons-material` icon and is reachable and activatable by keyboard (UX-DR-E9-3)
 
-**Given** reading the code tells you what the app does and never what it meant, and several load-bearing rulings live
-only in epic prose or review records
-**When** the document is written
-**Then** it records at minimum: the **manage-vs-use** boundary (`/lists/:id` manages, `/list/:id` uses) and that it is
-`md`'s ruling, not an accident; the **inert-but-present** home link rule (AR-E7-8); the **no-toast** convention; and
-FR60's consequence that the shopping item row is now a **closed** extension surface (AR-E8-8a)
-**And** each is attributed to where it was decided, so a future reader can tell a ruling from a habit
+**Given** a user with no lists on `/lists` in the installed app
+**When** they open the menu
+**Then** Home and Lists are both available, so the screen is not one menu away from a dead end
 
-**AC3 — it is a description, and its accuracy is checkable**
+**Given** `useHomePath` in observe mode while the lists query is failing
+**When** the app bar renders
+**Then** the error branch does not fire in observe mode (gated on resolve mode, after the `!data` check), so the title
+link stays live, while `HomeRedirect` in resolve mode still resolves to `/lists` (AR-E9-13)
 
-**Given** the Epic 7 retrospective's largest finding (**D2**) is that stories write authoritative text that steers later
-work and nothing verifies it, and this story is pure prose
-**When** the document is written
-**Then** every factual claim names the file it can be checked against
-**And** no figure is copied from another planning document — counts, tokens and values are re-measured in this pass
-**And** it is written **after** the epic's implementation stories, so it describes verified reality rather than
-prescribing unverified intent (`md`'s ruling)
+**And** the title link's inert-but-present behaviour and its existing tests are unchanged, and observe mode stays
+`cache-only` (md, 2026-09-15)
+**And** `EXPERIENCE.md` §1.1's menu table and §3 are updated, and the Story 7.5, 7-5 review and epic-7-context
+`useHomePath` entries are closed in place
 
-**AC4 — the stale specs are marked, not deleted**
+### Story 9.8: The category filter menu can be closed on a phone
 
-**Given** both existing specs are retained for history
-**When** the story is complete
-**Then** each carries a banner at the top naming what superseded it and from which epic it stopped being accurate
-**And** neither file is deleted
+As a user filtering a list on my phone,
+I want a Done button inside the category menu,
+So that I can close a menu that covers most of the screen.
 
-**AC5 — the known gaps are recorded and explicitly not acted on (UX-DR-E8-11)**
+**Acceptance Criteria:**
 
-**Given** this was a fixes epic and not a redesign
-**When** the document is written
-**Then** light mode, a design-token overhaul, and the Epic 4 bottom-tab navigation are recorded as **known gaps** with
-the reason each is out of scope
-**And** none of them is implemented by this story
-**And** anything Story 8.1's measurement filed rather than fixed (AR-E8-2a) is cross-referenced here, so the narrow-
-viewport picture is in one place
+**Given** the category filter menu is open on `/list/:id` or `/lists/:id` at 320px, on a list with 30 categories
+**When** the menu renders
+**Then** `filter-category-confirm` is fully visible without scrolling the menu (FR61, UX-DR-E9-10)
 
-**AC6 — it is scheduled, not conditional**
+**Given** the open menu
+**When** the user toggles categories
+**Then** the list behind the menu filters as each is toggled
 
-**Given** this project has deferred a written-down obligation before and it took four epics to discharge (FR9)
-**When** the epic closes
-**Then** this story is completed or explicitly re-planned by `md` — it does not lapse into `deferred-work.md` by
-default
-**And** NFR-E8-6 (E2E against the production artifact on both viewports, observed failing before acceptance) is
-**deliberately not applicable** to this story, which ships no code — recorded so its absence reads as a decision
-rather than an omission. Its analogue here is AC3: every factual claim names the file it can be checked against
+**Given** the user has selected two categories
+**When** they activate `filter-category-confirm`
+**Then** the menu closes, both selections remain applied, and focus returns to the category control
+
+**Given** the open menu
+**When** the user taps outside it or presses Escape
+**Then** it closes and nothing is reverted
+
+**And** the confirm control is defined once in `ListFilters.tsx` and appears on both screens
+
+**Given** `/lists/:id` with an empty category "Zzz Empty" and a stocked category "Bakery"
+**When** the user filters to "Zzz Empty" only
+**Then** its card and its add-item affordance are shown (F2, AR-E9-14)
+**And** empty categories that are not selected stay hidden while filtering, and the shopping view still hides empty
+groups
+
+**Given** a real category named "Uncategorized" and an orphaned item on the same list
+**When** either screen renders
+**Then** both groups render and the synthetic bucket's testids come from its sentinel key, so no locator matches two
+elements (F5)
+**And** `saveCategory` gains no name rule
+
+**And** the Epic 8 retro F2 and F5 deferred-work entries are closed in place
+
+### Story 9.9: A user can send feedback from any screen
+
+As a regular user,
+I want to send an idea, a request or a problem from wherever I am in the app,
+So that the admin hears about it without me leaving what I was doing.
+
+**Acceptance Criteria:**
+
+**Given** a regular user on any authenticated screen
+**When** they choose `menu-feedback` in the account menu
+**Then** `feedback-dialog` opens over the current screen and the route does not change (FR66, UX-DR-E9-3)
+
+**Given** the feedback dialog with text entered
+**When** the user submits
+**Then** a `feedback` document is stored with the trimmed text, the username from the caller's principal, and the
+server's time (AR-E9-1, AR-E9-2)
+**And** the dialog closes, the user is on the same screen with its state (e.g. active filters) intact, and an in-flow
+`role="status"` confirmation `feedback-sent`, rendered by `AppShell`, says the feedback was sent (UX-DR-E9-1)
+
+**Given** the text is empty or only whitespace
+**When** the user submits
+**Then** an inline field error is shown and nothing is sent
+
+**Given** text whose trimmed length is exactly 2000
+**When** submitted
+**Then** it is accepted
+**And** at 2001 trimmed characters the client blocks it with a field error and the server independently rejects it with
+`GraphQLInvalidInputException`
+
+**Given** the dialog
+**When** the user cancels
+**Then** nothing is sent
+
+**Given** the server fails the send
+**When** the user submits
+**Then** the dialog stays open with the text intact and the reason in `feedback-error`
+
+**Given** a regular user's account menu
+**When** it opens
+**Then** Feedback appears after Change password and before Logout, with a small icon, reachable by keyboard
+(UX-DR-E9-3)
+
+**Given** the admin account
+**When** its account menu opens
+**Then** there is no Feedback entry
+**And** an admin call to `sendFeedback` is rejected with Forbidden and stores nothing (FR56)
+
+**And** `sendFeedback` takes only `text`, so a client cannot set the author or the time
+**And** Kotest covers admin rejection, trimmed UTF-16 length bounds, the stored fields and the string `_id`
+**And** the dialog follows the canonical form-dialog conventions with `feedback-*` testids (UX-DR-E9-2) and fits at
+320px with its actions inside the viewport
+
+### Story 9.10: The admin reviews and clears feedback
+
+As the admin,
+I want to read all feedback newest first and delete what I have triaged,
+So that the admin area is where user feedback gets turned into planning.
+
+**Acceptance Criteria:**
+
+**Given** the backend admin checks
+**When** the story ships
+**Then** one `DataFetchingEnvironment.requireAdmin()` lives in `plugins/GqlAuth.kt` and `UserAdminApi`,
+`ApplicationConfigApi` and `FeedbackApi` all use it, with the two private copies removed (AR-E9-2)
+**And** the existing admin tests stay green
+
+**Given** three feedback entries sent at different times
+**When** the admin opens `/admin`
+**Then** the feedback panel lists them newest first, each with its text, the submitter's username and the submission time
+(FR67, UX-DR-E9-4)
+
+**Given** feedback text containing `<b>bold</b>` and `**markdown**`
+**When** it is shown
+**Then** the characters appear literally, never interpreted as markup
+
+**Given** a long multi-line entry at 320px
+**When** the panel renders
+**Then** the text wraps without horizontal overflow or clipping
+
+**Given** no feedback, a pending query, or a failed query
+**When** the panel renders
+**Then** it shows `admin-feedback-empty`, `admin-feedback-loading` or `admin-feedback-error` respectively
+
+**Given** an entry
+**When** the admin activates its delete control and confirms in `delete-feedback-dialog`
+**Then** the entry disappears from the panel and from the database
+**And** cancelling keeps it, a failed delete keeps the dialog open with `delete-feedback-dialog-error`, and deleting an
+id that does not exist is reported as not found rather than silently succeeding
+
+**Given** a regular user
+**When** they call `feedback` or `deleteFeedback`
+**Then** both are rejected with Forbidden
+
+**Given** user U has sent feedback
+**When** the admin deletes U
+**Then** U's feedback is still listed with U's username
+
+**And** the feedback query uses `cache-and-network` with the collection evicted on delete, codegen is regenerated, and
+`EXPERIENCE.md` §5.4 is updated
+
+### Story 9.11: An item can be added from the shopping screen
+
+As a list member shopping,
+I want an add button on the shopping screen,
+So that I can add something I just remembered without going to list management.
+
+**Acceptance Criteria:**
+
+**Given** a member on `/list/:id` for a list with categories
+**When** they activate `shopping-add-item-fab`
+**Then** the existing `AddItemDialog` opens with that list as the fixed target, with no list choice (FR68, AR-E9-10)
+
+**Given** the dialog filled with a name, a category and two stores
+**When** the member saves
+**Then** the item appears on the shopping view without a reload
+**And** another member watching the same list sees it without a reload (FR52)
+
+**Given** a list long enough to scroll, on desktop and at 320px
+**When** the member scrolls to the bottom
+**Then** the button stays visible throughout
+**And** the last item row can be fully seen and activated, not covered by the button
+
+**Given** a list with no categories
+**When** the member activates the button
+**Then** the dialog says a category is needed first and offers a link to `/lists/:id`, without rendering a form to submit
+(UX-DR-E9-9)
+
+**Given** a list with categories but no items
+**When** the shopping view shows its empty state
+**Then** the copy points the member at the add button
+**And** a list with no categories keeps the list-management guidance
+
+**Given** the button
+**When** inspected
+**Then** it has the accessible name "Add item", is reachable by keyboard, and sits inside the viewport at 320px
+
+**And** row check-off, filters and the list switcher behave as before
+**And** `EXPERIENCE.md` §4 and §5.3 record adding as a shopping-view action (md's ruling, UX-DR-E9-8)
+
+### Story 9.12: Small cleanups
+
+As md, maintaining the repository,
+I want the routed hygiene items fixed,
+So that tooling, docs and theme stop carrying traps and dead weight.
+
+**Acceptance Criteria:**
+
+**Given** the repository
+**When** `git ls-files .idea/dataSources.xml` runs
+**Then** it returns nothing, and the file is ignored
+
+**Given** `tsconfig.node.json`
+**When** `tsc -b` runs
+**Then** `codegen.ts` is type-checked
+
+**Given** `docs/` and `bp_front/e2e/`
+**When** they are searched for `./db/data`
+**Then** no stale path remains; they describe the `db_data` named volume
+
+**Given** a forced backend compile
+**When** it runs
+**Then** no `Expression is unused` warning is emitted for `UserService.changePassword`
+
+**Given** `.gitignore` and the ESLint `ignores`
+**When** read
+**Then** both list `dev-dist/`
+
+**Given** the backend
+**When** it is searched
+**Then** `ListStorage.delete()` no longer exists and the build passes
+
+**Given** `theme.ts` after every `AppShell` story has landed
+**When** `custom.bp.*` consumers are counted
+**Then** every token with no consumer is removed together with its module-augmentation type
+**And** `DESIGN.md` §3 and §11.2 are updated
+
+**And** `npm run lint`, `npm run build`, the backend tests and the full E2E suite pass
+**And** each discharged deferred-work entry (F19b, `codegen.ts`, `./db/data`, trailing `Unit`, `dev-dist/`,
+`ListStorage.delete()`, `custom.bp.*` tokens) is closed in place

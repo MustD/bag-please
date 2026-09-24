@@ -10,7 +10,7 @@ data class GqlItem(
     val checked: Boolean,
     val category: String,
     val listId: ID,
-    val store: String? = null,
+    val stores: List<String> = emptyList(),
     val recurring: String? = null,
     val addedBy: String? = null,
     val deleted: Boolean = false,

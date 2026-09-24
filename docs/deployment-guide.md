@@ -7,7 +7,7 @@ Docker Compose (`docker-compose.yaml`) defines three services on a single bridge
 
 | Service    | Image                                        | Port (host → container) | Notes                                                                                                                   |
 |------------|----------------------------------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `mongo`    | `mongo:8`                                    | `127.0.0.1:27217:27017` | Persistent volume `./db/data`; healthcheck; host port 27217 avoids clashing with a local MongoDB                        |
+| `mongo`    | `mongo:8`                                    | `127.0.0.1:27217:27017` | Persistent named volume `db_data`; healthcheck; host port 27217 avoids clashing with a local MongoDB                    |
 | `bp_back`  | Built from repo root (`bp_back/Dockerfile`)  | `127.0.0.1:4000:4000`   | Ktor fat JAR on `eclipse-temurin:25`; waits for mongo healthy                                                           |
 | `bp_front` | Built from repo root (`bp_front/Dockerfile`) | `127.0.0.1:2080:80`     | **Entry point** — Caddy serves the Vite `dist/` and proxies `/api` to `bp_back`; waits for mongo healthy + back started |
 
@@ -98,8 +98,42 @@ contents before use.
 
 ## MongoDB Persistence
 
-Data is mounted at `./db/data:/data/db` (`db/.gitignore` excludes the data files). Back up this directory to persist
+Data lives in the named Docker volume `db_data` (`docker-compose.yaml`), mounted at `/data/db`. Back it up to persist
 data across container recreations. The host port is `27217` to avoid conflicting with a locally installed MongoDB.
+
+### Dump before a migration release, restore to roll back (AR-E9-5a)
+
+Startup migrations (`plugins/Migration.kt`) rewrite documents in place and are **not** reversible by the application.
+`epic9-multi-store`, which ships in **0.19.0**, folds every item's legacy `store` field into `stores` and unsets it;
+the previous image reads `store` and would see every item as store-less. So for any release carrying a new migration
+— 0.19.0 included — **take a dump first**:
+
+```bash
+# 1. Pre-deploy dump (with the stack still on the OLD image)
+docker compose exec -T mongo mongodump \
+  --username user --password pass --authenticationDatabase admin \
+  --archive > backup-$(date +%Y%m%d-%H%M%S).archive
+
+# 2. Deploy
+docker compose up -d --build
+# Confirm the migration ran exactly once:
+docker compose logs bp_back | grep "multi-store migration"
+```
+
+**Rollback is restore-plus-previous-image, in that order** — rolling the image back alone leaves the migrated data
+behind and the old code cannot read it:
+
+```bash
+docker compose down
+docker compose up -d mongo
+docker compose exec -T mongo mongorestore \
+  --username user --password pass --authenticationDatabase admin \
+  --drop --archive < backup-<timestamp>.archive
+# then bring up the PREVIOUS image tag
+```
+
+The migration is idempotent and gated on its own `app_migrations` record, so a re-deploy of the same release is safe;
+the dump exists for the one case that is not recoverable in the app — going *back*.
 
 ## Production Hardening Checklist
 
@@ -114,7 +148,7 @@ data across container recreations. The host port is `27217` to avoid conflicting
   `trusted_proxies` to the edge's exact CIDR
 - [ ] Tune `KTOR_RATE_LIMIT_ATTEMPTS` / `KTOR_RATE_LIMIT_WINDOW_SECONDS` for production (compose uses a very high value
   for E2E)
-- [ ] Back up `./db/data` regularly
+- [ ] Back up the `db_data` named volume regularly
 - [ ] Consider rotating the JWT secret (invalidates existing tokens)
 
 ## Known GLIBC Issue (MongoDB on Kernel ≥ 6.19)

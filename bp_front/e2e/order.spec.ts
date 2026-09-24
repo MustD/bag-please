@@ -8,9 +8,15 @@ import {groupItemsByCategory} from '../src/lib/lists/order'
 //
 // Why this file is not a page test. The duplicate-name case is unreachable
 // through the UI's own assertions — `category-row-<name>` and `item-row-<name>`
-// are name-keyed, so two same-named rows trip Playwright strict mode before any
-// ordering could be read, and re-keying those testids is an OPEN ledger item the
-// epic rules out of scope. The behaviour is still a requirement, so it is
+// are name-keyed, so two same-named REAL rows trip Playwright strict mode before
+// any ordering could be read. Story 9.8 re-keyed the SYNTHETIC "Uncategorized"
+// bucket's own row testid off `group.key` (F5), but deliberately left every real
+// category's and item's testid name-keyed — re-keying those too would touch
+// roughly five dozen existing assertions for no behavioural gain, since real
+// categories never collide with each other by construction (`byNameThenId`'s id
+// tiebreak is about ORDER, not identity). The duplicate-name case below is
+// therefore still unreachable through the UI, and the behaviour is still a
+// requirement, so it is
 // asserted where it actually lives: against the exported function, with no
 // `page` fixture at all. It runs inside the existing gate on `chromium` and
 // `mobile` like every other spec (it is untagged, so both viewport projects
