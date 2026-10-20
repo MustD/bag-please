@@ -2,8 +2,10 @@
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: final
 completedAt: '2026-05-08'
-lastEdited: '2026-09-15'
+lastEdited: '2026-10-20'
 editHistory:
+  - date: '2026-10-20'
+    changes: 'Epic 10 Story 10.1: FR57 amended. The back-to-lists links on the shopping view (/list/:id) and the list management screen (/lists/:id) duplicated the account menu Home / My lists entries and pushed each screen header down, so both are removed; the app-bar title and account menu are the only navigation and no in-page affordance replaces them.'
   - date: '2026-09-15'
     changes: 'Epic 9 planning pass from docs/feedback.md (md''s own use plus other users'' feedback relayed by md). Added FR66 (users send free-text feedback from the account menu) and FR67 (admin reviews and deletes feedback — the triage point into project planning), with FR56 amended so the admin''s restricted scope includes feedback review. FR44 amended: an item carries zero or more stores instead of one, as groundwork for a future single-store shopping mode (Phase 3); FR69 preserves every existing store value across the change. Added FR68 (floating quick-add button on the shopping view, reusing the management screen''s add-item dialog) because adding an item currently requires going to list management. FR13 amended with pagination, FR57 with a home entry in the account menu, FR61 with a confirm control that closes the category filter menu, which covers most of a phone screen. Fast-path draft; every inferred detail (user page size 20 by username, 2000-character feedback invisible to its sender, admin does not send feedback, feedback survives user deletion, case-insensitive store names, confirm-only-closes filter menu, no-categories guidance in quick-add) confirmed by md on 2026-09-15.'
   - date: '2026-09-05'
@@ -747,11 +749,12 @@ to lists and introduces sharing.
   closing any sheet returns the user to their exact scroll position
 - **FR57:** From any authenticated screen the user can return to the application home destination in one action: the
   "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
-  oldest list by creation date, the lists index when they own none, the admin area for the admin account); the
-  shopping view additionally offers a back-to-lists affordance matching the list management screen's existing back
-  link. No screen is a navigational dead end requiring the browser back button. The account menu also carries a Home
-  entry that goes to the same destination as the title link, for users who look for navigation in the menu rather
-  than on the title; on the home route the Home entry simply closes the menu. *(Amended 2026-09-15: menu entry added.)*
+  oldest list by creation date, the lists index when they own none, the admin area for the admin account). The account
+  menu carries a Home entry that goes to the same destination as the title link (on the home route it simply closes the
+  menu) and a My lists entry that opens the lists index. Those menu entries are the navigation; neither the shopping
+  view nor the list management screen carries its own back-to-lists link. No screen is a navigational dead end
+  requiring the browser back button. *(Amended 2026-09-15: menu entry added. Amended 2026-10-20, Epic 10: in-page
+  back-to-lists links removed from both list screens.)*
 - **FR59:** The application is installable from Chrome on Android as a real standalone app rather than a bookmark
   shortcut: the browser menu offers "Install app", and the installed app has its own launcher icon, its own entry in
   the task switcher, and runs with no browser URL bar. Chrome builds a WebAPK only when HTTPS, a linked web app

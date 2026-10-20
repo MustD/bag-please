@@ -131,7 +131,7 @@ test('FR38 — visiting `/` redirects an authenticated user to their oldest list
   // Create two lists in order → the first is the oldest by createdAt. Go back to
   // the index between them (createListAndOpen leaves us on the detail screen).
   const oldestId = await createListAndOpen(page, oldest)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   await createListAndOpen(page, newer)
 
@@ -157,7 +157,7 @@ test('FR36 — the switcher changes the active list (header + URL) and resets fi
   const listAId = await createListAndOpen(page, listA)
   await addCategory(page, catA)
   await addItem(page, catA, itemA)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   await createListAndOpen(page, listB)
   await addCategory(page, catB)

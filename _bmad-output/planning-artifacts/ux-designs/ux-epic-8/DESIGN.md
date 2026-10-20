@@ -256,12 +256,12 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
-`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (27 raw import lines resolve to)
-— **21 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
+`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (25 raw import lines resolve to)
+— **20 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
 icon — it reuses `Add`. Supersedes "18 distinct from 23 lines" of 2026-09-16: `Cancel`, `Feedback` and `Home` arrived
 with Stories 9.6–9.9 without this figure being re-measured):
 
-`Add`, `AdminPanelSettings`, `ArrowBack`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
+`Add`, `AdminPanelSettings`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
 `Close`, `DeleteOutlined`, `EditOutlined`, `Feedback`, `FormatListBulleted`, `GroupOutlined`, `Home`, `LockReset`,
 `Logout`, `LogoutOutlined`, `PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
 
@@ -269,12 +269,13 @@ Conventions that hold across the set:
 
 - **Outlined variants for destructive and secondary actions** (`DeleteOutlined`, `EditOutlined`, `GroupOutlined`,
   `LogoutOutlined`, `PersonRemoveOutlined`); filled for the primary/menu ones.
-- **`fontSize="small"` wherever an icon sits beside text or inside a row.** Three different hosts, all consistent:
+- **`fontSize="small"` wherever an icon sits beside text or inside a row.** Two different hosts, both consistent:
   an `IconButton` child (`ListDetailPage.tsx:284,298,308,359,369`, `ListsPage.tsx:159,170,183`,
   `AdminPage.tsx:299,312,352,367` (re-measured 2026-09-16; was `:215,228`, and the last two are Story 9.2's pager
   chevrons), `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
-  `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`); and an icon inside a text
-  `Link` on the two back links (`ListDetailPage.tsx:123`, `ListShoppingPage.tsx:399`).
+  `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`). (Story 10.1 removed the
+  text-`Link` host along with the two back links, and with it `ArrowBack`: 21 distinct icons / 27 raw lines became
+  20 / 25.)
 - **`color="error"` marks the destructive path.** Nine sites, and they are not all controls. Seven are: the row
   `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:305` (was `:221`),
   `ShareMembersDialog.tsx:156`) and the delete-user confirm `Button` (`DeleteUserDialog.tsx:91`). The other two are

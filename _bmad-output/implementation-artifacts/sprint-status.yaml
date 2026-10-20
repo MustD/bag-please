@@ -126,8 +126,8 @@ development_status:
   9-12-small-cleanups: done
   epic-9-retrospective: done
 
-  epic-10: backlog
-  10-1-the-list-screens-open-on-their-header: backlog
+  epic-10: in-progress
+  10-1-the-list-screens-open-on-their-header: done
   10-2-we-know-which-jackson-writes-our-graphql-responses: backlog
   10-3-the-backend-runs-on-current-minor-releases: backlog
   10-4-graphql-kotlin-10-11: backlog
