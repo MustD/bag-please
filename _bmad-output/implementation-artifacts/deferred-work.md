@@ -342,6 +342,9 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   `curl POST /api/auth/login` -> `{"accessToken":"…","username":"admin","role":"admin"}`.
   Residual: the pin test pins behaviour, not Jackson identity, and the `graphql-ws` mapper is inferred, not measured —
   re-check at Story 10.4 (graphql-kotlin 11).
+  Re-checked by Story 10.4 (2026-10-20): `graphql-kotlin-ktor-server:11.0.0` still pulls `ktor-serialization-jackson3`
+  (Jackson 3 3.2.2, unchanged), `JacksonSerializationTest` green, HTTP error bodies / `406` / GraphiQL statuses
+  byte-identical to 10.2.1; the `graphql-ws` mapper remains inferred, not black-box measured.
   Was: source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
   summary: **Jackson 2 and Jackson 3 now coexist on the backend runtime classpath**, with two live `ContentNegotiation`
   converter implementations available and no measurement of which one actually serialises `data`/`errors`.
@@ -397,6 +400,25 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   Access-Control-Allow-Headers`), leaving the page stuck on `Loading...` with `ReferenceError: GraphiQL is not defined`
   — a false negative indistinguishable from a broken playground. Scope the header to same-origin API requests with
   `context.route("http://localhost:2080/api/**", …)`.
+
+## Deferred from: code review of 10-4-graphql-kotlin-10-11 (2026-10-20)
+
+- source_spec: `spec-10-4-graphql-kotlin-10-to-11.md`
+  summary: **`SubscriptionScopingTest` has two subscription-liveness races**; one fired once on the first full-suite
+  run on graphql-kotlin 11.0.0.
+  evidence: the first `cleanTest test` on 11.0.0 failed exactly one test, "9.3 a category cascade emits ONE category
+  DELETED event and NO item events", verbatim: `org.opentest4j.AssertionFailedError: Expected true but actual was null`
+  at `com.bagplease.SubscriptionScopingTest$1$5$1$4.invokeSuspend(SubscriptionScopingTest.kt:359)`
+  (`probesArrived shouldBe true`). It then passed 4/4 runs in isolation and 3/3 subsequent full-suite runs (two
+  `cleanTest test`, one `cleanTest test build`). No 10.2.1 control was run, so "pre-existing, not caused by graphql-java
+  26" is inferred from the mechanism, not measured.
+  Root cause (read from the test): graphql-ws sends no per-subscription ack and the service `SharedFlow` has no replay.
+  (1) "9.3 a category cascade…" posts each probe mutation exactly once, right after the two `subscribe` frames, with no
+  re-send — a probe emitted before its subscription attaches is lost and the 5 s wait times out. (2) "Point 2 takeWhile
+  revocation" (`:208`) has no liveness proof at all — only `delay(200)` at `:250` before `removeMember`, so if the
+  subscription has not attached it can pass vacuously (no event after removal for the wrong reason).
+  Proposed fix: re-send the probe until its frame is observed (bounded by the existing 5 s timeout) and reuse that
+  probe in Point 2 in place of the `delay(200)`; optionally measure the flake rate on 10.2.1 first.
 
 ## Deferred from: code review of 7-14-installable-pwa (2026-08-20)
 

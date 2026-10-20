@@ -39,6 +39,9 @@ Jackson 2 (`com.fasterxml`) and Jackson 3 (`tools.jackson`) are both on the runt
 - `install(WebSockets)` carries no `contentConverter` (it was unused; no `sendSerialized`/`receiveDeserialized` exists).
 - Pinned by `JacksonSerializationTest` (behaviour, not library identity: it would not catch a swap that keeps output
   identical). Re-check before any Ktor or graphql-kotlin major.
+- Re-checked at graphql-kotlin 11.0.0 (Story 10.4, graphql-java 26.1): `graphql-kotlin-ktor-server:11.0.0` still pulls
+  `ktor-serialization-jackson3` (Jackson 3 `tools.jackson` 3.2.2, unchanged from 10.2.1), `JacksonSerializationTest`
+  green, and the GraphQL error bodies, `406` and GraphiQL statuses are byte-identical to 10.2.1.
 
 ## Security
 

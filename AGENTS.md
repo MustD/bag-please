@@ -64,7 +64,8 @@ load with this one — this block carries only what those do not.
 - The Gradle wrapper is held at 9.8.1 to match `FROM gradle:9.8.1-jdk25` in `bp_back/Dockerfile`; the shipped image
   builds with the image's Gradle, so the wrapper cannot move alone.
 - Jackson 2 and Jackson 3 both sit on the backend runtime classpath by design — Jackson 2 via
-  `ktor-serialization-jackson` serves `/api/auth/*`, Jackson 3 arrives with graphql-kotlin 10. Do not "unify" them.
+  `ktor-serialization-jackson` serves `/api/auth/*`, Jackson 3 arrives with graphql-kotlin 11
+  (`graphql-kotlin-ktor-server` -> `ktor-serialization-jackson3`). Do not "unify" them.
 - An enumerated field is an enum in the **domain** model only; the Mongo and GQL models each keep their own `String`,
   so the SDL never moves and no data migration is needed. A repository `Updates.set` has no mapper in it and must pass
   `.name` explicitly, and a BSON filter must use `Status.PENDING.name`, never a bare literal.
