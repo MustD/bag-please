@@ -50,4 +50,10 @@ browsing session, which the manifest does not cover.
 (access tokens are short-lived, so mint a fresh one at run time — see the `npm run generate` command in the root
 `CLAUDE.md`). The generated output goes to `bp_front/src/__generated__/`.
 
-`ApiPlayground/` contains `.http` files for manually exercising the API via IntelliJ HTTP Client.
+`ApiPlayground/` contains `.http` files for manually exercising the API via IntelliJ HTTP Client; its `local`
+environment (`ApiPlayground/http-client.env.json`) targets the built stack on `:2080`.
+
+## Tests
+
+There is no frontend unit/component test framework (no Vitest/Jest in `package.json`): Playwright E2E
+(`npm run test:e2e`, `e2e/`) is the only frontend test suite.

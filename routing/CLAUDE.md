@@ -5,7 +5,8 @@ Guidance for the Caddy edge that serves the built SPA and proxies the API.
 ## Caddy routing
 
 The frontend is a multi-stage image (`bp_front/Dockerfile`): stage 1 builds the Vite bundle, stage 2 (`caddy:2-alpine`)
-serves it with the `routing/Caddyfile`. All traffic enters on port 2080:
+serves it with the `routing/Caddyfile`. Caddy listens on `:80` inside the container, published on the host as
+`127.0.0.1:2080`. All traffic enters on port 2080:
 
 - `/api/subscriptions` → backend WebSocket (matched **before** `/api/*`)
 - `/api/*` → backend HTTP

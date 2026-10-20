@@ -5,23 +5,37 @@ Guidance for working in the Kotlin/Ktor GraphQL backend. Build/test commands liv
 ## Backend layers
 
 ```
-GQL layer (gql/)          – graphql-kotlin Query/Mutation/Subscription objects
-Service layer (service/)  – business logic + Kotlin SharedFlow subscriptions
-Storage layer (storage/)  – in-memory ConcurrentMap with lazy sync on first access
-Mongo layer (mongo/)      – MongoDB coroutine driver repositories
+GQL layer      (entity/<name>/gql/)          – graphql-kotlin Query/Mutation/Subscription objects
+Service layer  (entity/<name>/<Name>Service) – business logic + Kotlin SharedFlow subscriptions
+Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with lazy sync on first access
+Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
 ```
 
 Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
-startup the storage is populated from MongoDB on first access (`synced` flag). Mutations emit on a `MutableSharedFlow`
-which the GraphQL subscriptions expose as a `Flow`.
+startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
+written straight to Mongo after a storage's first access stays invisible to the app until restart. Mutations emit on a
+`MutableSharedFlow` which the GraphQL subscriptions expose as a `Flow`.
 
-Each domain entity (Item, Category) has a parallel set of files in each layer:
+The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease/entity/<name>/` (`item`, `category`,
+`list`, `user`, `feedback`) holds all of that entity's layers, e.g. `entity/item/`:
 
-- `storage/` — plain domain model (`Item`, `Category`)
-- `mongo/model/` — MongoDB BSON model + mapper
-- `gql/model/` — GraphQL model + mapper
-- `service/` — orchestrates storage + emits subscription events
-- `gql/` — Query/Mutation/Subscription objects registered in `GqlDefinition`
+- `Item.kt` — plain domain model
+- `ItemService.kt` — orchestrates storage + emits subscription events
+- `ItemStorage.kt` — the in-memory cache (only `item`, `category` and `list` have one; `user` and `feedback`
+  services call their repository directly)
+- `gql/` — GraphQL model + `object` mapper, and the `ItemApi.kt` Query/Mutation/Subscription objects, registered in
+  `plugins/GQL.kt`'s `configureGql()`
+- `mongo/` — MongoDB BSON model + `object` mapper + `ItemRepository`
+
+## Tests
+
+Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
+in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`.
+
+## Config
+
+`application.yaml` is read once at startup (`EngineMain`, `ktor.development: false`), so edits to it need a restart of
+`run -t`.
 
 ## Which Jackson writes what
 

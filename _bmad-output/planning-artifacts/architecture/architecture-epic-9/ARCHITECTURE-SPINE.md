@@ -377,6 +377,7 @@ erDiagram
   the render-time cause.
 - **Playwright `webServer` teardown and stdout filtering** (the rest of F20): chosen at story level in the health story.
 - **`/admin` page number in the URL:** only the pagination story touches it.
-- **Operational envelope** (compose topology, edge proxy, image build and versioning): owned by
-  `docs/architecture-routing.md` and `docs/deployment-guide.md`. Epic 9 adds only the pre-deploy `mongodump` (AD-5) and
-  the optional `bp_front` healthcheck (AD-9).
+- **Operational envelope** (compose topology, edge proxy, image build and versioning): owned by the root `CLAUDE.md`
+  (compose, image build, the pre-deploy `mongodump`), `routing/CLAUDE.md` and `routing/edge-proxy.md` (formerly
+  `docs/architecture-routing.md` and `docs/deployment-guide.md`, deleted in Story 10.8; `git show 6d1cdcb5:<path>`).
+  Epic 9 adds only the pre-deploy `mongodump` (AD-5) and the optional `bp_front` healthcheck (AD-9).

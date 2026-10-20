@@ -4,8 +4,8 @@ epic: 8
 story: '8.7'
 status: 'current'
 supersedes:
-  - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification.md)
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md)
 verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
 verified_on: '2026-09-16'
 ---

@@ -11,11 +11,11 @@ editHistory:
   - date: '2026-09-05'
     changes: 'Epic 8 planning pass: added FR60 (the whole shopping-view item row is the check target, not the checkbox alone), FR61 (category filtering and item search on BOTH list surfaces, with the category filter accepting multiple categories) and FR62 (categories and their items ordered identically on both surfaces) under Navigation & UX. All three come from md''s own use of the running app rather than from either UX specification — both of those are stale (one describes the Next.js app Epic 5 replaced, the other a bottom-tab design that never shipped), which is why Epic 8''s closing story replaces them with a DESIGN.md + EXPERIENCE.md spine for what is actually deployed. Added FR63 (rename a category from the list management screen) later in the same pass, after md reported it as an eighth defect: today a mistyped category name can only be corrected by deleting the category, which destroys every item in it. Verified as needing no backend work — saveCategory is already an id-keyed upsert. All four are frontend-only against the existing schema.'
   - date: '2026-07-30'
-    changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
+    changes: 'Implementation-readiness corrections (see implementation-readiness-report-2026-07-30.md, deleted in Story 10.8; recover with git show 6d1cdcb5:_bmad-output/planning-artifacts/implementation-readiness-report-2026-07-30.md). FR58: the create-vs-update rule was carrying a draft clause that md had already overruled on 2026-07-29 — it said an item id not found on the target list is rejected rather than created, which would reject every new item, since the client generates the UUID with crypto.randomUUID() for creates as well as edits. Rewritten to discriminate on existence in storage: not found → create, found → merge, found on a different list → reject. The category clause was correct and is unchanged. NFR17: replaced the decommissioned nginx reference with the production artifact (Caddy-served SPA), added the mandatory desktop + mobile viewports, and widened the zero-failures gate from "any Epic 1 or Epic 2 story" to any story in any epic. NFR18: reversed — it mandated an API-login fixture, which is the exact design AR-E7-5 and Story 7.2 AC3 forbid; it now records the UI-driven convention (fresh user per spec, no login fixture, no storageState, API calls for environment preparation only). NFR17/NFR18 had never been carried into the epics.md requirements inventory, which is why the contradiction survived three epics; they are now in both documents.'
   - date: '2026-07-29'
     changes: 'Epic 7 planning pass: added FR58 (item save is a merge, not a reconstruction — addedBy/checkedAt/deleted survive an edit; unknown item id and foreign category are rejected) under Item Lifecycle, and FR59 (installable PWA — Chrome-on-Android WebAPK via manifest + PNG icons + service worker) under Navigation & UX. FR58 is the single requirement behind BUG-E6-1/E6-2/E6-3, restores the truth conditions of FR45 and FR54, and is the recorded prerequisite for undeferring FR42/FR43. FR59 makes FR57 load-bearing, since an installed app has no browser back button. Both added in the same planning pass per the Epic 6 retro agreement, after FR57 reached production without ever entering this document.'
   - date: '2026-06-23'
-    changes: 'Frontend Reframe (Epic 5): frontend re-implemented from scratch on Vite + Material UI, served by Caddy (replacing Next.js + nginx); backend unchanged. No FR changes — same requirements, new delivery vehicle. Deferred FR42 (one-timer) and FR43 (recurring) item UI; real-time (FR52/FR53) kept. Removed the old Epic 5 (Stabilization & Delivery). See sprint-change-proposal-2026-06-23.md.'
+    changes: 'Frontend Reframe (Epic 5): frontend re-implemented from scratch on Vite + Material UI, served by Caddy (replacing Next.js + nginx); backend unchanged. No FR changes — same requirements, new delivery vehicle. Deferred FR42 (one-timer) and FR43 (recurring) item UI; real-time (FR52/FR53) kept. Removed the old Epic 5 (Stabilization & Delivery). See sprint-change-proposal-2026-06-23.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-23.md).'
   - date: '2026-05-20'
     changes: 'Added Epic 4 (Personal Lists & Sharing): exec summary section, success criteria, 4 user journeys, FR34–FR56, NFR-L1–NFR-L5, updated phasing. Second pass: resolved 17 open issues — soft-delete + hourly scheduler (FR54), pending invite model (FR39), cascade delete (FR37), leave list (FR55), admin restrictions (FR56), Household tab = member management (FR48), category group disappear on completion (FR49), Today tab item-add with list selector (FR49), migration to most recent non-admin user (FR47), Epic 4 risk mitigation table'
 releaseMode: phased
@@ -27,20 +27,20 @@ classification:
 inputDocuments:
   - _bmad-output/project-context.md
   - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md)
   - _bmad-output/implementation-artifacts/epic-3-retro-2026-05-18.md
-  - docs/index.md
-  - docs/project-overview.md
+  - docs/index.md (deleted in Story 10.8; git show 6d1cdcb5:docs/index.md)
+  - docs/project-overview.md (deleted in Story 10.8; git show 6d1cdcb5:docs/project-overview.md)
   - docs/architecture-bp_back.md
   - docs/architecture-bp_front.md
-  - docs/architecture-routing.md
-  - docs/api-contracts-bp_back.md
-  - docs/data-models-bp_back.md
-  - docs/component-inventory-bp_front.md
+  - docs/architecture-routing.md (deleted in Story 10.8; git show 6d1cdcb5:docs/architecture-routing.md)
+  - docs/api-contracts-bp_back.md (deleted in Story 10.8; git show 6d1cdcb5:docs/api-contracts-bp_back.md)
+  - docs/data-models-bp_back.md (deleted in Story 10.8; git show 6d1cdcb5:docs/data-models-bp_back.md)
+  - docs/component-inventory-bp_front.md (deleted in Story 10.8; git show 6d1cdcb5:docs/component-inventory-bp_front.md)
   - docs/integration-architecture.md
-  - docs/development-guide.md
-  - docs/deployment-guide.md
-  - docs/source-tree-analysis.md
+  - docs/development-guide.md (deleted in Story 10.8; git show 6d1cdcb5:docs/development-guide.md)
+  - docs/deployment-guide.md (deleted in Story 10.8; git show 6d1cdcb5:docs/deployment-guide.md)
+  - docs/source-tree-analysis.md (deleted in Story 10.8; git show 6d1cdcb5:docs/source-tree-analysis.md)
 workflowType: 'prd'
 ---
 
@@ -69,7 +69,8 @@ rules are deferred to subsequent features.
 > consumed as-is. No functional requirements change — the same FRs are re-delivered on the new stack — except that
 > one-timer (FR42) and recurring (FR43) item affordances are **deferred** (backend support remains) while real-time
 > collaboration (FR52/FR53) is kept. The old "Epic 5: Stabilization & Delivery" is removed. Details:
-> `sprint-change-proposal-2026-06-23.md`.
+> `sprint-change-proposal-2026-06-23.md` (deleted in Story 10.8;
+> `git show 6d1cdcb5:_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-23.md`).
 
 ### What Makes This Special
 

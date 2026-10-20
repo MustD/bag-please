@@ -41,6 +41,9 @@ Deep-dive guidance lives in per-directory `CLAUDE.md` files that load when you w
 
 ## Commands
 
+`mise install` provisions the toolchain pinned in `mise.toml`'s `[tools]` (`java = "temurin-25"`, `node = "26"`,
+`gradle = "9"`); `mise tasks` lists the task aliases.
+
 ### Backend (`bp_back/`)
 
 Use the Gradle wrapper (`./gradlew`) from the repo root. It's a multi-project build, so qualify
@@ -75,6 +78,9 @@ npm run dev          # starts Vite on :5173
 # Build (type-check + production bundle → dist/)
 npm run build        # tsc -b && vite build
 
+# Serve the built dist/ locally (vite preview)
+npm run preview
+
 # Lint
 npm run lint
 
@@ -101,4 +107,34 @@ docker compose up --build
 
 # Start only mongo + backend so the local Vite dev server can proxy to :4000
 docker compose up mongo bp_back
+```
+
+Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`): it tags both images with
+`gradle.properties`' `version` and reads the image names from `project.env`, which is gitignored — copy
+`project.example.env` to `project.env` first.
+
+### Dump before a migration release, restore to roll back (AR-E9-5a)
+
+Startup migrations (`bp_back/.../plugins/Migration.kt`) rewrite documents in place, each gated on its own
+`app_migrations` record, and the app cannot reverse them (`epic9-multi-store` unsets every item's legacy `store`
+field, which the previous image still reads). Before deploying a release that adds a migration, dump with the stack
+still on the OLD image:
+
+```bash
+docker compose exec -T mongo mongodump \
+  --username user --password pass --authenticationDatabase admin \
+  --archive > backup-$(date +%Y%m%d-%H%M%S).archive
+docker compose up -d --build
+docker compose logs bp_back | grep "multi-store migration"   # ran once, or "already complete, skipping"
+```
+
+Rollback is restore **then** the previous image — rolling the image back alone leaves migrated data the old code
+cannot read:
+
+```bash
+docker compose down && docker compose up -d mongo
+docker compose exec -T mongo mongorestore \
+  --username user --password pass --authenticationDatabase admin \
+  --drop --archive < backup-<timestamp>.archive
+# then bring up the PREVIOUS image tag
 ```

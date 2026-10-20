@@ -4,8 +4,8 @@ epic: 8
 story: '8.7'
 status: 'current'
 supersedes:
-  - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification.md)
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md)
 verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
 verified_on: '2026-09-16'
 ---
@@ -395,9 +395,11 @@ the same overhaul.
 ### 11.3 Epic 4 bottom-tab navigation
 
 **Out of scope because** it never shipped and UX-DR-E8-11 names it explicitly as out of scope
-(`epics.md:1247-1251`). `ux-design-specification-epic-4.md` describes a Today · Lists · Household bottom-tab design;
+(`epics.md:1247-1251`). `ux-design-specification-epic-4.md` (deleted in Story 10.8) described a Today · Lists ·
+Household bottom-tab design;
 the deployed app has a single top `AppBar` with an overflow menu (`AppShell.tsx:98-236`) and no tab bar anywhere in
-`src/`. The Epic 4 spec is retained for history and now carries a superseded banner. Note that adopting bottom tabs
+`src/`. The Epic 4 spec is no longer in the tree; its last version is at
+`git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md`. Note that adopting bottom tabs
 would reopen **RULING AR-E7-8a** (`epics.md:606-630`), since the app-bar title link is currently the only in-app exit
 from `/admin` and `/account/password`.
 
