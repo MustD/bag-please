@@ -1,4 +1,4 @@
-FROM gradle:9.6.1-jdk25 AS build
+FROM gradle:9.8.1-jdk25 AS build
 # Root-level Gradle files must come first: libs.versions.toml lives in gradle/ and
 # settings.gradle.kts declares the multi-module structure that bp_back/build.gradle.kts depends on.
 COPY --chown=gradle:gradle settings.gradle.kts build.gradle.kts gradle.properties /home/gradle/src/

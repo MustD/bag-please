@@ -61,7 +61,7 @@ load with this one — this block carries only what those do not.
   `npm run lint` dies at module load with zero files linted and no `overrides` trick reaches it;
   `npm install typescript@7` still exits 0, so the install is not the signal. Measurements: `deferred-work.md`,
   "Deferred from: Story 7.10".
-- The Gradle wrapper is held at 9.6.1 to match `FROM gradle:9.6.1-jdk25` in `bp_back/Dockerfile`; the shipped image
+- The Gradle wrapper is held at 9.8.1 to match `FROM gradle:9.8.1-jdk25` in `bp_back/Dockerfile`; the shipped image
   builds with the image's Gradle, so the wrapper cannot move alone.
 - Jackson 2 and Jackson 3 both sit on the backend runtime classpath by design — Jackson 2 via
   `ktor-serialization-jackson` serves `/api/auth/*`, Jackson 3 arrives with graphql-kotlin 10. Do not "unify" them.
