@@ -401,6 +401,25 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   — a false negative indistinguishable from a broken playground. Scope the header to same-origin API requests with
   `context.route("http://localhost:2080/api/**", …)`.
 
+## Deferred from: code review of 10-5-the-frontend-runs-on-current-minor-releases (2026-10-20)
+
+- source_spec: `spec-10-5-the-frontend-runs-on-current-minor-releases.md`
+  summary: **E2E `FR60 — activating the row of a ONE_TIME item removes it via the SAVED+deleted subscription`
+  (`bp_front/e2e/shopping.spec.ts:549`) is flaky on chromium, and predates Story 10.5.**
+  evidence: verbatim failure at `:575`: `expect(locator).toHaveCount(expected) failed` — `Expected: 0`, `Received: 1`,
+  `Timeout: 5000ms` on `getByTestId('shopping-item-Party hats <ts>')`. Control, chromium, `--repeat-each=15` x3, image
+  rebuilt per tree: baseline `ecb84fc` (Playwright 1.62.1, pre-bump) **13/45 failed**; Story 10.5 tree (1.64.1,
+  Apollo 4.3.5, graphql-ws 6.4.1) **3/45 failed**. Under the full suite it failed in 2 of 3 runs on the bumped tree
+  (local `retries: 0`); the third was green. The same runs also saw `[mobile] shopping.spec.ts:476` ("a touch that
+  becomes a scroll never checks an item…") fail once, then pass 5/5 isolated — single observation, no rate measured.
+  Mechanism (inferred, not measured): the row leaves the DOM only via the `SAVED`+`deleted:true` subscription event;
+  if the click lands before the list subscription is attached, the event is lost (no replay, same class as the 10.4
+  `SubscriptionScopingTest` races above) and nothing refetches. Consequence: a real regression on the subscription
+  delete path is indistinguishable from this flake, so re-running to green is the current (weak) gate.
+  Proposed fix: settle the mechanism first (trace a failing run: is the `subscribe` frame sent before the click's
+  mutation?), then either wait for a subscription-liveness signal in the test or fix the app if the event is lost
+  after attach.
+
 ## Deferred from: code review of 10-4-graphql-kotlin-10-11 (2026-10-20)
 
 - source_spec: `spec-10-4-graphql-kotlin-10-to-11.md`

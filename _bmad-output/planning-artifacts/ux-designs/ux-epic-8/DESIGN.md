@@ -254,7 +254,7 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 ## 8. Iconography
 
-All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
+All icons are `@mui/icons-material` (`@mui/icons-material` 9.5.0, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
 `grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (25 raw import lines resolve to)
 — **20 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
