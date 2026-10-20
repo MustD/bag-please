@@ -1,32 +1,30 @@
 ---
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'epic9-story-9.1', 'epic9-story-9.2', 'epic9-story-9.3', 'epic9-story-9.4', 'epic9-story-9.5', 'epic9-story-9.6', 'epic9-story-9.7', 'epic9-story-9.8', 'epic9-story-9.9', 'epic9-story-9.10', 'epic9-story-9.11', 'epic9-story-9.12', 'step-03-create-stories', 'step-04-final-validation']
-status: complete  # Epic 9 planned and validated 2026-09-15
+status: final  # Epic 10 planned and validated 2026-10-19
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
 inputDocuments:
-  # Re-initialised from the template for Epic 9 on 2026-09-15 (md's choice). Epics 1–8 bodies are
-  # verbatim in epics-archive.md; the previous requirements inventory is in git at b056451.
+  # Re-initialised from the template for Epic 10 on 2026-10-19 (md's choice). Epics 1–9 bodies are
+  # verbatim in epics-archive.md; the Epic 9 requirements inventory is in git at 4321365.
+  - docs/feedback.md
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/ARCHITECTURE-SPINE.md
-  # Reviewer-gate reports; every finding was folded into the final spine (see its .memlog.md).
-  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-rubric.md
-  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-currency.md
-  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/reviews/review-adversarial.md
   - _bmad-output/planning-artifacts/architecture.md
-  # UX design contract (bmad-ux spine pair, status: current, verified 2026-09-09):
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/ARCHITECTURE-SPINE.md
+  # UX design contract (bmad-ux spine pair, ux-epic-8 — the only run folder):
   - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md
   - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/EXPERIENCE.md
   - _bmad-output/implementation-artifacts/deferred-work.md
-  - _bmad-output/implementation-artifacts/epic-8-retro-2026-09-11.md
-  - docs/feedback.md
-  # Shipped code is authoritative where it disagrees with a planning document. Spot-checked 2026-09-15:
-  - bp_back/src/main/kotlin/com/bagplease/entity/user/gql/UserAdminApi.kt
-  - bp_back/src/main/kotlin/com/bagplease/config/gql/ApplicationConfigApi.kt
-  - bp_back/src/main/kotlin/com/bagplease/plugins/Migration.kt
-  - bp_back/src/main/kotlin/com/bagplease/entity/category/CategoryService.kt
-  - bp_back/src/main/resources/application.yaml
+  - _bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md
+  # Epic 7 dependency-currency precedent (the HOLD/LAND protocol this epic reuses):
+  - _bmad-output/implementation-artifacts/spec-7-10-typescript-6-to-7.md
+  - _bmad-output/implementation-artifacts/spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md
+  - _bmad-output/implementation-artifacts/spec-7-13-graphql-16-to-17.md
+  # Shipped code is authoritative where it disagrees with a planning document. Spot-checked 2026-10-19:
+  - bp_front/package.json
+  - gradle/libs.versions.toml
   - bp_front/src/components/AppShell.tsx
-  - bp_front/src/components/StoreField.tsx
-  - bp_front/src/components/ListFilters.tsx
+  - bp_front/src/routes/ListShoppingPage.tsx
   - bp_front/src/routes/ListDetailPage.tsx
+  - bp_front/e2e/sharing.spec.ts
+  - AGENTS.md
 ---
 
 # bag-please - Epic Breakdown
@@ -36,20 +34,22 @@ inputDocuments:
 This document provides the complete epic and story breakdown for bag-please, decomposing the requirements from the PRD,
 UX Design if it exists, and Architecture requirements into implementable stories.
 
-**Epic set:** this file holds the live epic (**Epic 9 — User Feedback Pass**). Closed Epics 1–8 live verbatim in
+**Epic set:** this file holds the live epic (**Epic 10**). Closed Epics 1–9 live verbatim in
 [`epics-archive.md`](./epics-archive.md). The two files are one epic set — sprint planning must be run with **both**
-(`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the story keys for Epics 1–8 are reported as orphans
+(`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the story keys for Epics 1–9 are reported as orphans
 and dropped from `sprint-status.yaml`.
 
-**Scope source:** `prd.md` → "Epic 9 — User Feedback Pass (Planned)", which maps `docs/feedback.md` items 1–6 and the
-"Routed to Epic 9" index at the top of `deferred-work.md`.
+**Scope source:** `docs/feedback.md` (2026-10-19) — one user-feedback item and two technical-debt items. Rulings by md
+on 2026-10-19: remove the back-to-lists link on **both** list screens; "Gql 11" means **graphql-kotlin 11**; the
+documentation cleanup covers the `docs/` scan output, stale planning artifacts, **and** the agent context files.
 
 ## Requirements Inventory
 
 ### Functional Requirements
 
-Every active FR in `prd.md`, condensed. **Bold** = new or amended for Epic 9 and stated in full; the rest are delivered
-(Epics 1–8) and listed so a story can cite them without re-reading the PRD.
+Every active FR in `prd.md`, condensed. **Bold** = amended for Epic 10 and stated in full; the rest are delivered
+(Epics 1–9) and listed so a story can cite them without re-reading the PRD. `prd.md` does not yet carry the FR57
+amendment — the story that removes the links amends it in the same commit.
 
 **User Authentication**
 FR1: Unregistered user can create an account with a username and password
@@ -70,10 +70,10 @@ FR11: Authenticated user can change their own password
 FR12: System shows the authenticated user's name in the navigation on all screens
 
 **Admin User Management**
-**FR13 (amended): Admin can view a list of all registered user accounts. The list is paginated: one page shows at most
+FR13: Admin can view a list of all registered user accounts. The list is paginated: one page shows at most
 20 users in a stable order (username, ascending), with controls to move between pages and a display of the total user
 count. Creating or deleting a user keeps the admin on a valid page — deleting the only user on the last page moves back
-one page.**
+one page.
 FR14: Admin can create a user with a username and initial password
 FR15: Admin can delete a user account
 FR16: Admin can reset any user's password
@@ -87,17 +87,17 @@ FR21: The registration option is hidden on the login screen when registration is
 FR22: Configuration changes take effect without a restart
 FR23: Configuration is persisted as a runtime entity in the database
 
-**User Feedback (new)**
-**FR66: A regular user can send feedback — an idea, a feature request, or a problem — from any authenticated screen.
+**User Feedback**
+FR66: A regular user can send feedback — an idea, a feature request, or a problem — from any authenticated screen.
 The account menu carries a Feedback entry that opens a form with a single free-text field (required, at most 2000
 characters). Submitting stores the entry with the submitter's username and the submission time, confirms that it was
 sent, and returns the user to the screen they came from; cancelling sends nothing. A user does not see, edit, or delete
-feedback after sending it. The admin account's menu does not show the Feedback entry (FR56).**
-**FR67: The admin can review user feedback in the admin area: all entries, newest first, each showing its text, the
+feedback after sending it. The admin account's menu does not show the Feedback entry (FR56).
+FR67: The admin can review user feedback in the admin area: all entries, newest first, each showing its text, the
 submitter's username, and the submission time. Feedback text is displayed as plain text, never interpreted as markup.
 The admin can delete an entry after explicit confirmation (as FR17 requires); deletion is permanent. This is the triage
 point — the admin carries what is worth keeping into project planning outside the app, then deletes the entry; feedback
-has no status, reply, or tagging in the app. Deleting a user account does not delete that user's feedback.**
+has no status, reply, or tagging in the app. Deleting a user account does not delete that user's feedback.
 
 **Security & Access Control**
 FR24: Role-based access control distinguishes admin and regular users on all protected operations
@@ -133,12 +133,12 @@ FR55: A non-owner member can leave a shared list; their items remain
 **Item Lifecycle**
 FR42: *(Deferred since Epic 5, not re-scoped.)* One-timer items soft-delete on check-off with undo
 FR43: *(Deferred since Epic 5, not re-scoped.)* Recurring items (weekly/biweekly/monthly) restored by the scheduler
-**FR44 (amended): User can assign an item to zero, one, or several stores, since the same item can often be bought in
+FR44: User can assign an item to zero, one, or several stores, since the same item can often be bought in
 more than one place. Both the add-item and edit-item dialogs offer a multi-value store field that suggests stores derived
 from existing item data and also accepts a new store name. Store names are trimmed; names differing only in letter case
 count as the same store and are not held twice on one item. A store is thus recognised consistently across items — the
 groundwork for showing only one store's items while shopping there (Phase 3). The shopping-view item row shows every
-store the item carries, and all of them stay inside the row's single check target (FR60).**
+store the item carries, and all of them stay inside the row's single check target (FR60).
 FR45: Each item shows its `addedBy` username on the shopping-view row
 FR54: An hourly scheduler restores recurring items whose cadence elapsed and hard-deletes one-timers soft-deleted over
 an hour ago
@@ -148,53 +148,56 @@ whether the id exists on the target list; an id on a different list, or a catego
 **Data Scoping & Migration**
 FR46: All new items and categories are associated with a list at creation
 FR47: The one-time Epic 4 migration moves unscoped data to a default "Groceries" list, recorded in `app_migrations`
-**FR56 (amended): The admin account is restricted only to user management, application configuration, and reviewing
+FR56: The admin account is restricted only to user management, application configuration, and reviewing
 user feedback (FR67); admin callers are rejected by all list-related GQL operations (`createList`, `lists`, `items`,
 `categories`, `shareList`, `deleteList`, and all subscription operations); the admin cannot create, own, view, or be a
-member of any list, and does not send feedback (FR66).**
-**FR69 (new): No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
+member of any list, and does not send feedback (FR66).
+FR69: No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
 as its only store, and an item without one has no stores. The conversion runs once, on the first startup of the release
-that ships multi-store items, and does not re-run.**
+that ships multi-store items, and does not re-run.
 
 **Navigation & UX**
 FR48, FR49: *(Superseded — Epic 4 bottom-tab design that never shipped.)*
 FR50: The lists index shows owned/member lists plus pending invites; a zero-lists state shows onboarding guidance
 FR51: Item creation and editing happen in overlays without leaving the current view
-**FR57 (amended): From any authenticated screen the user can return to the application home destination in one action:
-the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour (the user's
-oldest list by creation date, the lists index when they own none, the admin area for the admin account); the shopping
-view additionally offers a back-to-lists affordance matching the list management screen's existing back link. No screen
-is a navigational dead end requiring the browser back button. The account menu also carries a Home entry that goes to
-the same destination as the title link, for users who look for navigation in the menu rather than on the title; on the
-home route the Home entry simply closes the menu.**
+**FR57 (amended for Epic 10): From any authenticated screen the user can return to the application home destination in
+one action: the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour
+(the user's oldest list by creation date, the lists index when they own none, the admin area for the admin account).
+The account menu carries a Home entry that goes to the same destination as the title link (on the home route it simply
+closes the menu) and a My lists entry that opens the lists index. Those menu entries are the navigation; neither the
+shopping view nor the list management screen carries its own back-to-lists link. No screen is a navigational dead end
+requiring the browser back button.**
 FR59: The app is installable from Chrome on Android as a standalone WebAPK (manifest + PNG icons + service worker); no
 offline capability
 FR60: The whole shopping-view item row is one check target and one accessible control
-**FR61 (amended): Item filtering and search are available on both list surfaces with the same controls and semantics:
+FR61: Item filtering and search are available on both list surfaces with the same controls and semantics:
 a category filter accepting several categories (none selected = all) and a free-text name search, combined with AND;
 the shopping view keeps its checked-status toggle, which is not added to the management screen. Empty categories show on
 the management screen only when no filter or search is active; the shopping view always hides empty groups. The open
 category menu covers most of a phone screen, so it carries an explicit confirm control that closes it; selections apply
 as they are toggled, so confirming only closes and there is no cancel-and-revert. Tapping outside the menu or pressing
-Escape still closes it too.**
+Escape still closes it too.
 FR62: Categories and their items are ordered by name identically on `/list/:id` and `/lists/:id`
 FR63: A list member can rename a category from the management screen; the rename reaches other members in real time
-**FR68 (new): The shopping view (`/list/:id`) offers a floating add button that adds an item to the list being viewed
+FR68: The shopping view (`/list/:id`) offers a floating add button that adds an item to the list being viewed
 without leaving the screen. It opens the same add-item dialog the list management screen uses (name, category, store(s)
 per FR44) with the current list as the fixed target; the new item appears on the shopping view on save and reaches other
 members in real time (FR52). The button stays reachable while scrolling and never permanently covers the last item row
 or its controls. If the list has no categories yet, the dialog says a category is needed first and offers a way to the
-list management screen.**
+list management screen.
 
 **Real-Time Collaboration & Authentication**
 FR52: Item check-off, add, edit and delete reach other members' shopping views live via GraphQL subscription
 FR53: WebSocket subscriptions require a valid JWT in `connectionParams`; the backend closes on expiry; the frontend
 disposes the socket before clearing auth
 
-**Epic 9 FR scope:** FR13, FR44, FR56, FR57, FR61 (amended); FR66, FR67, FR68, FR69 (new).
-**Still deferred:** FR42, FR43 (not re-scoped by md). Phase 3 single-store shopping mode is not in Epic 9.
+**Epic 10 FR scope:** FR57 (amended). Every other FR is delivered and must stay green through the dependency and
+documentation work — the upgrade stories are regression-gated against the whole suite, not against new behaviour.
+**Still deferred:** FR42, FR43 (not re-scoped by md). Phase 3 single-store shopping mode is not in Epic 10.
 
 ### NonFunctional Requirements
+
+Carried verbatim from the Epic 9 inventory; all delivered and all still binding.
 
 **Security**
 NFR1: Passwords hashed with bcrypt cost 12; plaintext never stored or logged
@@ -238,833 +241,501 @@ NFR-L4: No list data is reachable by non-members at any layer; unauthorized acce
 NFR-L5: Subscriptions validate the `connectionParams` JWT before any stream, close on expiry, and `clearAuth()` disposes
 the socket first
 
-**Epic 9 NFR scope:** NFR17, NFR18, NFR64, NFR65 bind every story; NFR-L2 binds the category and user cascades (the
-admin-gated purge is its single caller-less exception, AR-E9-8); NFR13–NFR15 bind the feedback and multi-store dialogs.
+**Epic 10 NFR scope:** NFR17, NFR18, NFR64, NFR65 bind every story that ships code. NFR-L1–NFR-L5 and NFR1–NFR8 are
+the regression surface the dependency bumps must not move (subscription auth, cookie flags, token lifetimes,
+rate-limit behaviour). The documentation story ships no code; NFR17 is not applicable to it, recorded as a decision.
 
 ### Additional Requirements
 
-From `ARCHITECTURE-SPINE.md` (Epic 9, final 2026-09-15), its inherited invariants, and the routed deferred work.
-Identifiers are `AR-E9-n`; where one restates an architecture decision, the AD number is given.
+From `architecture.md`, the Epic 9 spine's inherited invariants, the Epic 7 dependency-currency precedent (Stories
+7.8–7.13) and the `deferred-work.md` ledger. Identifiers are `AR-E10-n`. Versions below were measured against the live
+registries on 2026-10-19 and are a planning snapshot — every story re-measures before it moves anything.
 
-**Starter template:** none — brownfield. No new dependency; the stack is pinned as of 2026-09-15 (Kotlin 2.4.10, Ktor
-3.5.2, graphql-kotlin 10.2.1, Mongo driver 5.9.2, mongo:8, React 19.2.8, Apollo Client 4.2.11, MUI 9.3.1, TypeScript
-6.0.3, Vite 8.2.1, Playwright 1.62.1, app 0.18.0). Epic 9 upgrades nothing.
+**Starter template:** none — brownfield.
 
 **Inherited, binding on every story**
-- AR-E9-0: Per-entity slice layout `entity/<name>/{Service,Storage,gql/,mongo/}`, one-way GQL → Service → Storage →
-  Repository. One Apollo + `graphql-ws` client; the access token lives in memory only. Nothing under `/api` is cached
-  or served as fallback by the service worker. Schema-changing stories regenerate codegen in the same story, never
-  editing `__generated__/`; backend and frontend ship in one app version (`gradle.properties` = `package.json`).
-- AR-E9-0a: Errors reuse `GraphQLForbiddenException` / `GraphQLInvalidInputException` / `GraphQLNotFoundException`; no
-  new error envelope. Kotlin GraphQL classes are `Gql*` with `@GraphQLName`; migration ids are `epic<N>-<slug>`.
-- AR-E9-0b: Backend rules are proven with Kotest + Testcontainers; every FR gets UI-driven E2E on both projects; 320px
-  assertions cover `/admin`, the feedback dialog, the FAB and the multi-store row.
+- AR-E10-0: The Epic 9 invariants stand unchanged (AR-E9-0, -0a, -0b): per-entity slice layout, one-way GQL → Service →
+  Storage → Repository; existing error classes, no new envelope; codegen regenerated in the same story as any schema or
+  GraphQL-server change, never hand-edited; backend and frontend ship in one app version (`gradle.properties` =
+  `package.json`); backend rules proven with Kotest + Testcontainers via `./gradlew :bp_back:cleanTest :bp_back:test`.
 
-**Feedback slice (FR66, FR67, FR56)**
-- AR-E9-1 (AD-1): New `entity/feedback/` — `Feedback`, `FeedbackService`, `mongo/FeedbackRepository` (collection
-  `feedback`), `gql/FeedbackApi` — on the user/config pattern: no Storage cache, no SharedFlow, no subscription.
-  Document: `_id` UUID stored as string (`UUIDSerializer`, filter with `id.toString()`), `text`, `username` (plain
-  string copied from the principal, no user-id reference), `createdAt` Instant. User deletion never touches the
-  collection. `com.bagplease.entity.feedback.gql` is added to the schema `packages` in `GQL.kt`.
-- AR-E9-2 (AD-2): The two private `requireAdmin()` copies (verified in `UserAdminApi.kt` and `ApplicationConfigApi.kt`)
-  become one `DataFetchingEnvironment.requireAdmin()` in new `plugins/GqlAuth.kt`, used by `UserAdminApi`,
-  `ApplicationConfigApi` and `FeedbackApi`. `sendFeedback(text: String!): Boolean!` takes only text; the service
-  rejects the admin (`caller != adminLogin`) with Forbidden, measures `text.trim().length` (UTF-16), rejects blank or
-  >2000 with `GraphQLInvalidInputException`, stores the trimmed text, sets `username` from the principal and
-  `createdAt` from the server clock. `feedback: [Feedback!]!` returns `createdAt` desc then `_id`, unpaginated;
-  `deleteFeedback(id: ID!): ID!` returns the deleted id; both `requireAdmin()`. The client validates the same trimmed
-  length with no raw `maxLength`, renders text only as React text nodes, confirms deletes with `ConfirmDialog`, and
-  never re-sorts.
+**Dependency currency (feedback tech-debt item 1)**
+- AR-E10-1: **Inventory first.** Every direct dependency is listed with its locked version and its latest stable
+  version, measured on the day: `gradle/libs.versions.toml` (Kotlin 2.4.10, Ktor 3.5.2, graphql-kotlin 10.2.1, Arrow
+  2.2.3, Logback 1.6.2, Mongo driver 5.9.2, Kotest 6.2.4, Testcontainers 2.0.5, bcrypt 0.10.2), `bp_front/package.json`
+  (dependencies and devDependencies, including the `^`-ranged ones), the Docker base images (`gradle:9.6.1-jdk25`,
+  `eclipse-temurin:25`, `node:26-alpine`, `caddy:2-alpine`, `mongo:8`) and the `mise.toml` toolchains (temurin-25,
+  node 26). A prerelease (`-alpha`, `-beta`, `-RC`, `-canary`) is never a candidate.
+- AR-E10-2: **One variable per move.** Minor/patch bumps may land together per side (backend / frontend); each major
+  moves alone so a failure is attributable (Epic 7 ledger lesson, deferred-work.md "two variables" entry). A major may
+  carry a co-mover only when the upgraded artifact's published metadata requires it (e.g. a POM's Kotlin floor), cited.
+- AR-E10-3: **LAND or HOLD, never forced.** No `--legacy-peer-deps`, `--force`, `overrides`, `resolutions`, `.npmrc`
+  change, Gradle `force`/`strictly`, `-Xskip-metadata-version-check` or added `@Suppress` left in the tree. A bump
+  that cannot land cleanly is reverted to a byte-identical lockfile, its blocking symptom recorded verbatim in
+  `deferred-work.md`, and the story still closes `done` (the S-AC3 rule from Epic 7).
+- AR-E10-4: **TypeScript 7 retry.** Measured 2026-10-19: `typescript` latest `7.0.2`; `typescript-eslint` latest
+  `8.71.2` still declares peer `typescript >=4.8.4 <6.1.0` — the same blocker that held Story 7.10. The story re-measures
+  the peer range; if it still excludes 7.x the expected outcome is a HOLD at `6.0.3` with the evidence refreshed in the
+  Story 7.10 ledger entry (not a duplicate), plus a fresh `tsc -b --force` under TS 7 to confirm the code itself is
+  still clean. It does not swap the lint stack to escape the peer constraint.
+- AR-E10-5: **graphql-kotlin 11.** Measured 2026-10-19: `11.0.0` is released (locked `10.2.1`). Before the bump, the
+  open Story 7.12 ledger entry (Jackson 2 and Jackson 3 both on the runtime classpath; which `ContentNegotiation`
+  converter serialises GraphQL bodies unmeasured; `JacksonWebsocketContentConverter` at `GQL.kt` possibly vestigial) is
+  resolved by measurement and recorded as a rule — the ledger says "before the next graphql-kotlin major, not after".
+  The bump preserves the observable contract: failing-mutation and `FORBIDDEN` response bodies byte-identical; the
+  resolver error prefix `Exception while fetching data (/<field>) : ` that `bp_front/src/lib/admin/adminErrors.ts`
+  strips; `extensions.code` from the four `GraphQL*Exception` classes; a live subscription over `graphql-ws`; GraphiQL
+  status. Codegen is re-run and its output either byte-identical or committed.
+- AR-E10-6: **Verification set per bump:** `cleanTest test` totals read from the JUnit XML; `npm run lint`;
+  `npm run build`; `npm run test:e2e` on all Playwright projects against the production image; `npm run generate`
+  byte-check for any backend GraphQL change. Every count measured in the pass, none quoted from memory.
+- AR-E10-7: Docs that name pinned versions (root/per-directory `CLAUDE.md`, `AGENTS.md`, `architecture.md`
+  stack line) are updated in the same commit as the version they name.
 
-**Multi-store items (FR44, FR69, FR60) and check state**
-- AR-E9-3 (AD-3): `stores: [String!]!` replaces `store` in every layer **in one story**: `Item.stores`,
-  `MongoItem.stores = emptyList()`, `GqlItem.stores`, `ItemInput.stores`, both mappers, and `ItemRepository.save`,
-  which writes `Updates.set("stores", …)` and `Updates.unset("store")` in one update. The same story ships the
-  AR-E9-5 migration, removes `store` from the schema, updates every frontend document through the `ListItemFields`
-  fragment, and updates the raw GraphQL in `e2e/item-editing.spec.ts`. `saveItem`'s update branch copies `name`,
-  `category`, `stores`, `recurring`; check state goes through AR-E9-11.
-- AR-E9-4 (AD-4): The server is the normalization authority: `trim()` each name, drop empties, dedupe by
-  `lowercase(Locale.ROOT)` keeping first-occurrence casing and position; internal whitespace kept; applied on create
-  and update. Identity is the lowercased key; stored casing is display data. `itemStoreSuggestions` returns one name
-  per key — the lowest by (lowercase, then `compareTo`) — sorted in that order. The client mirror in
-  `lib/lists/storeValue.ts` uses `trim()` + `toLowerCase()` (never locale variants), blocks duplicate keys, and treats a
-  casing-only edit as a change; the server's result is authoritative. `STORE_MAX` per name stays client-side; a
-  matching server check may be added without an AD.
-- AR-E9-5 (AD-5): `configureMigration` runs `[epic4-list-seed, epic9-multi-store]` in order, each checking only its own
-  `app_migrations` id — today the function returns early once `epic4-list-seed` is recorded (verified,
-  `Migration.kt:33-35`), which would skip the new migration. `epic9-multi-store` processes item documents one at a
-  time where `store` exists: `stores` = normalizer(`(existing stores ?: []) + [store]`) (null/blank adds nothing), then
-  `store` is unset; completion record written last; runs before `configureGql`. Its test seeds legacy-only, `stores: []`
-  plus a leftover `store`, null/blank/padded `store`, and already-converted documents, with `epic4-list-seed` recorded.
-- AR-E9-5a: **Deploy rule:** the release carrying `epic9-multi-store` is preceded by a `mongodump` of the `db_data`
-  database; rollback = restore the dump + run the previous image. Recorded in `docs/deployment-guide.md` by that story.
-- AR-E9-11 (AD-11): One private `ItemService.applyCheckState(stored, checked, recurring, now)` used by `checkItem`,
-  `uncheckItem` and `saveItem`'s update branch: checked + `ONE_TIME` → `deleted = true`, `deletedAt = now`; checked +
-  recurring cadence → `checkedAt = stored.checkedAt ?: now` (also when only `recurring` changed); checked + no cadence
-  → nothing stamped; unchecked → clear `checkedAt`, `deleted`, `deletedAt`. Every other server-owned field survives
-  (FR58). Closes the Story 7.4 deferred entry (`checked = true` with null `checkedAt`).
-- AR-E9-12 (carry-in, rides FR44): correct the four factually wrong comments in `EditItemDialog.tsx` (Story 7-4 review
-  entry), and an orphaned item's edit dialog must no longer close silently when saved without touching the category
-  (Story 8.5/8.6 entry).
+**Documentation cleanup (feedback tech-debt item 2)**
+- AR-E10-8: **Consumers decide what lives.** A file is kept only if something reads it: a `CLAUDE.md`/`AGENTS.md`
+  load, a BMAD skill or `_bmad` config path (`project_knowledge` → `docs/`, `planning_artifacts`,
+  `implementation_artifacts`), or a live planning document's citation. Each deletion is justified by a grep showing no
+  live consumer; historical records under `implementation-artifacts/` that cite a deleted file are records and are not
+  rewritten.
+- AR-E10-9: **`docs/` scan output.** The 11 files from the old `document-project` scan (`index.md`,
+  `project-overview.md`, `source-tree-analysis.md`, `api-contracts-bp_back.md`, `data-models-bp_back.md`,
+  `component-inventory-bp_front.md`, `architecture-routing.md`, `deployment-guide.md`, `development-guide.md`,
+  `project-parts.json`, `project-scan-report.json`) are reviewed against the code; anything still true and not already
+  in a `CLAUDE.md` is folded into the right one; the rest is deleted. `docs/feedback.md` stays (it is the backlog
+  intake). `project_knowledge` in the BMAD config is left pointing at a directory that exists and means something.
+- AR-E10-10: **Stale planning artifacts.** Candidates: the three `implementation-readiness-report-*.md`, the two
+  `ux-design-directions*.html`, the legacy `ux-design-specification*.md` (superseded by the `ux-epic-8` spine pair),
+  `prd-validation.md`, the two `sprint-change-proposal-*.md`, and the `review-*-epic9.md` / `.memlog.md` leftovers at
+  the planning root. Each is either deleted (no live consumer, value preserved in git) or kept with its consumer named.
+  `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair, `epics.md` and `epics-archive.md` are kept.
+- AR-E10-11: **Agent context files.** `AGENTS.md` (managed `bmad:context` block, verified at `1bb60cb`, 2026-09-07) is
+  refreshed with `bmad-project-context`; the four `CLAUDE.md` files are checked line by line against the code — stale
+  claims fixed, duplication between root, per-directory and `AGENTS.md` removed so each fact lives once.
 
-**Admin users pagination (FR13) and E2E data hygiene**
-- AR-E9-6 (AD-6): `users(limit: Int!, offset: Int, around: String): UserPage!` →
-  `UserPage { users: [User!]!, totalCount: Int!, offset: Int! }`, sorted by `username` asc (binary collation). Server
-  clamps `limit` 1..100 and `offset` 0..last page; `around` naming an existing username returns the page containing it.
-  Frontend page size 20; `/admin` shows `totalCount`; after create query `around: <new username>`, after delete
-  `offset: min(current, lastPage)`. `AdminUsersQuery` uses `cache-and-network`; every successful `createUser`/
-  `deleteUser` runs `cache.evict({fieldName: 'users'})` + `cache.gc()`. The unpaginated `users` field is removed.
-  Test ids: `admin-users-prev`, `admin-users-next`, `admin-users-page`, `admin-users-total`. E2E helpers act on a
-  created user only on the page the create landed on — never page-walk.
-- AR-E9-6a (carry-in D4): per-run E2E data hygiene is owed regardless of pagination (users table grows ~120 rows per
-  run; `createUserViaUi` measured 5015 ms vs a 5000 ms budget at ~5.5k rows). Mechanism chosen at story level within
-  NFR18; a retry loop is forbidden.
-- AR-E9-6b (carry-in): the `/admin` username cell `noWrap` + `{xs: 140, sm: 260}` cap and the missing floor assertion on
-  `/admin` ride FR13 — measure and fix or record, with an `expectNotClipped` assertion. `/lists` half is closed by md.
+**Back-to-lists removal (feedback user item 1)**
+- AR-E10-12: The two links are `list-shopping-back` (`ListShoppingPage.tsx`, Story 6.2) and `list-detail-back`
+  (`ListDetailPage.tsx`). E2E that navigates through them (`e2e/sharing.spec.ts` `backToLists()`, five call sites, and
+  any spec asserting either test id) is moved to the account-menu `menu-lists` path through the shared helpers in
+  `e2e/support/ui.ts`, not re-declared in the spec. The now-unused imports (`ArrowBackIcon`, `RouterLink`/`Link` where
+  orphaned) are removed so lint stays clean.
 
-**Cascades (routed backend fixes)**
-- AR-E9-7 (AD-7): `CategoryService.deleteCategory` checks membership, deletes the category through `CategoryStorage`,
-  then calls `internal ItemService.deleteAllInCategory(listId, categoryId)`, removing every item in that category —
-  **including `deleted = true` items** — from Mongo and the per-list storage map. The cascade emits **only** the
-  category `DELETED` event (the item SharedFlow is one-slot `DROP_OLDEST`; per-item events would be dropped). Clients
-  treat category `DELETED` as authoritative for its children and prune cached items of that category. The client-side
-  item delete loop in `ListDetailPage` (verified at `:449-451`) is removed. `saveItem` rejects a category outside the
-  target list on **both** create and update branches (existing message; retire the create-hole tripwire test);
-  `uncheckItem` rejects an item whose category no longer exists; `AddItemDialog` maps that error the way
-  `EditItemDialog` does. E2E: delete a category holding ≥5 items while a second member watches `/list/:id`.
-- AR-E9-8 (AD-8): Only `ListService` writes `list_members` or `List.members`/`memberUsernames`.
-  `UserAdminMutations.deleteUser` (after `requireAdmin()`) runs in order: (1) `UserService.adminDeleteUser`; (2)
-  `ListService.purgeUser(userId, username)`; (3) `AuthService.invalidateUserSessions`. `purgeUser` is idempotent, the
-  only caller-less list-mutating entry point, writes only through `ListStorage.save` and `ListMemberRepository`, removes
-  every `list_members` row for the user in any status, strips them from non-owned lists' `members` (by id) and
-  `memberUsernames` (by name), and **deletes lists they own with full cascade** (md, 2026-09-15 — not transferred)
-  through a private `cascadeDeleteList(list)` that `deleteList` also calls. `DeleteUserDialog` (FR17) states the number
-  of owned lists that will be deleted, from new `User.ownedListCount: Int!`. List deletion emits no subscription event;
-  other members are redirected on their next Forbidden (Story 5.6), which is all the E2E asserts.
-
-**Readiness (carry-in F20 / Story 7.12)**
-- AR-E9-9 (AD-9): `get("/health")` inside `routing {}`, outside `authenticate` and any `rateLimit`, served at
-  `/api/health` via `rootPath: "api"` (verified in `application.yaml`). Mongo `ping` inside `withTimeout(2.seconds)`:
-  200 on success, 503 on any exception or timeout. Backend test through `testApplication` with the real config.
-  `playwright.config.ts` `webServer.url` = `http://localhost:2080/api/health`. A compose healthcheck, if added, runs on
-  `bp_front` with busybox `wget -qO- http://localhost/api/health`; no probe tool is added to the `bp_back` image. The
-  service-worker `/api` denylist is unchanged. `webServer` teardown and stdout filtering are chosen at story level.
-
-**Frontend composition**
-- AR-E9-10 (AD-10): The FAB opens the existing `AddItemDialog` with the current `listId` — no second add dialog;
-  `AddItemDialog` owns the no-categories guidance. `StoreField` becomes one multi-value component (`value: string[]`)
-  used by both item dialogs. `AppShell` adds the Home and Feedback account-menu entries once; Home reuses
-  `useHomePath('observe')` and the existing `alreadyHome` comparison; the existing Lists entry stays; Feedback is
-  hidden for the `admin` role and opens a dialog rendered by `AppShell` (not a route) so the current screen stays
-  mounted. Store chips stay non-interactive inside the FR60 row; test ids `shopping-item-stores-<item>` (container) and
-  `shopping-item-store-<item>-<store>` (chip).
-- AR-E9-10a (Frontend data convention): every operation returning an `Item` spreads one fragment, `ListItemFields`, in
-  `lib/lists/listsQueries.ts`; `subscribeToMore` handlers use the generated fragment type. Admin operations live in
-  `lib/admin/adminQueries.ts`; admin collections use `cache-and-network` + evict-on-mutation.
-- AR-E9-13 (carry-in, rides FR57): the empty `/lists` dead end in the installed PWA is closed by the Home menu entry;
-  `useHomePath`'s `if (error)` branch is gated on `mode === 'resolve'` / reordered after `!data` (unreachable-in-observe
-  + branch-order entries). The cold-start home-link question is **closed as leave-as-is** (md, 2026-09-15): observe mode
-  stays `cache-only`.
-- AR-E9-14 (carry-in, rides FR61): F2 — a category explicitly selected in the filter stays rendered on `/lists/:id` even
-  when empty (e.g. `keepEmpty || filter.categoryIds.includes(group.key)`), covered in the FR61 empty-category spec.
-  F5 — resolved by **de-keying**: the synthetic `Uncategorized` bucket is keyed by a sentinel id, frontend-only;
-  `saveCategory` gains no name rule.
-
-**Small cleanups (own story, runs after the `AppShell` stories)**
-- AR-E9-15: untrack `.idea/dataSources.xml` (or gitignore it); add `codegen.ts` to `tsconfig.node.json` `include`;
-  sweep stale `./db/data` paths in `docs/deployment-guide.md` and `bp_front/e2e/` comments; drop the redundant trailing
-  `Unit` in `UserService.changePassword`; gitignore `dev-dist/` (and ESLint ignores); delete dead `ListStorage.delete()`;
-  delete the `custom.bp.*` theme tokens still unconsumed at that point (`bg2`, `card2`, `sheetBg`, `stripe` today) and
-  their module-augmentation types, updating `DESIGN.md` §3/§11.2.
-
-**Deferred by the architecture (not Epic 9 work):** Mongo transactions for cascades; username reuse within the token
-window after deletion; feedback pagination and a `sendFeedback` rate limit; a max stores-per-item limit; Phase 3 store
-mode; `/admin` page number in the URL; operational envelope beyond the pre-deploy `mongodump` and optional healthcheck.
+**Out of scope unless md pulls them in:** the four open Epic 9 retro actions (ConfirmDialog consolidation of
+`DeleteFeedbackDialog`/`DeleteUserDialog`; `ItemLifecycleTest.kt` split; F19 `bmad-build-auto` resume path; F21
+`git_evidence.py` dotted story ids).
 
 ### UX Design Requirements
 
-UX source: the `ux-epic-8` spine pair (`DESIGN.md` + `EXPERIENCE.md`, `status: current`). It **describes** the deployed
-app; Epic 9 is the first epic to change screens it documents, so its rulings bind and its descriptions must be kept true.
+From the `ux-epic-8` contract (`DESIGN.md` + `EXPERIENCE.md`), as affected by the FR57 amendment.
 
-- UX-DR-E9-1: **No toast, no snackbar, no notification layer (UX-DR-E8-10 / UX-DR-E7-7 stand).** The architecture's
-  "Notices" row ("existing snackbar pattern") is overruled by md (2026-09-15): no `Snackbar` exists in `src/`. The
-  FR66 send confirmation and the FR67 delete result follow the existing inline idiom — a success confirmation is an
-  in-flow `<Alert severity="success" role="status">` in the surface that caused it, the precedent being `/admin`'s
-  reset-password confirmation (`AdminPage.tsx`, the only `role="status"` in `src/`). A failed send keeps the dialog open
-  with the text intact and shows `feedback-error` inline, last inside `DialogContent`. A deleted feedback entry is
-  confirmed by its row disappearing (state change confirmed by the UI changing).
-- UX-DR-E9-2: **The feedback dialog follows the canonical form-dialog convention** (`CreateListDialog.tsx`): native
-  `<form onSubmit noValidate>` so Enter submits (a multi-line field needs Ctrl/Cmd+Enter or the button — decide and
-  test); validate on submit, errors clear on typing; same-tick re-entry guard; `graphqlErrorMessage(err)` inline;
-  cancel disabled while in flight, submit shows `CircularProgress size={20}`; `fullWidth maxWidth="xs"`; a visible
-  associated label and a character counter reflecting the trimmed length against 2000 (NFR13, NFR15). Test ids
-  `feedback-dialog`, `feedback-text`, `feedback-cancel`, `feedback-submit`, `feedback-error`; the confirmation
-  `feedback-sent`.
-- UX-DR-E9-3: **Account menu gains Home and Feedback** (`AppShell` menu, today: Lists, Change password [non-admin],
-  Admin [admin], Logout). Each is a `MenuItem` with a `ListItemIcon` at `fontSize="small"` from `@mui/icons-material`,
-  test ids `menu-home` and `menu-feedback`. Order: Home first, then Lists, Change password / Admin, Feedback
-  (non-admin only), Logout last. On the resolved home route the Home entry only closes the menu (no history entry).
-  The app-bar title link's inert-but-present behaviour (AR-E7-8) is untouched.
-- UX-DR-E9-4: **`/admin` gains a feedback panel** matching the existing panel shape — `Paper` with `p: {xs: 2, sm: 3}`,
-  `h6` heading — and the standard branch order error → loading → empty → content with test ids `admin-feedback-error`,
-  `admin-feedback-loading`, `admin-feedback-empty`, `admin-feedback-row-<id>` (keyed by id, not text). Each row shows
-  the text as plain text with wrapping (no truncation of feedback text at 320px), the username and the submission time;
-  a delete `IconButton` (`DeleteOutlined`, `color="error"`, `aria-label` naming the entry, `Tooltip`) opens
-  `ConfirmDialog` as `delete-feedback-dialog` (`-confirm`/`-cancel`/`-error`).
-- UX-DR-E9-5: **`/admin` users pagination** — prev/next controls with `aria-label`s, a page indicator and total count
-  (AR-E9-6 test ids), usable at 320px with no horizontal overflow. `DeleteUserDialog` states how many owned lists will be
-  deleted (AR-E9-8), naming the cascade in prose like the remove-category confirm does.
-- UX-DR-E9-6: **Multi-value store field** in both item dialogs: selected stores as removable chips, suggestions from
-  `itemStoreSuggestions`, free entry of a new name, case-insensitive duplicate prevention with the server authoritative.
-  `StoreField` today is deliberately **not** an `Autocomplete` (its comment: avoid a second `role=combobox` inside the
-  dialog) — the story must either keep that constraint or record why a combobox is now acceptable, and keep the
-  `{testIdPrefix}` testid convention (`add-item-*`, `edit-item-*`). Fits and stays keyboard-operable at 320px.
-- UX-DR-E9-7: **Shopping row shows every store, inside the closed row surface (FR60, AR-E8-8a).** Store chips are
-  presentational, never affordances. **RULING (md, 2026-09-15), overriding AD-10's "accessible name" wording:** the
-  row's accessible name stays exactly `` `Toggle ${item.name}` `` (`EXPERIENCE.md` §5.3.1); `Stores: A, B` goes in the
-  row's accessible *description* beside `addedBy`, omitted when the item has no stores. Several stores must not push the check glyph or name off the row at 320px
-  (`expectNotClipped`/`expectInsideViewport` on the multi-store row).
-- UX-DR-E9-8: **Floating add button on `/list/:id` (FR68).** MUI `Fab` with the `Add` icon, `aria-label="Add item"`,
-  test id `shopping-add-item-fab`, fixed bottom-right with safe-area inset, reachable while scrolling; the page reserves
-  bottom padding so the FAB never permanently covers the last row or its controls; inside the viewport at 320px.
-  **RULING (md, 2026-09-15) — amends the manage-vs-use ruling** (`/list/:id` was "read + check only"): adding an item is
-  now also a shopping-view action; editing and deleting stay management-only. `EXPERIENCE.md` §4's table is updated by
-  the FAB story. The shopping empty-state copy ("Add categories and items from the
-  list management screen") must be revised to match: with categories but no items it points at the FAB.
-- UX-DR-E9-9: **No-categories guidance in `AddItemDialog`** (FR68): when the list has no categories the dialog says a
-  category is needed first and offers a link/button to `/lists/:id`; it does not render a disabled form.
-- UX-DR-E9-10: **Category filter menu gets a confirm control (FR61).** Inside the `multiple` `Select` menu, a clearly
-  labelled button (e.g. "Done", test id `filter-category-confirm`) that closes the menu; selections still apply live;
-  outside tap and Escape still close; reachable without scrolling the menu at 320px (sticky at the menu bottom). The
-  closed control keeps its text summary (UX-DR-E8-4). Mounted once in `ListFilters.tsx`, so both screens get it
-  (NFR-E8-5 one-definition rule).
-- UX-DR-E9-11: **Category-deleted pruning is visible, not ghosted.** When a category is deleted, its items disappear on
-  other members' `/list/:id` via the category `DELETED` event, and on the deleting client's `/lists/:id` via its own
-  mutation result/refetch. **RULING (md, 2026-09-15):** `/lists/:id` has **no subscription by design** (AR-E8-6), so
-  AD-7's "on `/lists/:id` the handler removes cached items" applies to that screen's own delete-category mutation path
-  (prune + refetch); no subscription is added there.
-- UX-DR-E9-12: **The design contract is kept true.** Per `DESIGN.md` §13 and `EXPERIENCE.md` §14, every story that
-  changes `App.tsx`, a route component, `AppShell.tsx`, `playwright.config.ts`, `lib/lists/*` or `theme.ts` re-runs the
-  check block and corrects the documents in the same commit (menu table §1.1, `/admin` states §5.4, shopping states
-  §5.3, manage-vs-use table §4, dialog list §8, testid conventions §9.2, token table §3).
-- UX-DR-E9-13: **Visual language unchanged.** Dark-only theme, system font stack, three component overrides, outlined
-  icons for destructive/secondary actions, `color="error"` on destructive controls, `aria-label` on every icon-only
-  control. Epic 9 adds no palette key and no theme override.
+- UX-DR-E10-1: The shopping view (`/list/:id`) and the list management screen (`/lists/:id`) open directly on their
+  header — no back link above the title. Vertical rhythm above the header is re-checked so the title does not jump
+  against the app bar (the link's `mb: 2` spacing goes with it) on desktop and at the 320px floor.
+- UX-DR-E10-2: Navigation to the lists index is the account menu's **My lists** entry and home is **Home** / the
+  app-bar title; no in-page navigation affordance replaces the removed links.
+- UX-DR-E10-3: `EXPERIENCE.md` (navigation / information-architecture sections and both screens' anatomy) and
+  `DESIGN.md` (any back-link pattern or component listing) are corrected in the same commit as the removal; the
+  "one back-link pattern" note is deleted rather than left describing nothing.
 
 ### FR Coverage Map
 
-**Epic 9 (live):**
-
-FR13: Epic 9 — server-paginated `users(limit, offset, around)` → `UserPage`, `/admin` pager + total (AR-E9-6)
-FR44: Epic 9 — `stores: [String!]!` in every layer, server normalizer, multi-value `StoreField`, stores on the shopping row
-FR56: Epic 9 — feedback review added to the admin's scope; `sendFeedback` rejects the admin; shared `requireAdmin`
-FR57: Epic 9 — Home entry in the `AppShell` account menu (+ `/lists` dead end, `useHomePath` branch order)
-FR61: Epic 9 — confirm control in the category filter menu (+ F2 selected-empty category, F5 de-keyed `Uncategorized`)
-FR66: Epic 9 — Feedback menu entry + `AppShell`-hosted dialog + `sendFeedback` into `entity/feedback`
-FR67: Epic 9 — `/admin` feedback panel, `feedback` query, `deleteFeedback` behind `ConfirmDialog`
-FR68: Epic 9 — floating add button on `/list/:id` opening the existing `AddItemDialog`
-FR69: Epic 9 — `epic9-multi-store` migration, independent of `epic4-list-seed`
-NFR17, NFR18, NFR64, NFR65: Epic 9 — every story (production artifact, UI-driven, desktop + 320px floor)
-NFR-L2: Epic 9 — category cascade stays membership-checked; `purgeUser` is the single admin-gated caller-less exception
-
-**Delivered (Epics 1–8, bodies in `epics-archive.md`):**
-
-Epic 1: FR1–FR12, FR18, FR24–FR29, FR33
-Epic 2: FR13 (unpaginated original), FR14–FR17, FR19–FR23, FR30–FR32
-Epic 4: FR34–FR41, FR45–FR47, FR50–FR56, NFR-L1–NFR-L5 (FR44 single store, FR56 admin block)
-Epic 6: FR57 (app-bar home link, back-to-lists), FR44 store write path, FR40 edit verb
-Epic 7: FR58, FR59; FR38/FR40/FR45/FR54/FR57 restored
-Epic 8: FR60, FR61 (original), FR62, FR63, NFR64/NFR65 (as NFR-E8-1/-2)
-
-**Deferred:** FR42, FR43 (not re-scoped). **Superseded:** FR48, FR49.
+FR57: Epic 10 — the back-to-lists links on `/list/:id` and `/lists/:id` are removed; the app-bar title and the
+account menu (Home, My lists) are the navigation.
+FR1–FR56, FR58–FR69 (except deferred FR42/FR43 and superseded FR48/FR49): delivered in Epics 1–9; regression-gated in
+Epic 10, no new work.
 
 ## Epic List
 
-### Epic 9: User Feedback Pass
+### Epic 10: Lighter Screens, a Current Stack and Docs That Earn Their Place
 
-Users can tell the admin what they want from inside the app, and the admin can read and clear it. Items carry every
-store they are sold in, with no existing store lost. An item can be added from the shopping screen without leaving it.
-The category filter menu can be closed on a phone, Home is in the account menu, and the admin's user list is
-paginated. Underneath, deleting a category or a user no longer leaves orphaned data behind, and the E2E gate waits for
-a backend that is actually ready.
+The two list screens lose a back link the account menu already provides and open straight on their header. Underneath,
+every dependency is brought to its latest stable release or explicitly held with recorded evidence — including a retry
+of TypeScript 7 and graphql-kotlin 11, the latter only after the Jackson 2/3 question from Story 7.12 is settled. The
+documentation is cut to what agents and BMAD actually read, and what stays is verified against the code.
 
-**FRs covered:** FR13, FR44, FR56, FR57, FR61 (amended); FR66, FR67, FR68, FR69 (new)
-**NFRs binding every story:** NFR17, NFR18, NFR64, NFR65; NFR-L2 on the cascades; NFR13–NFR15 on the new dialogs
-**Carries:** AR-E9-0 … AR-E9-15, UX-DR-E9-1 … UX-DR-E9-13, and the "Routed to Epic 9" deferred-work index
-**Source:** `docs/feedback.md` items 1–6 (md's own use plus other users' feedback relayed by md)
+**FRs covered:** FR57 (amended); every other FR regression-gated
+**NFRs binding:** NFR17, NFR18, NFR64, NFR65 on every code story; NFR1–NFR8 and NFR-L1–NFR-L5 as the bump regression
+surface
+**Carries:** AR-E10-0 … AR-E10-12, UX-DR-E10-1 … UX-DR-E10-3
+**Source:** `docs/feedback.md` (2026-10-19) — user item 1, technical-debt items 1 and 2
 
-**Why one epic (md, 2026-09-15).** The architecture spine is final with every open question ruled and the UX contract
-describes the shipped app, so no early feedback could redirect later work. The two candidate halves (feedback/admin vs
-shopping/items) share their core files — `AppShell.tsx` (Home + Feedback), `AdminPage.tsx` (pagination + feedback
-panel), `UserAdminApi` (shared `requireAdmin` + purge), `AddItemDialog` (stores + FAB + category error) and
-`ItemService` (stores + `applyCheckState` + cascade) — and the project ships one branch, one retro and one app version
-per epic.
+**Why one epic (md, 2026-10-19).** No feedback loop runs between the three items: the removal is two screens and one
+spec, the bumps follow the LAND/HOLD protocol proven in Epic 7, and the documentation pass must run last regardless.
+The project ships one branch, one retro and one app version per epic.
 
 **Ordering constraints for story creation:**
 
-1. The health endpoint (AR-E9-9) lands first: every later story is verified against a gate that today can abort on a
-   cold start (F20).
-2. Pagination with D4 data hygiene (AR-E9-6, -6a) lands early: the `createUserViaUi` flake grows with every suite run.
-3. The category cascade (AR-E9-7) lands before or with the FAB: its `saveItem` create-branch category check is what
-   stops the FAB creating items in a just-deleted category.
-4. The multi-store change (AR-E9-3/-4/-5/-11/-12) is one indivisible story: schema, mappers, repository, migration,
-   codegen and E2E GraphQL ship together in one app version.
-5. Small cleanups (AR-E9-15) run last, after every `AppShell` story, so only still-unconsumed tokens are deleted.
-
-**Rulings recorded at epic design (md, 2026-09-15):** the shopping row keeps its accessible name and carries stores in
-its description (UX-DR-E9-7); `/lists/:id` prunes a deleted category's items via its own mutation path, having no
-subscription (UX-DR-E9-11); adding an item joins checking as a shopping-view action, editing and deleting stay
-management-only (UX-DR-E9-8).
+1. The back-link removal lands first, so its E2E change (`backToLists()` → `menu-lists`) is in the suite every upgrade
+   is gated against.
+2. The Jackson 2/3 measurement precedes graphql-kotlin 11 (the 7.12 ledger entry: "before the next major, not after").
+3. Each major moves in its own story; minor/patch bumps are batched per side (backend / frontend).
+4. The TypeScript 7 retry follows the frontend bumps, so it is measured against the newest `typescript-eslint`.
+5. The documentation cleanup runs last: version lines in `CLAUDE.md`/`AGENTS.md` are only final after every bump, and
+   `AGENTS.md` is refreshed against the final HEAD.
 
 ---
 
-## Epic 9: User Feedback Pass
+## Epic 10: Lighter Screens, a Current Stack and Docs That Earn Their Place
 
-Users can tell the admin what they want from inside the app, and the admin can read and clear it; items carry every
-store they are sold in; an item can be added from the shopping screen; the category filter menu can be closed on a
-phone; Home is in the account menu; the admin's user list is paginated. Deleting a category or a user no longer leaves
-orphaned data, and the E2E gate waits for a ready backend.
+The two list screens open straight on their header, with navigation left to the account menu; every dependency is on
+its latest stable release or held with recorded evidence; and the documentation is only what something actually reads,
+verified against the code.
 
-**Delivers:** FR13, FR44, FR56, FR57, FR61, FR66, FR67, FR68, FR69 · AR-E9-0 … AR-E9-15 · UX-DR-E9-1 … UX-DR-E9-13
+**Delivers:** FR57 (amended) · AR-E10-0 … AR-E10-12 · UX-DR-E10-1 … UX-DR-E10-3
 
-**Binding on every story below:** the inherited slice layout, error classes and naming (AR-E9-0, AR-E9-0a); backend
-rules proven with Kotest + Testcontainers (AR-E9-0b); E2E against the production artifact on desktop **and** the 320px
-floor, UI-driven (NFR17, NFR18, NFR64, NFR65); every new test observed failing before it is accepted; schema changes regenerate codegen
-in the same story; no toast or snackbar (UX-DR-E9-1); `DESIGN.md` / `EXPERIENCE.md` corrected in the same commit as any
-screen they describe (UX-DR-E9-12); each routed `deferred-work.md` entry a story discharges is closed in place by that
-story; `sprint-status.yaml` reconciled at story close.
+**Binding on every story below:** the inherited invariants (AR-E10-0); E2E against the production artifact on desktop
+**and** the 320px floor, UI-driven (NFR17, NFR18, NFR64, NFR65) for every story that ships code; every new or changed
+test observed failing before it is accepted; every count, version and test total measured in the pass, never quoted;
+any blocked bump reverted to byte-identical manifests and lockfiles and recorded in `deferred-work.md` with the story
+still closing `done` (AR-E10-3); docs naming a moved version updated in the same commit (AR-E10-7); `DESIGN.md` /
+`EXPERIENCE.md` corrected in the same commit as any screen they describe; `sprint-status.yaml` reconciled at story
+close. Registry versions quoted below are the 2026-10-19 planning snapshot — each story re-measures before it moves
+anything, and a newer stable release found on the day is the target instead.
 
-### Story 9.1: The test run waits until the backend is ready
-
-As md, the developer running the E2E gate,
-I want the suite to start only once the backend and its database actually answer,
-So that a cold start never aborts the gate with zero tests run.
-
-**Acceptance Criteria:**
-
-**Given** the stack is running and MongoDB is reachable
-**When** a client sends `GET /api/health` with no credentials
-**Then** the response is `200`
-**And** the route is declared as `get("/health")` outside `authenticate` and any `rateLimit`, served at `/api/health`
-through `rootPath: "api"` (AR-E9-9)
-
-**Given** MongoDB is unreachable, or its `ping` does not answer within 2 seconds
-**When** a client sends `GET /api/health`
-**Then** the response is `503`, returned after at most the 2-second timeout rather than a hang
-
-**Given** a Kotest `testApplication` test using the real application config
-**When** it requests `/api/health` with Mongo up and with Mongo down
-**Then** it observes `200` and `503` respectively
-
-**Given** a machine with no bag-please containers running
-**When** md runs `npm run test:e2e`
-**Then** Playwright waits on `http://localhost:2080/api/health` and the suite executes, with no
-`Process from config.webServer exited early` abort
-**And** a compose startup failure surfaces its output promptly instead of silently running out the webServer timeout
-**And** the teardown and stdout-filtering choices are recorded in the story spec
-
-**Given** the service worker's `/api` denylist
-**When** `/api/health` is requested through Caddy
-**Then** it reaches Ktor (never a service-worker fallback), and no probe tool is added to the `bp_back` image
-
-**And** the deferred-work entries for Epic 8 retro F20, the Epic 5 "Playwright `webServer` gaps", the Story 7.1 review
-cold-start finding and the Story 7.12 missing health endpoint are closed in place
-
-### Story 9.2: The admin's user list is paged instead of growing forever
-
-As the admin,
-I want the users table to show at most 20 accounts per page with a total count,
-So that `/admin` stays fast and usable however many accounts exist.
-
-**Acceptance Criteria:**
-
-**Given** 45 regular users exist
-**When** the admin opens `/admin`
-**Then** the table shows the first 20 users ordered by username ascending
-**And** `admin-users-total` shows 45, `admin-users-page` shows the current page, `admin-users-prev` is disabled and
-`admin-users-next` is enabled (FR13, UX-DR-E9-5)
-
-**Given** the admin is on page 1 of 3
-**When** they activate next twice and then previous
-**Then** they see page 2, then page 3 holding the remaining 5 users, then page 2 again
-
-**Given** the backend
-**When** `users(limit, offset, around)` is called
-**Then** it returns `UserPage { users, totalCount, offset }` sorted by username with Mongo's default binary collation
-**And** `limit` is clamped to 1..100, `offset` to 0..last page, and an `around` naming an existing username returns the
-page containing that user with that page's `offset`
-**And** a non-admin caller is rejected with Forbidden, and the unpaginated `users` field no longer exists in the schema
-**And** Kotest covers the ordering, both clamps and `around` (AR-E9-6)
-
-**Given** the admin creates a user whose name sorts onto a different page
-**When** the create succeeds
-**Then** the table shows the page containing the new row (queried with `around`) and the total increases by one
-
-**Given** the admin is on the last page, which holds a single user
-**When** they delete that user
-**Then** the table moves back one page and the total decreases by one
-**And** after any create or delete no stale or shifted cached rows are shown (`cache-and-network`, `users` evicted and
-garbage-collected on every successful mutation)
-
-**Given** the E2E helpers that create and act on users
-**When** they run
-**Then** they act on a created user only on the page the create landed on and never walk pages
-
-**Given** the suite has run many times against the same persistent database
-**When** it runs again
-**Then** the create-user flow's timing does not depend on how many users earlier runs left behind (Epic 7 action D4,
-AR-E9-6a)
-**And** the mechanism stays within NFR18, uses no retry loop, is recorded in the spec, and D4's status is updated in
-`sprint-status.yaml`
-
-**Given** the 320px phone project and a user with a 42-character username
-**When** `/admin` renders
-**Then** the page does not overflow horizontally and the pager controls are fully inside the viewport
-**And** the username cell is either not clipped (`expectNotClipped`) or its clipping is measured and recorded as a kept
-decision (AR-E9-6b)
-
-**And** the routed deferred-work entries this story discharges are closed in place: Epic 7 close-out "`AdminUsers` is
-unpaginated", the Stories 7.8 + 7.9 `createUserViaUi` size-driven flake, and the `/admin` halves of the Story 8.2 entry
-and its review
-
-### Story 9.3: Deleting a category deletes its items for everyone
+### Story 10.1: The list screens open on their header
 
 As a list member,
-I want removing a category to remove every item in it on the server,
-So that no item is left orphaned on anyone's screen.
+I want the shopping view and the list management screen to start with the list's own header,
+So that I don't scroll past a back link that duplicates the account menu's Home and My lists entries.
 
 **Acceptance Criteria:**
 
-**Given** a category holding five items, one of them soft-deleted (`deleted = true`)
-**When** a member deletes the category
-**Then** the category and all six items are gone from MongoDB and from the per-list storage cache (AR-E9-7)
-**And** Kotest asserts the soft-deleted item is included
+**Given** a signed-in user on the shopping view `/list/:id`
+**When** the page renders
+**Then** there is no back-to-lists link above the header: `list-shopping-back` is absent from the DOM
+**And** the header (`shopping-header`) is the first content in the page container (UX-DR-E10-1)
 
-**Given** a caller who is not a member of the list
-**When** they call `deleteCategory`
-**Then** it is rejected and nothing is deleted (NFR-L2)
+**Given** a signed-in user on the list management screen `/lists/:id`
+**When** the page renders
+**Then** `list-detail-back` is absent from the DOM and the header block is the first content in the page container
 
-**Given** member B is watching `/list/:id`
-**When** member A deletes a category holding at least 5 items from `/lists/:id`
-**Then** B's screen shows neither that category's group nor any of its items, without a reload (UX-DR-E9-11)
-**And** the server emits exactly one category `DELETED` event and no per-item events
+**Given** either screen on a desktop viewport and at the 320px floor
+**When** its top spacing is measured against the app bar
+**Then** the header sits at the container's top padding with no leftover gap from the removed link's `mb: 2`, nothing
+overflows horizontally, and the existing 320px layout assertions stay green (NFR64, NFR65)
 
-**Given** member A on `/lists/:id`
-**When** A confirms the category removal
-**Then** the category card and its items disappear from A's screen
-**And** the handler sends one `deleteCategory` request and no `deleteItem` requests (the client loop is gone)
+**Given** a signed-in user on either screen
+**When** they open the account menu and choose **My lists**
+**Then** they land on `/lists`; choosing **Home** or the app-bar title still goes to the resolved home (FR57 amended,
+UX-DR-E10-2)
 
-**Given** a `saveItem` **create** whose category does not belong to the target list
-**When** it is sent
-**Then** it is rejected with the existing message, nothing is created and no `SAVED` event is emitted
-**And** the create-hole tripwire test is retired
+**Given** the E2E suite (15 specs) references the removed test ids today — `sharing.spec.ts` (`backToLists()` helper),
+`shopping.spec.ts`, `admin.spec.ts`, `lists.spec.ts`, `navigation.spec.ts`
+**When** the story is done
+**Then** every navigation that clicked `list-detail-back` or `list-shopping-back` goes through the shared
+`openListsViaMenu()` in `e2e/support/ui.ts`, the local `backToLists()` helper is deleted, no spec re-declares a helper,
+and `grep -rn "list-detail-back\|list-shopping-back" bp_front/` returns nothing (AR-E10-12)
+**And** `navigation.spec.ts` assertions that the shopping view **shows** a back link (Story 6.2 / FR57) are replaced by
+assertions that neither screen has one, each observed failing against the pre-change build before it is accepted
 
-**Given** an item whose category no longer exists
-**When** a member calls `uncheckItem` on it
-**Then** it is rejected
+**Given** `ArrowBackIcon` and `RouterLink`/`Link` imports become unused in `ListShoppingPage.tsx` and `ListDetailPage.tsx`
+**When** `npm run lint` and `npm run build` run
+**Then** both pass with the orphaned imports removed, and `DESIGN.md`'s icon inventory drops `ArrowBack` (no remaining
+consumer under `bp_front/src/`) with its count line updated
 
-**Given** `AddItemDialog` is open on a category that another member deletes
-**When** the user submits
-**Then** the dialog stays open with the mapped message in `add-item-error`, the same path `EditItemDialog` uses
+**Given** `prd.md` FR57 and the `ux-epic-8` contract still describe a back-to-lists affordance
+**When** the code change is committed
+**Then** the same commit amends FR57 in `prd.md` to the Epic 10 wording in this file's inventory (with a dated
+`changes` entry in its frontmatter), and corrects `EXPERIENCE.md` (navigation / IA, both screens' anatomy) and
+`DESIGN.md` so no sentence describes the removed link or the "one back-link pattern" (UX-DR-E10-3)
 
-**And** orphans already in the data still appear in the `Uncategorized` group with their edit and remove controls
-**And** the Story 8.5 "orphan CAUSE" deferred-work entry is closed in place
+**Given** the full gate
+**When** the story closes
+**Then** `npm run lint`, `npm run build` and `npm run test:e2e` on every Playwright project pass with measured totals
+recorded
 
-### Story 9.4: Deleting a user leaves no phantom memberships
+### Story 10.2: We know which Jackson writes our GraphQL responses
 
-As the admin,
-I want deleting a user to remove them from every list and delete the lists they own, after telling me how many,
-So that no phantom member and no ownerless list is left behind.
-
-**Acceptance Criteria:**
-
-**Given** user U owns two lists, is an accepted member of list L owned by V, and has a pending invite to list M
-**When** the admin opens the delete dialog for U
-**Then** the dialog states that U's 2 lists will be deleted with their items and categories, read from
-`User.ownedListCount` (FR17, AR-E9-8, UX-DR-E9-5)
-
-**Given** that dialog
-**When** the admin confirms
-**Then** U's user record is gone and every `list_members` row for U, in any status, is gone
-**And** U no longer appears in L's `members` or `memberUsernames`
-**And** both lists U owned are deleted with all their items and categories
-**And** U's sessions are invalidated
-
-**Given** the delete sequence
-**When** it runs
-**Then** `adminDeleteUser` runs before `purgeUser`, so a `createList` or `acceptInvite` by U after the first step fails
-with `CallerNotFound`
-**And** Kotest covers the order
-
-**Given** a user already purged
-**When** `purgeUser` runs again
-**Then** it changes nothing and raises no error
-**And** it writes only through `ListStorage.save` and `ListMemberRepository`, so V's Share dialog stops listing U
-without a restart
-
-**Given** `deleteList` and the purge
-**When** either deletes a list
-**Then** both go through the one private `cascadeDeleteList`, and the existing `deleteList` tests stay green
-
-**Given** V is a member of a list U owned and has it open
-**When** U is deleted
-**Then** V's next data access to that list redirects V to `/lists` (Story 5.6), and no subscription event is emitted
-
-**And** a non-admin caller cannot delete a user
-**And** the Story 7-6 review "user deletion strands `list_members`" entry is closed in place
-
-### Story 9.5: Checking an item through an edit keeps the scheduler working
-
-As a list member with recurring items,
-I want an item that becomes checked by any path to carry the check-off time the scheduler reads,
-So that a recurring item is always restored on its cadence.
+As md, maintaining the backend,
+I want a measured answer to which Jackson mapper serialises GraphQL bodies and WebSocket frames,
+So that the graphql-kotlin 11 bump cannot silently flip response serialisation.
 
 **Acceptance Criteria:**
 
-**Given** `ItemService`
-**When** `checkItem`, `uncheckItem` or `saveItem`'s update branch changes check state
-**Then** all three go through one private `applyCheckState(stored, checked, recurring, now)` (AR-E9-11)
+**Given** the open Story 7.12 ledger entry in `deferred-work.md` (Jackson 2 and Jackson 3 both on `runtimeClasspath`;
+`ContentNegotiation { jackson() }` on the root route at `Routing.kt`; `JacksonWebsocketContentConverter` at `GQL.kt`)
+**When** the story runs at least two of the black-box discriminators the entry names — non-ASCII / astral-plane escaping
+via the `emoji` field, `Accept`-header negotiation and 406 behaviour, the `Content-Type` `charset` suffix, field
+ordering / pretty-print defaults — or a throwaway-build `pluginOrNull(ContentNegotiation)` read
+**Then** the mapper serialising HTTP GraphQL `data`/`errors` is identified with the probe output captured verbatim
+**And** the same is established for subscription frames over `graphql-ws`
 
-**Given** a weekly item that was never checked (`checkedAt` null)
-**When** a `saveItem` update sends `checked: true`
-**Then** `checkedAt` is set to now
-**And** a scheduler run seven days later restores it (Kotest with a controlled clock)
+**Given** the answer
+**When** it is recorded
+**Then** it becomes a rule in `bp_back/CLAUDE.md` (which mapper owns which path, and what moving or removing the root
+`ContentNegotiation` install would change)
+**And** a Kotest `testApplication` test pins the discriminating behaviour, so relocating the install fails the backend
+suite; the test is observed failing with the install moved before it is accepted
 
-**Given** a checked weekly item with `checkedAt` T
-**When** a save changes only its name, or only its `recurring` value
-**Then** `checkedAt` stays T
+**Given** the WebSocket converter is shown vestigial for GraphQL frames
+**When** it is removed
+**Then** a live subscription (item check-off reaching a second member) still works in E2E and the `FORBIDDEN` and
+failing-mutation response bodies stay byte-identical to a captured baseline (md5 recorded before and after)
+**And** if it is shown load-bearing instead, a code comment at `GQL.kt` says so and why, and nothing is removed
 
-**Given** a checked one-time item
-**When** its check state is applied
-**Then** `deleted = true` and `deletedAt = now`
+**Given** the story closes
+**Then** the 7.12 ledger entry is closed in place with a pointer to the rule and the test; no dependency version moved
+(`git diff gradle/libs.versions.toml` empty); `cleanTest test` totals read from the JUnit XML and the full E2E gate pass
 
-**Given** a checked item with no cadence
-**When** its check state is applied
-**Then** nothing is stamped
+### Story 10.3: The backend runs on current minor releases
 
-**Given** any item
-**When** it becomes unchecked by any path
-**Then** `checkedAt`, `deleted` and `deletedAt` are cleared
-
-**And** `addedBy` and every other server-owned field survive, and the existing FR58, `checkItem` and `uncheckItem` tests
-stay green
-**And** the four factually wrong comments in `EditItemDialog.tsx` are rewritten to describe the merge and
-`applyCheckState`, with no change to the dialog's behaviour or its `checked`/`recurring` carry-forward (AR-E9-12)
-**And** the Story 7.4 `checkedAt` entry and the Story 7-4 review comments entry are closed in place
-
-### Story 9.6: An item can be in several stores
-
-As a list member,
-I want to give an item every store it can be bought in,
-So that I recognise it whichever store I am shopping in.
+As md, maintaining the backend,
+I want every backend dependency below its next major brought to the latest stable minor/patch,
+So that the graphql-kotlin major lands on a current base as the only variable.
 
 **Acceptance Criteria:**
 
-**Given** the add-item dialog or the edit-item dialog
-**When** the user enters "Lidl", then " lidl ", then "Aldi"
-**Then** the field holds exactly Lidl and Aldi, because the duplicate by case-insensitive key is refused (FR44)
-**And** it offers suggestions from `itemStoreSuggestions`, accepts a new name, and removes a store individually
-**And** it has a visible associated label and is fully keyboard-operable (NFR13, NFR14)
-**And** the spec records whether `StoreField` keeps its no-second-combobox constraint or why it no longer applies
-(UX-DR-E9-6)
+**Given** the backend inventory (AR-E10-1), re-measured on the day — snapshot: Kotlin 2.4.10 → 2.4.21, Ktor 3.5.2 → 3.6.0,
+Mongo driver 5.9.2 → 5.13.0, Logback 1.6.2 → 1.6.5, Kotest 6.2.4 → 6.2.6; Arrow 2.2.3, Testcontainers 2.0.5, bcrypt 0.10.2
+current; `gradle:9.6.1-jdk25` → current Gradle 9.x image; `eclipse-temurin:25`, `mongo:8`, mise `temurin-25`
+**When** the story lists it
+**Then** the record shows locked vs latest-stable for each, prereleases excluded (Kotlin 2.5.0-Beta*, Arrow 2.3.0-alpha*),
+and `graphql-kotlin` explicitly left for Story 10.4
 
-**Given** a save sending stores `[" Lidl ", "lidl", "", "Aldi Nord"]`
-**When** the server processes it, on create or update
-**Then** the item stores `["Lidl", "Aldi Nord"]` (AR-E9-4)
-**And** an edit that only changes "Lidl" to "LIDL" is saved
-**And** `itemStoreSuggestions` returns one name per key, the lowest by (lowercase, then `compareTo`), in that order
+**Given** the minor/patch bumps applied together in `libs.versions.toml` and `bp_back/Dockerfile`
+**When** `./gradlew :bp_back:cleanTest :bp_back:test` and `:bp_back:build` run
+**Then** both pass with no added `@Suppress`, `force`/`strictly`, or `-Xskip-metadata-version-check` (AR-E10-3)
+**And** if anything fails, the bumps are bisected and only the culprit is held — reverted and recorded verbatim in
+`deferred-work.md` — while the rest land
 
-**Given** the schema and data layers
-**When** the story ships
-**Then** `stores: [String!]!` exists on `Item` and `ItemInput` and `store` exists nowhere in the schema
-**And** `ItemRepository.save` sets `stores` and unsets `store` in one update
-**And** every frontend document returning an item spreads `ListItemFields`, codegen is regenerated, and the raw GraphQL
-in `e2e/item-editing.spec.ts` is updated (AR-E9-3, AR-E9-10a)
+**Given** the Story 10.2 rule and test
+**When** the bumped backend runs
+**Then** the Jackson-discrimination test stays green, and the `FORBIDDEN` / failing-mutation bodies match the 10.2 md5
+baseline
 
-**Given** a database with `epic4-list-seed` recorded and items with: a legacy `store` "Lidl"; `store` " lidl " plus
-`stores` ["LIDL"]; a null `store`; a blank `store`; and an already converted item
-**When** the application starts
-**Then** each item's `stores` is the normalizer's result of its existing stores plus its `store`, no item keeps a
-`store` field, and `epic9-multi-store` is recorded last (FR69, AR-E9-5)
-**And** a second start changes nothing, and a fresh database starts cleanly
+**Given** Ktor moves a minor
+**When** the auth and rate-limit surfaces are exercised
+**Then** login, refresh-cookie flags (`Secure`, `HttpOnly`, `SameSite=Strict`), rate limiting, `/api/health` and the
+subscription JWT close-on-expiry behave as before — covered by the existing Kotest and E2E suites, totals measured
 
-**Given** an item with stores A and B on `/list/:id`
-**When** the row renders
-**Then** both stores are shown inside the row as non-interactive chips (`shopping-item-stores-<item>`,
-`shopping-item-store-<item>-<store>`)
-**And** activating anywhere on the row, chips included, toggles it (FR60)
-**And** its accessible name is exactly `Toggle <name>` and its description includes `Stores: A, B`; an item with no
-stores has no stores segment (UX-DR-E9-7)
+**Given** the bumped stack built with `docker compose up --build`
+**When** `npm run generate` runs with a fresh `CODEGEN_TOKEN`
+**Then** `git status --short bp_front/src/__generated__/` is empty, or the change is committed and explained
 
-**Given** the 320px phone project and an item with three long store names
-**When** the shopping view renders
-**Then** the page does not overflow horizontally and the row's check glyph and name stay inside the viewport
+**Given** the story closes
+**Then** the full E2E gate passes on every project, and `bp_back/CLAUDE.md` / `AGENTS.md` / `architecture.md` lines
+naming a moved version are updated in the same commit (AR-E10-7)
 
-**Given** member A changes an item's stores
-**When** member B is watching `/list/:id`
-**Then** B sees the new stores without a reload
+### Story 10.4: graphql-kotlin 10 → 11
 
-**Given** an orphaned item in the `Uncategorized` group
-**When** the user opens its edit dialog and saves without choosing a category
-**Then** the dialog does not close silently: it stays open and says a category must be chosen, and nothing is saved
-(AR-E9-12)
-
-**And** `gradle.properties` and `package.json` carry the same bumped version
-**And** `docs/deployment-guide.md` records the pre-deploy `mongodump` of `db_data` and the rollback procedure (AR-E9-5a)
-**And** the Story 8.5/8.6 orphan-dialog entry is closed in place
-
-### Story 9.7: Home is in the account menu
-
-As a user,
-I want a Home entry in the account menu,
-So that I can get home from the place I look for navigation.
+As md, maintaining the backend,
+I want graphql-kotlin on 11.x, or a recorded reason it cannot be,
+So that the GraphQL server stays on a supported major without changing what clients see.
 
 **Acceptance Criteria:**
 
-**Given** a regular user or the admin on an authenticated screen that is not their home
-**When** they open the account menu and choose `menu-home`
-**Then** they land on the same destination as the app-bar title link — the oldest list, `/lists` for a user with none,
-or `/admin` for the admin (FR57)
+**Given** Story 10.3 has landed and `graphql-kotlin` latest stable is re-measured (snapshot `11.0.0`)
+**When** the compatibility source is checked
+**Then** the `graphql-kotlin-ktor-server` POM's Ktor and Kotlin floors are cited (snapshot: Ktor 3.4.1, Kotlin 2.3.0 —
+already met), and the release notes' breaking changes are listed against this codebase's usage (`GQL.kt`, schema
+hooks, the four `GraphQL*Exception` classes, subscription server)
 
-**Given** the user is already on their resolved home route
-**When** they choose `menu-home`
-**Then** the menu closes and neither the URL nor `history.length` changes
+**Given** baselines captured before the bump: the failing-`saveItem` error body, a `FORBIDDEN` body, an
+`extensions.code` per exception class, `GET /api/graphiql` status, and the Story 10.2 discrimination output
+**When** the version moves and only the `bp_back/` edits a captured compile or test error forces are made
+**Then** after the bump the bodies are byte-identical (md5 before/after), `errors[0].message` still carries the prefix
+`Exception while fetching data (/saveItem) : ` that `bp_front/src/lib/admin/adminErrors.ts` strips, every
+`extensions.code` is unchanged, and GraphiQL answers as before (AR-E10-5)
 
-**Given** the account menu
-**When** it opens
-**Then** its entries are, in order: Home, Lists, Change password (non-admin) or Admin (admin), Logout
-**And** Home carries a small `@mui/icons-material` icon and is reachable and activatable by keyboard (UX-DR-E9-3)
+**Given** the bumped backend
+**When** `npm run generate` runs and the full E2E gate runs
+**Then** codegen output is byte-identical or committed and explained, a live subscription and a live mutation pass on
+both viewports, and the Story 10.2 test is green
 
-**Given** a user with no lists on `/lists` in the installed app
-**When** they open the menu
-**Then** Home and Lists are both available, so the screen is not one menu away from a dead end
+**Given** the bump cannot land under AR-E10-3's prohibitions
+**When** the story takes the HOLD branch
+**Then** `libs.versions.toml` and any touched source are restored to byte-identical, the blocking error is recorded
+verbatim in a `## Deferred from: Story 10.4` ledger section, and the story closes `done`
 
-**Given** `useHomePath` in observe mode while the lists query is failing
-**When** the app bar renders
-**Then** the error branch does not fire in observe mode (gated on resolve mode, after the `!data` check), so the title
-link stays live, while `HomeRedirect` in resolve mode still resolves to `/lists` (AR-E9-13)
+**Given** the story closes on LAND
+**Then** `cleanTest test` totals come from the JUnit XML and docs naming the graphql-kotlin version are updated in the
+same commit
 
-**And** the title link's inert-but-present behaviour and its existing tests are unchanged, and observe mode stays
-`cache-only` (md, 2026-09-15)
-**And** `EXPERIENCE.md` §1.1's menu table and §3 are updated, and the Story 7.5, 7-5 review and epic-7-context
-`useHomePath` entries are closed in place
+### Story 10.5: The frontend runs on current minor releases
 
-### Story 9.8: The category filter menu can be closed on a phone
-
-As a user filtering a list on my phone,
-I want a Done button inside the category menu,
-So that I can close a menu that covers most of the screen.
-
-**Acceptance Criteria:**
-
-**Given** the category filter menu is open on `/list/:id` or `/lists/:id` at 320px, on a list with 30 categories
-**When** the menu renders
-**Then** `filter-category-confirm` is fully visible without scrolling the menu (FR61, UX-DR-E9-10)
-
-**Given** the open menu
-**When** the user toggles categories
-**Then** the list behind the menu filters as each is toggled
-
-**Given** the user has selected two categories
-**When** they activate `filter-category-confirm`
-**Then** the menu closes, both selections remain applied, and focus returns to the category control
-
-**Given** the open menu
-**When** the user taps outside it or presses Escape
-**Then** it closes and nothing is reverted
-
-**And** the confirm control is defined once in `ListFilters.tsx` and appears on both screens
-
-**Given** `/lists/:id` with an empty category "Zzz Empty" and a stocked category "Bakery"
-**When** the user filters to "Zzz Empty" only
-**Then** its card and its add-item affordance are shown (F2, AR-E9-14)
-**And** empty categories that are not selected stay hidden while filtering, and the shopping view still hides empty
-groups
-
-**Given** a real category named "Uncategorized" and an orphaned item on the same list
-**When** either screen renders
-**Then** both groups render and the synthetic bucket's testids come from its sentinel key, so no locator matches two
-elements (F5)
-**And** `saveCategory` gains no name rule
-
-**And** the Epic 8 retro F2 and F5 deferred-work entries are closed in place
-
-### Story 9.9: A user can send feedback from any screen
-
-As a regular user,
-I want to send an idea, a request or a problem from wherever I am in the app,
-So that the admin hears about it without me leaving what I was doing.
+As md, maintaining the frontend,
+I want every frontend dependency below its next major brought to the latest stable minor/patch,
+So that the PWA and TypeScript majors are each tried on a current base as the only variable.
 
 **Acceptance Criteria:**
 
-**Given** a regular user on any authenticated screen
-**When** they choose `menu-feedback` in the account menu
-**Then** `feedback-dialog` opens over the current screen and the route does not change (FR66, UX-DR-E9-3)
+**Given** the frontend inventory (AR-E10-1), re-measured on the day — snapshot: React/React DOM 19.2.8 → 19.3.1,
+`@apollo/client` 4.2.11 → 4.3.4, MUI 9.3.1 → 9.5.0, Vite 8.2.1 → 8.3.4, `@vitejs/plugin-react` → 6.1.2, Playwright
+1.62.1 → 1.64.1, eslint → 10.13.0, `typescript-eslint` → 8.71.2, `graphql-ws` 6.2.1 → 6.4.1, codegen cli 7.2.0 → 7.4.6
+and client-preset 6.1.3 → 6.2.3, `@types/*`, `react-router-dom`, `globals`, `eslint-plugin-react-refresh`; `node:26-alpine`,
+`caddy:2-alpine`, mise `node 26`
+**When** the story lists it
+**Then** locked vs latest-stable is recorded for each, and `typescript` (Story 10.7) and `vite-plugin-pwa` (Story 10.6)
+are explicitly left out
 
-**Given** the feedback dialog with text entered
-**When** the user submits
-**Then** a `feedback` document is stored with the trimmed text, the username from the caller's principal, and the
-server's time (AR-E9-1, AR-E9-2)
-**And** the dialog closes, the user is on the same screen with its state (e.g. active filters) intact, and an in-flow
-`role="status"` confirmation `feedback-sent`, rendered by `AppShell`, says the feedback was sent (UX-DR-E9-1)
+**Given** the bumps applied with exact pins where the package is pinned today and ranges kept where ranged today
+**When** `npm install` runs with no flags and no `.npmrc` change
+**Then** it exits 0 with no `overrides`/`resolutions`, and `npm run lint` and `npm run build` pass
+**And** a package that cannot land cleanly is held — reverted and recorded verbatim — while the rest land (AR-E10-3)
 
-**Given** the text is empty or only whitespace
-**When** the user submits
-**Then** an inline field error is shown and nothing is sent
+**Given** `@apollo/client` and `graphql-ws` move a minor
+**When** the E2E suite exercises login, silent refresh, a mutation, a live subscription across two members, and logout
+disposing the socket before clearing auth
+**Then** all pass on every project (NFR-L5, FR53)
 
-**Given** text whose trimmed length is exactly 2000
-**When** submitted
-**Then** it is accepted
-**And** at 2001 trimmed characters the client blocks it with a field error and the server independently rejects it with
-`GraphQLInvalidInputException`
+**Given** Playwright moves a minor
+**When** browsers are installed for the new version
+**Then** the four-project topology and count invariants documented in `playwright.config.ts` still hold, with totals
+measured
 
-**Given** the dialog
-**When** the user cancels
-**Then** nothing is sent
+**Given** `npm run generate` runs against the live schema
+**Then** `src/__generated__/` is byte-identical or the change is committed and explained
 
-**Given** the server fails the send
-**When** the user submits
-**Then** the dialog stays open with the text intact and the reason in `feedback-error`
+**Given** the story closes
+**Then** the full E2E gate passes, `bp_front/CLAUDE.md` / `AGENTS.md` / `architecture.md` version lines are updated in
+the same commit, and the bundle-size delta of `npm run build` is recorded (not a failure criterion)
 
-**Given** a regular user's account menu
-**When** it opens
-**Then** Feedback appears after Change password and before Logout, with a small icon, reachable by keyboard
-(UX-DR-E9-3)
+### Story 10.6: vite-plugin-pwa 1 → 2
 
-**Given** the admin account
-**When** its account menu opens
-**Then** there is no Feedback entry
-**And** an admin call to `sendFeedback` is rejected with Forbidden and stores nothing (FR56)
-
-**And** `sendFeedback` takes only `text`, so a client cannot set the author or the time
-**And** Kotest covers admin rejection, trimmed UTF-16 length bounds, the stored fields and the string `_id`
-**And** the dialog follows the canonical form-dialog conventions with `feedback-*` testids (UX-DR-E9-2) and fits at
-320px with its actions inside the viewport
-
-### Story 9.10: The admin reviews and clears feedback
-
-As the admin,
-I want to read all feedback newest first and delete what I have triaged,
-So that the admin area is where user feedback gets turned into planning.
+As someone who installed Bag Please on their phone,
+I want the app to keep installing and updating exactly as it does today after the PWA plugin's major upgrade,
+So that the upgrade is invisible to me.
 
 **Acceptance Criteria:**
 
-**Given** the backend admin checks
-**When** the story ships
-**Then** one `DataFetchingEnvironment.requireAdmin()` lives in `plugins/GqlAuth.kt` and `UserAdminApi`,
-`ApplicationConfigApi` and `FeedbackApi` all use it, with the two private copies removed (AR-E9-2)
-**And** the existing admin tests stay green
+**Given** Story 10.5 has landed and `vite-plugin-pwa` latest stable is re-measured (snapshot `2.0.0`, peer `vite ^3 … ^8`,
+`workbox-build`/`workbox-window ^7.4.1`)
+**When** the release notes are read against `bp_front/vite.config.ts`
+**Then** every breaking change touching the options this project uses — `registerType: 'autoUpdate'`,
+`navigateFallback: '/index.html'`, `navigateFallbackDenylist: [/^\/api/]`, empty `runtimeCaching`, manifest and icons —
+is listed with its effect
 
-**Given** three feedback entries sent at different times
-**When** the admin opens `/admin`
-**Then** the feedback panel lists them newest first, each with its text, the submitter's username and the submission time
-(FR67, UX-DR-E9-4)
+**Given** the plugin moves and only the config edits a captured break forces are made
+**When** `npm install` (no flags), `npm run lint` and `npm run build` run
+**Then** all exit 0, and the built `dist/` still emits `manifest.webmanifest` (or the renamed equivalent, with Caddy's
+content type kept correct), `sw.js` at the root scope, and exactly one injected manifest link
 
-**Given** feedback text containing `<b>bold</b>` and `**markdown**`
-**When** it is shown
-**Then** the characters appear literally, never interpreted as markup
+**Given** the production image
+**When** `e2e/pwa.spec.ts` runs
+**Then** all seven tests pass unchanged: manifest content type and install keys, real PNG icons at declared sizes, `sw.js`
+served as JavaScript and not long-term cached, one manifest link, the worker activated and answering navigations,
+`/api/health` reaching Ktor under the worker, and no `/api` entry in Cache Storage after an authenticated session
+(FR59, NFR-E7-7, AR-E7-15)
+**And** `routing/Caddyfile` needs no change, or its change is part of the story and covered by those tests
 
-**Given** a long multi-line entry at 320px
-**When** the panel renders
-**Then** the text wraps without horizontal overflow or clipping
+**Given** an existing installation built on plugin 1.x
+**When** the 2.x build is deployed over it
+**Then** the old worker is replaced on the next load (`autoUpdate`) without a stale shell — verified by building 1.x,
+loading it, rebuilding on 2.x and reloading, with the result recorded
 
-**Given** no feedback, a pending query, or a failed query
-**When** the panel renders
-**Then** it shows `admin-feedback-empty`, `admin-feedback-loading` or `admin-feedback-error` respectively
+**Given** the bump cannot land under AR-E10-3
+**When** the story takes the HOLD branch
+**Then** `package.json`, `package-lock.json` and `vite.config.ts` are byte-identical to before, the symptom is recorded in a
+`## Deferred from: Story 10.6` ledger section, and the story closes `done`
 
-**Given** an entry
-**When** the admin activates its delete control and confirms in `delete-feedback-dialog`
-**Then** the entry disappears from the panel and from the database
-**And** cancelling keeps it, a failed delete keeps the dialog open with `delete-feedback-dialog-error`, and deleting an
-id that does not exist is reported as not found rather than silently succeeding
+**Given** the story closes on LAND
+**Then** the full E2E gate passes and the `vite-plugin-pwa` version in `CLAUDE.md` / `bp_front/CLAUDE.md` is updated in the
+same commit
 
-**Given** a regular user
-**When** they call `feedback` or `deleteFeedback`
-**Then** both are rejected with Forbidden
+### Story 10.7: TypeScript 7, tried again
 
-**Given** user U has sent feedback
-**When** the admin deletes U
-**Then** U's feedback is still listed with U's username
-
-**And** the feedback query uses `cache-and-network` with the collection evicted on delete, codegen is regenerated, and
-`EXPERIENCE.md` §5.4 is updated
-
-### Story 9.11: An item can be added from the shopping screen
-
-As a list member shopping,
-I want an add button on the shopping screen,
-So that I can add something I just remembered without going to list management.
+As md, maintaining the frontend,
+I want TypeScript 7 adopted if the lint toolchain now allows it, and the blocker re-evidenced if it does not,
+So that the hold is current fact, not a two-month-old observation.
 
 **Acceptance Criteria:**
 
-**Given** a member on `/list/:id` for a list with categories
-**When** they activate `shopping-add-item-fab`
-**Then** the existing `AddItemDialog` opens with that list as the fixed target, with no list choice (FR68, AR-E9-10)
+**Given** Story 10.5 has landed (`typescript-eslint` on its newest stable)
+**When** `npm view typescript version` and `npm view typescript-eslint peerDependencies` run
+**Then** both outputs are recorded verbatim (snapshot: `typescript` 7.0.2; `typescript-eslint` 8.71.2 peer
+`>=4.8.4 <6.1.0`)
 
-**Given** the dialog filled with a name, a category and two stores
-**When** the member saves
-**Then** the item appears on the shopping view without a reload
-**And** another member watching the same list sees it without a reload (FR52)
+**Given** the peer range admits `7.x`
+**When** `typescript` moves to the latest 7.x with a plain `npm install`
+**Then** `npm run lint`, `npm run build` (`tsc -b && vite build`) and the full E2E gate pass, `tsconfig*.json` changes are
+only those a captured diagnostic forces, `tsconfig.app.json` still excludes `src/__generated__`, and version lines are
+updated in the same commit
 
-**Given** a list long enough to scroll, on desktop and at 320px
-**When** the member scrolls to the bottom
-**Then** the button stays visible throughout
-**And** the last item row can be fully seen and activated, not covered by the button
+**Given** the peer range still excludes `7.x` (the expected path)
+**When** a throwaway reproduction forces the install (`--legacy-peer-deps`, in that task only)
+**Then** the `npm install` resolution error and the `npm run lint` failure are captured verbatim
+**And** `npx tsc -b tsconfig.json --force` under TS 7 is run and its exit code and any diagnostics recorded — a non-zero
+exit is new evidence and changes the ledger wording
+**And** the tree is restored: `git checkout -- bp_front/package.json bp_front/package-lock.json`, `npm ci`,
+`git status --short` empty, `npx tsc --version` reporting `6.0.3`
 
-**Given** a list with no categories
-**When** the member activates the button
-**Then** the dialog says a category is needed first and offers a link to `/lists/:id`, without rendering a form to submit
-(UX-DR-E9-9)
+**Given** the HOLD branch
+**When** the evidence is recorded
+**Then** the existing Story 7.10 ledger entry in `deferred-work.md` is updated in place with the 2026-10 re-measurement
+(no duplicate section), the story does not swap the lint stack to escape the peer constraint (AR-E10-4), and it closes
+`done`
 
-**Given** a list with categories but no items
-**When** the shopping view shows its empty state
-**Then** the copy points the member at the add button
-**And** a list with no categories keeps the list-management guidance
+### Story 10.8: Only documents something reads are kept
 
-**Given** the button
-**When** inspected
-**Then** it has the accessible name "Add item", is reachable by keyboard, and sits inside the viewport at 320px
-
-**And** row check-off, filters and the list switcher behave as before
-**And** `EXPERIENCE.md` §4 and §5.3 record adding as a shopping-view action (md's ruling, UX-DR-E9-8)
-
-### Story 9.12: Small cleanups
-
-As md, maintaining the repository,
-I want the routed hygiene items fixed,
-So that tooling, docs and theme stop carrying traps and dead weight.
+As md, and as every agent loading context in this repo,
+I want documentation that no skill, config or context file reads removed, and anything still useful moved to where it is loaded,
+So that nobody reads a stale scan or a superseded spec as truth.
 
 **Acceptance Criteria:**
 
-**Given** the repository
-**When** `git ls-files .idea/dataSources.xml` runs
-**Then** it returns nothing, and the file is ignored
+**Given** the candidates — `docs/` scan output (`index.md`, `project-overview.md`, `source-tree-analysis.md`,
+`api-contracts-bp_back.md`, `data-models-bp_back.md`, `component-inventory-bp_front.md`, `architecture-routing.md`,
+`deployment-guide.md`, `development-guide.md`, `project-parts.json`, `project-scan-report.json`) and planning-root
+leftovers (three `implementation-readiness-report-*.md`, two `ux-design-directions*.html`, `ux-design-specification.md`,
+`ux-design-specification-epic-4.md`, `prd-validation.md`, two `sprint-change-proposal-*.md`, `review-rubric-epic9.md`,
+`review-polish-epic9.md`, `.memlog.md`)
+**When** the story audits them
+**Then** a table records, per file, its live consumers found by grep over `CLAUDE.md` files, `AGENTS.md`, `_bmad/` config,
+`.claude/skills/`, `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair and `epics*.md` — and the
+verdict: delete, keep (consumer named), or fold-then-delete (AR-E10-8)
 
-**Given** `tsconfig.node.json`
-**When** `tsc -b` runs
-**Then** `codegen.ts` is type-checked
+**Given** a `docs/` file holds a fact that is still true against the code and is not already in a loaded file
+**When** it is folded
+**Then** the fact lands once in the `CLAUDE.md` whose tree it describes (root, `bp_back/`, `bp_front/`, `routing/`) and is
+checked against the cited source file; facts found false are dropped, not carried (AR-E10-9)
 
-**Given** `docs/` and `bp_front/e2e/`
-**When** they are searched for `./db/data`
-**Then** no stale path remains; they describe the `db_data` named volume
+**Given** `docs/feedback.md`
+**Then** it is kept as the backlog intake, and is the only file left in `docs/` unless the audit names another consumer
 
-**Given** a forced backend compile
-**When** it runs
-**Then** no `Expression is unused` warning is emitted for `UserService.changePassword`
+**Given** `project_knowledge` resolves to `{project-root}/docs` in the BMAD config
+**When** `docs/` is reduced
+**Then** `project_knowledge` still points at an existing directory whose content matches what BMAD skills expect from it,
+changed through the supported config path (`_bmad/custom/` override or the installer config), and
+`uv run _bmad/scripts/resolve_config.py --project-root .` shows the resolved value
 
-**Given** `.gitignore` and the ESLint `ignores`
-**When** read
-**Then** both list `dev-dist/`
+**Given** a live planning document links to a deleted file
+**When** the deletion is committed
+**Then** the link is updated or removed in the same commit; historical records under `implementation-artifacts/` are not
+rewritten (AR-E10-8), and `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair, `epics.md` and
+`epics-archive.md` are kept (AR-E10-10)
 
-**Given** the backend
-**When** it is searched
-**Then** `ListStorage.delete()` no longer exists and the build passes
+**Given** the story ships no product code
+**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty, and NFR17's E2E gate is deliberately not applicable —
+recorded so its absence reads as a decision
 
-**Given** `theme.ts` after every `AppShell` story has landed
-**When** `custom.bp.*` consumers are counted
-**Then** every token with no consumer is removed together with its module-augmentation type
-**And** `DESIGN.md` §3 and §11.2 are updated
+### Story 10.9: The agent context files match the code
 
-**And** `npm run lint`, `npm run build`, the backend tests and the full E2E suite pass
-**And** each discharged deferred-work entry (F19b, `codegen.ts`, `./db/data`, trailing `Unit`, `dev-dist/`,
-`ListStorage.delete()`, `custom.bp.*` tokens) is closed in place
+As md, and as every agent working in this repo,
+I want `AGENTS.md` and the four `CLAUDE.md` files to say only what is true at HEAD, each fact once,
+So that an agent follows current commands and conventions instead of stale or contradicting ones.
+
+**Acceptance Criteria:**
+
+**Given** Stories 10.1–10.8 have landed
+**When** `AGENTS.md`'s managed `bmad:context` block is refreshed with `bmad-project-context`
+**Then** its "Verified" line names the current HEAD and date, and content outside the markers is preserved
+
+**Given** the root, `bp_back/`, `bp_front/` and `routing/` `CLAUDE.md` files
+**When** each is checked line by line
+**Then** every command is run or its target confirmed to exist (Gradle tasks, npm scripts, mise tasks, file paths, test ids,
+ports), every version matches `libs.versions.toml` / `package.json` / Dockerfiles, and a table records each fixed or
+deleted claim with the evidence (AR-E10-11)
+**And** time-bound notes that no longer apply (e.g. the 2026-08-13 `./db/data` migration instructions, if the old bind
+mount data is gone) are removed or reworded by md's ruling, not silently
+
+**Given** a fact appears in more than one of these files
+**When** duplication is resolved
+**Then** it lives in the most specific file that loads where it is needed (per-directory over root, `CLAUDE.md` over
+`AGENTS.md` for architecture and commands, as `AGENTS.md` itself states), and the others drop it
+
+**Given** `mise.toml` and `.zed/tasks.json`
+**When** any documented command changes
+**Then** the two stay in sync (the `sync-zed-mise-tasks` skill), or the record states no task changed
+
+**Given** the story ships no product code
+**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty and NFR17 is recorded as not applicable

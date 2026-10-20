@@ -1,13 +1,15 @@
 # bag-please — Closed Epics Archive
 
 Verbatim bodies of the closed epics, moved out of `epics.md` on 2026-09-07 to keep the live
-planning file small. Epics 1–8 are all closed, each with a retrospective in
+planning file small. Epics 1–9 are all closed, each with a retrospective in
 `_bmad-output/implementation-artifacts/`. Nothing here was edited — only relocated. Epic 8 was
 appended on 2026-09-15, when `epics.md` was re-initialised for Epic 9; the Epic 1–8 requirements
-inventory it carried is recoverable from git (`epics.md` at commit `b056451`).
+inventory it carried is recoverable from git (`epics.md` at commit `b056451`). Epic 9 was appended on 2026-10-19,
+when `epics.md` was re-initialised for Epic 10; its requirements inventory is recoverable from git (`epics.md` at
+commit `4321365`).
 
 This file is part of the epic set: sprint planning must be run with BOTH files, e.g.
-`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–8
+`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–9
 are reported as orphans and dropped from `sprint-status.yaml`.
 
 ---
@@ -3317,3 +3319,556 @@ default
 **And** NFR-E8-6 (E2E against the production artifact on both viewports, observed failing before acceptance) is
 **deliberately not applicable** to this story, which ships no code — recorded so its absence reads as a decision
 rather than an omission. Its analogue here is AC3: every factual claim names the file it can be checked against
+
+---
+
+## Epic 9: User Feedback Pass
+
+Users can tell the admin what they want from inside the app, and the admin can read and clear it; items carry every
+store they are sold in; an item can be added from the shopping screen; the category filter menu can be closed on a
+phone; Home is in the account menu; the admin's user list is paginated. Deleting a category or a user no longer leaves
+orphaned data, and the E2E gate waits for a ready backend.
+
+**Delivers:** FR13, FR44, FR56, FR57, FR61, FR66, FR67, FR68, FR69 · AR-E9-0 … AR-E9-15 · UX-DR-E9-1 … UX-DR-E9-13
+
+**Binding on every story below:** the inherited slice layout, error classes and naming (AR-E9-0, AR-E9-0a); backend
+rules proven with Kotest + Testcontainers (AR-E9-0b); E2E against the production artifact on desktop **and** the 320px
+floor, UI-driven (NFR17, NFR18, NFR64, NFR65); every new test observed failing before it is accepted; schema changes regenerate codegen
+in the same story; no toast or snackbar (UX-DR-E9-1); `DESIGN.md` / `EXPERIENCE.md` corrected in the same commit as any
+screen they describe (UX-DR-E9-12); each routed `deferred-work.md` entry a story discharges is closed in place by that
+story; `sprint-status.yaml` reconciled at story close.
+
+### Story 9.1: The test run waits until the backend is ready
+
+As md, the developer running the E2E gate,
+I want the suite to start only once the backend and its database actually answer,
+So that a cold start never aborts the gate with zero tests run.
+
+**Acceptance Criteria:**
+
+**Given** the stack is running and MongoDB is reachable
+**When** a client sends `GET /api/health` with no credentials
+**Then** the response is `200`
+**And** the route is declared as `get("/health")` outside `authenticate` and any `rateLimit`, served at `/api/health`
+through `rootPath: "api"` (AR-E9-9)
+
+**Given** MongoDB is unreachable, or its `ping` does not answer within 2 seconds
+**When** a client sends `GET /api/health`
+**Then** the response is `503`, returned after at most the 2-second timeout rather than a hang
+
+**Given** a Kotest `testApplication` test using the real application config
+**When** it requests `/api/health` with Mongo up and with Mongo down
+**Then** it observes `200` and `503` respectively
+
+**Given** a machine with no bag-please containers running
+**When** md runs `npm run test:e2e`
+**Then** Playwright waits on `http://localhost:2080/api/health` and the suite executes, with no
+`Process from config.webServer exited early` abort
+**And** a compose startup failure surfaces its output promptly instead of silently running out the webServer timeout
+**And** the teardown and stdout-filtering choices are recorded in the story spec
+
+**Given** the service worker's `/api` denylist
+**When** `/api/health` is requested through Caddy
+**Then** it reaches Ktor (never a service-worker fallback), and no probe tool is added to the `bp_back` image
+
+**And** the deferred-work entries for Epic 8 retro F20, the Epic 5 "Playwright `webServer` gaps", the Story 7.1 review
+cold-start finding and the Story 7.12 missing health endpoint are closed in place
+
+### Story 9.2: The admin's user list is paged instead of growing forever
+
+As the admin,
+I want the users table to show at most 20 accounts per page with a total count,
+So that `/admin` stays fast and usable however many accounts exist.
+
+**Acceptance Criteria:**
+
+**Given** 45 regular users exist
+**When** the admin opens `/admin`
+**Then** the table shows the first 20 users ordered by username ascending
+**And** `admin-users-total` shows 45, `admin-users-page` shows the current page, `admin-users-prev` is disabled and
+`admin-users-next` is enabled (FR13, UX-DR-E9-5)
+
+**Given** the admin is on page 1 of 3
+**When** they activate next twice and then previous
+**Then** they see page 2, then page 3 holding the remaining 5 users, then page 2 again
+
+**Given** the backend
+**When** `users(limit, offset, around)` is called
+**Then** it returns `UserPage { users, totalCount, offset }` sorted by username with Mongo's default binary collation
+**And** `limit` is clamped to 1..100, `offset` to 0..last page, and an `around` naming an existing username returns the
+page containing that user with that page's `offset`
+**And** a non-admin caller is rejected with Forbidden, and the unpaginated `users` field no longer exists in the schema
+**And** Kotest covers the ordering, both clamps and `around` (AR-E9-6)
+
+**Given** the admin creates a user whose name sorts onto a different page
+**When** the create succeeds
+**Then** the table shows the page containing the new row (queried with `around`) and the total increases by one
+
+**Given** the admin is on the last page, which holds a single user
+**When** they delete that user
+**Then** the table moves back one page and the total decreases by one
+**And** after any create or delete no stale or shifted cached rows are shown (`cache-and-network`, `users` evicted and
+garbage-collected on every successful mutation)
+
+**Given** the E2E helpers that create and act on users
+**When** they run
+**Then** they act on a created user only on the page the create landed on and never walk pages
+
+**Given** the suite has run many times against the same persistent database
+**When** it runs again
+**Then** the create-user flow's timing does not depend on how many users earlier runs left behind (Epic 7 action D4,
+AR-E9-6a)
+**And** the mechanism stays within NFR18, uses no retry loop, is recorded in the spec, and D4's status is updated in
+`sprint-status.yaml`
+
+**Given** the 320px phone project and a user with a 42-character username
+**When** `/admin` renders
+**Then** the page does not overflow horizontally and the pager controls are fully inside the viewport
+**And** the username cell is either not clipped (`expectNotClipped`) or its clipping is measured and recorded as a kept
+decision (AR-E9-6b)
+
+**And** the routed deferred-work entries this story discharges are closed in place: Epic 7 close-out "`AdminUsers` is
+unpaginated", the Stories 7.8 + 7.9 `createUserViaUi` size-driven flake, and the `/admin` halves of the Story 8.2 entry
+and its review
+
+### Story 9.3: Deleting a category deletes its items for everyone
+
+As a list member,
+I want removing a category to remove every item in it on the server,
+So that no item is left orphaned on anyone's screen.
+
+**Acceptance Criteria:**
+
+**Given** a category holding five items, one of them soft-deleted (`deleted = true`)
+**When** a member deletes the category
+**Then** the category and all six items are gone from MongoDB and from the per-list storage cache (AR-E9-7)
+**And** Kotest asserts the soft-deleted item is included
+
+**Given** a caller who is not a member of the list
+**When** they call `deleteCategory`
+**Then** it is rejected and nothing is deleted (NFR-L2)
+
+**Given** member B is watching `/list/:id`
+**When** member A deletes a category holding at least 5 items from `/lists/:id`
+**Then** B's screen shows neither that category's group nor any of its items, without a reload (UX-DR-E9-11)
+**And** the server emits exactly one category `DELETED` event and no per-item events
+
+**Given** member A on `/lists/:id`
+**When** A confirms the category removal
+**Then** the category card and its items disappear from A's screen
+**And** the handler sends one `deleteCategory` request and no `deleteItem` requests (the client loop is gone)
+
+**Given** a `saveItem` **create** whose category does not belong to the target list
+**When** it is sent
+**Then** it is rejected with the existing message, nothing is created and no `SAVED` event is emitted
+**And** the create-hole tripwire test is retired
+
+**Given** an item whose category no longer exists
+**When** a member calls `uncheckItem` on it
+**Then** it is rejected
+
+**Given** `AddItemDialog` is open on a category that another member deletes
+**When** the user submits
+**Then** the dialog stays open with the mapped message in `add-item-error`, the same path `EditItemDialog` uses
+
+**And** orphans already in the data still appear in the `Uncategorized` group with their edit and remove controls
+**And** the Story 8.5 "orphan CAUSE" deferred-work entry is closed in place
+
+### Story 9.4: Deleting a user leaves no phantom memberships
+
+As the admin,
+I want deleting a user to remove them from every list and delete the lists they own, after telling me how many,
+So that no phantom member and no ownerless list is left behind.
+
+**Acceptance Criteria:**
+
+**Given** user U owns two lists, is an accepted member of list L owned by V, and has a pending invite to list M
+**When** the admin opens the delete dialog for U
+**Then** the dialog states that U's 2 lists will be deleted with their items and categories, read from
+`User.ownedListCount` (FR17, AR-E9-8, UX-DR-E9-5)
+
+**Given** that dialog
+**When** the admin confirms
+**Then** U's user record is gone and every `list_members` row for U, in any status, is gone
+**And** U no longer appears in L's `members` or `memberUsernames`
+**And** both lists U owned are deleted with all their items and categories
+**And** U's sessions are invalidated
+
+**Given** the delete sequence
+**When** it runs
+**Then** `adminDeleteUser` runs before `purgeUser`, so a `createList` or `acceptInvite` by U after the first step fails
+with `CallerNotFound`
+**And** Kotest covers the order
+
+**Given** a user already purged
+**When** `purgeUser` runs again
+**Then** it changes nothing and raises no error
+**And** it writes only through `ListStorage.save` and `ListMemberRepository`, so V's Share dialog stops listing U
+without a restart
+
+**Given** `deleteList` and the purge
+**When** either deletes a list
+**Then** both go through the one private `cascadeDeleteList`, and the existing `deleteList` tests stay green
+
+**Given** V is a member of a list U owned and has it open
+**When** U is deleted
+**Then** V's next data access to that list redirects V to `/lists` (Story 5.6), and no subscription event is emitted
+
+**And** a non-admin caller cannot delete a user
+**And** the Story 7-6 review "user deletion strands `list_members`" entry is closed in place
+
+### Story 9.5: Checking an item through an edit keeps the scheduler working
+
+As a list member with recurring items,
+I want an item that becomes checked by any path to carry the check-off time the scheduler reads,
+So that a recurring item is always restored on its cadence.
+
+**Acceptance Criteria:**
+
+**Given** `ItemService`
+**When** `checkItem`, `uncheckItem` or `saveItem`'s update branch changes check state
+**Then** all three go through one private `applyCheckState(stored, checked, recurring, now)` (AR-E9-11)
+
+**Given** a weekly item that was never checked (`checkedAt` null)
+**When** a `saveItem` update sends `checked: true`
+**Then** `checkedAt` is set to now
+**And** a scheduler run seven days later restores it (Kotest with a controlled clock)
+
+**Given** a checked weekly item with `checkedAt` T
+**When** a save changes only its name, or only its `recurring` value
+**Then** `checkedAt` stays T
+
+**Given** a checked one-time item
+**When** its check state is applied
+**Then** `deleted = true` and `deletedAt = now`
+
+**Given** a checked item with no cadence
+**When** its check state is applied
+**Then** nothing is stamped
+
+**Given** any item
+**When** it becomes unchecked by any path
+**Then** `checkedAt`, `deleted` and `deletedAt` are cleared
+
+**And** `addedBy` and every other server-owned field survive, and the existing FR58, `checkItem` and `uncheckItem` tests
+stay green
+**And** the four factually wrong comments in `EditItemDialog.tsx` are rewritten to describe the merge and
+`applyCheckState`, with no change to the dialog's behaviour or its `checked`/`recurring` carry-forward (AR-E9-12)
+**And** the Story 7.4 `checkedAt` entry and the Story 7-4 review comments entry are closed in place
+
+### Story 9.6: An item can be in several stores
+
+As a list member,
+I want to give an item every store it can be bought in,
+So that I recognise it whichever store I am shopping in.
+
+**Acceptance Criteria:**
+
+**Given** the add-item dialog or the edit-item dialog
+**When** the user enters "Lidl", then " lidl ", then "Aldi"
+**Then** the field holds exactly Lidl and Aldi, because the duplicate by case-insensitive key is refused (FR44)
+**And** it offers suggestions from `itemStoreSuggestions`, accepts a new name, and removes a store individually
+**And** it has a visible associated label and is fully keyboard-operable (NFR13, NFR14)
+**And** the spec records whether `StoreField` keeps its no-second-combobox constraint or why it no longer applies
+(UX-DR-E9-6)
+
+**Given** a save sending stores `[" Lidl ", "lidl", "", "Aldi Nord"]`
+**When** the server processes it, on create or update
+**Then** the item stores `["Lidl", "Aldi Nord"]` (AR-E9-4)
+**And** an edit that only changes "Lidl" to "LIDL" is saved
+**And** `itemStoreSuggestions` returns one name per key, the lowest by (lowercase, then `compareTo`), in that order
+
+**Given** the schema and data layers
+**When** the story ships
+**Then** `stores: [String!]!` exists on `Item` and `ItemInput` and `store` exists nowhere in the schema
+**And** `ItemRepository.save` sets `stores` and unsets `store` in one update
+**And** every frontend document returning an item spreads `ListItemFields`, codegen is regenerated, and the raw GraphQL
+in `e2e/item-editing.spec.ts` is updated (AR-E9-3, AR-E9-10a)
+
+**Given** a database with `epic4-list-seed` recorded and items with: a legacy `store` "Lidl"; `store` " lidl " plus
+`stores` ["LIDL"]; a null `store`; a blank `store`; and an already converted item
+**When** the application starts
+**Then** each item's `stores` is the normalizer's result of its existing stores plus its `store`, no item keeps a
+`store` field, and `epic9-multi-store` is recorded last (FR69, AR-E9-5)
+**And** a second start changes nothing, and a fresh database starts cleanly
+
+**Given** an item with stores A and B on `/list/:id`
+**When** the row renders
+**Then** both stores are shown inside the row as non-interactive chips (`shopping-item-stores-<item>`,
+`shopping-item-store-<item>-<store>`)
+**And** activating anywhere on the row, chips included, toggles it (FR60)
+**And** its accessible name is exactly `Toggle <name>` and its description includes `Stores: A, B`; an item with no
+stores has no stores segment (UX-DR-E9-7)
+
+**Given** the 320px phone project and an item with three long store names
+**When** the shopping view renders
+**Then** the page does not overflow horizontally and the row's check glyph and name stay inside the viewport
+
+**Given** member A changes an item's stores
+**When** member B is watching `/list/:id`
+**Then** B sees the new stores without a reload
+
+**Given** an orphaned item in the `Uncategorized` group
+**When** the user opens its edit dialog and saves without choosing a category
+**Then** the dialog does not close silently: it stays open and says a category must be chosen, and nothing is saved
+(AR-E9-12)
+
+**And** `gradle.properties` and `package.json` carry the same bumped version
+**And** `docs/deployment-guide.md` records the pre-deploy `mongodump` of `db_data` and the rollback procedure (AR-E9-5a)
+**And** the Story 8.5/8.6 orphan-dialog entry is closed in place
+
+### Story 9.7: Home is in the account menu
+
+As a user,
+I want a Home entry in the account menu,
+So that I can get home from the place I look for navigation.
+
+**Acceptance Criteria:**
+
+**Given** a regular user or the admin on an authenticated screen that is not their home
+**When** they open the account menu and choose `menu-home`
+**Then** they land on the same destination as the app-bar title link — the oldest list, `/lists` for a user with none,
+or `/admin` for the admin (FR57)
+
+**Given** the user is already on their resolved home route
+**When** they choose `menu-home`
+**Then** the menu closes and neither the URL nor `history.length` changes
+
+**Given** the account menu
+**When** it opens
+**Then** its entries are, in order: Home, Lists, Change password (non-admin) or Admin (admin), Logout
+**And** Home carries a small `@mui/icons-material` icon and is reachable and activatable by keyboard (UX-DR-E9-3)
+
+**Given** a user with no lists on `/lists` in the installed app
+**When** they open the menu
+**Then** Home and Lists are both available, so the screen is not one menu away from a dead end
+
+**Given** `useHomePath` in observe mode while the lists query is failing
+**When** the app bar renders
+**Then** the error branch does not fire in observe mode (gated on resolve mode, after the `!data` check), so the title
+link stays live, while `HomeRedirect` in resolve mode still resolves to `/lists` (AR-E9-13)
+
+**And** the title link's inert-but-present behaviour and its existing tests are unchanged, and observe mode stays
+`cache-only` (md, 2026-09-15)
+**And** `EXPERIENCE.md` §1.1's menu table and §3 are updated, and the Story 7.5, 7-5 review and epic-7-context
+`useHomePath` entries are closed in place
+
+### Story 9.8: The category filter menu can be closed on a phone
+
+As a user filtering a list on my phone,
+I want a Done button inside the category menu,
+So that I can close a menu that covers most of the screen.
+
+**Acceptance Criteria:**
+
+**Given** the category filter menu is open on `/list/:id` or `/lists/:id` at 320px, on a list with 30 categories
+**When** the menu renders
+**Then** `filter-category-confirm` is fully visible without scrolling the menu (FR61, UX-DR-E9-10)
+
+**Given** the open menu
+**When** the user toggles categories
+**Then** the list behind the menu filters as each is toggled
+
+**Given** the user has selected two categories
+**When** they activate `filter-category-confirm`
+**Then** the menu closes, both selections remain applied, and focus returns to the category control
+
+**Given** the open menu
+**When** the user taps outside it or presses Escape
+**Then** it closes and nothing is reverted
+
+**And** the confirm control is defined once in `ListFilters.tsx` and appears on both screens
+
+**Given** `/lists/:id` with an empty category "Zzz Empty" and a stocked category "Bakery"
+**When** the user filters to "Zzz Empty" only
+**Then** its card and its add-item affordance are shown (F2, AR-E9-14)
+**And** empty categories that are not selected stay hidden while filtering, and the shopping view still hides empty
+groups
+
+**Given** a real category named "Uncategorized" and an orphaned item on the same list
+**When** either screen renders
+**Then** both groups render and the synthetic bucket's testids come from its sentinel key, so no locator matches two
+elements (F5)
+**And** `saveCategory` gains no name rule
+
+**And** the Epic 8 retro F2 and F5 deferred-work entries are closed in place
+
+### Story 9.9: A user can send feedback from any screen
+
+As a regular user,
+I want to send an idea, a request or a problem from wherever I am in the app,
+So that the admin hears about it without me leaving what I was doing.
+
+**Acceptance Criteria:**
+
+**Given** a regular user on any authenticated screen
+**When** they choose `menu-feedback` in the account menu
+**Then** `feedback-dialog` opens over the current screen and the route does not change (FR66, UX-DR-E9-3)
+
+**Given** the feedback dialog with text entered
+**When** the user submits
+**Then** a `feedback` document is stored with the trimmed text, the username from the caller's principal, and the
+server's time (AR-E9-1, AR-E9-2)
+**And** the dialog closes, the user is on the same screen with its state (e.g. active filters) intact, and an in-flow
+`role="status"` confirmation `feedback-sent`, rendered by `AppShell`, says the feedback was sent (UX-DR-E9-1)
+
+**Given** the text is empty or only whitespace
+**When** the user submits
+**Then** an inline field error is shown and nothing is sent
+
+**Given** text whose trimmed length is exactly 2000
+**When** submitted
+**Then** it is accepted
+**And** at 2001 trimmed characters the client blocks it with a field error and the server independently rejects it with
+`GraphQLInvalidInputException`
+
+**Given** the dialog
+**When** the user cancels
+**Then** nothing is sent
+
+**Given** the server fails the send
+**When** the user submits
+**Then** the dialog stays open with the text intact and the reason in `feedback-error`
+
+**Given** a regular user's account menu
+**When** it opens
+**Then** Feedback appears after Change password and before Logout, with a small icon, reachable by keyboard
+(UX-DR-E9-3)
+
+**Given** the admin account
+**When** its account menu opens
+**Then** there is no Feedback entry
+**And** an admin call to `sendFeedback` is rejected with Forbidden and stores nothing (FR56)
+
+**And** `sendFeedback` takes only `text`, so a client cannot set the author or the time
+**And** Kotest covers admin rejection, trimmed UTF-16 length bounds, the stored fields and the string `_id`
+**And** the dialog follows the canonical form-dialog conventions with `feedback-*` testids (UX-DR-E9-2) and fits at
+320px with its actions inside the viewport
+
+### Story 9.10: The admin reviews and clears feedback
+
+As the admin,
+I want to read all feedback newest first and delete what I have triaged,
+So that the admin area is where user feedback gets turned into planning.
+
+**Acceptance Criteria:**
+
+**Given** the backend admin checks
+**When** the story ships
+**Then** one `DataFetchingEnvironment.requireAdmin()` lives in `plugins/GqlAuth.kt` and `UserAdminApi`,
+`ApplicationConfigApi` and `FeedbackApi` all use it, with the two private copies removed (AR-E9-2)
+**And** the existing admin tests stay green
+
+**Given** three feedback entries sent at different times
+**When** the admin opens `/admin`
+**Then** the feedback panel lists them newest first, each with its text, the submitter's username and the submission time
+(FR67, UX-DR-E9-4)
+
+**Given** feedback text containing `<b>bold</b>` and `**markdown**`
+**When** it is shown
+**Then** the characters appear literally, never interpreted as markup
+
+**Given** a long multi-line entry at 320px
+**When** the panel renders
+**Then** the text wraps without horizontal overflow or clipping
+
+**Given** no feedback, a pending query, or a failed query
+**When** the panel renders
+**Then** it shows `admin-feedback-empty`, `admin-feedback-loading` or `admin-feedback-error` respectively
+
+**Given** an entry
+**When** the admin activates its delete control and confirms in `delete-feedback-dialog`
+**Then** the entry disappears from the panel and from the database
+**And** cancelling keeps it, a failed delete keeps the dialog open with `delete-feedback-dialog-error`, and deleting an
+id that does not exist is reported as not found rather than silently succeeding
+
+**Given** a regular user
+**When** they call `feedback` or `deleteFeedback`
+**Then** both are rejected with Forbidden
+
+**Given** user U has sent feedback
+**When** the admin deletes U
+**Then** U's feedback is still listed with U's username
+
+**And** the feedback query uses `cache-and-network` with the collection evicted on delete, codegen is regenerated, and
+`EXPERIENCE.md` §5.4 is updated
+
+### Story 9.11: An item can be added from the shopping screen
+
+As a list member shopping,
+I want an add button on the shopping screen,
+So that I can add something I just remembered without going to list management.
+
+**Acceptance Criteria:**
+
+**Given** a member on `/list/:id` for a list with categories
+**When** they activate `shopping-add-item-fab`
+**Then** the existing `AddItemDialog` opens with that list as the fixed target, with no list choice (FR68, AR-E9-10)
+
+**Given** the dialog filled with a name, a category and two stores
+**When** the member saves
+**Then** the item appears on the shopping view without a reload
+**And** another member watching the same list sees it without a reload (FR52)
+
+**Given** a list long enough to scroll, on desktop and at 320px
+**When** the member scrolls to the bottom
+**Then** the button stays visible throughout
+**And** the last item row can be fully seen and activated, not covered by the button
+
+**Given** a list with no categories
+**When** the member activates the button
+**Then** the dialog says a category is needed first and offers a link to `/lists/:id`, without rendering a form to submit
+(UX-DR-E9-9)
+
+**Given** a list with categories but no items
+**When** the shopping view shows its empty state
+**Then** the copy points the member at the add button
+**And** a list with no categories keeps the list-management guidance
+
+**Given** the button
+**When** inspected
+**Then** it has the accessible name "Add item", is reachable by keyboard, and sits inside the viewport at 320px
+
+**And** row check-off, filters and the list switcher behave as before
+**And** `EXPERIENCE.md` §4 and §5.3 record adding as a shopping-view action (md's ruling, UX-DR-E9-8)
+
+### Story 9.12: Small cleanups
+
+As md, maintaining the repository,
+I want the routed hygiene items fixed,
+So that tooling, docs and theme stop carrying traps and dead weight.
+
+**Acceptance Criteria:**
+
+**Given** the repository
+**When** `git ls-files .idea/dataSources.xml` runs
+**Then** it returns nothing, and the file is ignored
+
+**Given** `tsconfig.node.json`
+**When** `tsc -b` runs
+**Then** `codegen.ts` is type-checked
+
+**Given** `docs/` and `bp_front/e2e/`
+**When** they are searched for `./db/data`
+**Then** no stale path remains; they describe the `db_data` named volume
+
+**Given** a forced backend compile
+**When** it runs
+**Then** no `Expression is unused` warning is emitted for `UserService.changePassword`
+
+**Given** `.gitignore` and the ESLint `ignores`
+**When** read
+**Then** both list `dev-dist/`
+
+**Given** the backend
+**When** it is searched
+**Then** `ListStorage.delete()` no longer exists and the build passes
+
+**Given** `theme.ts` after every `AppShell` story has landed
+**When** `custom.bp.*` consumers are counted
+**Then** every token with no consumer is removed together with its module-augmentation type
+**And** `DESIGN.md` §3 and §11.2 are updated
+
+**And** `npm run lint`, `npm run build`, the backend tests and the full E2E suite pass
+**And** each discharged deferred-work entry (F19b, `codegen.ts`, `./db/data`, trailing `Unit`, `dev-dist/`,
+`ListStorage.delete()`, `custom.bp.*` tokens) is closed in place
