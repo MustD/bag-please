@@ -325,7 +325,24 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   Ktor version compiled against 2.4.x. The story's replacement absolute ("no `kotlin` bump can ever close it") rests on
   a single observation of current KGP behaviour — treat it as measured-here, not as a law.
 
-- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+- ✅ CLOSED by Story 10.2 (2026-10-20): graphql-kotlin's own route-level `ContentNegotiation` (Jackson 3) writes
+  GraphQL HTTP bodies; the root Jackson 2 install owns REST only (planning probes: `INDENT_OUTPUT` on the root install
+  leaves GraphQL compact; deleting it leaves GraphQL identical and breaks only REST login). The vestigial
+  `JacksonWebsocketContentConverter` is deleted from `GQL.kt`. Rule: `bp_back/CLAUDE.md` "Which Jackson writes what";
+  pin: `JacksonSerializationTest`. Evidence: with the root install moved under `route("/zz")` the backend suite went
+  `173 tests completed, 148 failed`, including all three pin tests; restored, JUnit XML totals are 173 tests, 0
+  skipped, 0 failures, 0 errors. Failing-mutation and `FORBIDDEN` bodies recaptured against the same ids before and
+  after the rebuild: md5 `1f6f5775fa211009b7a4dc56e5b365c5` / `cd980d36d4a001159ef2676dcc2754b0` both times (the 7.12
+  baselines embed per-run ids, so they were not reproducible; the before/after pair is the comparison). E2E:
+  283 passed, 29 skipped.
+  Probe output (planning, verbatim): `Accept` null / `application/json` / `*/*` -> `200 OK ct=application/json`, body
+  `{"errors":[{"message":"Validation error (FieldUndefined@[nope]) : Field 'nope' in type 'Query' is undefined","locations":[{"line":1,"column":3}],"extensions":{}}]}`;
+  `application/xml`, `text/plain`, `application/graphql-response+json` -> `406 Not Acceptable ct=null body=` (identical
+  with the root install deleted); live emoji `🛒` / `é日本` come back as raw UTF-8, unescaped (not a discriminator);
+  `curl POST /api/auth/login` -> `{"accessToken":"…","username":"admin","role":"admin"}`.
+  Residual: the pin test pins behaviour, not Jackson identity, and the `graphql-ws` mapper is inferred, not measured —
+  re-check at Story 10.4 (graphql-kotlin 11).
+  Was: source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
   summary: **Jackson 2 and Jackson 3 now coexist on the backend runtime classpath**, with two live `ContentNegotiation`
   converter implementations available and no measurement of which one actually serialises `data`/`errors`.
   evidence: the `runtimeClasspath` adds `tools.jackson.core:jackson-core:3.1.3`, `jackson-databind:3.1.3`,

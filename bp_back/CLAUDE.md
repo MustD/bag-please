@@ -23,6 +23,23 @@ Each domain entity (Item, Category) has a parallel set of files in each layer:
 - `service/` — orchestrates storage + emits subscription events
 - `gql/` — Query/Mutation/Subscription objects registered in `GqlDefinition`
 
+## Which Jackson writes what
+
+Jackson 2 (`com.fasterxml`) and Jackson 3 (`tools.jackson`) are both on the runtime classpath. Measured in Story 10.2:
+
+- **GraphQL HTTP bodies are written by graphql-kotlin's own Jackson 3** (`graphql-ws` frames likewise by its subscription
+  server — inferred from the dependency graph and from the Ktor converter being unused, not black-box measured)
+  (`graphql-kotlin-ktor-server` depends on `ktor-serialization-jackson3`; its route-level `ContentNegotiation` wins).
+  The root install does not touch them: `INDENT_OUTPUT` on it leaves GraphQL bodies compact, and deleting it leaves
+  GraphQL responses identical. GraphQL answers `200` `application/json` (no charset) for `application/json`, `*/*` or no
+  `Accept`, and `406` with an empty body for `application/xml` / `text/plain`.
+- **REST (`/auth/*` DTOs) is written by the root `install(ContentNegotiation) { jackson() }` in `Routing.kt` (Jackson
+  2)**, keys in declaration order (`accessToken, username, role`). Moving it to a sub-route or removing it breaks REST
+  login and every call that logs in.
+- `install(WebSockets)` carries no `contentConverter` (it was unused; no `sendSerialized`/`receiveDeserialized` exists).
+- Pinned by `JacksonSerializationTest` (behaviour, not library identity: it would not catch a swap that keeps output
+  identical). Re-check before any Ktor or graphql-kotlin major.
+
 ## Security
 
 Multi-user with RBAC (built out across Epics 1–4 — the "single admin user" model is long gone).

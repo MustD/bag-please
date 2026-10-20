@@ -42,7 +42,6 @@ import com.expediagroup.graphql.server.ktor.graphQLSubscriptionsRoute
 import com.expediagroup.graphql.server.ktor.graphiQLRoute
 import com.expediagroup.graphql.server.ktor.subscriptions.KtorGraphQLSubscriptionContextFactory
 import graphql.GraphQLContext
-import io.ktor.serialization.jackson.JacksonWebsocketContentConverter
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.authenticate
@@ -138,7 +137,6 @@ fun Application.configureGql(
 
     install(WebSockets) {
         pingPeriod = 10.seconds
-        contentConverter = JacksonWebsocketContentConverter()
     }
 
 }
