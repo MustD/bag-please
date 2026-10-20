@@ -132,7 +132,7 @@ development_status:
   10-3-the-backend-runs-on-current-minor-releases: done
   10-4-graphql-kotlin-10-11: done
   10-5-the-frontend-runs-on-current-minor-releases: done
-  10-6-vite-plugin-pwa-1-2: backlog
+  10-6-vite-plugin-pwa-1-2: done
   10-7-typescript-7-tried-again: backlog
   10-8-only-documents-something-reads-are-kept: backlog
   10-9-the-agent-context-files-match-the-code: backlog
