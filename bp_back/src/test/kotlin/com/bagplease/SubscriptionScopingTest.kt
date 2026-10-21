@@ -246,8 +246,25 @@ class SubscriptionScopingTest : FunSpec({
                     val subId = UUID.randomUUID().toString()
                     outgoing.send(Frame.Text("""{"type":"subscribe","id":"$subId","payload":{"query":"subscription { getItemUpdates(listId: \"$listId\") { type item { id } } }"}}"""))
 
-                    // Wait briefly for subscription to be established
-                    kotlinx.coroutines.delay(200)
+                    // Prove the subscription is LIVE with a probe instead of a sleep: graphql-ws sends no
+                    // per-subscription ack and the SharedFlow has no replay, so a fixed delay can let
+                    // removeMember run before the subscription attaches and the test pass vacuously. The
+                    // probe item is re-saved until userA's socket delivers it (bounded, fails loudly).
+                    val probeId = UUID.randomUUID()
+                    var live = false
+                    withTimeoutOrNull(5000) {
+                        while (!live) {
+                            client.post("/graphql") {
+                                contentType(ContentType.Application.Json)
+                                bearerAuth(ownerToken)
+                                setBody("""{"query":"mutation { saveItem(item: { id: \"$probeId\", name: \"Probe\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
+                            }.bodyAsText() shouldNotContain "errors"
+                            withTimeoutOrNull(300) { incoming.receive() }?.let { f ->
+                                if (f is Frame.Text && f.readText().contains(probeId.toString())) live = true
+                            }
+                        }
+                    }
+                    live shouldBe true
 
                     // Owner removes userA while subscription is active
                     client.post("/graphql") {
@@ -263,13 +280,14 @@ class SubscriptionScopingTest : FunSpec({
                         setBody("""{"query":"mutation { saveItem(item: { id: \"$itemId\", name: \"TriggerItem\", checked: false, category: \"$catId\", listId: \"$listId\", stores: [] }) { id } }"}""")
                     }
 
-                    // userA should receive no event after removal (flow terminates)
-                    val event = withTimeoutOrNull(2000) { incoming.receive() }
-                    if (event is Frame.Text) {
-                        val text = event.readText()
-                        // If we get a next message, it should not be a data event for this item
-                        if (text.contains(itemId.toString())) {
-                            gotEventAfterRemoval = true
+                    // userA should receive no event for the trigger item after removal (flow terminates).
+                    // Drain the whole window: leftover probe frames may precede the end of the stream.
+                    withTimeoutOrNull(2000) {
+                        while (true) {
+                            val frame = incoming.receiveCatching().getOrNull() ?: break
+                            if (frame is Frame.Text && frame.readText().contains(itemId.toString())) {
+                                gotEventAfterRemoval = true
+                            }
                         }
                     }
                 }
@@ -331,27 +349,33 @@ class SubscriptionScopingTest : FunSpec({
                 // for each stream to deliver its own frame; only then is either stream known to be
                 // attached. The probe pair also doubles as a control: neither belongs to the doomed
                 // category, so both must SURVIVE the cascade.
-                client.post("/graphql") {
-                    contentType(ContentType.Application.Json)
-                    bearerAuth(token)
-                    setBody("""{"query":"mutation { saveCategory(category: { id: \"$probeCatId\", name: \"Probe\", listId: \"$listId\" }) { id } }"}""")
-                }.bodyAsText() shouldNotContain "errors"
-                client.post("/graphql") {
-                    contentType(ContentType.Application.Json)
-                    bearerAuth(token)
-                    setBody("""{"query":"mutation { saveItem(item: { id: \"$probeItemId\", name: \"Probe\", checked: false, category: \"$probeCatId\", listId: \"$listId\", stores: [] }) { id } }"}""")
-                }.bodyAsText() shouldNotContain "errors"
-
+                // The probe pair is RE-SENT until both frames are observed: with no subscription ack
+                // and no replay, a single post can land before either stream attaches and be lost.
+                // Re-saves reuse the same ids (upserts), so the control semantics are unchanged.
                 var catStreamLive = false
                 var itemStreamLive = false
                 val probesArrived = withTimeoutOrNull(5000) {
                     while (!catStreamLive || !itemStreamLive) {
-                        val frame = incoming.receive()
-                        if (frame !is Frame.Text) continue
-                        val text = frame.readText()
-                        if (!text.contains(""""type":"next"""")) continue
-                        if (text.contains(""""id":"$catSub"""") && text.contains(probeCatId.toString())) catStreamLive = true
-                        if (text.contains(""""id":"$itemSub"""") && text.contains(probeItemId.toString())) itemStreamLive = true
+                        client.post("/graphql") {
+                            contentType(ContentType.Application.Json)
+                            bearerAuth(token)
+                            setBody("""{"query":"mutation { saveCategory(category: { id: \"$probeCatId\", name: \"Probe\", listId: \"$listId\" }) { id } }"}""")
+                        }.bodyAsText() shouldNotContain "errors"
+                        client.post("/graphql") {
+                            contentType(ContentType.Application.Json)
+                            bearerAuth(token)
+                            setBody("""{"query":"mutation { saveItem(item: { id: \"$probeItemId\", name: \"Probe\", checked: false, category: \"$probeCatId\", listId: \"$listId\", stores: [] }) { id } }"}""")
+                        }.bodyAsText() shouldNotContain "errors"
+                        withTimeoutOrNull(300) {
+                            while (true) {
+                                val frame = incoming.receive()
+                                if (frame !is Frame.Text) continue
+                                val text = frame.readText()
+                                if (!text.contains(""""type":"next"""")) continue
+                                if (text.contains(""""id":"$catSub"""") && text.contains(probeCatId.toString())) catStreamLive = true
+                                if (text.contains(""""id":"$itemSub"""") && text.contains(probeItemId.toString())) itemStreamLive = true
+                            }
+                        }
                     }
                     true
                 }
@@ -375,8 +399,14 @@ class SubscriptionScopingTest : FunSpec({
             }
 
             val payloads = frames.filter { it.contains(""""type":"next"""") }
-            val categoryEvents = payloads.filter { it.contains(""""id":"$catSub"""") }
-            val itemEvents = payloads.filter { it.contains(""""id":"$itemSub"""") }
+            // Late frames from the re-sent liveness probes are legitimate; the contract concerns the
+            // doomed category and its children only. A DELETED frame naming a probe is NOT excluded: the
+            // probes must survive the cascade.
+            val isProbe = { f: String ->
+                (f.contains(probeCatId.toString()) || f.contains(probeItemId.toString())) && !f.contains("DELETED")
+            }
+            val categoryEvents = payloads.filter { it.contains(""""id":"$catSub"""") && !isProbe(it) }
+            val itemEvents = payloads.filter { it.contains(""""id":"$itemSub"""") && !isProbe(it) }
 
             // The cascade actually RAN — without this the "no item events" assertion is also satisfied
             // by a deleteCategory that never touched the items at all, which is the pre-story behaviour.
