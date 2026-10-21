@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: '10-21-2026 16:58'
+last_updated: '10-21-2026 17:29'
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -126,7 +126,7 @@ development_status:
   9-12-small-cleanups: done
   epic-9-retrospective: done
 
-  epic-10: in-progress
+  epic-10: done
   10-1-the-list-screens-open-on-their-header: done
   10-2-we-know-which-jackson-writes-our-graphql-responses: done
   10-3-the-backend-runs-on-current-minor-releases: done
@@ -136,6 +136,7 @@ development_status:
   10-7-typescript-7-tried-again: done
   10-8-only-documents-something-reads-are-kept: done
   10-9-the-agent-context-files-match-the-code: done
+  10-10-sync-zed-tasks-json-with-mise-toml: done
   epic-10-retrospective: done
 action_items:
   - epic: 7
@@ -468,7 +469,7 @@ action_items:
     action: "Add Story 10.10 (Zed tasks.json sync with mise.toml) to sprint-status.yaml
       as done and to epic-10-context.md; it shipped in the epic squash with no tracking."
     owner: "md"
-    status: open
+    status: done  # Story 10.10 added to sprint-status.yaml and epic-10-context.md at epic close (2026-10-21).
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-21.md"
   - id: "epic-10-retro-item-47-decide-how-epics-merge-so-per-story-hist"
     epic: 10

@@ -4,7 +4,7 @@
 
 ## Goal
 
-Make the two list screens open straight on their header (the back-to-lists links are gone; the account menu's Home / My lists entries and the app-bar title handle navigation). Bring every backend and frontend dependency to its latest stable release, or hold it with recorded evidence (this includes another try at TypeScript 7 and graphql-kotlin 11). Then cut the documentation down to what agents and BMAD actually read, and check what stays against the code. Stories 10.1–10.6 have landed: the links are removed, the Jackson question is settled, backend and frontend minors are current, graphql-kotlin is on 11.0.0 and `vite-plugin-pwa` is on 2.0.0. Story 10.7 closed as a HOLD at `typescript` 6.0.3 (`typescript-eslint` 8.72.0 still peers `<6.1.0`), recorded as the live `Deferred from: Story 7.10` section of `deferred-work.md`. Story 10.8 cut `docs/` down to `feedback.md` and removed the superseded planning-root files, folding the still-true facts no loaded file already carried into the `CLAUDE.md` files. What is left is Story 10.9. The epic ships as one branch, one retro and one app version.
+Make the two list screens open straight on their header (the back-to-lists links are gone; the account menu's Home / My lists entries and the app-bar title handle navigation). Bring every backend and frontend dependency to its latest stable release, or hold it with recorded evidence (this includes another try at TypeScript 7 and graphql-kotlin 11). Then cut the documentation down to what agents and BMAD actually read, and check what stays against the code. Stories 10.1–10.6 have landed: the links are removed, the Jackson question is settled, backend and frontend minors are current, graphql-kotlin is on 11.0.0 and `vite-plugin-pwa` is on 2.0.0. Story 10.7 closed as a HOLD at `typescript` 6.0.3 (`typescript-eslint` 8.72.0 still peers `<6.1.0`), recorded as the live `Deferred from: Story 7.10` section of `deferred-work.md`. Story 10.8 cut `docs/` down to `feedback.md` and removed the superseded planning-root files, folding the still-true facts no loaded file already carried into the `CLAUDE.md` files. Story 10.9 refreshed the agent context files against the final HEAD, and Story 10.10 (tracked after the fact) synced `.zed/tasks.json` with `mise.toml`. All stories are done and the epic is closed (retro 2026-10-21, accepted-with-open-items). The epic ships as one branch, one retro and one app version.
 
 ## Stories
 
@@ -17,6 +17,7 @@ Make the two list screens open straight on their header (the back-to-lists links
 - Story 10.7: TypeScript 7, tried again (done)
 - Story 10.8: Only documents something reads are kept (done)
 - Story 10.9: The agent context files match the code (done)
+- Story 10.10: Sync Zed tasks.json with mise.toml (done; shipped untracked in the epic squash, recorded at epic close)
 
 ## Requirements & Constraints
 
