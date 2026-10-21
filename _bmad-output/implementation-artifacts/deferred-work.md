@@ -403,7 +403,8 @@ archive). What follows is the residue it deliberately did **not** take on. All r
 
 ## Deferred from: code review of 10-5-the-frontend-runs-on-current-minor-releases (2026-10-20)
 
-- source_spec: `spec-10-5-the-frontend-runs-on-current-minor-releases.md`
+- ✅ CLOSED by `spec-10-retro-items-3-and-5-flaky-subscription-tests-and-duplicate-action-items.md`: the FR60 test now proves the item subscription live with a probe item before acting. Was:
+  source_spec: `spec-10-5-the-frontend-runs-on-current-minor-releases.md`
   summary: **E2E `FR60 — activating the row of a ONE_TIME item removes it via the SAVED+deleted subscription`
   (`bp_front/e2e/shopping.spec.ts:549`) is flaky on chromium, and predates Story 10.5.**
   evidence: verbatim failure at `:575`: `expect(locator).toHaveCount(expected) failed` — `Expected: 0`, `Received: 1`,
@@ -422,7 +423,8 @@ archive). What follows is the residue it deliberately did **not** take on. All r
 
 ## Deferred from: code review of 10-4-graphql-kotlin-10-11 (2026-10-20)
 
-- source_spec: `spec-10-4-graphql-kotlin-10-to-11.md`
+- ✅ CLOSED by `spec-10-retro-items-3-and-5-flaky-subscription-tests-and-duplicate-action-items.md`: both tests now re-send a probe until its frame is observed (bounded) instead of a single post or `delay(200)`. Was:
+  source_spec: `spec-10-4-graphql-kotlin-10-to-11.md`
   summary: **`SubscriptionScopingTest` has two subscription-liveness races**; one fired once on the first full-suite
   run on graphql-kotlin 11.0.0.
   evidence: the first `cleanTest test` on 11.0.0 failed exactly one test, "9.3 a category cascade emits ONE category

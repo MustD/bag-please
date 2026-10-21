@@ -561,10 +561,27 @@ test('FR60 — activating the row of a ONE_TIME item removes it via the SAVED+de
   // the behaviour under test.
   const token = await loginApi(username, PASSWORD)
   const categoryId = await categoryIdOf(token, listId, categoryName)
-  await seedItems(token, listId, categoryId, [itemName], 'ONE_TIME')
 
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId('list-shopping-page')).toBeVisible()
+
+  // Prove the item subscription is LIVE before the action under test: graphql-ws
+  // sends no per-subscription ack and the backend SharedFlow has no replay, so an
+  // event published before the subscription attaches is lost for good — and the
+  // row would then never leave the DOM. A probe item seeded over the API only
+  // reaches the page through that subscription (the list query already ran), so
+  // seeing it proves the stream is attached. Each attempt seeds a fresh probe;
+  // bounded, so a stream that never attaches fails loudly.
+  // The list query must have resolved first, or the probe could arrive through it.
+  await expect(page.getByTestId('shopping-empty')).toBeVisible()
+  let probeSeq = 0
+  await expect(async () => {
+    const probeName = `Probe ${Date.now()}-${probeSeq++}`
+    await seedItems(token, listId, categoryId, [probeName])
+    await expect(page.getByTestId(`shopping-item-${probeName}`)).toBeVisible({timeout: 1500})
+  }).toPass({timeout: 15_000})
+
+  await seedItems(token, listId, categoryId, [itemName], 'ONE_TIME')
   const row = page.getByTestId(`shopping-item-${itemName}`)
   await expect(row).toBeVisible()
 
