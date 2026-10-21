@@ -157,7 +157,7 @@ test('FR57/FR38 — activating the title link from the newer list lands on the o
   // Create two lists in order → the first is the oldest by createdAt. Return to
   // the index between them (createListAndOpen leaves us on the detail screen).
   const oldestId = await createListAndOpen(page, oldest)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   const newerId = await createListAndOpen(page, newer)
 
@@ -221,20 +221,37 @@ test('FR56 — admin activating the title link lands on the admin area with no l
   await expect(page.getByTestId('list-detail-back')).toHaveCount(0)
 })
 
-test('FR57 — the shopping view\'s back link returns to the lists index', async ({page}, testInfo) => {
+test('FR57 — neither list screen carries a back link; the account menu is the way to the lists index', async ({page}, testInfo) => {
   const username = uniqueUsername('nav', 'back', testInfo.project.name)
   const listName = `Back ${Date.now()}`
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
 
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await expect(page.getByTestId('list-detail-back')).toHaveCount(0)
+  await expect(page.getByTestId('list-shopping-back')).toHaveCount(0)
+  // The management header block (holding the title) is the first content.
+  const detailFirstHasTitle = await page.getByTestId('list-detail-page')
+    .locator('> .MuiContainer-root > :first-child')
+    .evaluate(el => el.querySelector('[data-testid="list-detail-title"]') !== null)
+  expect(detailFirstHasTitle).toBe(true)
+  await page.setViewportSize({width: 320, height: 700})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 320)).toBe(true)
+
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId('list-shopping-page')).toBeVisible()
-  await expect(page.getByTestId('list-shopping-back')).toBeVisible()
-  await page.getByTestId('list-shopping-back').click()
+  await expect(page.getByTestId('list-shopping-back')).toHaveCount(0)
+  await expect(page.getByTestId('list-detail-back')).toHaveCount(0)
+  // The header is the first content in the container: nothing above it.
+  const firstChildIsHeader = await page.getByTestId('list-shopping-page')
+    .locator('> .MuiContainer-root > :first-child')
+    .evaluate(el => el.getAttribute('data-testid'))
+  expect(firstChildIsHeader).toBe('shopping-header')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 320)).toBe(true)
 
+  await openListsViaMenu(page)
   await expect(page).toHaveURL(/\/lists$/)
-  await expect(page.getByTestId('lists-page')).toBeVisible()
 })
 
 test('FR57 — the shopping view\'s item rows still offer check-off only', async ({page}, testInfo) => {
@@ -359,7 +376,7 @@ test('FR38 — the oldest list is chosen numerically: a whole-second createdAt b
 
   // Two real lists in creation order: A is genuinely older than B.
   const aId = await createListAndOpen(page, first)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   const bId = await createListAndOpen(page, second)
 
@@ -517,7 +534,8 @@ test('FR57 — activating the title link while already home moves nothing: no UR
   // previous screen, not spend itself undoing a no-op navigation.
   await page.goBack()
   await expect(page).toHaveURL(new RegExp(`/lists/${listId}$`))
-  await expect(page.getByTestId('list-detail-back')).toBeVisible()
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await expect(page.getByTestId('list-detail-back')).toHaveCount(0)
 })
 
 test('FR57 — the already-home title link stays a real, focusable, unchanged-looking link', async ({page}, testInfo) => {
@@ -602,7 +620,7 @@ test('FR57/FR38 — the guard does not over-fire: the link still navigates home 
   await registerViaUi(page, username, PASSWORD)
   await openListsViaMenu(page)
   const oldestId = await createListAndOpen(page, oldest)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   const newerId = await createListAndOpen(page, newer)
 
@@ -679,14 +697,15 @@ test('FR57 — every guarded route keeps a live in-app exit, and landing on home
 
   const listId = await createListAndOpen(page, listName)
   await expect(page.getByTestId('user-menu-button')).toBeVisible()
-  await expect(page.getByTestId('list-detail-back')).toBeVisible()
+  await expect(page.getByTestId('list-detail-page')).toBeVisible()
+  await expect(page.getByTestId('list-detail-back')).toHaveCount(0)
 
   await page.goto(`/list/${listId}`)
   await expect(page.getByTestId('list-shopping-page')).toBeVisible()
   await expect(page.getByTestId('user-menu-button')).toBeVisible()
   // This route IS home for a one-list user, so the title link is inert here —
-  // which is why the route's OWN back link is what carries it.
-  await expect(page.getByTestId('list-shopping-back')).toBeVisible()
+  // which is why the user menu alone carries it (no in-page back link).
+  await expect(page.getByTestId('list-shopping-back')).toHaveCount(0)
 
   await page.getByTestId('user-menu-button').click()
   await page.getByTestId('menu-change-password').click()
@@ -766,7 +785,7 @@ test('Story 9.7 — Home from the newer list lands on the oldest list, as the ti
   await registerViaUi(page, uniqueUsername('nav', 'menuoldest', testInfo.project.name), PASSWORD)
   await openListsViaMenu(page)
   const oldestId = await createListAndOpen(page, oldest)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   await createListAndOpen(page, newer)
 
@@ -858,7 +877,7 @@ test('Story 9.7 — Home is reachable and activatable from the keyboard alone', 
   await registerViaUi(page, uniqueUsername('nav', 'menukeys', testInfo.project.name), PASSWORD)
   await openListsViaMenu(page)
   const oldestId = await createListAndOpen(page, oldest)
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page.getByTestId('lists-page')).toBeVisible()
   await createListAndOpen(page, newer)
 

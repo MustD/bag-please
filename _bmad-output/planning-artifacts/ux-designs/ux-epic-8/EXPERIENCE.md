@@ -4,8 +4,8 @@ epic: 8
 story: '8.7'
 status: 'current'
 supersedes:
-  - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification.md)
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md)
 verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
 verified_on: '2026-09-16'
 ---
@@ -305,7 +305,7 @@ dialog convention in §9.2. The member's counterpart to removal is the **Leave**
 
 ### 5.2 `/lists/:id` — management (`ListDetailPage.tsx`)
 
-Always present: a "Back to lists" link (`:117-125`), the header (`:137-176`) and the filter row when gated in
+Always present: the header (the first content in the container, no back link above it — removed in Story 10.1) and the filter row when gated in
 (`:197-204`).
 
 | Branch | testid | Anchor |
@@ -365,7 +365,7 @@ recorded in `deferred-work.md`; neither is reachable by clicking.
 
 ### 5.3 `/list/:id` — shopping (`ListShoppingPage.tsx`)
 
-Always present: back link (`:480-488`), header (`:490-498`), switcher chips (`:501-523`), filter row (`:527-534`),
+Always present: header (first content in the container; the back link was removed in Story 10.1), switcher chips (`:501-523`), filter row (`:527-534`),
 the action-error alert when set (`:536-540`), and — since Story 9.11 — the add-item FAB `shopping-add-item-fab`
 (`:604-623`) plus its (closed) `AddItemDialog` (`:625-631`). The FAB is the one exception to "always": it renders
 only once both the items and categories queries have data, never in the loading or query-error branch (§5.3.3).
@@ -587,15 +587,12 @@ comment states the convention: "Errors are shown inline (dialog/panel alert) —
 
 | Route | In-app exits |
 | --- | --- |
-| `/lists` | app-bar home link; app-bar menu (Home / Lists / Change password or Admin / Logout) |
-| `/lists/:id` | its own "Back to lists" link (`ListDetailPage.tsx:117-125`) + app bar |
-| `/list/:id` | its own "Back to lists" link (`ListShoppingPage.tsx:393-401`), the switcher chips (`:414-436`) + app bar |
+| `/lists` | app-bar home link; app-bar menu (Home / My lists / Change password or Admin / Logout) |
+| `/lists/:id` | app bar only (no in-page back link, Story 10.1) |
+| `/list/:id` | the switcher chips (`:414-436`) + app bar (no in-page back link, Story 10.1) |
 | `/account/password` | **app bar only** |
 | `/admin` | **app bar only** |
 | `/auth` | none — it is the exit |
-
-The two back links are deliberately the same idiom so there is one back-link pattern
-(`ListShoppingPage.tsx:391-392`).
 
 The **list switcher** (`ListShoppingPage.tsx:414-436`) is chips for every list the caller owns or is a member of,
 ordered by the shared `byCreatedAtAsc` so the chips cannot order two lists differently from `/` (`:240-246`). The

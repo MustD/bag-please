@@ -325,7 +325,27 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   Ktor version compiled against 2.4.x. The story's replacement absolute ("no `kotlin` bump can ever close it") rests on
   a single observation of current KGP behaviour — treat it as measured-here, not as a law.
 
-- source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
+- ✅ CLOSED by Story 10.2 (2026-10-20): graphql-kotlin's own route-level `ContentNegotiation` (Jackson 3) writes
+  GraphQL HTTP bodies; the root Jackson 2 install owns REST only (planning probes: `INDENT_OUTPUT` on the root install
+  leaves GraphQL compact; deleting it leaves GraphQL identical and breaks only REST login). The vestigial
+  `JacksonWebsocketContentConverter` is deleted from `GQL.kt`. Rule: `bp_back/CLAUDE.md` "Which Jackson writes what";
+  pin: `JacksonSerializationTest`. Evidence: with the root install moved under `route("/zz")` the backend suite went
+  `173 tests completed, 148 failed`, including all three pin tests; restored, JUnit XML totals are 173 tests, 0
+  skipped, 0 failures, 0 errors. Failing-mutation and `FORBIDDEN` bodies recaptured against the same ids before and
+  after the rebuild: md5 `1f6f5775fa211009b7a4dc56e5b365c5` / `cd980d36d4a001159ef2676dcc2754b0` both times (the 7.12
+  baselines embed per-run ids, so they were not reproducible; the before/after pair is the comparison). E2E:
+  283 passed, 29 skipped.
+  Probe output (planning, verbatim): `Accept` null / `application/json` / `*/*` -> `200 OK ct=application/json`, body
+  `{"errors":[{"message":"Validation error (FieldUndefined@[nope]) : Field 'nope' in type 'Query' is undefined","locations":[{"line":1,"column":3}],"extensions":{}}]}`;
+  `application/xml`, `text/plain`, `application/graphql-response+json` -> `406 Not Acceptable ct=null body=` (identical
+  with the root install deleted); live emoji `🛒` / `é日本` come back as raw UTF-8, unescaped (not a discriminator);
+  `curl POST /api/auth/login` -> `{"accessToken":"…","username":"admin","role":"admin"}`.
+  Residual: the pin test pins behaviour, not Jackson identity, and the `graphql-ws` mapper is inferred, not measured —
+  re-check at Story 10.4 (graphql-kotlin 11).
+  Re-checked by Story 10.4 (2026-10-20): `graphql-kotlin-ktor-server:11.0.0` still pulls `ktor-serialization-jackson3`
+  (Jackson 3 3.2.2, unchanged), `JacksonSerializationTest` green, HTTP error bodies / `406` / GraphiQL statuses
+  byte-identical to 10.2.1; the `graphql-ws` mapper remains inferred, not black-box measured.
+  Was: source_spec: `spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md`
   summary: **Jackson 2 and Jackson 3 now coexist on the backend runtime classpath**, with two live `ContentNegotiation`
   converter implementations available and no measurement of which one actually serialises `data`/`errors`.
   evidence: the `runtimeClasspath` adds `tools.jackson.core:jackson-core:3.1.3`, `jackson-databind:3.1.3`,
@@ -380,6 +400,44 @@ archive). What follows is the residue it deliberately did **not** take on. All r
   Access-Control-Allow-Headers`), leaving the page stuck on `Loading...` with `ReferenceError: GraphiQL is not defined`
   — a false negative indistinguishable from a broken playground. Scope the header to same-origin API requests with
   `context.route("http://localhost:2080/api/**", …)`.
+
+## Deferred from: code review of 10-5-the-frontend-runs-on-current-minor-releases (2026-10-20)
+
+- source_spec: `spec-10-5-the-frontend-runs-on-current-minor-releases.md`
+  summary: **E2E `FR60 — activating the row of a ONE_TIME item removes it via the SAVED+deleted subscription`
+  (`bp_front/e2e/shopping.spec.ts:549`) is flaky on chromium, and predates Story 10.5.**
+  evidence: verbatim failure at `:575`: `expect(locator).toHaveCount(expected) failed` — `Expected: 0`, `Received: 1`,
+  `Timeout: 5000ms` on `getByTestId('shopping-item-Party hats <ts>')`. Control, chromium, `--repeat-each=15` x3, image
+  rebuilt per tree: baseline `ecb84fc` (Playwright 1.62.1, pre-bump) **13/45 failed**; Story 10.5 tree (1.64.1,
+  Apollo 4.3.5, graphql-ws 6.4.1) **3/45 failed**. Under the full suite it failed in 2 of 3 runs on the bumped tree
+  (local `retries: 0`); the third was green. The same runs also saw `[mobile] shopping.spec.ts:476` ("a touch that
+  becomes a scroll never checks an item…") fail once, then pass 5/5 isolated — single observation, no rate measured.
+  Mechanism (inferred, not measured): the row leaves the DOM only via the `SAVED`+`deleted:true` subscription event;
+  if the click lands before the list subscription is attached, the event is lost (no replay, same class as the 10.4
+  `SubscriptionScopingTest` races above) and nothing refetches. Consequence: a real regression on the subscription
+  delete path is indistinguishable from this flake, so re-running to green is the current (weak) gate.
+  Proposed fix: settle the mechanism first (trace a failing run: is the `subscribe` frame sent before the click's
+  mutation?), then either wait for a subscription-liveness signal in the test or fix the app if the event is lost
+  after attach.
+
+## Deferred from: code review of 10-4-graphql-kotlin-10-11 (2026-10-20)
+
+- source_spec: `spec-10-4-graphql-kotlin-10-to-11.md`
+  summary: **`SubscriptionScopingTest` has two subscription-liveness races**; one fired once on the first full-suite
+  run on graphql-kotlin 11.0.0.
+  evidence: the first `cleanTest test` on 11.0.0 failed exactly one test, "9.3 a category cascade emits ONE category
+  DELETED event and NO item events", verbatim: `org.opentest4j.AssertionFailedError: Expected true but actual was null`
+  at `com.bagplease.SubscriptionScopingTest$1$5$1$4.invokeSuspend(SubscriptionScopingTest.kt:359)`
+  (`probesArrived shouldBe true`). It then passed 4/4 runs in isolation and 3/3 subsequent full-suite runs (two
+  `cleanTest test`, one `cleanTest test build`). No 10.2.1 control was run, so "pre-existing, not caused by graphql-java
+  26" is inferred from the mechanism, not measured.
+  Root cause (read from the test): graphql-ws sends no per-subscription ack and the service `SharedFlow` has no replay.
+  (1) "9.3 a category cascade…" posts each probe mutation exactly once, right after the two `subscribe` frames, with no
+  re-send — a probe emitted before its subscription attaches is lost and the 5 s wait times out. (2) "Point 2 takeWhile
+  revocation" (`:208`) has no liveness proof at all — only `delay(200)` at `:250` before `removeMember`, so if the
+  subscription has not attached it can pass vacuously (no event after removal for the wrong reason).
+  Proposed fix: re-send the probe until its frame is observed (bounded by the existing 5 s timeout) and reuse that
+  probe in Point 2 in place of the `delay(200)`; optionally measure the flake rate on 10.2.1 first.
 
 ## Deferred from: code review of 7-14-installable-pwa (2026-08-20)
 
@@ -836,3 +894,103 @@ Filed at the Story 9.3 review (three layers; the full triage is in the spec's `#
   `addedBy` is a denormalized username on `items` that user deletion never touched before this story either, so this
   is residue the story did not create and its intent does not cover. Settling it needs a product answer first (blank
   the field, keep it as a historical record, or show "deleted user"), then an `ItemRepository` sweep in the same purge.
+
+## Deferred from: Story 7.10 — TypeScript 6 → 7 (2026-08-15; re-measured by Story 10.7, 2026-10-20)
+
+The one live record of the TypeScript hold. The 2026-08-15 evidence (the full `typescript-eslint` peer sweep, the
+review corrections, the 8-package peer count, the `tsserver` note) is history in `deferred-work-archive.md`, sections
+"Deferred from: Story 7.10 — TypeScript 6 → 7 (2026-08-15)" and its "Closed by decision (md, 2026-09-15)" copy; it is
+not repeated here. Story 10.7 re-measured everything below on 2026-10-20 against baseline `0b7a896` and closed `done`
+as a HOLD: a held-back major closes its story rather than failing it.
+
+- source_spec: `spec-10-7-typescript-7-tried-again.md` (re-measuring `spec-7-10-typescript-6-to-7.md`)
+  summary: **`typescript` is still held at `6.0.3` while `7.0.2` is `latest`.** `typescript-eslint` still refuses
+  TypeScript 7 in a runtime check of its own, so under TS 7 `npm run lint` dies at module load having linted zero
+  files. The code itself is still TS-7-clean.
+  evidence, measurement 1 — **the registry, 2026-10-20, verbatim**:
+  `npm view typescript version` → `7.0.2`. `npm view typescript dist-tags --json` → `"latest": "7.0.2"`,
+  `"next": "7.1.0-dev.20261020.3"`, `"beta": "7.1.0-beta"`, `"rc": "7.0.1-rc"` (prereleases, not candidates; the
+  only stable 7.x published is `7.0.2`).
+  `npm view typescript-eslint peerDependencies --json` →
+  ```
+  {
+    "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0",
+    "typescript": ">=4.8.4 <6.1.0"
+  }
+  ```
+  `npm view typescript-eslint dist-tags --json` → `"latest": "8.72.0"`, `"canary": "8.72.1-alpha.6"`,
+  `"rc-v8": "8.0.0-alpha.62"`. `typescript-eslint@canary` (8.72.1-alpha.6) and `@typescript-eslint/parser@latest`
+  (8.72.0) both peer the identical `typescript: ">=4.8.4 <6.1.0"`. Neither `latest` nor `canary` has
+  `peerDependenciesMeta` (the `typescript` peer is not optional), and neither has a peer on a native compiler.
+  `rc-v8` returns no peers at all, but it is a stale 8.0 prerelease below the installed 8.72.0 and not a candidate.
+  **Every arm of the disjunction below is negative.**
+  evidence, measurement 2 — **the throwaway install in `bp_front/`**, from `npm install typescript@7.0.2` (verbatim,
+  repeated ERESOLVE blocks and the funding/audit trailer condensed),
+  **exit 0** (`npm config get legacy-peer-deps` → `false`; no `.npmrc` in `bp_front/` or `~`; `--legacy-peer-deps`
+  was not needed and not used):
+  ```
+  npm warn ERESOLVE overriding peer dependency
+  npm warn While resolving: bp_front@0.20.0
+  npm warn Found: typescript@6.0.3
+  npm warn node_modules/typescript
+  npm warn   peer typescript@">=4.8.4 <6.1.0" from @typescript-eslint/eslint-plugin@8.72.0
+  npm warn   node_modules/@typescript-eslint/eslint-plugin
+  npm warn     @typescript-eslint/eslint-plugin@"8.72.0" from typescript-eslint@8.72.0
+  npm warn     node_modules/typescript-eslint
+  npm warn   11 more (@typescript-eslint/parser, ...)
+  npm warn
+  npm warn Could not resolve dependency:
+  npm warn peer typescript@">=4.8.4 <6.1.0" from typescript-eslint@8.72.0
+  npm warn node_modules/typescript-eslint
+  npm warn   dev typescript-eslint@"^8.72.0" from the root project
+  npm warn ERESOLVE overriding peer dependency   (x7 more)
+
+  added 10 packages, removed 9 packages, changed 1 package, and audited 707 packages in 6s
+  ```
+  `npx tsc --version` → `Version 7.0.2`. As in 2026-08: the peer conflict does not stop the install; the runtime does.
+  evidence, measurement 3 — **the lint gate under TS 7.0.2, `npm run lint`, exit 2**, verbatim (stack truncated):
+  ```
+  typescript-eslint does not support TS 7.0.
+  Please see https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0 to run typescript-eslint using the TS 6 API.
+  See also https://github.com/typescript-eslint/typescript-eslint/issues/10940 for tracking typescript-eslint's support for TS >=7.1
+
+  Oops! Something went wrong! :(
+
+  ESLint: 10.13.0
+
+  Error: typescript-eslint does not support TS 7.0.
+      at Object.<anonymous> (/home/md/projects/personal/bag-please/bp_front/node_modules/typescript-eslint/dist/index.js:52:11)
+      at Module._compile (node:internal/modules/cjs/loader:1968:14)
+  ```
+  It throws in the config's import, so **zero files are linted**. File-count method (plain `eslint .` prints no
+  count): `npx eslint . --format json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))'` → `68` on the
+  restored 6.0.3 tree (re-measured 2026-10-20, exit 0).
+  root cause, unchanged: TS 7 ships no JavaScript compiler API. With 7.0.2 installed,
+  `Object.keys(require('typescript'))` → `[ 'version', 'versionMajorMinor' ]`, `typeof ts.createProgram` →
+  `undefined`, and `node_modules/typescript/bin/` holds only `tsc` (no `tsserver`); the platform binary resolved was
+  `@typescript/typescript-linux-x64`.
+  evidence, measurement 4 — **the code is still TS-7-clean**, under 7.0.2 after `rm -rf node_modules/.tmp`:
+  `npx tsc -b tsconfig.json --force` → **exit 0, zero diagnostics**; `tsc -p tsconfig.app.json --noEmit` → exit 0,
+  `tsc -p tsconfig.node.json --noEmit` → exit 0, `tsc -p tsconfig.e2e.json --noEmit` → exit 0. No tsconfig, `src/` or
+  `e2e/` file was touched. Scope: measured on glibc linux-x64 against `0b7a896` (the tree after Epics 8–9 and Stories
+  10.1–10.6). The Alpine/musl image (`docker compose build bp_front`) has still never been built under TS 7.
+  restore: `git checkout -- bp_front/package.json bp_front/package-lock.json`, `npm ci` (exit 0), then
+  `git diff --quiet bp_front` holds, `npx tsc --version` → `Version 6.0.3`, `npm run lint` exit 0, `npm run build`
+  exit 0.
+  **Rejected escape hatch, still standing: the dual-TypeScript install** (`"typescript": "npm:@typescript/typescript6@…"`
+  beside a native TS 7 alias, which the error message above offers). It swaps the lint stack, which epic rule AR-E10-4
+  forbids, and that rule alone is enough to refuse it. Also, `npm view @typescript/typescript6 version` → `6.0.2`
+  (2026-10-20), still older than the `6.0.3` in use, so it would downgrade the linting compiler. The archive has the
+  full 2026-08-15 analysis and how much weight each reason carries.
+  **Re-check trigger, still standing, as a disjunction.** Watch
+  <https://github.com/typescript-eslint/typescript-eslint/issues/10940> (its own wording: support tracks TS **>=7.1**,
+  and the only stable 7.x today is 7.0.2). Any of these qualifies: the `typescript` peer's upper bound admits 7.x; the
+  `typescript` peer is dropped or made optional; a new peer on a native compiler appears; or a `canary`/`rc-v9`
+  release or the release notes announce TS 7 support. Check `npm view typescript-eslint dist-tags` and the release
+  notes, not `@latest` alone. **The behavioural check decides:** install the candidate pair and confirm `npm run lint`
+  exits 0 and lints a non-zero number of files, counted with the file-count method in measurement 3.
+  When it fires: bump the pinned `"typescript"` and the enabling `typescript-eslint`, re-run `tsc -b --force` under
+  that exact 7.x, then `npm run lint` + `npm run build` + the full Playwright suite + `docker compose build bp_front`
+  (the unexercised musl path), and update the version lines in `AGENTS.md` / `bp_front/CLAUDE.md`.
+  Proposed fix: **OPEN — a live obligation, no code change owed today.** The epic-7 `action_items` row in
+  `sprint-status.yaml` was closed by decision on 2026-09-15; this section is now what carries the re-check.

@@ -107,7 +107,7 @@ test('FR34/FR46/FR51 — golden path: create list, add category + item, remove b
   await expect(page.getByTestId(`category-row-${categoryName}`)).toHaveCount(0)
 
   // Back to the index and delete the list (owner) → its row disappears.
-  await page.getByTestId('list-detail-back').click()
+  await openListsViaMenu(page)
   await expect(page).toHaveURL(/\/lists$/)
   await page.getByTestId(`list-row-${listName}`).getByTestId('delete-list-button').click()
   await expect(page.getByTestId('delete-list-dialog')).toBeVisible()

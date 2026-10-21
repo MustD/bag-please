@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {Link as RouterLink, useParams} from 'react-router-dom'
+import {useParams} from 'react-router-dom'
 import {useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -8,7 +8,6 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
-import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
@@ -17,7 +16,6 @@ import Stack from '@mui/material/Stack'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import {
@@ -137,16 +135,6 @@ export default function ListDetailPage() {
   return (
     <Box data-testid="list-detail-page" sx={{flexGrow: 1, py: {xs: 3, sm: 4}}}>
       <Container maxWidth="md">
-        <Link
-          component={RouterLink}
-          to="/lists"
-          data-testid="list-detail-back"
-          sx={{display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 2}}
-        >
-          <ArrowBackIcon fontSize="small"/>
-          Back to lists
-        </Link>
-
         {/* Header (Story 8.2, report #3). Below `sm` the title takes its own
             full-width row and the action buttons take the row beneath it, on
             every phone width — NOT on a fit test. The alternative, letting the

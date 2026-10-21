@@ -4,22 +4,22 @@ status: complete
 completedAt: '2026-05-18'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/ux-design-specification.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification.md)
   - _bmad-output/planning-artifacts/epics.md
   - _bmad-output/planning-artifacts/architecture-epics-1-2.md
   - _bmad-output/project-context.md
   - _bmad-output/implementation-artifacts/epic-3-retro-2026-05-18.md
-  - docs/index.md
+  - docs/index.md (deleted in Story 10.8; git show 6d1cdcb5:docs/index.md)
   - docs/architecture-bp_back.md
   - docs/architecture-bp_front.md
-  - docs/architecture-routing.md
-  - docs/api-contracts-bp_back.md
-  - docs/data-models-bp_back.md
+  - docs/architecture-routing.md (deleted in Story 10.8; git show 6d1cdcb5:docs/architecture-routing.md)
+  - docs/api-contracts-bp_back.md (deleted in Story 10.8; git show 6d1cdcb5:docs/api-contracts-bp_back.md)
+  - docs/data-models-bp_back.md (deleted in Story 10.8; git show 6d1cdcb5:docs/data-models-bp_back.md)
   - docs/integration-architecture.md
-  - docs/deployment-guide.md
-  - docs/development-guide.md
-  - docs/component-inventory-bp_front.md
-  - docs/source-tree-analysis.md
+  - docs/deployment-guide.md (deleted in Story 10.8; git show 6d1cdcb5:docs/deployment-guide.md)
+  - docs/development-guide.md (deleted in Story 10.8; git show 6d1cdcb5:docs/development-guide.md)
+  - docs/component-inventory-bp_front.md (deleted in Story 10.8; git show 6d1cdcb5:docs/component-inventory-bp_front.md)
+  - docs/source-tree-analysis.md (deleted in Story 10.8; git show 6d1cdcb5:docs/source-tree-analysis.md)
 workflowType: 'architecture'
 project_name: 'bag-please'
 user_name: 'md'
@@ -572,8 +572,9 @@ integration-level proof of the entire multi-tenancy guarantee.
 ## Project Structure & Boundaries
 
 This section documents the **Epic 4 delta** only. The full project tree and base conventions are in
-`project-context.md` and `docs/source-tree-analysis.md`. Agents should read those before implementing any Epic 4
-story.
+`project-context.md` and the per-directory `CLAUDE.md` files (`bp_back/CLAUDE.md` carries the per-entity slice layout;
+`docs/source-tree-analysis.md` was deleted in Story 10.8, `git show 6d1cdcb5:docs/source-tree-analysis.md`). Agents
+should read those before implementing any Epic 4 story.
 
 ---
 

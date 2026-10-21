@@ -420,7 +420,7 @@ test('FR15 — deleting a list owner states the owned-list count and takes the l
     await expect(ownerPage.getByTestId('app-bar')).toBeVisible()
     await openListsViaMenu(ownerPage)
     const listId = await createListAndOpen(ownerPage, listName)
-    await ownerPage.getByTestId('list-detail-back').click()
+    await openListsViaMenu(ownerPage)
     await expect(ownerPage.getByTestId('lists-page')).toBeVisible()
 
     // Creating the member re-reads the users page AFTER the first list exists,
@@ -445,7 +445,7 @@ test('FR15 — deleting a list owner states the owned-list count and takes the l
     // A second owned list, and a throwaway account whose create is what makes the
     // panel re-read the count as 2.
     await createListAndOpen(ownerPage, secondListName)
-    await ownerPage.getByTestId('list-detail-back').click()
+    await openListsViaMenu(ownerPage)
     await expect(ownerPage.getByTestId('lists-page')).toBeVisible()
     await createUserViaUi(page, refetchTrigger, DEFAULT_PW)
     await expect(page.getByTestId(`admin-user-row-${owner}`)).toBeVisible()

@@ -4,8 +4,8 @@ epic: 8
 story: '8.7'
 status: 'current'
 supersedes:
-  - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification.md)
+  - _bmad-output/planning-artifacts/ux-design-specification-epic-4.md (deleted in Story 10.8; git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md)
 verified_at_commit: '15ec65b5d90f3fc3e837d6d1a5d4fc16670fcddb'
 verified_on: '2026-09-16'
 ---
@@ -254,14 +254,14 @@ why these three are not in the §7.1 census and why a grep for a number will not
 
 ## 8. Iconography
 
-All icons are `@mui/icons-material` (`@mui/icons-material` 9.3.1, `package.json:20`); no custom SVG icon set exists
+All icons are `@mui/icons-material` (`@mui/icons-material` 9.5.0, `package.json:20`); no custom SVG icon set exists
 in `src/`. The complete set in use, measured this pass by
-`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (27 raw import lines resolve to)
-— **21 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
+`grep -rho "from '@mui/icons-material/[A-Za-z0-9]*'" bp_front/src | sort -u` (25 raw import lines resolve to)
+— **20 distinct icons** (re-measured 2026-09-23 at Story 9.11, whose shopping FAB adds a 27th import line but no new
 icon — it reuses `Add`. Supersedes "18 distinct from 23 lines" of 2026-09-16: `Cancel`, `Feedback` and `Home` arrived
 with Stories 9.6–9.9 without this figure being re-measured):
 
-`Add`, `AdminPanelSettings`, `ArrowBack`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
+`Add`, `AdminPanelSettings`, `Cancel`, `CheckBox`, `CheckBoxOutlineBlank`, `ChevronLeft`, `ChevronRight`,
 `Close`, `DeleteOutlined`, `EditOutlined`, `Feedback`, `FormatListBulleted`, `GroupOutlined`, `Home`, `LockReset`,
 `Logout`, `LogoutOutlined`, `PersonAddAlt1`, `PersonRemoveOutlined`, `Storefront`.
 
@@ -269,12 +269,13 @@ Conventions that hold across the set:
 
 - **Outlined variants for destructive and secondary actions** (`DeleteOutlined`, `EditOutlined`, `GroupOutlined`,
   `LogoutOutlined`, `PersonRemoveOutlined`); filled for the primary/menu ones.
-- **`fontSize="small"` wherever an icon sits beside text or inside a row.** Three different hosts, all consistent:
+- **`fontSize="small"` wherever an icon sits beside text or inside a row.** Two different hosts, both consistent:
   an `IconButton` child (`ListDetailPage.tsx:284,298,308,359,369`, `ListsPage.tsx:159,170,183`,
   `AdminPage.tsx:299,312,352,367` (re-measured 2026-09-16; was `:215,228`, and the last two are Story 9.2's pager
   chevrons), `ShareMembersDialog.tsx:161`, `WelcomeBanner.tsx:30`); a `ListItemIcon` inside a
-  `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`); and an icon inside a text
-  `Link` on the two back links (`ListDetailPage.tsx:123`, `ListShoppingPage.tsx:399`).
+  `MenuItem` — the app bar has **no** `IconButton` at all (`AppShell.tsx:210,217,226,232`). (Story 10.1 removed the
+  text-`Link` host along with the two back links, and with it `ArrowBack`: 21 distinct icons / 27 raw lines became
+  20 / 25.)
 - **`color="error"` marks the destructive path.** Nine sites, and they are not all controls. Seven are: the row
   `IconButton`s (`ListDetailPage.tsx:303,364`, `ListsPage.tsx:165,178`, `AdminPage.tsx:305` (was `:221`),
   `ShareMembersDialog.tsx:156`) and the delete-user confirm `Button` (`DeleteUserDialog.tsx:91`). The other two are
@@ -394,9 +395,11 @@ the same overhaul.
 ### 11.3 Epic 4 bottom-tab navigation
 
 **Out of scope because** it never shipped and UX-DR-E8-11 names it explicitly as out of scope
-(`epics.md:1247-1251`). `ux-design-specification-epic-4.md` describes a Today · Lists · Household bottom-tab design;
+(`epics.md:1247-1251`). `ux-design-specification-epic-4.md` (deleted in Story 10.8) described a Today · Lists ·
+Household bottom-tab design;
 the deployed app has a single top `AppBar` with an overflow menu (`AppShell.tsx:98-236`) and no tab bar anywhere in
-`src/`. The Epic 4 spec is retained for history and now carries a superseded banner. Note that adopting bottom tabs
+`src/`. The Epic 4 spec is no longer in the tree; its last version is at
+`git show 6d1cdcb5:_bmad-output/planning-artifacts/ux-design-specification-epic-4.md`. Note that adopting bottom tabs
 would reopen **RULING AR-E7-8a** (`epics.md:606-630`), since the app-bar title link is currently the only in-app exit
 from `/admin` and `/account/password`.
 

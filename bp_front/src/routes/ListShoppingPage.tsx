@@ -1,5 +1,5 @@
 import {useEffect, useId, useMemo, useRef, useState} from 'react'
-import {Link as RouterLink, Navigate, useNavigate, useParams} from 'react-router-dom'
+import {Navigate, useNavigate, useParams} from 'react-router-dom'
 import {useApolloClient, useMutation, useQuery} from '@apollo/client/react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
@@ -9,12 +9,10 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
 import Fab from '@mui/material/Fab'
-import Link from '@mui/material/Link'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import StorefrontIcon from '@mui/icons-material/Storefront'
@@ -475,18 +473,6 @@ export default function ListShoppingPage() {
       })}
     >
       <Container maxWidth="md">
-        {/* Back to lists (Story 6.2, FR57) — same idiom as the management
-            screen's `list-detail-back`, so there is one back-link pattern. */}
-        <Link
-          component={RouterLink}
-          to="/lists"
-          data-testid="list-shopping-back"
-          sx={{display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 2}}
-        >
-          <ArrowBackIcon fontSize="small"/>
-          Back to lists
-        </Link>
-
         <Typography
           variant="h4"
           color="text.primary"

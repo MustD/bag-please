@@ -21,7 +21,7 @@ import {addCategory, addItem, createListAndOpen, openListsViaMenu, PASSWORD, reg
 // db_data named volume persists across runs and both projects run concurrently.
 //
 // The shopping view is always reached by page.goto(`/list/:id`), never through
-// Story 6.2's title/back links, so 6.1 stands alone.
+// Story 6.2's title link and the account menu, so 6.1 stands alone.
 
 async function openEditDialog(page: Page, itemName: string): Promise<void> {
   await page.getByTestId(`item-row-${itemName}`).getByTestId('edit-item-button').click()

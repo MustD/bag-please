@@ -1,4 +1,4 @@
-import {expect, type Page, test} from '@playwright/test'
+import {expect, test} from '@playwright/test'
 
 import {
   addCategory,
@@ -27,12 +27,6 @@ import {
 // and asserts only on self-created data (the db_data named volume persists across
 // runs and the two projects run concurrently).
 
-// Return the owner to the lists index from a list detail screen.
-async function backToLists(page: Page): Promise<void> {
-  await page.getByTestId('list-detail-back').click()
-  await expect(page.getByTestId('lists-page')).toBeVisible()
-}
-
 test('FR39/FR41/FR50 — owner shares; invitee accepts and can write to the shared list', async ({browser, page, baseURL}, testInfo) => {
   const owner = uniqueUsername('sharing', 'owner_share', testInfo.project.name)
   const invitee = uniqueUsername('sharing', 'invitee_share', testInfo.project.name)
@@ -44,7 +38,7 @@ test('FR39/FR41/FR50 — owner shares; invitee accepts and can write to the shar
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
   await addCategory(page, categoryName)
-  await backToLists(page)
+  await openListsViaMenu(page)
 
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
@@ -93,7 +87,7 @@ test('FR39 — share errors (unknown user, self, duplicate) show the exact backe
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)
   await createListAndOpen(page, listName)
-  await backToLists(page)
+  await openListsViaMenu(page)
 
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
@@ -132,7 +126,7 @@ test('FR40/FR48 — owner removes a member; the removed user loses access (next 
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
-  await backToLists(page)
+  await openListsViaMenu(page)
 
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
@@ -181,7 +175,7 @@ test('FR55 — a non-owner member leaves a shared list; it stays for the owner',
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
-  await backToLists(page)
+  await openListsViaMenu(page)
 
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
@@ -221,7 +215,7 @@ test('FR39/FR41 — invitee declines; the invite disappears and grants no access
   await registerViaUi(page, owner, PASSWORD)
   await openListsViaMenu(page)
   const listId = await createListAndOpen(page, listName)
-  await backToLists(page)
+  await openListsViaMenu(page)
 
   const ctx = await browser.newContext({baseURL, ignoreHTTPSErrors: true})
   try {
