@@ -50,7 +50,7 @@ browsing session, which the manifest does not cover.
 (access tokens are short-lived, so mint a fresh one at run time — see the `npm run generate` command in the root
 `CLAUDE.md`). The generated output goes to `bp_front/src/__generated__/`.
 
-`ApiPlayground/` contains `.http` files for manually exercising the API via IntelliJ HTTP Client; its `local`
+`ApiPlayground/` (at the repo root, not under `bp_front/`) contains `.http` files for manually exercising the API via IntelliJ HTTP Client; its `local`
 environment (`ApiPlayground/http-client.env.json`) targets the built stack on `:2080`.
 
 ## Tests

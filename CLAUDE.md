@@ -20,11 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Since Story 7.14 it is an **installable PWA**: the build emits a web app manifest and a service worker
   (`vite-plugin-pwa`), so the served origin registers a worker that intercepts every navigation
 - `routing/` — `Caddyfile` for the frontend image: serves the built SPA and proxies `/api` to the backend (entry point port 2080)
-- MongoDB 8 data lives in the named Docker volume `db_data` (`docker-compose.yaml`). The old `./db/data` bind mount was
-  removed on 2026-08-13; a stack that previously ran with it will come up on an EMPTY database. The old data is still on
-  disk at `./db/data` — copy it in with
-  `docker run --rm -v ./db/data:/from -v bag-please_db_data:/to alpine cp -a /from/. /to/` before first start if you
-  want it back.
+- MongoDB 8 data lives in the named Docker volume `db_data` (`docker-compose.yaml`). A stack that previously ran with
+  the old `./db/data` bind mount comes up on an EMPTY database.
 
 All services are orchestrated via Docker Compose. For day-to-day frontend work, run the Vite dev server locally
 (`npm run dev` on :5173, proxying `/api` to the backend on :4000); the full production stack (built SPA served by
@@ -46,21 +43,21 @@ Deep-dive guidance lives in per-directory `CLAUDE.md` files that load when you w
 
 ### Backend (`bp_back/`)
 
-Use the Gradle wrapper (`./gradlew`) from the repo root. It's a multi-project build, so qualify
-backend tasks with `:bp_back:`:
+Use `gradle` (provisioned by mise; the repo ships no Gradle wrapper) from the repo root. It's a multi-project build,
+so qualify backend tasks with `:bp_back:`:
 
 ```bash
 # Build
-./gradlew :bp_back:build
+gradle :bp_back:build
 
 # Run (dev mode)
-./gradlew :bp_back:run -t
+gradle :bp_back:run -t
 
 # Run all tests
-./gradlew :bp_back:test
+gradle :bp_back:test
 
 # Run a single test class
-./gradlew :bp_back:test --tests "com.bagplease.ApplicationTest"
+gradle :bp_back:test --tests "com.bagplease.ApplicationTest"
 ```
 
 These map to mise tasks: `mise run back:build`, `back:run`, `back:test`.
@@ -118,23 +115,25 @@ Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`)
 Startup migrations (`bp_back/.../plugins/Migration.kt`) rewrite documents in place, each gated on its own
 `app_migrations` record, and the app cannot reverse them (`epic9-multi-store` unsets every item's legacy `store`
 field, which the previous image still reads). Before deploying a release that adds a migration, dump with the stack
-still on the OLD image:
+still on the OLD image. The credentials below (`user` / `pass`) are the dev / E2E ones from `docker-compose.yaml`;
+a real deployment uses its own. `*.archive` is gitignored, so a dump in the repo root is never committed.
 
 ```bash
 docker compose exec -T mongo mongodump \
   --username user --password pass --authenticationDatabase admin \
-  --archive > backup-$(date +%Y%m%d-%H%M%S).archive
+  --db bag_please --archive > backup-$(date +%Y%m%d-%H%M%S).archive
 docker compose up -d --build
-docker compose logs bp_back | grep "multi-store migration"   # ran once, or "already complete, skipping"
+docker compose logs bp_back | grep -i "migration"   # each migration logs "completed" or "already complete, skipping"
 ```
 
 Rollback is restore **then** the previous image — rolling the image back alone leaves migrated data the old code
-cannot read:
+cannot read. `--wait` blocks until mongo's healthcheck passes, so the restore does not race startup:
 
 ```bash
-docker compose down && docker compose up -d mongo
+docker compose down && docker compose up -d --wait mongo
 docker compose exec -T mongo mongorestore \
   --username user --password pass --authenticationDatabase admin \
-  --drop --archive < backup-<timestamp>.archive
-# then bring up the PREVIOUS image tag
+  --nsInclude 'bag_please.*' --drop --archive < backup-<timestamp>.archive
+git checkout <previous-release-tag>   # tags are bare versions, e.g. 0.17.0
+docker compose up -d --build
 ```

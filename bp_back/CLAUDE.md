@@ -16,6 +16,10 @@ startup the storage is populated from MongoDB on first access (`synced` flag). `
 written straight to Mongo after a storage's first access stays invisible to the app until restart. Mutations emit on a
 `MutableSharedFlow` which the GraphQL subscriptions expose as a `Flow`.
 
+Shared code sits beside the entity slices under `src/main/kotlin/com/bagplease/`: `config/` (application config,
+its GQL and Mongo parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
+(`MongoConnection`, `AppMigrationsRepository`) and `plugins/` (Ktor plugins, `GQL.kt`, `Migration.kt`).
+
 The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease/entity/<name>/` (`item`, `category`,
 `list`, `user`, `feedback`) holds all of that entity's layers, e.g. `entity/item/`:
 
@@ -35,7 +39,9 @@ in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`.
 ## Config
 
 `application.yaml` is read once at startup (`EngineMain`, `ktor.development: false`), so edits to it need a restart of
-`run -t`.
+`run -t`. The `run` task also passes `-Dio.ktor.development=<-Pdevelopment present?>` (`build.gradle.kts:16-17`), but the
+explicit `ktor.development: false` in the yaml is the configured value, so `-Pdevelopment` alone is not expected to
+switch development mode on (not measured).
 
 ## Which Jackson writes what
 

@@ -16,7 +16,7 @@ Make the two list screens open straight on their header (the back-to-lists links
 - Story 10.6: vite-plugin-pwa 1 -> 2 (done)
 - Story 10.7: TypeScript 7, tried again (done)
 - Story 10.8: Only documents something reads are kept (done)
-- Story 10.9: The agent context files match the code
+- Story 10.9: The agent context files match the code (done)
 
 ## Requirements & Constraints
 

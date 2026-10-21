@@ -48,3 +48,6 @@ bin/
 ### Custom ###
 .tmp/
 .playwright-mcp/
+
+# Mongo dumps (see CLAUDE.md, dump before a migration release)
+*.archive

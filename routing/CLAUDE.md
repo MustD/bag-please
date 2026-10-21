@@ -23,7 +23,7 @@ Two `header` directives sit inside that last block (Story 7.14, installability).
 
 The SPA that Caddy serves now registers a **service worker** that intercepts every navigation. It falls back to
 `/index.html` for client-side routes but denylists `/^\/api/`, so `/api/subscriptions`, `/api/*` and in particular
-the `GET /api/graphiql` readiness check still reach the backend. Keep the route order above intact.
+the `GET /api/health` readiness check still reach the backend. Keep the route order above intact.
 
 Caddy reaches the backend over the compose network as `bp_back:4000`. For local dev there is no Caddy — the Vite dev
 server's `server.proxy` forwards `/api` to `localhost:4000` instead.

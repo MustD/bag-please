@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verified 2026-09-07 against 1bb60cb. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+<!-- Verified 2026-10-21 against fdecc28121bf0e5be572fc8dd3258e3e32a82ac1. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
 ## bag-please
 
@@ -29,9 +29,9 @@ load with this one — this block carries only what those do not.
 
 ## Running and verifying
 
-- Always `./gradlew :bp_back:cleanTest :bp_back:test`. Bare `:bp_back:test` (and `mise run back:test`) is
-  `UP-TO-DATE`-cacheable: it prints `BUILD SUCCESSFUL`, executes nothing, and leaves the previous run's JUnit XML in
-  place, so the totals you read next are stale.
+- Always `gradle :bp_back:cleanTest :bp_back:test`. Bare `gradle :bp_back:test` is `UP-TO-DATE`-cacheable: it prints
+  `BUILD SUCCESSFUL`, executes nothing, and leaves the previous run's JUnit XML in place, so the totals you read next
+  are stale. (`mise run back:test` deletes the results directory first, so it always re-runs.)
 - Read backend test totals from `bp_back/build/test-results/test/TEST-*.xml` — Kotest prints no console summary.
 - Backend tests need a running Docker daemon (Testcontainers); without one you get a Docker socket error, not a test
   failure. `--tests "com.bagplease.SomeTest"` runs one whole Kotest class and is the cheap iteration loop.
@@ -61,8 +61,9 @@ load with this one — this block carries only what those do not.
   `npm run lint` dies at module load with zero files linted and no `overrides` trick reaches it;
   `npm install typescript@7` still exits 0, so the install is not the signal. Measurements: `deferred-work.md`,
   "Deferred from: Story 7.10".
-- The Gradle wrapper is held at 9.8.1 to match `FROM gradle:9.8.1-jdk25` in `bp_back/Dockerfile`; the shipped image
-  builds with the image's Gradle, so the wrapper cannot move alone.
+- There is no Gradle wrapper; `mise.toml`'s `gradle = "9"` resolves to 9.8.1, which must match
+  `FROM gradle:9.8.1-jdk25` in `bp_back/Dockerfile` (the shipped image builds with the image's Gradle), so move them
+  together.
 - Jackson 2 and Jackson 3 both sit on the backend runtime classpath by design — Jackson 2 via
   `ktor-serialization-jackson` serves `/api/auth/*`, Jackson 3 arrives with graphql-kotlin 11
   (`graphql-kotlin-ktor-server` -> `ktor-serialization-jackson3`). Do not "unify" them.

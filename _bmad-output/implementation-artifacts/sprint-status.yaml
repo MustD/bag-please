@@ -135,7 +135,7 @@ development_status:
   10-6-vite-plugin-pwa-1-2: done
   10-7-typescript-7-tried-again: done
   10-8-only-documents-something-reads-are-kept: done
-  10-9-the-agent-context-files-match-the-code: backlog
+  10-9-the-agent-context-files-match-the-code: done
   epic-10-retrospective: optional
 action_items:
   - epic: 7
