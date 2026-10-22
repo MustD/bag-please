@@ -12,6 +12,7 @@ import com.bagplease.features.auth.RefreshTokenRepository
 import com.bagplease.features.auth.configureAuthRoutes
 import com.bagplease.mongo.MongoConnection
 import com.bagplease.plugins.configureCors
+import com.bagplease.plugins.configureDatabase
 import com.bagplease.plugins.configureForwardedHeaders
 import com.bagplease.plugins.configureGql
 import com.bagplease.plugins.configureMigration
@@ -64,6 +65,9 @@ fun Application.module() {
     configureForwardedHeaders()
     configureRateLimiting()
     configureSecurity()
+
+    // Flyway + the R2DBC pool, before GQL (AD-5). No slice reads or writes PostgreSQL yet (Story 11.1).
+    configureDatabase()
 
     configureMigration(
         db = connection.db,

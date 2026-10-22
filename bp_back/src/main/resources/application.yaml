@@ -29,6 +29,14 @@ db:
     db_name: "$KTOR_MONGO_DB_NAME:bag_please"
     user: "$KTOR_MONGO_USER:user"
     pass: "$KTOR_MONGO_PASS:pass"
+  postgres:
+    host: "$KTOR_DB_HOST:localhost"
+    port: "$KTOR_DB_PORT:25432"
+    name: "$KTOR_DB_NAME:bag_please"
+    user: "$KTOR_DB_USER:bag_please_app"
+    password: "$KTOR_DB_PASSWORD:bag_please_app"
+    sslmode: "$KTOR_DB_SSLMODE:disable"
+    sslrootcert: "$KTOR_DB_SSLROOTCERT:"
 
 migration:
   targetUser: "$MIGRATION_TARGET_USER:"

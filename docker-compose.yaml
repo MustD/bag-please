@@ -4,6 +4,7 @@ networks:
 
 volumes:
   db_data:
+  pg_data:
 
 services:
   mongo:
@@ -25,6 +26,27 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # PostgreSQL 18 (Epic 11, AD-16). Runs next to mongo until Story 11.7. The volume mounts at
+  # /var/lib/postgresql (the image's data root from 18 on), not the old .../data.
+  postgres:
+    image: postgres:18
+    volumes:
+      - pg_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:25432:5432" # loopback only — host-side dev access
+    networks:
+      - bp_network
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -h 127.0.0.1 -U bag_please_app -d bag_please" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   # Frontend: multi-stage image — Vite build served by Caddy, which also proxies
   # /api to bp_back. This is the production artifact the E2E suite runs against.
@@ -53,6 +75,8 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - bp_network
     environment:
@@ -62,5 +86,10 @@ services:
       KTOR_MONGO_USER: "user"
       KTOR_MONGO_PASS: "pass"
       MIGRATION_TARGET_USER: "mia"
+      KTOR_DB_HOST: "postgres"
+      KTOR_DB_PORT: "5432"
+      KTOR_DB_NAME: "bag_please"
+      KTOR_DB_USER: "bag_please_app"
+      KTOR_DB_PASSWORD: "bag_please_app"
 
       KTOR_RATE_LIMIT_ATTEMPTS: 6000

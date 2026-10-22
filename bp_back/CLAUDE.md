@@ -31,10 +31,31 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
   `plugins/GQL.kt`'s `configureGql()`
 - `mongo/` — MongoDB BSON model + `object` mapper + `ItemRepository`
 
+## PostgreSQL foundation (Epic 11, Story 11.1)
+
+PostgreSQL 18 runs beside Mongo until Story 11.7; **no slice reads or writes it yet**. What exists:
+
+- `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
+  defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
+  URL (`sslrootcert`) and the runtime R2DBC URL (`sslRootCert`). The app always connects as the non-superuser
+  `bag_please_app`, which owns `public` in `bag_please` (`postgres/init/01-app-role.sh` in Compose).
+- **Schema is Flyway only**: `src/main/resources/db/migration/V<n>__<name>.sql`, applied by `configureDatabase()` in
+  `module()` before `configureGql`. DDL only, no data rows, additive, a shipped migration is never edited, never
+  `clean`. `V1__baseline.sql` holds all eight tables. No `SchemaUtils`/`MigrationUtils` anywhere.
+- **`tx { }` is the only caller of `suspendTransaction`.** It joins an open transaction or opens one (no savepoints,
+  max attempts 1). `afterCommit { }` (on the `TxScope` receiver) queues an action on the OUTERMOST transaction: it runs
+  once, in registration order, after that commit, and is dropped on rollback. Never `emit` inside `tx`. Put Arrow
+  `either { }` outside `tx { }`: a `raise` inside rolls the transaction back.
+- `/api/health` answers 200 only when `SELECT 1` and the Mongo ping both answer within 2 s in total; otherwise 503.
+- Verified in the 11.1 spike: Ktor Netty and r2dbc-postgresql's reactor-netty run together (Gradle resolves Netty to
+  4.2.17) and R2DBC connects over TLS with `verify-full`.
+
 ## Tests
 
 Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
-in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`.
+in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`. `FunSpec.postgresContainer()` returns one shared
+`postgres:18` per test JVM (role `bag_please_app` set up like Compose); `setUpMongo` also points the app at it, because
+`module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`.
 
 ## Config
 
