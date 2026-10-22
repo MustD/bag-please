@@ -44,7 +44,7 @@ class LoginTokenTest : FunSpec({
         username: String,
         password: String = "password123",
     ) {
-        setUpRegistration(container, true)
+        setUpRegistration(true)
         client.post("/auth/register") {
             contentType(ContentType.Application.Json)
             setBody("""{"username":"$username","password":"$password"}""")

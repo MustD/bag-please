@@ -1,7 +1,7 @@
 package com.bagplease
 
 import com.bagplease.config.ApplicationConfigService
-import com.bagplease.config.mongo.ApplicationConfigRepository
+import com.bagplease.config.db.ApplicationConfigRepository
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.mongo.ListRepository
@@ -85,7 +85,7 @@ fun Application.module() {
         refreshExpiryDays
     )
 
-    val appConfigRepository = ApplicationConfigRepository(connection.db)
+    val appConfigRepository = ApplicationConfigRepository()
     val appConfigService = ApplicationConfigService(appConfigRepository)
 
     val migrationTargetUser = config.propertyOrNull("migration.targetUser")?.getString() ?: ""

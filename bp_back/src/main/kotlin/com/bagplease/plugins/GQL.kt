@@ -13,7 +13,7 @@ import com.bagplease.entity.category.gql.CategorySubscriptions
 import com.bagplease.entity.feedback.FeedbackService
 import com.bagplease.entity.feedback.gql.FeedbackMutations
 import com.bagplease.entity.feedback.gql.FeedbackQueries
-import com.bagplease.entity.feedback.mongo.FeedbackRepository
+import com.bagplease.entity.feedback.db.FeedbackRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.gql.ItemMutations
@@ -28,7 +28,6 @@ import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.gql.UserAdminMutations
 import com.bagplease.entity.user.gql.UserAdminQueries
 import com.bagplease.features.auth.AuthService
-import com.bagplease.mongo.MongoConnection
 import com.expediagroup.graphql.generator.extensions.toGraphQLContext
 import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
 import com.expediagroup.graphql.server.ktor.GraphQL
@@ -65,9 +64,7 @@ fun Application.configureGql(
     categoryStorage: CategoryStorage,
 ) {
 
-    val connection: MongoConnection by dependencies
-
-    val feedbackRepository = FeedbackRepository(connection.db)
+    val feedbackRepository = FeedbackRepository()
 
     val feedbackService = FeedbackService(feedbackRepository, adminLogin)
 

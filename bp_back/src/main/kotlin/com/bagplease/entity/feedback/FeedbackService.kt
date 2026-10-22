@@ -3,8 +3,9 @@ package com.bagplease.entity.feedback
 import arrow.core.Either
 import arrow.core.raise.either
 import arrow.core.raise.ensure
-import com.bagplease.entity.feedback.mongo.FeedbackRepository
+import com.bagplease.entity.feedback.db.FeedbackRepository
 import com.bagplease.features.auth.CallerUsername
+import com.bagplease.plugins.tx
 import java.time.Instant
 
 // Business rules for sending feedback (Story 9.9), following `ListService`'s
@@ -20,9 +21,7 @@ sealed class FeedbackError {
 // Maximum length of the TRIMMED text, in UTF-16 code units (`String.length`).
 private const val MAX_TEXT_LENGTH = 2000
 
-// No cache here (unlike `config/ApplicationConfigService.kt`) — feedback is
-// append-only and write-only from this story's perspective; there is nothing
-// to serve back yet.
+// Services own the transaction (AD-2); Arrow `either {}` sits outside `tx {}` so a `raise` rolls back.
 class FeedbackService(
     private val repository: FeedbackRepository,
     private val adminLogin: String,
@@ -32,14 +31,14 @@ class FeedbackService(
         val trimmed = text.trim()
         ensure(trimmed.isNotEmpty()) { FeedbackError.BlankText }
         ensure(trimmed.length <= MAX_TEXT_LENGTH) { FeedbackError.TooLong }
-        repository.insert(Feedback(text = trimmed, username = caller.value, createdAt = Instant.now()))
+        tx { repository.insert(Feedback(text = trimmed, username = caller.value, createdAt = Instant.now())) }
     }
 
     // Admin review (Story 9.10) — newest-first, unpaginated (out of scope for this epic).
-    suspend fun list(): List<Feedback> = repository.findAllNewestFirst()
+    suspend fun list(): List<Feedback> = tx { repository.findAllNewestFirst() }
 
     suspend fun delete(id: String): Either<FeedbackDeleteError, Feedback> = either {
-        repository.deleteById(id) ?: raise(FeedbackDeleteError.NotFound)
+        tx { repository.deleteById(id) } ?: raise(FeedbackDeleteError.NotFound)
     }
 }
 

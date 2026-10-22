@@ -1,16 +1,13 @@
 package com.bagplease.config
 
-import com.bagplease.config.mongo.ApplicationConfigRepository
-import java.util.concurrent.atomic.AtomicReference
+import com.bagplease.config.db.ApplicationConfigRepository
+import com.bagplease.plugins.tx
 
 class ApplicationConfigService(private val repository: ApplicationConfigRepository) {
-    private val cache = AtomicReference<ApplicationConfig?>(null)
 
-    suspend fun get(): ApplicationConfig =
-        cache.get() ?: repository.load().also { cache.set(it) }
+    suspend fun get(): ApplicationConfig = tx { repository.load() }
 
     suspend fun update(config: ApplicationConfig) {
-        repository.save(config)
-        cache.set(config)
+        tx { repository.save(config) }
     }
 }

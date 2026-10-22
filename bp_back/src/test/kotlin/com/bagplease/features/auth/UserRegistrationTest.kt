@@ -32,7 +32,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -52,7 +52,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -73,7 +73,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -90,7 +90,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
 
                 client.post("/auth/register") {
@@ -118,7 +118,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -130,7 +130,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
                 client.post("/auth/register") {
                     contentType(ContentType.Application.Json)
@@ -144,7 +144,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
 
                 val results = coroutineScope {
@@ -173,7 +173,7 @@ class UserRegistrationTest : FunSpec({
             testApplication {
                 setUpMongo(container)
                 setUpJwt()
-                setUpRegistration(container, true)
+                setUpRegistration(true)
                 application { module() }
 
                 repeat(5) { _ ->

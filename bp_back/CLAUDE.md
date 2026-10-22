@@ -11,7 +11,7 @@ Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with la
 Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
 ```
 
-(Users and refresh tokens are the exception since Story 11.2: they use a `db/` package over PostgreSQL, see below.)
+(Users, refresh tokens, feedback and the app config are the exception since Stories 11.2/11.3: they use a `db/` package over PostgreSQL, see below.)
 
 Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
 startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
@@ -19,7 +19,7 @@ written straight to Mongo after a storage's first access stays invisible to the 
 `MutableSharedFlow` which the GraphQL subscriptions expose as a `Flow`.
 
 Shared code sits beside the entity slices under `src/main/kotlin/com/bagplease/`: `config/` (application config,
-its GQL and Mongo parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
+its GQL and PostgreSQL `db/` parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
 (`MongoConnection`, `AppMigrationsRepository`) and `plugins/` (Ktor plugins, `GQL.kt`, `Migration.kt`).
 
 The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease/entity/<name>/` (`item`, `category`,
@@ -35,8 +35,8 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 
 ## PostgreSQL foundation (Epic 11, Story 11.1)
 
-PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens live in PostgreSQL since Story 11.2**; lists,
-items, categories, feedback and config are still Mongo. What exists:
+PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2) and feedback and the app config (Story 11.3) live in PostgreSQL**; lists,
+items and categories are still Mongo. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
   defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
