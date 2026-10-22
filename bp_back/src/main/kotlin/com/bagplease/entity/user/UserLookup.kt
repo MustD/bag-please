@@ -4,8 +4,8 @@ import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.plugins.tx
 
 /**
- * The narrow user lookup the Mongo-backed slices need (list service, startup migration). They are not
- * transactional themselves, so each lookup opens its own `tx {}`. It does not depend on [UserService], so
+ * The narrow user lookup the list service and the startup migration need. Each lookup runs in `tx {}`, which joins
+ * the caller's open transaction or opens its own. It does not depend on [UserService], so
  * `UserService -> ListService -> UserLookup` has no cycle.
  */
 class UserLookup(private val repository: UserRepository) {

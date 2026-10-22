@@ -3,8 +3,7 @@ package com.bagplease.plugins
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.StoreNames
 import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.List
-import com.bagplease.entity.list.mongo.ListRepository
+import com.bagplease.entity.list.ListService
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.mongo.AppMigrationsRepository
 import com.mongodb.client.model.Filters
@@ -15,7 +14,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.bson.Document
-import java.time.Instant
 
 private val logger = KtorSimpleLogger("Migration")
 
@@ -36,12 +34,12 @@ fun configureMigration(
     userLookup: UserLookup,
     itemRepository: ItemRepository,
     categoryRepository: CategoryRepository,
-    listRepository: ListRepository,
+    listService: ListService,
     migrationTargetUsername: String,
 ) {
     runBlocking {
         val migrationsRepository = AppMigrationsRepository(db)
-        migrateEpic4ListSeed(db, migrationsRepository, userLookup, listRepository, migrationTargetUsername)
+        migrateEpic4ListSeed(db, migrationsRepository, userLookup, listService, migrationTargetUsername)
         migrateEpic9MultiStore(db, migrationsRepository)
     }
 }
@@ -55,7 +53,7 @@ private suspend fun migrateEpic4ListSeed(
     db: MongoDatabase,
     migrationsRepository: AppMigrationsRepository,
     userLookup: UserLookup,
-    listRepository: ListRepository,
+    listService: ListService,
     migrationTargetUsername: String,
 ) {
     // Step 1: check if migration already completed
@@ -89,17 +87,7 @@ private suspend fun migrateEpic4ListSeed(
     logger.info("Running Epic 4 migration for user: $migrationTargetUsername")
 
     // Step 4: create default list
-    val defaultList = List(
-        name = "Groceries",
-        emoji = "🛒",
-        ownerId = targetUser.id,
-        ownerUsername = targetUser.username,
-        members = listOf(targetUser.id),
-        memberUsernames = listOf(targetUser.username),
-        origin = "MIGRATED",
-        createdAt = Instant.now(),
-    )
-    listRepository.save(defaultList)
+    val defaultList = listService.seedMigratedList(targetUser, name = "Groceries", emoji = "🛒")
 
     // Step 5: update all items and categories with the new listId
     val listIdStr = defaultList.id.toString()

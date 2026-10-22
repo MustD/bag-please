@@ -141,14 +141,14 @@ class UserService(
         }
 
     // Story 11.2 (AD-7): the whole sequence is one PostgreSQL transaction. The row is locked FOR UPDATE, the lists
-    // (Mongo until Story 11.4) are purged through ListService, the refresh tokens go, and the `users` row is deleted
+    // are purged through ListService (owned lists cascade, every membership row goes), the refresh tokens go, and the `users` row is deleted
     // LAST. Access tokens stay valid until expiry; only refresh tokens are dropped. Feedback is untouched (it has no FK).
     suspend fun deleteUser(id: UUID): Either<AdminError, DeletedUser> = either {
         tx {
             val user = repository.findByIdForUpdate(id) ?: raise(AdminError.NotFound)
             // Counted while the lists still exist: it is what the response reports as destroyed.
             val ownedListCount = listService.countOwnedLists(user.id)
-            listService.purgeUser(user.id, user.username)
+            listService.purgeUser(user.id)
             refreshTokenRepository.deleteAllForUser(user.username)
             if (!repository.deleteById(user.id)) raise(AdminError.NotFound)
             DeletedUser(user, ownedListCount)

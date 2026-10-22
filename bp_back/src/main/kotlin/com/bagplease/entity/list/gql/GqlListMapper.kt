@@ -1,24 +1,23 @@
 package com.bagplease.entity.list.gql
 
-import com.bagplease.entity.list.List
-import com.bagplease.entity.list.ListMember
-import com.bagplease.entity.list.MemberStatus
+import com.bagplease.entity.list.ListView
 import com.expediagroup.graphql.generator.scalars.ID
 
 object GqlListMapper {
 
-    fun mapListToGql(list: List, members: kotlin.collections.List<ListMember>, uncheckedItemCount: Int = 0): GqlList {
+    // `view.members` is already PENDING + ACCEPTED, owner excluded, oldest first (ListService composes it).
+    fun mapListToGql(view: ListView): GqlList {
+        val list = view.list
         return GqlList(
             id = ID(list.id.toString()),
             name = list.name,
             emoji = list.emoji,
             ownerId = list.ownerId.toString(),
             ownerUsername = list.ownerUsername,
-            members = members
-                .filter { it.status != MemberStatus.DECLINED }
+            members = view.members
                 .map { GqlListMember(userId = it.userId.toString(), username = it.username, status = it.status.name) },
             createdAt = list.createdAt.toString(),
-            uncheckedItemCount = uncheckedItemCount,
+            uncheckedItemCount = view.uncheckedItemCount,
         )
     }
 }

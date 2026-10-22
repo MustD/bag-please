@@ -31,6 +31,10 @@ class ItemService(
     val itemUpdates = itemUpdateChannel as SharedFlow<Item>
     val itemDeletions = itemDeleteChannel as SharedFlow<Item>
 
+    /** Unchecked, non-deleted items per list; 0 for a list with none. Items stay on Mongo until Story 11.6. */
+    suspend fun countUncheckedByList(listIds: Collection<UUID>): Map<UUID, Int> =
+        listIds.associateWith { id -> storage.getByListId(id).count { !it.checked } }
+
     suspend fun getItems(listId: UUID, caller: CallerUsername): Either<ListAuthError, List<Item>> = either {
         listService.verifyMembership(caller, listId).bind()
         storage.getByListId(listId)

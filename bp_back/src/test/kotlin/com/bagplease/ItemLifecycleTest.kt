@@ -5,11 +5,6 @@ import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.UserLookup
 import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
@@ -184,28 +179,7 @@ class ItemLifecycleTest : FunSpec({
         return MongoClient.create(settings).getDatabase("test")
     }
 
-    fun buildItemService(db: MongoDatabase): ItemService {
-        val itemRepository = ItemRepository(db)
-        val categoryRepository = CategoryRepository(db)
-        val listRepository = ListRepository(db)
-        val listMemberRepository = ListMemberRepository(db)
-        val itemStorage = ItemStorage(itemRepository)
-        val categoryStorage = CategoryStorage(categoryRepository)
-        val listStorage = ListStorage(listRepository)
-        val userLookup = UserLookup(UserRepository())
-        val listService = ListService(
-            listStorage = listStorage,
-            listRepository = listRepository,
-            userLookup = userLookup,
-            itemRepository = itemRepository,
-            categoryRepository = categoryRepository,
-            itemStorage = itemStorage,
-            categoryStorage = categoryStorage,
-            adminLogin = "admin",
-            listMemberRepository = listMemberRepository,
-        )
-        return ItemService(itemStorage, listService, itemRepository, categoryStorage)
-    }
+    fun buildItemService(db: MongoDatabase): ItemService = com.bagplease.utils.buildTestServices(db).itemService
 
     // ── AC1 / AC2 / AC3 ── field round-trips ──────────────────────────────
 

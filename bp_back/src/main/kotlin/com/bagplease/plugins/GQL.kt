@@ -15,15 +15,12 @@ import com.bagplease.entity.feedback.gql.FeedbackMutations
 import com.bagplease.entity.feedback.gql.FeedbackQueries
 import com.bagplease.entity.feedback.db.FeedbackRepository
 import com.bagplease.entity.item.ItemService
-import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.gql.ItemMutations
 import com.bagplease.entity.item.gql.ItemQueries
 import com.bagplease.entity.item.gql.ItemSubscriptions
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.gql.ListMutations
 import com.bagplease.entity.list.gql.ListQueries
-import com.bagplease.entity.list.mongo.ListMemberRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.gql.UserAdminMutations
 import com.bagplease.entity.user.gql.UserAdminQueries
@@ -58,9 +55,7 @@ fun Application.configureGql(
     authService: AuthService,
     userService: UserService,
     listService: ListService,
-    listMemberRepository: ListMemberRepository,
-    itemRepository: ItemRepository,
-    itemStorage: ItemStorage,
+    itemService: ItemService,
     categoryStorage: CategoryStorage,
 ) {
 
@@ -68,9 +63,8 @@ fun Application.configureGql(
 
     val feedbackService = FeedbackService(feedbackRepository, adminLogin)
 
-    val itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
     configureScheduler(itemService, authService)
-    // itemService is constructed above on purpose: CategoryService.deleteCategory cascades into it.
+    // itemService is built in Application.kt (ListService needs it): CategoryService.deleteCategory cascades into it.
     val categoryService = CategoryService(categoryStorage, listService, itemService)
 
     install(GraphQL) {
@@ -86,7 +80,7 @@ fun Application.configureGql(
             queries = listOf(
                 ItemQueries(itemService),
                 CategoryQueries(categoryService),
-                ListQueries(listService, listMemberRepository, itemStorage),
+                ListQueries(listService),
                 ApplicationConfigQueries(appConfigService),
                 UserAdminQueries(userService, listService),
                 FeedbackQueries(feedbackService),
@@ -94,7 +88,7 @@ fun Application.configureGql(
             mutations = listOf(
                 ItemMutations(itemService),
                 CategoryMutations(categoryService),
-                ListMutations(listService, listMemberRepository, itemStorage),
+                ListMutations(listService),
                 ApplicationConfigMutations(appConfigService),
                 UserAdminMutations(userService, listService),
                 FeedbackMutations(feedbackService),

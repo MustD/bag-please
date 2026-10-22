@@ -4,13 +4,12 @@ import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.db.ApplicationConfigRepository
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.mongo.ListRepository
+import com.bagplease.entity.list.db.ListRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
-import com.bagplease.entity.list.mongo.ListMemberRepository
+import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.features.auth.AuthService
@@ -52,22 +51,22 @@ fun Application.module() {
 
     val itemRepository = ItemRepository(connection.db)
     val categoryRepository = CategoryRepository(connection.db)
-    val listRepository = ListRepository(connection.db)
-    val listMemberRepository = ListMemberRepository(connection.db)
     val itemStorage = ItemStorage(itemRepository)
     val categoryStorage = CategoryStorage(categoryRepository)
-    val listStorage = ListStorage(listRepository)
+    // ItemService verifies membership through ListService, and ListService counts items through ItemService:
+    // the list service gets the item service lazily.
+    lateinit var itemService: ItemService
     val listService = ListService(
-        listStorage = listStorage,
-        listRepository = listRepository,
+        repository = ListRepository(),
         userLookup = userLookup,
+        itemService = lazy { itemService },
         itemRepository = itemRepository,
         categoryRepository = categoryRepository,
         itemStorage = itemStorage,
         categoryStorage = categoryStorage,
         adminLogin = adminLogin,
-        listMemberRepository = listMemberRepository,
     )
+    itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
     val userService = UserService(userRepository, refreshTokenRepository, listService, adminLogin, adminPass)
 
     val secret = config.property("jwt.secret").getString()
@@ -104,7 +103,7 @@ fun Application.module() {
         userLookup = userLookup,
         itemRepository = itemRepository,
         categoryRepository = categoryRepository,
-        listRepository = listRepository,
+        listService = listService,
         migrationTargetUsername = migrationTargetUser,
     )
 
@@ -115,9 +114,7 @@ fun Application.module() {
         authService = authService,
         userService = userService,
         listService = listService,
-        listMemberRepository = listMemberRepository,
-        itemRepository = itemRepository,
-        itemStorage = itemStorage,
+        itemService = itemService,
         categoryStorage = categoryStorage,
     )
     configureRouting()

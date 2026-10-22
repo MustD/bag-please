@@ -2,7 +2,6 @@ package com.bagplease
 
 import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.User
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.entity.user.db.UserRepository
@@ -13,6 +12,9 @@ import com.bagplease.utils.appConfig
 import com.bagplease.mongo.AppMigrationsRepository
 import com.bagplease.plugins.configureMigration
 import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.buildTestServices
+import com.bagplease.utils.pgCount
+import com.bagplease.utils.pgRows
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
 import com.mongodb.MongoCredential
@@ -55,7 +57,7 @@ class MigrationTest : FunSpec({
     suspend fun clearCollections(db: MongoDatabase) {
         db.getCollection<Document>("items").deleteMany(Document())
         db.getCollection<Document>("categories").deleteMany(Document())
-        db.getCollection<Document>("lists").deleteMany(Document())
+        SharedPostgres.reset() // lists, list_members and users live in PostgreSQL
         db.getCollection<Document>("app_migrations").deleteMany(Document())
     }
 
@@ -81,7 +83,7 @@ class MigrationTest : FunSpec({
             userLookup = userRepo,
             itemRepository = ItemRepository(db),
             categoryRepository = CategoryRepository(db),
-            listRepository = ListRepository(db),
+            listService = buildTestServices(db).listService,
             migrationTargetUsername = username,
         )
 
@@ -95,9 +97,13 @@ class MigrationTest : FunSpec({
         val cat = db.getCollection<Document>("categories").find(Filters.eq("_id", catId.toString())).firstOrNull()
         cat!!.getString("listId") shouldNotBe null
 
-        val lists = db.getCollection<Document>("lists").find().toList()
+        val lists = pgRows("SELECT name, origin, owner_id FROM lists")
         lists.size shouldBe 1
-        lists[0].getString("name") shouldBe "Groceries"
+        lists[0][0] shouldBe "Groceries"
+        lists[0][1] shouldBe "MIGRATED"
+        // The owner holds the ACCEPTED row, atomically with the list.
+        pgRows("SELECT status FROM list_members WHERE user_id = '${lists[0][2]}'") shouldBe listOf(listOf("ACCEPTED"))
+        cat.getString("listId") shouldBe item.getString("listId")
     }
 
     test("AC18 idempotency: second run skips and does not create a duplicate list") {
@@ -114,12 +120,12 @@ class MigrationTest : FunSpec({
 
         val itemRepo = ItemRepository(db)
         val catRepo = CategoryRepository(db)
-        val listRepo = ListRepository(db)
+        val listSvc = buildTestServices(db).listService
 
-        configureMigration(db, userRepo, itemRepo, catRepo, listRepo, username)
-        configureMigration(db, userRepo, itemRepo, catRepo, listRepo, username)
+        configureMigration(db, userRepo, itemRepo, catRepo, listSvc, username)
+        configureMigration(db, userRepo, itemRepo, catRepo, listSvc, username)
 
-        db.getCollection<Document>("lists").find().toList().size shouldBe 1
+        pgCount("SELECT count(*) FROM lists") shouldBe 1L
         // NARROWED by Story 9.6, not removed: `app_migrations` now also holds `epic9-multi-store`,
         // so a total count would fail for a reason that has nothing to do with idempotency. What
         // this case is actually about is the list count above and the epic-4 record being written
@@ -142,7 +148,7 @@ class MigrationTest : FunSpec({
                 userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
                 categoryRepository = CategoryRepository(db),
-                listRepository = ListRepository(db),
+                listService = buildTestServices(db).listService,
                 migrationTargetUsername = "",
             )
         }
@@ -164,7 +170,7 @@ class MigrationTest : FunSpec({
                 userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
                 categoryRepository = CategoryRepository(db),
-                listRepository = ListRepository(db),
+                listService = buildTestServices(db).listService,
                 migrationTargetUsername = ghost,
             )
         }
@@ -181,12 +187,12 @@ class MigrationTest : FunSpec({
             userLookup = UserLookup(UserRepository()),
             itemRepository = ItemRepository(db),
             categoryRepository = CategoryRepository(db),
-            listRepository = ListRepository(db),
+            listService = buildTestServices(db).listService,
             migrationTargetUsername = "",
         )
 
         AppMigrationsRepository(db).findMigration("epic4-list-seed") shouldBe null
-        db.getCollection<Document>("lists").find().toList().size shouldBe 0
+        pgCount("SELECT count(*) FROM lists") shouldBe 0L
     }
     // ─────────────────────────────────────────────────────────────────────────
     // Story 9.6 / AR-E9-5 — `epic9-multi-store`.
@@ -203,7 +209,7 @@ class MigrationTest : FunSpec({
         userLookup = UserLookup(UserRepository()),
         itemRepository = ItemRepository(db),
         categoryRepository = CategoryRepository(db),
-        listRepository = ListRepository(db),
+        listService = buildTestServices(db).listService,
         migrationTargetUsername = username,
     )
 

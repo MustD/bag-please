@@ -1,28 +1,19 @@
 package com.bagplease
 
-import com.bagplease.entity.category.CategoryStorage
-import com.bagplease.entity.category.mongo.CategoryRepository
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.UserLookup
-import com.bagplease.entity.user.db.UserRepository
+import com.bagplease.utils.buildTestServices
 import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.pgCount
+import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
 import com.mongodb.MongoCredential
-import com.mongodb.client.model.Filters
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -35,8 +26,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.flow.firstOrNull
-import org.bson.Document
 import org.bson.UuidRepresentation
 import java.util.*
 
@@ -303,8 +292,7 @@ class ListServiceTest : FunSpec({
     // claim can be tested: through `deleteUser` a second call raises NOT_FOUND on the missing user row and never
     // reaches the purge, so it proves nothing about running the purge twice.
     //
-    // The service is built here over the same database the app used, with its own (empty, then self-syncing)
-    // caches — which is also why every assertion below reads raw Mongo rather than the app's API.
+    // The service is built here over the same databases the app used; assertions read PostgreSQL directly.
     test("AC-9.4-rerun purgeUser run twice raises nothing and changes nothing") {
         val owner = "rerunOwner_${UUID.randomUUID().toString().take(8)}"
         val other = "rerunOther_${UUID.randomUUID().toString().take(8)}"
@@ -338,40 +326,23 @@ class ListServiceTest : FunSpec({
                 setBody("""{"query":"mutation { acceptInvite(listId: \"$sharedId\") { id } }"}""")
             }.bodyAsText() shouldNotContain "errors"
 
-            val db = connectToDb()
-            val listRepository = ListRepository(db)
-            val listMemberRepository = ListMemberRepository(db)
-            val itemRepository = ItemRepository(db)
-            val categoryRepository = CategoryRepository(db)
-            val service = ListService(
-                listStorage = ListStorage(listRepository),
-                listRepository = listRepository,
-                userLookup = UserLookup(UserRepository()),
-                itemRepository = itemRepository,
-                categoryRepository = categoryRepository,
-                itemStorage = ItemStorage(itemRepository),
-                categoryStorage = CategoryStorage(categoryRepository),
-                adminLogin = "admin",
-                listMemberRepository = listMemberRepository,
+            val service = buildTestServices(connectToDb()).listService
+
+            fun snapshot() = pgRows(
+                "SELECT l.id, l.name, m.user_id, m.status FROM lists l LEFT JOIN list_members m ON m.list_id = l.id ORDER BY l.id, m.user_id"
             )
 
-            service.purgeUser(UUID.fromString(ownerId), owner)
+            service.purgeUser(UUID.fromString(ownerId))
 
-            val listCol = db.getCollection<Document>("lists")
-            val memberCol = db.getCollection<Document>("list_members")
-            val afterFirst = listCol.find(Filters.eq("_id", sharedId)).firstOrNull()
-            afterFirst.shouldNotBeNull()
-            listCol.countDocuments(Filters.eq("_id", ownedId)) shouldBe 0L
-            memberCol.countDocuments(Filters.eq("userId", ownerId)) shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id = '$ownedId'") shouldBe 0L
+            pgCount("SELECT count(*) FROM list_members WHERE user_id = '$ownerId'") shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id = '$sharedId'") shouldBe 1L
+            val afterFirst = snapshot()
 
-            // The re-run: no exception, and not one document different.
-            service.purgeUser(UUID.fromString(ownerId), owner)
+            // The re-run: no exception, and not one row different.
+            service.purgeUser(UUID.fromString(ownerId))
 
-            listCol.countDocuments(Filters.eq("_id", ownedId)) shouldBe 0L
-            memberCol.countDocuments(Filters.eq("userId", ownerId)) shouldBe 0L
-            val afterSecond = listCol.find(Filters.eq("_id", sharedId)).firstOrNull()
-            afterSecond.shouldNotBeNull()
-            afterSecond shouldBe afterFirst
+            snapshot() shouldBe afterFirst
         }
     }
 })

@@ -5,13 +5,17 @@ import arrow.core.raise.either
 import arrow.core.raise.ensure
 import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.category.mongo.CategoryRepository
+import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
+import com.bagplease.entity.list.db.DuplicateMemberException
+import com.bagplease.entity.list.db.ListRepository
+import com.bagplease.entity.user.User
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.features.auth.CallerUsername
+import com.bagplease.plugins.tx
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 sealed class ListAuthError {
@@ -40,105 +44,133 @@ data class PendingInvite(
     val ownerUsername: String,
 )
 
+/** A list as the API shows it: the list, its PENDING + ACCEPTED members (owner excluded) and its unchecked item count. */
+data class ListView(
+    val list: List,
+    val members: kotlin.collections.List<ListMember>,
+    val uncheckedItemCount: Int,
+)
+
 data class GetListsResult(
-    val lists: kotlin.collections.List<List>,
+    val lists: kotlin.collections.List<ListView>,
     val pendingInvites: kotlin.collections.List<PendingInvite>,
 )
 
 class ListService(
-    private val listStorage: ListStorage,
-    private val listRepository: ListRepository,
+    private val repository: ListRepository,
     private val userLookup: UserLookup,
+    // Items stay on Mongo until Story 11.6 and verify membership through this service, so the two are a
+    // construction cycle: the item service is resolved on first use.
+    private val itemService: Lazy<ItemService>,
     private val itemRepository: ItemRepository,
     private val categoryRepository: CategoryRepository,
     private val itemStorage: ItemStorage,
     private val categoryStorage: CategoryStorage,
     private val adminLogin: String,
-    private val listMemberRepository: ListMemberRepository,
 ) {
 
-    suspend fun createList(name: String, emoji: String?, caller: CallerUsername): Either<ListAuthError, List> = either {
+    // Composes the API view of the given lists: members (owner excluded) and unchecked counts. Runs in the caller's tx.
+    private suspend fun views(lists: kotlin.collections.List<List>): kotlin.collections.List<ListView> {
+        if (lists.isEmpty()) return emptyList()
+        val ids = lists.map { it.id }
+        val members = repository.findVisibleMembers(ids)
+        val counts = itemService.value.countUncheckedByList(ids)
+        return lists.map { ListView(it, members[it.id] ?: emptyList(), counts[it.id] ?: 0) }
+    }
+
+    private suspend fun view(list: List): ListView = views(listOf(list)).single()
+
+    suspend fun createList(name: String, emoji: String?, caller: CallerUsername): Either<ListAuthError, ListView> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
 
-        // A caller whose user row has gone (admin delete, Story 9.4) must be REFUSED, not crashed on: the purge
-        // runs after the user row is deleted, so a createList racing it on a still-valid access token lands here,
-        // and re-creating a list for a user who no longer exists is exactly what the ordering exists to prevent.
-        val owner = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+        tx {
+            // A caller whose user row has gone (admin delete, Story 9.4) must be REFUSED, not crashed on: a createList
+            // racing the deletion on a still-valid access token lands here.
+            val owner = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+            // The list row and the owner's ACCEPTED row are written together or not at all.
+            val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
+            val list = List(
+                name = name,
+                emoji = emoji,
+                ownerId = owner.id,
+                ownerUsername = owner.username,
+                origin = "USER_CREATED",
+                createdAt = now,
+            )
+            repository.insertList(list)
+            repository.insertMember(list.id, owner.id, MemberStatus.ACCEPTED, now)
+            view(list)
+        }
+    }
 
+    // The Epic 4 startup migration: one default list for the migration target, with the owner's ACCEPTED row.
+    suspend fun seedMigratedList(owner: User, name: String, emoji: String?): List = tx {
+        val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
         val list = List(
             name = name,
             emoji = emoji,
             ownerId = owner.id,
-            ownerUsername = caller.value,
-            members = listOf(owner.id),
-            memberUsernames = listOf(caller.value),
-            origin = "USER_CREATED",
-            createdAt = Instant.now(),
+            ownerUsername = owner.username,
+            origin = "MIGRATED",
+            createdAt = now,
         )
-        listStorage.save(list)
+        repository.insertList(list)
+        repository.insertMember(list.id, owner.id, MemberStatus.ACCEPTED, now)
         list
     }
 
     suspend fun getLists(caller: CallerUsername): Either<ListAuthError, GetListsResult> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val memberLists = listStorage.getByMemberUsername(caller.value)
-        val callerUser = userLookup.findByUsername(caller.value)
-        val pendingInvites = if (callerUser != null) {
-            listMemberRepository.findPendingByUserId(callerUser.id).mapNotNull { invite ->
-                val list = listStorage.getById(invite.listId) ?: return@mapNotNull null
-                PendingInvite(
-                    listId = list.id,
-                    listName = list.name,
-                    listEmoji = list.emoji,
-                    ownerUsername = list.ownerUsername,
-                )
+        tx {
+            val callerUser = userLookup.findByUsername(caller.value)
+            if (callerUser == null) {
+                GetListsResult(lists = emptyList(), pendingInvites = emptyList())
+            } else {
+                val pending = repository.findPendingLists(callerUser.id).map {
+                    PendingInvite(listId = it.id, listName = it.name, listEmoji = it.emoji, ownerUsername = it.ownerUsername)
+                }
+                GetListsResult(lists = views(repository.findAcceptedLists(callerUser.id)), pendingInvites = pending)
             }
-        } else {
-            emptyList()
         }
-        GetListsResult(lists = memberLists, pendingInvites = pendingInvites)
     }
 
-    suspend fun renameList(id: UUID, name: String, caller: CallerUsername): Either<ListAuthError, List> = either {
+    suspend fun renameList(id: UUID, name: String, caller: CallerUsername): Either<ListAuthError, ListView> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
-        val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
-        val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
-        if (list.ownerId != callerUser.id) raise(ListAuthError.NotOwner)
-        listStorage.rename(id, name)
+        tx {
+            val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+            val list = repository.findById(id) ?: raise(ListAuthError.NotMember)
+            if (list.ownerId != callerUser.id) raise(ListAuthError.NotOwner)
+            repository.rename(id, name)
+            view(list.copy(name = name))
+        }
     }
 
     suspend fun deleteList(id: UUID, caller: CallerUsername): Either<ListAuthError, DeleteListResult> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-
-        val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
-        ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
-
-        cascadeDeleteList(list)
+        tx {
+            val list = repository.findById(id) ?: raise(ListAuthError.NotMember)
+            ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
+            cascadeDeleteList(list)
+        }
     }
 
-    // The one place a list and everything hanging off it is destroyed — `deleteList` (owner-initiated) and
-    // `purgeUser` (admin user delete, Story 9.4) both route through here, so the two can never drift apart.
-    // It performs NO authorization of its own: every caller gates first.
+    // The one place a list and everything hanging off it is destroyed: `deleteList` (owner-initiated) and
+    // `purgeUser` (admin user delete) both route through here. It performs NO authorization of its own.
     //
-    // cascade: items → categories → members → list. The ordering is a CONVENTION, not a safety
-    // property — these are four independent Mongo deletes with no session, so a throw at
-    // listRepository.delete leaves a live list whose children are already gone, and list_members
-    // has no in-memory cache to re-sync from. Neither ordering is failure-safe; only a single
-    // ClientSession transaction would be (filed in deferred-work.md). Do not restore the earlier
-    // "order enables lazy-sync recovery on partial failure" rationale — it had this backwards.
+    // cascade: items -> categories (Mongo, until Stories 11.5/11.6) then members -> list (PostgreSQL, in the caller's
+    // tx). The Mongo deletes are NOT atomic with the PostgreSQL ones on this branch (AR-E11-2, accepted).
     private suspend fun cascadeDeleteList(list: List): DeleteListResult {
         val id = list.id
         val deletedItems = itemRepository.deleteAllInList(id)
         val deletedCategories = categoryRepository.deleteAllInList(id)
-        listMemberRepository.deleteAllInList(id)
-        listRepository.delete(id)
+        repository.deleteMembersInList(id)
+        repository.deleteList(id)
 
-        // evict in-memory caches after MongoDB deletes succeed
+        // evict in-memory item/category caches after the deletes succeed
         itemStorage.evictList(id)
         categoryStorage.evictList(id)
-        listStorage.evictFromCache(id)
 
         return DeleteListResult(
             deletedItemCount = deletedItems,
@@ -146,146 +178,108 @@ class ListService(
         )
     }
 
-    // Removes every trace of a deleted user from list data (Story 9.4). Called by
-    // `UserAdminMutations.deleteUser` AFTER the user row is gone and BEFORE sessions are invalidated — that order is
-    // load-bearing, see the comment there.
-    //
-    // Deliberately caller-less: it takes no `CallerUsername` and runs no `adminLogin` / ownership gate, because the
-    // subject of the purge is not the caller and the caller has already been proven an admin at the GraphQL boundary.
-    // It is the single documented exception to NFR-L2. It is also idempotent: a second run finds no owned lists, no
-    // member arrays to strip and no rows to delete, and changes nothing.
-    //
-    // Writes go through `ListStorage.save` and the private cascade only — never `ListRepository` directly, or the
-    // in-memory list cache diverges from Mongo and keeps serving the phantom member. No subscription event is
-    // emitted: a member sitting on a deleted owner's list is redirected by the Story 5.6 FORBIDDEN guard on their
-    // next data access.
-    suspend fun purgeUser(userId: UUID, username: String) {
-        val all = listStorage.getAll()
-
-        // Lists the user OWNED go away entirely, with their items, categories and member rows. No ownership
-        // transfer — that is a product decision, not an omission (md, 2026-09-15).
-        all.filter { it.ownerId == userId }.forEach { cascadeDeleteList(it) }
-
-        // Lists they merely BELONGED to survive, minus them. Both arrays are stripped: `memberUsernames` is what
-        // `getLists` and the membership guard read, `members` is what the Share dialog resolves ids from.
-        //
-        // Each one is RE-READ immediately before its save, exactly as every other mutating path here does.
-        // `ListStorage.save` is a whole-document upsert, so stripping a copy taken in the snapshot above — which is
-        // now several Mongo round-trips old, the owned-list cascades having run since — would silently revert a
-        // concurrent accept/remove/rename, and would resurrect a list deleted in the meantime. A list that has gone
-        // is skipped: there is nothing left to strip.
-        all.filter { it.ownerId != userId }
-            .filter { it.members.contains(userId) || it.memberUsernames.contains(username) }
-            .forEach { stale ->
-                val list = listStorage.getById(stale.id) ?: return@forEach
-                listStorage.save(
-                    list.copy(
-                        members = list.members.filter { it != userId },
-                        memberUsernames = list.memberUsernames.filter { it != username },
-                    )
-                )
-            }
-
-        // Last, so a row is never orphaned by a half-done strip above: every `list_members` row the user held, in
-        // any status. The owned-list cascade has already removed its own rows; this catches the rest.
-        listMemberRepository.deleteAllForUser(userId)
+    // Removes every trace of a deleted user from list data (Story 9.4): owned lists are destroyed with their content
+    // (no ownership transfer, a product decision), then every membership row the user holds in any status goes.
+    // Called by `UserService.deleteUser` inside its transaction, BEFORE the `users` row is deleted (the FKs from
+    // `lists.owner_id` / `list_members.user_id` are RESTRICT). Deliberately caller-less: the caller has already been
+    // proven an admin at the GraphQL boundary (the single documented exception to NFR-L2). Idempotent.
+    suspend fun purgeUser(userId: UUID) = tx {
+        repository.findOwnedLists(userId).forEach { cascadeDeleteList(it) }
+        repository.deleteMembersForUser(userId)
+        Unit
     }
 
-    // How many lists a user owns — the number the admin's delete confirmation states before destroying them.
-    // Answered off the in-memory list cache, so a 20-row admin page costs one scan and no Mongo round-trip.
-    suspend fun countOwnedLists(userId: UUID): Int = listStorage.getAll().count { it.ownerId == userId }
+    // How many lists a user owns: the number the admin's delete confirmation states before destroying them.
+    suspend fun countOwnedLists(userId: UUID): Int = tx { repository.countOwned(userId) }
 
     suspend fun countOwnedLists(userIds: Collection<UUID>): Map<UUID, Int> {
         if (userIds.isEmpty()) return emptyMap()
         val wanted = userIds.toSet()
-        val counts = listStorage.getAll()
-            .filter { wanted.contains(it.ownerId) }
-            .groupingBy { it.ownerId }
-            .eachCount()
+        val counts = tx { repository.countOwned(wanted) }
         return wanted.associateWith { counts[it] ?: 0 }
     }
 
+    // NFR-L2: callers run this inside the same tx as the work it guards (it joins an open tx).
     suspend fun verifyMembership(caller: CallerUsername, listId: UUID): Either<ListAuthError, Unit> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        ensure(list.memberUsernames.contains(caller.value)) { ListAuthError.NotMember }
+        val member = tx { repository.isAcceptedMember(listId, caller.value) }
+        ensure(member) { ListAuthError.NotMember }
     }
 
-    fun isMember(caller: CallerUsername, listId: UUID): Boolean {
-        val list = listStorage.getByIdCached(listId) ?: return false
-        return list.memberUsernames.contains(caller.value)
-    }
+    // One indexed read in its own tx; the subscription re-check on every event.
+    suspend fun isMember(caller: CallerUsername, listId: UUID): Boolean =
+        tx { repository.isAcceptedMember(listId, caller.value) }
 
-    suspend fun shareList(listId: UUID, username: String, caller: CallerUsername): Either<ListAuthError, List> = either {
+    suspend fun shareList(listId: UUID, username: String, caller: CallerUsername): Either<ListAuthError, ListView> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
-        ensure(username != caller.value) { ListAuthError.SelfShare }
-        val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
-        ensure(!list.memberUsernames.contains(username)) { ListAuthError.AlreadyMember(username) }
-        val existing = listMemberRepository.findByListIdAndUserId(listId, targetUser.id)
-        if (existing != null && existing.status != MemberStatus.DECLINED) raise(ListAuthError.AlreadyPending(username))
-        listMemberRepository.save(ListMember(listId, targetUser.id, username, MemberStatus.PENDING, Instant.now()))
-        list
+        tx {
+            val list = repository.findById(listId) ?: raise(ListAuthError.NotMember)
+            ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
+            ensure(username != caller.value) { ListAuthError.SelfShare }
+            val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
+            val existing = repository.findMember(listId, targetUser.id)
+            val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
+            when (existing?.status) {
+                MemberStatus.ACCEPTED -> raise(ListAuthError.AlreadyMember(username))
+                MemberStatus.PENDING -> raise(ListAuthError.AlreadyPending(username))
+                // Re-inviting a declined user revives the row with a fresh created_at.
+                MemberStatus.DECLINED -> repository.updateMember(listId, targetUser.id, MemberStatus.PENDING, now)
+                null -> try {
+                    repository.insertMember(listId, targetUser.id, MemberStatus.PENDING, now)
+                } catch (e: DuplicateMemberException) {
+                    raise(ListAuthError.AlreadyPending(username))
+                }
+            }
+            view(list)
+        }
     }
 
-    suspend fun acceptInvite(listId: UUID, caller: CallerUsername): Either<ListAuthError, List> = either {
+    suspend fun acceptInvite(listId: UUID, caller: CallerUsername): Either<ListAuthError, ListView> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        val callerUser = userLookup.findByUsername(caller.value)
-            ?: raise(ListAuthError.CallerNotFound)
-        val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
-        if (member == null || member.status != MemberStatus.PENDING) raise(ListAuthError.NotPendingInvite)
-        listMemberRepository.save(member.copy(status = MemberStatus.ACCEPTED))
-        val updatedList = list.copy(
-            members = list.members + callerUser.id,
-            memberUsernames = list.memberUsernames + caller.value,
-        )
-        listStorage.save(updatedList)
-        updatedList
+        tx {
+            val list = repository.findById(listId) ?: raise(ListAuthError.NotMember)
+            val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+            val member = repository.findMember(listId, callerUser.id)
+            if (member == null || member.status != MemberStatus.PENDING) raise(ListAuthError.NotPendingInvite)
+            repository.updateMember(listId, callerUser.id, MemberStatus.ACCEPTED)
+            view(list)
+        }
     }
 
     suspend fun rejectInvite(listId: UUID, caller: CallerUsername): Either<ListAuthError, Boolean> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        val callerUser = userLookup.findByUsername(caller.value)
-            ?: raise(ListAuthError.CallerNotFound)
-        val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
-            ?: raise(ListAuthError.NotPendingInvite)
-        ensure(member.status == MemberStatus.PENDING) { ListAuthError.NotPendingInvite }
-        listMemberRepository.save(member.copy(status = MemberStatus.DECLINED))
-        true
+        tx {
+            repository.findById(listId) ?: raise(ListAuthError.NotMember)
+            val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+            val member = repository.findMember(listId, callerUser.id) ?: raise(ListAuthError.NotPendingInvite)
+            ensure(member.status == MemberStatus.PENDING) { ListAuthError.NotPendingInvite }
+            repository.updateMember(listId, callerUser.id, MemberStatus.DECLINED)
+            true
+        }
     }
 
-    suspend fun removeMember(listId: UUID, username: String, caller: CallerUsername): Either<ListAuthError, List> = either {
+    suspend fun removeMember(listId: UUID, username: String, caller: CallerUsername): Either<ListAuthError, ListView> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
-        ensure(username != list.ownerUsername) { ListAuthError.CannotRemoveOwner }
-        ensure(list.memberUsernames.contains(username)) { ListAuthError.NotMember }
-        val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
-        val updatedList = list.copy(
-            members = list.members.filter { it != targetUser.id },
-            memberUsernames = list.memberUsernames.filter { it != username },
-        )
-        listMemberRepository.deleteByListIdAndUserId(listId, targetUser.id)
-        listStorage.save(updatedList)
-        updatedList
+        tx {
+            val list = repository.findById(listId) ?: raise(ListAuthError.NotMember)
+            ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
+            ensure(username != list.ownerUsername) { ListAuthError.CannotRemoveOwner }
+            ensure(repository.isAcceptedMember(listId, username)) { ListAuthError.NotMember }
+            val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
+            repository.deleteMember(listId, targetUser.id)
+            view(list)
+        }
     }
 
     suspend fun leaveList(listId: UUID, caller: CallerUsername): Either<ListAuthError, Boolean> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
-        val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        ensure(list.memberUsernames.contains(caller.value)) { ListAuthError.NotMember }
-        ensure(list.ownerUsername != caller.value) { ListAuthError.CannotLeaveAsOwner }
-        val callerUser = userLookup.findByUsername(caller.value)
-            ?: raise(ListAuthError.CallerNotFound)
-        val updatedList = list.copy(
-            members = list.members.filter { it != callerUser.id },
-            memberUsernames = list.memberUsernames.filter { it != caller.value },
-        )
-        listMemberRepository.deleteByListIdAndUserId(listId, callerUser.id)
-        listStorage.save(updatedList)
-        true
+        tx {
+            val list = repository.findById(listId) ?: raise(ListAuthError.NotMember)
+            ensure(repository.isAcceptedMember(listId, caller.value)) { ListAuthError.NotMember }
+            ensure(list.ownerUsername != caller.value) { ListAuthError.CannotLeaveAsOwner }
+            val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+            repository.deleteMember(listId, callerUser.id)
+            true
+        }
     }
 }

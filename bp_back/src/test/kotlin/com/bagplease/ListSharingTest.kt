@@ -1,6 +1,8 @@
 package com.bagplease
 
 import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.pgCount
+import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
 import com.fasterxml.jackson.databind.JsonNode
@@ -631,18 +633,15 @@ class ListSharingTest : FunSpec({
             val inviteeUserId = mapper.readTree(shareBody)["data"]["shareList"]["members"]
                 .first { it["username"].asText() == invitee }["userId"].asText()
 
-            val col = connectToDb().getCollection<Document>("list_members")
+            fun storedStatus() =
+                pgRows("SELECT status FROM list_members WHERE list_id = '$listId' AND user_id = '$inviteeUserId'")
 
-            val pendingDoc = col.find(Filters.eq("_id", "${listId}_$inviteeUserId")).firstOrNull()
-            pendingDoc.shouldNotBeNull()
-            pendingDoc["status"] shouldBe "PENDING"
+            storedStatus() shouldBe listOf(listOf("PENDING"))
 
             val acceptBody = acceptInvite(inviteeToken, listId)
             acceptBody shouldNotContain "errors"
 
-            val acceptedDoc = col.find(Filters.eq("_id", "${listId}_$inviteeUserId")).firstOrNull()
-            acceptedDoc.shouldNotBeNull()
-            acceptedDoc["status"] shouldBe "ACCEPTED"
+            storedStatus() shouldBe listOf(listOf("ACCEPTED"))
         }
     }
 
@@ -674,18 +673,19 @@ class ListSharingTest : FunSpec({
             // List B (must survive): one PENDING row.
             shareList(ownerToken, listBId, invitee2) shouldNotContain "errors"
 
-            val col = connectToDb().getCollection<Document>("list_members")
+            fun statuses(listId: String) =
+                pgRows("SELECT status FROM list_members WHERE list_id = '$listId' AND user_id <> (SELECT owner_id FROM lists WHERE id = '$listId')")
+                    .map { it[0] }.toSet()
             // Assert the statuses, not just the count — otherwise a setup drift that made both rows ACCEPTED would
             // silently remove the DECLINED coverage this test exists to provide.
-            col.find(Filters.eq("listId", listAId)).toList()
-                .map { it["status"] }.toSet() shouldBe setOf("ACCEPTED", "DECLINED")
-            col.find(Filters.eq("listId", listBId)).toList()
-                .map { it["status"] }.toSet() shouldBe setOf("PENDING")
+            statuses(listAId) shouldBe setOf("ACCEPTED", "DECLINED")
+            statuses(listBId) shouldBe setOf("PENDING")
 
             deleteList(ownerToken, listAId) shouldNotContain "errors"
 
-            col.countDocuments(Filters.eq("listId", listAId)) shouldBe 0L
-            col.countDocuments(Filters.eq("listId", listBId)) shouldBe 1L
+            pgCount("SELECT count(*) FROM list_members WHERE list_id = '$listAId'") shouldBe 0L
+            // List B keeps its owner row and the PENDING invite.
+            pgCount("SELECT count(*) FROM list_members WHERE list_id = '$listBId'") shouldBe 2L
         }
     }
 
@@ -788,57 +788,50 @@ class ListSharingTest : FunSpec({
             shareList(vToken, sharedDeclined, u) shouldNotContain "errors"
             rejectInvite(uToken, sharedDeclined) shouldNotContain "errors"
 
-            val db = connectToDb()
-            val memberCol = db.getCollection<Document>("list_members")
-            val listCol = db.getCollection<Document>("lists")
+            val db = connectToDb() // items and categories are still Mongo
             val itemCol = db.getCollection<Document>("items")
             val categoryCol = db.getCollection<Document>("categories")
+            // Owner rows (ACCEPTED) of U's own lists are part of the picture: U holds 2 owner rows + 3 invite rows.
+            fun uStatuses() = pgRows("SELECT status FROM list_members WHERE user_id = '$uId'").map { it[0] }.toSet()
 
             // Setup guard: assert the three statuses really are in place, so the purge assertions below cannot pass
             // vacuously on a setup that never produced a DECLINED row.
-            memberCol.find(Filters.eq("userId", uId)).toList()
-                .map { it["status"] }.toSet() shouldBe setOf("ACCEPTED", "PENDING", "DECLINED")
+            uStatuses() shouldBe setOf("ACCEPTED", "PENDING", "DECLINED")
 
             val deleteBody = deleteUser(adminToken, uId)
             deleteBody shouldNotContain "errors"
             mapper.readTree(deleteBody)["data"]["deleteUser"]["ownedListCount"].asInt() shouldBe 2
 
             // Every membership row U held, in any status, is gone.
-            memberCol.countDocuments(Filters.eq("userId", uId)) shouldBe 0L
+            pgCount("SELECT count(*) FROM list_members WHERE user_id = '$uId'") shouldBe 0L
             // W's row on V's list survives — the purge is scoped to U.
-            memberCol.countDocuments(Filters.eq("_id", "${sharedAccepted}_$wId")) shouldBe 1L
+            pgCount("SELECT count(*) FROM list_members WHERE list_id = '$sharedAccepted' AND user_id = '$wId'") shouldBe 1L
 
-            // U is stripped from the member arrays of the list they did not own; V and W remain.
-            val sharedDoc = listCol.find(Filters.eq("_id", sharedAccepted)).firstOrNull()
-            sharedDoc.shouldNotBeNull()
-            @Suppress("UNCHECKED_CAST")
-            val memberUsernames = sharedDoc["memberUsernames"] as kotlin.collections.List<String>
-            memberUsernames shouldBe listOf(v, w)
-            @Suppress("UNCHECKED_CAST")
-            val members = sharedDoc["members"] as kotlin.collections.List<*>
-            members.map { it.toString() } shouldBe listOf(ids[1], wId)
+            // U is gone from the list they did not own; V (owner row) and W remain.
+            pgRows(
+                "SELECT u.username FROM list_members m JOIN users u ON u.id = m.user_id WHERE m.list_id = '$sharedAccepted' ORDER BY u.username"
+            ).map { it[0] } shouldBe listOf(v, w).sorted()
 
-            // …and through the API, which serves the list from the in-memory cache: a cache left holding the
-            // pre-purge copy would still show U in this list. The owner V is deliberately absent from `members` —
-            // that field is built from `list_members` rows, and an owner never has one.
+            // …and through the API. The owner V is deliberately absent from `members`: it is the PENDING and
+            // ACCEPTED rows EXCLUDING the owner's.
             val vLists = listsOf(vToken)
             val vShared = vLists.first { it["id"].asText() == sharedAccepted }
             vShared["members"].map { it["username"].asText() } shouldBe listOf(w)
 
             // Both lists U owned are gone, with their items and categories.
-            listCol.countDocuments(Filters.`in`("_id", ownedA, ownedB)) shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id IN ('$ownedA', '$ownedB')") shouldBe 0L
             itemCol.countDocuments(Filters.`in`("_id", itemA, itemB)) shouldBe 0L
             categoryCol.countDocuments(Filters.`in`("_id", catA, catB)) shouldBe 0L
 
             // V's own lists and their content are untouched.
-            listCol.countDocuments(
-                Filters.`in`("_id", sharedAccepted, sharedPending, sharedDeclined)
-            ) shouldBe 3L
+            pgCount("SELECT count(*) FROM lists WHERE id IN ('$sharedAccepted', '$sharedPending', '$sharedDeclined')") shouldBe 3L
             itemCol.countDocuments(Filters.eq("_id", itemV)) shouldBe 1L
             categoryCol.countDocuments(Filters.eq("_id", catV)) shouldBe 1L
 
             // The deleted user's refresh tokens are gone (step 3 of the ordered sequence).
-            db.getCollection<Document>("refresh_tokens").countDocuments(Filters.eq("username", u)) shouldBe 0L
+            pgCount("SELECT count(*) FROM refresh_tokens WHERE username = '$u'") shouldBe 0L
+            // The users row is gone too (deleted last, in the same transaction).
+            pgCount("SELECT count(*) FROM users WHERE id = '$uId'") shouldBe 0L
         }
     }
 
@@ -861,23 +854,20 @@ class ListSharingTest : FunSpec({
             shareList(vToken, shared, u) shouldNotContain "errors"
             acceptInvite(uToken, shared) shouldNotContain "errors"
 
-            val db = connectToDb()
-            val memberCol = db.getCollection<Document>("list_members")
-            val listCol = db.getCollection<Document>("lists")
+            fun snapshot() = pgRows(
+                "SELECT l.id, m.user_id, m.status FROM lists l LEFT JOIN list_members m ON m.list_id = l.id ORDER BY l.id, m.user_id"
+            )
 
             deleteUser(adminToken, uId) shouldNotContain "errors"
-            val afterFirst = listCol.find(Filters.eq("_id", shared)).firstOrNull()
-            afterFirst.shouldNotBeNull()
+            val afterFirst = snapshot()
+            pgCount("SELECT count(*) FROM lists WHERE id = '$shared'") shouldBe 1L
 
             val secondBody = deleteUser(adminToken, uId)
             secondBody shouldContain "User not found"
 
-            memberCol.countDocuments(Filters.eq("userId", uId)) shouldBe 0L
-            listCol.countDocuments(Filters.eq("_id", ownedA)) shouldBe 0L
-            val afterSecond = listCol.find(Filters.eq("_id", shared)).firstOrNull()
-            afterSecond.shouldNotBeNull()
-            afterSecond["memberUsernames"] shouldBe afterFirst["memberUsernames"]
-            afterSecond["members"] shouldBe afterFirst["members"]
+            pgCount("SELECT count(*) FROM list_members WHERE user_id = '$uId'") shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id = '$ownedA'") shouldBe 0L
+            snapshot() shouldBe afterFirst
         }
     }
 

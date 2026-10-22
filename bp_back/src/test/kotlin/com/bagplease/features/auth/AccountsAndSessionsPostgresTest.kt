@@ -5,13 +5,9 @@ import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.AdminError
 import com.bagplease.entity.user.AuthError
 import com.bagplease.entity.user.RegistrationError
-import com.bagplease.entity.user.UserLookup
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.features.auth.db.RefreshTokenRepository
@@ -71,20 +67,7 @@ class AccountsAndSessionsPostgresTest : FunSpec({
             .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
             .build()
         val db = MongoClient.create(settings).getDatabase("test")
-        val itemRepository = ItemRepository(db)
-        val categoryRepository = CategoryRepository(db)
-        val listRepository = ListRepository(db)
-        return ListService(
-            listStorage = ListStorage(listRepository),
-            listRepository = listRepository,
-            userLookup = UserLookup(userRepository),
-            itemRepository = itemRepository,
-            categoryRepository = categoryRepository,
-            itemStorage = ItemStorage(itemRepository),
-            categoryStorage = CategoryStorage(categoryRepository),
-            adminLogin = "admin",
-            listMemberRepository = ListMemberRepository(db),
-        )
+        return com.bagplease.utils.buildTestServices(db).listService
     }
 
     lateinit var userService: UserService

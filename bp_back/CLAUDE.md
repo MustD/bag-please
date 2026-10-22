@@ -11,7 +11,7 @@ Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with la
 Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
 ```
 
-(Users, refresh tokens, feedback and the app config are the exception since Stories 11.2/11.3: they use a `db/` package over PostgreSQL, see below.)
+(Users, refresh tokens, feedback, the app config and lists/list members are the exception since Stories 11.2-11.4: they use a `db/` package over PostgreSQL and no storage cache, see below. Only `item` and `category` still have a Storage and a `mongo/` layer.)
 
 Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
 startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
@@ -27,16 +27,16 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 
 - `Item.kt` — plain domain model
 - `ItemService.kt` — orchestrates storage + emits subscription events
-- `ItemStorage.kt` — the in-memory cache (only `item`, `category` and `list` have one; `user` and `feedback`
-  services call their repository directly)
+- `ItemStorage.kt` — the in-memory cache (only `item` and `category` have one; `user`, `feedback` and `list`
+  services call their repository directly inside `tx {}`)
 - `gql/` — GraphQL model + `object` mapper, and the `ItemApi.kt` Query/Mutation/Subscription objects, registered in
   `plugins/GQL.kt`'s `configureGql()`
 - `mongo/` — MongoDB BSON model + `object` mapper + `ItemRepository`
 
 ## PostgreSQL foundation (Epic 11, Story 11.1)
 
-PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2) and feedback and the app config (Story 11.3) live in PostgreSQL**; lists,
-items and categories are still Mongo. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
+PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) and lists, shares and invites (Story 11.4) live in PostgreSQL**; items and
+categories are still Mongo. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
   defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
@@ -56,8 +56,21 @@ items and categories are still Mongo. The registration switch is read from `app_
   `Database.kt`). `username` is `COLLATE "C"`: case-sensitive equality, binary order for the admin list. Password
   change / admin reset drop the user's refresh tokens in the same transaction as the new hash.
   `UserService.deleteUser` is one transaction: `SELECT … FOR UPDATE`, list purge via `ListService`, tokens deleted,
-  `users` row deleted last. Mongo-backed code (`ListService`, the epic-4 migration) looks users up through `UserLookup`
-  (`tx { findByUsername }`), never a PG repository directly.
+  `users` row deleted last. `ListService` and the epic-4 migration look users up through `UserLookup`
+  (`tx { findByUsername }`, joins an open tx), never a PG repository directly.
+- **Lists, shares and invites (Story 11.4)**: `entity/list/db/` (`ListTable`, `ListMemberTable`, `ListRowMapper`,
+  `ListRepository`). `list_members` is the sole membership/invite record: the owner holds an `ACCEPTED` row but is
+  excluded from `List.members` (the Share dialog data = `PENDING` + `ACCEPTED` rows minus the owner, oldest first by
+  `created_at` then `user_id`; `DECLINED` never shown). Owner and member usernames are joined from `users`, never stored;
+  domain `List` has no member arrays. `ListService` owns every `tx {}` (the membership check runs in the same tx as the
+  work it guards) and returns `ListView(list, members, uncheckedItemCount)`; `isMember` is a suspend one-row indexed read
+  used by the subscription `takeWhile`. Creating a list inserts the list and the owner row in one tx; re-inviting a
+  `DECLINED` user flips that row to `PENDING` with a fresh `created_at`; the admin has no rows and every list operation
+  rejects it. `ListService` takes `Lazy<ItemService>` (items verify membership, list views count unchecked items via
+  `ItemService.countUncheckedByList`); `Application.kt` builds `ItemService` after a `lateinit var`. The list cascade
+  deletes items/categories on Mongo first, then members/list in PostgreSQL: the two stores are not atomic on this
+  branch (AR-E11-2). `UserService.deleteUser` calls `ListService.purgeUser(userId)`; the `lists.owner_id` /
+  `list_members.user_id` FKs are `RESTRICT`, so the `users` row can only go after the purge.
 - **Expired refresh tokens** are rejected on read (`AuthService.refresh`) and purged by the hourly scheduler step
   `purgeExpiredTokens()` (`plugins/Scheduler.kt`: ordered named steps, each in its own try/catch). Nothing expires them automatically in the database.
 - `/api/health` answers 200 only when `SELECT 1` and the Mongo ping both answer within 2 s in total; otherwise 503.
@@ -68,10 +81,10 @@ items and categories are still Mongo. The registration switch is read from `app_
 
 Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
 in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`. `FunSpec.postgresContainer()` returns one shared
-`postgres:18` per test JVM; `users`/`refresh_tokens` rows outlive a spec, so `mongoContainer()` calls `SharedPostgres.reset()`
+`postgres:18` per test JVM; PostgreSQL rows (users, lists, members, ...) outlive a spec, so `mongoContainer()` calls `SharedPostgres.reset()`
 (TRUNCATE … CASCADE) before each spec, and PG-only specs call it explicitly. Specs that build services directly call
 `connectDatabase(container.appConfig())` first (role `bag_please_app` set up like Compose); `setUpMongo` also points the app at it, because
-`module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`.
+`module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`. `buildTestServices(db)` wires `ListService` + `ItemService` the way `Application.kt` does, and `pgRows` / `pgCount` assert on PostgreSQL over JDBC.
 
 ## Config
 

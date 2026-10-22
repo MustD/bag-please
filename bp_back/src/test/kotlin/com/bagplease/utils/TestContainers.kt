@@ -152,3 +152,42 @@ fun PostgreSQLContainer.createDatabase(name: String) {
     )
     check(s.exitCode == 0) { "psql failed: ${s.stderr}" }
 }
+
+/** Runs [sql] on the shared app database over JDBC and returns every row as strings (null stays null). */
+fun pgRows(sql: String): List<List<String?>> =
+    java.sql.DriverManager.getConnection(
+        SharedPostgres.container.appJdbcUrl(), SharedPostgres.APP_USER, SharedPostgres.APP_PASSWORD,
+    ).use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery(sql).use { rs ->
+                val n = rs.metaData.columnCount
+                buildList { while (rs.next()) add((1..n).map { rs.getString(it) }) }
+            }
+        }
+    }
+
+/** `SELECT count(*) …` on the shared app database. */
+fun pgCount(sql: String): Long = pgRows(sql).single().single()!!.toLong()
+
+/** The services that Application.kt wires together, built over [db] for tests that call them directly. */
+class TestServices(val listService: com.bagplease.entity.list.ListService, val itemService: com.bagplease.entity.item.ItemService)
+
+fun buildTestServices(db: com.mongodb.kotlin.client.coroutine.MongoDatabase): TestServices {
+    val itemRepository = com.bagplease.entity.item.mongo.ItemRepository(db)
+    val categoryRepository = com.bagplease.entity.category.mongo.CategoryRepository(db)
+    val itemStorage = com.bagplease.entity.item.ItemStorage(itemRepository)
+    val categoryStorage = com.bagplease.entity.category.CategoryStorage(categoryRepository)
+    lateinit var itemService: com.bagplease.entity.item.ItemService
+    val listService = com.bagplease.entity.list.ListService(
+        repository = com.bagplease.entity.list.db.ListRepository(),
+        userLookup = com.bagplease.entity.user.UserLookup(com.bagplease.entity.user.db.UserRepository()),
+        itemService = lazy { itemService },
+        itemRepository = itemRepository,
+        categoryRepository = categoryRepository,
+        itemStorage = itemStorage,
+        categoryStorage = categoryStorage,
+        adminLogin = "admin",
+    )
+    itemService = com.bagplease.entity.item.ItemService(itemStorage, listService, itemRepository, categoryStorage)
+    return TestServices(listService, itemService)
+}
