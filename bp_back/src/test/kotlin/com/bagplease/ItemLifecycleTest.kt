@@ -9,7 +9,8 @@ import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.ListStorage
 import com.bagplease.entity.list.mongo.ListMemberRepository
 import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.mongo.UserRepository
+import com.bagplease.entity.user.UserLookup
+import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
@@ -191,11 +192,11 @@ class ItemLifecycleTest : FunSpec({
         val itemStorage = ItemStorage(itemRepository)
         val categoryStorage = CategoryStorage(categoryRepository)
         val listStorage = ListStorage(listRepository)
-        val userRepository = UserRepository(db)
+        val userLookup = UserLookup(UserRepository())
         val listService = ListService(
             listStorage = listStorage,
             listRepository = listRepository,
-            userRepository = userRepository,
+            userLookup = userLookup,
             itemRepository = itemRepository,
             categoryRepository = categoryRepository,
             itemStorage = itemStorage,

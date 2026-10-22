@@ -8,7 +8,8 @@ import com.bagplease.entity.list.ListService
 import com.bagplease.entity.list.ListStorage
 import com.bagplease.entity.list.mongo.ListMemberRepository
 import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.mongo.UserRepository
+import com.bagplease.entity.user.UserLookup
+import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
@@ -345,7 +346,7 @@ class ListServiceTest : FunSpec({
             val service = ListService(
                 listStorage = ListStorage(listRepository),
                 listRepository = listRepository,
-                userRepository = UserRepository(db),
+                userLookup = UserLookup(UserRepository()),
                 itemRepository = itemRepository,
                 categoryRepository = categoryRepository,
                 itemStorage = ItemStorage(itemRepository),

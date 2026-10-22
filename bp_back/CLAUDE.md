@@ -11,6 +11,8 @@ Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with la
 Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
 ```
 
+(Users and refresh tokens are the exception since Story 11.2: they use a `db/` package over PostgreSQL, see below.)
+
 Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
 startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
 written straight to Mongo after a storage's first access stays invisible to the app until restart. Mutations emit on a
@@ -33,7 +35,8 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 
 ## PostgreSQL foundation (Epic 11, Story 11.1)
 
-PostgreSQL 18 runs beside Mongo until Story 11.7; **no slice reads or writes it yet**. What exists:
+PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens live in PostgreSQL since Story 11.2**; lists,
+items, categories, feedback and config are still Mongo. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
   defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
@@ -46,6 +49,17 @@ PostgreSQL 18 runs beside Mongo until Story 11.7; **no slice reads or writes it 
   max attempts 1). `afterCommit { }` (on the `TxScope` receiver) queues an action on the OUTERMOST transaction: it runs
   once, in registration order, after that commit, and is dropped on rollback. Never `emit` inside `tx`. Put Arrow
   `either { }` outside `tx { }`: a `raise` inside rolls the transaction back.
+- **Accounts and sessions (Story 11.2)**: `entity/user/db/` and `features/auth/db/` hold the Exposed `Table`, row mapper
+  and repository (no connection argument; they run inside a service's `tx {}`). Services own the transaction:
+  `UserService` / `AuthService` wrap every DB-touching body in `tx {}` with Arrow `either {}` outside it. SQLSTATE `23505`
+  is translated in `UserRepository.insert` to `DuplicateUsernameException` (`Throwable.isUniqueViolation()` in
+  `Database.kt`). `username` is `COLLATE "C"`: case-sensitive equality, binary order for the admin list. Password
+  change / admin reset drop the user's refresh tokens in the same transaction as the new hash.
+  `UserService.deleteUser` is one transaction: `SELECT … FOR UPDATE`, list purge via `ListService`, tokens deleted,
+  `users` row deleted last. Mongo-backed code (`ListService`, the epic-4 migration) looks users up through `UserLookup`
+  (`tx { findByUsername }`), never a PG repository directly.
+- **Expired refresh tokens** are rejected on read (`AuthService.refresh`) and purged by the hourly scheduler step
+  `purgeExpiredTokens()` (`plugins/Scheduler.kt`: ordered named steps, each in its own try/catch). Nothing expires them automatically in the database.
 - `/api/health` answers 200 only when `SELECT 1` and the Mongo ping both answer within 2 s in total; otherwise 503.
 - Verified in the 11.1 spike: Ktor Netty and r2dbc-postgresql's reactor-netty run together (Gradle resolves Netty to
   4.2.17) and R2DBC connects over TLS with `verify-full`.
@@ -54,7 +68,9 @@ PostgreSQL 18 runs beside Mongo until Story 11.7; **no slice reads or writes it 
 
 Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
 in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`. `FunSpec.postgresContainer()` returns one shared
-`postgres:18` per test JVM (role `bag_please_app` set up like Compose); `setUpMongo` also points the app at it, because
+`postgres:18` per test JVM; `users`/`refresh_tokens` rows outlive a spec, so `mongoContainer()` calls `SharedPostgres.reset()`
+(TRUNCATE … CASCADE) before each spec, and PG-only specs call it explicitly. Specs that build services directly call
+`connectDatabase(container.appConfig())` first (role `bag_please_app` set up like Compose); `setUpMongo` also points the app at it, because
 `module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`.
 
 ## Config
@@ -91,8 +107,8 @@ Multi-user with RBAC (built out across Epics 1–4 — the "single admin user" m
 - **Auth is REST under `/api/auth/*`** (not a bare `/api/login`): `register`, `login`, `refresh`, `logout`,
   `change-password`, `config`. `POST /api/auth/login` returns a short-lived **access token (~15 min**,
   `KTOR_JWT_ACCESS_EXPIRY_MINUTES`)
-  with `username` + `role` claims, **plus** an httpOnly `Secure` `SameSite=Strict` `refresh_token` cookie (UUID in Mongo
-  `refresh_tokens` with a TTL index, 30 days). Auth endpoints are rate-limited (`RateLimitName("auth")` → HTTP 429).
+  with `username` + `role` claims, **plus** an httpOnly `Secure` `SameSite=Strict` `refresh_token` cookie (UUID in PostgreSQL
+  `refresh_tokens`, 30 days, expired rows purged hourly by the scheduler). Auth endpoints are rate-limited (`RateLimitName("auth")` → HTTP 429).
 - **All GraphQL HTTP** (`POST /api/graphql`) requires `Authorization: Bearer <accessToken>`.
 - **GraphQL subscriptions ARE authenticated** (Story 4.2): the JWT arrives in `connection_init` as
   `connectionParams.Authorization = "Bearer <token>"`; `WsGraphQLContextFactory` verifies it and closes the socket with
@@ -102,5 +118,5 @@ Multi-user with RBAC (built out across Epics 1–4 — the "single admin user" m
   for HTTP, `WsGraphQLContextFactory` for WebSocket (both in `GQL.kt`). Service-layer authorization reads the caller
   from there; per-list access is enforced by `verifyMembership` on subscribe plus a `takeWhile` membership re-check on
   every emitted event, so a revoked member's stream terminates on the next event.
-- **The `admin` account is special-cased:** it has no row in the `users` collection, is 403-forbidden from
+- **The `admin` account is special-cased:** it has no row in the `users` table, is 403-forbidden from
   `/api/auth/change-password`, and is blocked from all list operations (`ensure(caller.value != adminLogin)`).

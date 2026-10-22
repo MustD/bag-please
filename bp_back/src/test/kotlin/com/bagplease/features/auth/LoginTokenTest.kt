@@ -3,6 +3,8 @@ package com.bagplease.features.auth
 import com.bagplease.features.auth.dto.ErrorResponse
 import com.bagplease.module
 import com.bagplease.plugins.authMethod
+import com.bagplease.utils.SharedPostgres
+import com.bagplease.utils.appJdbcUrl
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
@@ -210,12 +212,16 @@ class LoginTokenTest : FunSpec({
                 setBody("""{"username":"admin","password":"admin"}""")
             }.shouldHaveStatus(HttpStatusCode.OK)
         }
-        // Verify directly: no document with username "admin" exists in the users collection
-        MongoClient.create("mongodb://test_user:test_pass@localhost:${container.firstMappedPort}").use { mongoClient ->
-            val adminCount = mongoClient.getDatabase("test")
-                .getCollection<Document>("users")
-                .countDocuments(Filters.eq("username", "admin"))
-            adminCount shouldBe 0L
+        // Verify directly: no row with username "admin" exists in the users table
+        java.sql.DriverManager.getConnection(
+            SharedPostgres.container.appJdbcUrl(), SharedPostgres.APP_USER, SharedPostgres.APP_PASSWORD,
+        ).use { c ->
+            c.createStatement().use { st ->
+                st.executeQuery("SELECT count(*) FROM users WHERE username = 'admin'").use {
+                    it.next()
+                    it.getLong(1) shouldBe 0L
+                }
+            }
         }
     }
 

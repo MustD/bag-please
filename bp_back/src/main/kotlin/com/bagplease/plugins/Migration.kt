@@ -5,7 +5,7 @@ import com.bagplease.entity.item.StoreNames
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.List
 import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.mongo.UserRepository
+import com.bagplease.entity.user.UserLookup
 import com.bagplease.mongo.AppMigrationsRepository
 import com.mongodb.client.model.Filters
 import com.mongodb.client.model.Updates
@@ -33,7 +33,7 @@ private val logger = KtorSimpleLogger("Migration")
  */
 fun configureMigration(
     db: MongoDatabase,
-    userRepository: UserRepository,
+    userLookup: UserLookup,
     itemRepository: ItemRepository,
     categoryRepository: CategoryRepository,
     listRepository: ListRepository,
@@ -41,7 +41,7 @@ fun configureMigration(
 ) {
     runBlocking {
         val migrationsRepository = AppMigrationsRepository(db)
-        migrateEpic4ListSeed(db, migrationsRepository, userRepository, listRepository, migrationTargetUsername)
+        migrateEpic4ListSeed(db, migrationsRepository, userLookup, listRepository, migrationTargetUsername)
         migrateEpic9MultiStore(db, migrationsRepository)
     }
 }
@@ -54,7 +54,7 @@ fun configureMigration(
 private suspend fun migrateEpic4ListSeed(
     db: MongoDatabase,
     migrationsRepository: AppMigrationsRepository,
-    userRepository: UserRepository,
+    userLookup: UserLookup,
     listRepository: ListRepository,
     migrationTargetUsername: String,
 ) {
@@ -83,7 +83,7 @@ private suspend fun migrateEpic4ListSeed(
         error("Epic 4 migration required but MIGRATION_TARGET_USER env var is not set. Set this to the username of the list owner before deploying.")
     }
 
-    val targetUser = userRepository.findByUsername(migrationTargetUsername)
+    val targetUser = userLookup.findByUsername(migrationTargetUsername)
         ?: error("Epic 4 migration failed: MIGRATION_TARGET_USER '$migrationTargetUsername' not found in users collection. Create this user before deploying Epic 4.")
 
     logger.info("Running Epic 4 migration for user: $migrationTargetUsername")

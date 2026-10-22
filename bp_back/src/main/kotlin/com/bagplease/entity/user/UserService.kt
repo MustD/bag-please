@@ -3,8 +3,11 @@ package com.bagplease.entity.user
 import arrow.core.Either
 import arrow.core.raise.either
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.bagplease.entity.user.mongo.UserRepository
-import com.mongodb.MongoWriteException
+import com.bagplease.entity.list.ListService
+import com.bagplease.entity.user.db.DuplicateUsernameException
+import com.bagplease.entity.user.db.UserRepository
+import com.bagplease.features.auth.db.RefreshTokenRepository
+import com.bagplease.plugins.tx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.*
@@ -24,8 +27,13 @@ sealed class AuthError {
 
 data class LoginResult(val username: String, val role: String)
 
+/** The user removed by [UserService.deleteUser] and how many lists they owned (all destroyed with them). */
+data class DeletedUser(val user: User, val ownedListCount: Int)
+
 class UserService(
     private val repository: UserRepository,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val listService: ListService,
     private val adminLogin: String,
     private val adminPass: String,
 ) {
@@ -42,11 +50,12 @@ class UserService(
             if (username == adminLogin) raise(RegistrationError.InvalidCredentials)
             val hash = hashPassword(password)
             val user = User(username = username, passwordHash = hash, role = "user")
-            try {
-                repository.save(user)
-            } catch (e: MongoWriteException) {
-                if (e.error.code == 11000) raise(RegistrationError.InvalidCredentials)
-                throw e
+            tx {
+                try {
+                    repository.insert(user)
+                } catch (e: DuplicateUsernameException) {
+                    raise(RegistrationError.InvalidCredentials)
+                }
             }
             user
         }
@@ -56,7 +65,7 @@ class UserService(
             if (password == adminPass) return@either LoginResult(username, "admin")
             else raise(AuthError.InvalidCredentials)
         }
-        val user = repository.findByUsername(username) ?: raise(AuthError.InvalidCredentials)
+        val user = tx { repository.findByUsername(username) } ?: raise(AuthError.InvalidCredentials)
         if (!verifyPassword(password, user.passwordHash)) raise(AuthError.InvalidCredentials)
         LoginResult(user.username, user.role)
     }
@@ -66,10 +75,14 @@ class UserService(
         currentPassword: String,
         newPassword: String,
     ): Either<AuthError, Unit> = either {
-        val user = repository.findByUsername(username) ?: raise(AuthError.WrongCurrentPassword)
-        if (!verifyPassword(currentPassword, user.passwordHash)) raise(AuthError.WrongCurrentPassword)
-        val newHash = hashPassword(newPassword)
-        repository.save(user.copy(passwordHash = newHash))
+        // One transaction: the new hash and the session invalidation commit together or not at all.
+        tx {
+            val user = repository.findByUsername(username) ?: raise(AuthError.WrongCurrentPassword)
+            if (!verifyPassword(currentPassword, user.passwordHash)) raise(AuthError.WrongCurrentPassword)
+            val newHash = hashPassword(newPassword)
+            repository.updatePasswordHash(user.id, newHash)
+            refreshTokenRepository.deleteAllForUser(username)
+        }
     }
 
     // One page of regular users, sorted by username ascending (Story 9.2).
@@ -90,7 +103,7 @@ class UserService(
     //
     // The `admin` account is config-based and has no row in this collection, so
     // "regular users only" needs no role filter.
-    suspend fun getUserPage(limit: Int, offset: Int?, around: String?): UserPage {
+    suspend fun getUserPage(limit: Int, offset: Int?, around: String?): UserPage = tx {
         val pageSize = limit.coerceIn(MIN_PAGE_SIZE, MAX_PAGE_SIZE)
         val totalCount = repository.countAll()
         // The offset of the final page. Zero for an empty table, so the clamp
@@ -105,7 +118,7 @@ class UserService(
             (offset ?: 0).coerceIn(0, lastPageOffset)
         }
 
-        return UserPage(
+        UserPage(
             users = repository.findPage(pageSize, servedOffset),
             totalCount = totalCount,
             offset = servedOffset,
@@ -117,27 +130,39 @@ class UserService(
             if (username == adminLogin) raise(RegistrationError.InvalidCredentials)
             val hash = hashPassword(password)
             val user = User(username = username, passwordHash = hash, role = "user")
-            try {
-                repository.save(user)
-            } catch (e: MongoWriteException) {
-                if (e.error.code == 11000) raise(RegistrationError.InvalidCredentials)
-                throw e
+            tx {
+                try {
+                    repository.insert(user)
+                } catch (e: DuplicateUsernameException) {
+                    raise(RegistrationError.InvalidCredentials)
+                }
             }
             user
         }
 
-    suspend fun adminDeleteUser(id: UUID): Either<AdminError, User> = either {
-        val user = repository.findById(id) ?: raise(AdminError.NotFound)
-        if (!repository.deleteById(id)) raise(AdminError.NotFound)
-        user
+    // Story 11.2 (AD-7): the whole sequence is one PostgreSQL transaction. The row is locked FOR UPDATE, the lists
+    // (Mongo until Story 11.4) are purged through ListService, the refresh tokens go, and the `users` row is deleted
+    // LAST. Access tokens stay valid until expiry; only refresh tokens are dropped. Feedback is untouched (it has no FK).
+    suspend fun deleteUser(id: UUID): Either<AdminError, DeletedUser> = either {
+        tx {
+            val user = repository.findByIdForUpdate(id) ?: raise(AdminError.NotFound)
+            // Counted while the lists still exist: it is what the response reports as destroyed.
+            val ownedListCount = listService.countOwnedLists(user.id)
+            listService.purgeUser(user.id, user.username)
+            refreshTokenRepository.deleteAllForUser(user.username)
+            if (!repository.deleteById(user.id)) raise(AdminError.NotFound)
+            DeletedUser(user, ownedListCount)
+        }
     }
 
     suspend fun adminResetPassword(id: UUID, newPassword: String): Either<AdminError, User> = either {
-        val user = repository.findById(id) ?: raise(AdminError.NotFound)
-        val newHash = hashPassword(newPassword)
-        val updated = user.copy(passwordHash = newHash)
-        repository.save(updated)
-        updated
+        tx {
+            val user = repository.findById(id) ?: raise(AdminError.NotFound)
+            val newHash = hashPassword(newPassword)
+            repository.updatePasswordHash(user.id, newHash)
+            refreshTokenRepository.deleteAllForUser(user.username)
+            user.copy(passwordHash = newHash)
+        }
     }
 
     internal suspend fun verifyPassword(plaintext: String, hash: String): Boolean =

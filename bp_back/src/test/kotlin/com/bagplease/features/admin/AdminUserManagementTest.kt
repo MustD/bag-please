@@ -1,6 +1,7 @@
 package com.bagplease.features.admin
 
 import com.bagplease.module
+import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
@@ -273,6 +274,8 @@ class AdminUserManagementTest : FunSpec({
         // really does mean zero users. `configureMigration` returns early on it:
         // with no unscoped items or categories there is nothing to migrate, so it
         // never asks for MIGRATION_TARGET_USER.
+        // Users live in the JVM-shared PostgreSQL now (Story 11.2): empty it explicitly.
+        SharedPostgres.reset()
         val emptyContainer = MongoDBContainer("mongo:8")
             .withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
             .withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
@@ -309,6 +312,7 @@ class AdminUserManagementTest : FunSpec({
         // the comparison and keep them agreeing; and `limit is clamped to 1..100`
         // can only observe the upper clamp on a table that HOLDS more than 100
         // rows, which the shared one need not. 105 seeded rows pin both.
+        SharedPostgres.reset()
         val isolatedContainer = MongoDBContainer("mongo:8")
             .withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
             .withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")

@@ -4,7 +4,12 @@ import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.User
-import com.bagplease.entity.user.mongo.UserRepository
+import com.bagplease.entity.user.UserLookup
+import com.bagplease.entity.user.db.UserRepository
+import com.bagplease.plugins.connectDatabase
+import com.bagplease.plugins.tx
+import com.bagplease.utils.SharedPostgres
+import com.bagplease.utils.appConfig
 import com.bagplease.mongo.AppMigrationsRepository
 import com.bagplease.plugins.configureMigration
 import com.bagplease.utils.mongoContainer
@@ -31,6 +36,10 @@ class MigrationTest : FunSpec({
 
     val container = mongoContainer()
 
+    beforeSpec { connectDatabase(SharedPostgres.container.appConfig()) }
+
+    suspend fun saveUser(user: User) = tx { UserRepository().insert(user) }
+
     fun connectToDb(): MongoDatabase {
         val credential = MongoCredential.createScramSha1Credential(
             "test_user", "admin", "test_pass".toCharArray()
@@ -55,8 +64,8 @@ class MigrationTest : FunSpec({
         clearCollections(db)
 
         val username = "miguser_${UUID.randomUUID().toString().take(8)}"
-        val userRepo = UserRepository(db)
-        userRepo.save(User(username = username, passwordHash = "hash"))
+        val userRepo = UserLookup(UserRepository())
+        saveUser(User(username = username, passwordHash = "hash"))
 
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
@@ -69,7 +78,7 @@ class MigrationTest : FunSpec({
 
         configureMigration(
             db = db,
-            userRepository = userRepo,
+            userLookup = userRepo,
             itemRepository = ItemRepository(db),
             categoryRepository = CategoryRepository(db),
             listRepository = ListRepository(db),
@@ -96,8 +105,8 @@ class MigrationTest : FunSpec({
         clearCollections(db)
 
         val username = "miguser2_${UUID.randomUUID().toString().take(8)}"
-        val userRepo = UserRepository(db)
-        userRepo.save(User(username = username, passwordHash = "hash"))
+        val userRepo = UserLookup(UserRepository())
+        saveUser(User(username = username, passwordHash = "hash"))
 
         db.getCollection<Document>("items").insertOne(
             Document(mapOf("_id" to UUID.randomUUID().toString(), "name" to "Item", "checked" to false))
@@ -130,7 +139,7 @@ class MigrationTest : FunSpec({
         val ex = shouldThrow<IllegalStateException> {
             configureMigration(
                 db = db,
-                userRepository = UserRepository(db),
+                userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
                 categoryRepository = CategoryRepository(db),
                 listRepository = ListRepository(db),
@@ -152,7 +161,7 @@ class MigrationTest : FunSpec({
         val ex = shouldThrow<IllegalStateException> {
             configureMigration(
                 db = db,
-                userRepository = UserRepository(db),
+                userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
                 categoryRepository = CategoryRepository(db),
                 listRepository = ListRepository(db),
@@ -169,7 +178,7 @@ class MigrationTest : FunSpec({
 
         configureMigration(
             db = db,
-            userRepository = UserRepository(db),
+            userLookup = UserLookup(UserRepository()),
             itemRepository = ItemRepository(db),
             categoryRepository = CategoryRepository(db),
             listRepository = ListRepository(db),
@@ -191,7 +200,7 @@ class MigrationTest : FunSpec({
 
     suspend fun runMigrations(db: MongoDatabase, username: String = "") = configureMigration(
         db = db,
-        userRepository = UserRepository(db),
+        userLookup = UserLookup(UserRepository()),
         itemRepository = ItemRepository(db),
         categoryRepository = CategoryRepository(db),
         listRepository = ListRepository(db),

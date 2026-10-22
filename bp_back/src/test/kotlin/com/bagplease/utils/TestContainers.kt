@@ -17,14 +17,19 @@ import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.mongodb.MongoDBContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
 
-fun FunSpec.mongoContainer(): MongoDBContainer = install(
-    TestContainerProjectExtension(
-        MongoDBContainer("mongo:8")
-    )
-) {
-    withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
-    withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
-    waitingFor(Wait.forListeningPort())
+fun FunSpec.mongoContainer(): MongoDBContainer {
+    val container = install(
+        TestContainerProjectExtension(
+            MongoDBContainer("mongo:8")
+        )
+    ) {
+        withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
+        withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
+        waitingFor(Wait.forListeningPort())
+    }
+    // Users and sessions live in the shared PostgreSQL (Story 11.2): start every spec from empty tables.
+    beforeSpec { SharedPostgres.reset() }
+    return container
 }
 
 // One PostgreSQL 18 per test JVM, started on first use and reaped by Testcontainers' Ryuk at exit.
@@ -47,6 +52,18 @@ object SharedPostgres {
                 runSql("postgres", "CREATE DATABASE $DB_NAME OWNER $APP_USER")
                 runSql(DB_NAME, "ALTER SCHEMA public OWNER TO $APP_USER")
             }
+    }
+
+    /**
+     * The container is shared by every spec in the JVM, so `users` / `refresh_tokens` rows outlive a spec (Story 11.2).
+     * Migrates (idempotent) so the tables exist even if no app has booted yet, then empties every table.
+     */
+    fun reset() {
+        com.bagplease.plugins.migrate(container.appConfig())
+        container.runSql(
+            DB_NAME,
+            "TRUNCATE users, lists, list_members, categories, items, feedback, refresh_tokens, app_config CASCADE",
+        )
     }
 
     private fun PostgreSQLContainer.runSql(db: String, sql: String) {

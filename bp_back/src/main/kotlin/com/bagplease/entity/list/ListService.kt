@@ -9,7 +9,7 @@ import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.mongo.ListMemberRepository
 import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.mongo.UserRepository
+import com.bagplease.entity.user.UserLookup
 import com.bagplease.features.auth.CallerUsername
 import java.time.Instant
 import java.util.*
@@ -48,7 +48,7 @@ data class GetListsResult(
 class ListService(
     private val listStorage: ListStorage,
     private val listRepository: ListRepository,
-    private val userRepository: UserRepository,
+    private val userLookup: UserLookup,
     private val itemRepository: ItemRepository,
     private val categoryRepository: CategoryRepository,
     private val itemStorage: ItemStorage,
@@ -64,7 +64,7 @@ class ListService(
         // A caller whose user row has gone (admin delete, Story 9.4) must be REFUSED, not crashed on: the purge
         // runs after the user row is deleted, so a createList racing it on a still-valid access token lands here,
         // and re-creating a list for a user who no longer exists is exactly what the ordering exists to prevent.
-        val owner = userRepository.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+        val owner = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
 
         val list = List(
             name = name,
@@ -83,7 +83,7 @@ class ListService(
     suspend fun getLists(caller: CallerUsername): Either<ListAuthError, GetListsResult> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         val memberLists = listStorage.getByMemberUsername(caller.value)
-        val callerUser = userRepository.findByUsername(caller.value)
+        val callerUser = userLookup.findByUsername(caller.value)
         val pendingInvites = if (callerUser != null) {
             listMemberRepository.findPendingByUserId(callerUser.id).mapNotNull { invite ->
                 val list = listStorage.getById(invite.listId) ?: return@mapNotNull null
@@ -103,7 +103,7 @@ class ListService(
     suspend fun renameList(id: UUID, name: String, caller: CallerUsername): Either<ListAuthError, List> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         if (name.length > 100) throw IllegalArgumentException("List name must not exceed 100 characters")
-        val callerUser = userRepository.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
+        val callerUser = userLookup.findByUsername(caller.value) ?: raise(ListAuthError.CallerNotFound)
         val list = listStorage.getById(id) ?: raise(ListAuthError.NotMember)
         if (list.ownerId != callerUser.id) raise(ListAuthError.NotOwner)
         listStorage.rename(id, name)
@@ -221,7 +221,7 @@ class ListService(
         val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
         ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
         ensure(username != caller.value) { ListAuthError.SelfShare }
-        val targetUser = userRepository.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
+        val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
         ensure(!list.memberUsernames.contains(username)) { ListAuthError.AlreadyMember(username) }
         val existing = listMemberRepository.findByListIdAndUserId(listId, targetUser.id)
         if (existing != null && existing.status != MemberStatus.DECLINED) raise(ListAuthError.AlreadyPending(username))
@@ -232,7 +232,7 @@ class ListService(
     suspend fun acceptInvite(listId: UUID, caller: CallerUsername): Either<ListAuthError, List> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        val callerUser = userRepository.findByUsername(caller.value)
+        val callerUser = userLookup.findByUsername(caller.value)
             ?: raise(ListAuthError.CallerNotFound)
         val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
         if (member == null || member.status != MemberStatus.PENDING) raise(ListAuthError.NotPendingInvite)
@@ -248,7 +248,7 @@ class ListService(
     suspend fun rejectInvite(listId: UUID, caller: CallerUsername): Either<ListAuthError, Boolean> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
-        val callerUser = userRepository.findByUsername(caller.value)
+        val callerUser = userLookup.findByUsername(caller.value)
             ?: raise(ListAuthError.CallerNotFound)
         val member = listMemberRepository.findByListIdAndUserId(listId, callerUser.id)
             ?: raise(ListAuthError.NotPendingInvite)
@@ -263,7 +263,7 @@ class ListService(
         ensure(list.ownerUsername == caller.value) { ListAuthError.NotOwner }
         ensure(username != list.ownerUsername) { ListAuthError.CannotRemoveOwner }
         ensure(list.memberUsernames.contains(username)) { ListAuthError.NotMember }
-        val targetUser = userRepository.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
+        val targetUser = userLookup.findByUsername(username) ?: raise(ListAuthError.UserNotFound(username))
         val updatedList = list.copy(
             members = list.members.filter { it != targetUser.id },
             memberUsernames = list.memberUsernames.filter { it != username },
@@ -278,7 +278,7 @@ class ListService(
         val list = listStorage.getById(listId) ?: raise(ListAuthError.NotMember)
         ensure(list.memberUsernames.contains(caller.value)) { ListAuthError.NotMember }
         ensure(list.ownerUsername != caller.value) { ListAuthError.CannotLeaveAsOwner }
-        val callerUser = userRepository.findByUsername(caller.value)
+        val callerUser = userLookup.findByUsername(caller.value)
             ?: raise(ListAuthError.CallerNotFound)
         val updatedList = list.copy(
             members = list.members.filter { it != callerUser.id },

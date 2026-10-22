@@ -3,7 +3,12 @@ package com.bagplease.plugins
 import io.ktor.server.application.Application
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.util.logging.KtorSimpleLogger
+import io.r2dbc.spi.ConnectionFactories
+import io.r2dbc.spi.ConnectionFactory
 import io.r2dbc.spi.ConnectionFactoryOptions
+import io.ktor.server.application.ApplicationStopped
+import reactor.core.Disposable
+import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabaseConfig
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
@@ -73,21 +78,36 @@ fun migrate(config: PostgresConfig) {
     logger.info("Flyway applied ${result.migrationsExecuted} migration(s); schema at version ${result.targetSchemaVersion}")
 }
 
+/** The pooled factory behind [database]; kept so a replaced or stopped application can release its connections. */
+@Volatile
+private var pool: ConnectionFactory? = null
+
 /** Opens the pooled R2DBC database. The process-wide handle used by [tx] is [database]. */
 fun connectR2dbc(config: PostgresConfig): R2dbcDatabase {
-    return R2dbcDatabase.connect {
-        setUrl(config.r2dbcUrl())
-        connectionFactoryOptions {
-            option(ConnectionFactoryOptions.USER, config.user)
-            option(ConnectionFactoryOptions.PASSWORD, config.password)
-        }
-        useNestedTransactions = false // AD-17: no savepoints
-        defaultMaxAttempts = 1 // AD-17: nothing is retried implicitly
-    }
+    val options = ConnectionFactoryOptions.parse(config.r2dbcUrl()).mutate()
+        .option(ConnectionFactoryOptions.USER, config.user)
+        .option(ConnectionFactoryOptions.PASSWORD, config.password)
+        .build()
+    val factory = ConnectionFactories.get(options)
+    pool = factory
+    return R2dbcDatabase.connect(
+        factory,
+        R2dbcDatabaseConfig {
+            connectionFactoryOptions { from(options) }
+            useNestedTransactions = false // AD-17: no savepoints
+            defaultMaxAttempts = 1 // AD-17: nothing is retried implicitly
+        },
+    )
 }
 
 @Volatile
 private var database: R2dbcDatabase? = null
+
+/** Disposes the current pool so its connections are returned to PostgreSQL (server `max_connections` is finite). */
+private fun closePool() {
+    (pool as? Disposable)?.dispose()
+    pool = null
+}
 
 /** Runs Flyway, then opens the R2DBC pool. Called from `module()` before `configureGql`. */
 fun Application.configureDatabase() {
@@ -95,10 +115,14 @@ fun Application.configureDatabase() {
     logger.info("Connecting to postgres at ${config.host}:${config.port}/${config.name} as ${config.user} (sslmode=${config.sslmode})")
     migrate(config)
     connectDatabase(config)
+    val mine = pool
+    // Only release the pool if a later application has not already replaced it.
+    monitor.subscribe(ApplicationStopped) { if (pool === mine) closePool() }
 }
 
 /** Opens the pool and makes it the handle [tx] uses. Tests that need `tx` without booting the app call this directly. */
 fun connectDatabase(config: PostgresConfig) {
+    closePool() // a second connect (tests boot many applications per JVM) must not leak the first pool
     database = connectR2dbc(config)
 }
 
@@ -143,3 +167,9 @@ suspend fun pingPostgres() {
     }
     check(answer?.singleOrNull()?.toInt() == 1) { "SELECT 1 returned $answer" }
 }
+
+/** True when this exception, or anything in its cause chain, is a PostgreSQL unique violation (SQLSTATE 23505). */
+fun Throwable.isUniqueViolation(): Boolean =
+    generateSequence(this) { it.cause?.takeIf { c -> c !== it } }
+        .take(10)
+        .any { (it as? io.r2dbc.spi.R2dbcException)?.sqlState == "23505" }
