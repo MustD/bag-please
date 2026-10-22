@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: '10-21-2026 17:29'
+last_updated: '10-22-2026 15:01'
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -138,6 +138,20 @@ development_status:
   10-9-the-agent-context-files-match-the-code: done
   10-10-sync-zed-tasks-json-with-mise-toml: done
   epic-10-retrospective: done
+
+  epic-11: backlog
+  11-1-the-backend-can-reach-postgresql-safely: backlog
+  11-2-accounts-and-sessions-live-in-postgresql: backlog
+  11-3-settings-and-feedback-live-in-postgresql: backlog
+  11-4-lists-shares-and-invites-live-in-postgresql: backlog
+  11-5-categories-live-in-postgresql: backlog
+  11-6-items-and-the-hourly-jobs-live-in-postgresql: backlog
+  11-7-mongodb-leaves-the-stack: backlog
+  11-8-production-data-can-be-imported-in-one-go: backlog
+  11-9-the-new-home-exists-in-terraform: backlog
+  11-10-one-command-releases-a-version: backlog
+  11-11-both-users-move-to-the-new-home: backlog
+  epic-11-retrospective: optional
 action_items:
   - epic: 7
     action: "Re-check typescript-eslint for TypeScript 7 support before any future
