@@ -1,30 +1,22 @@
 ---
-status: final  # Epic 10 planned and validated 2026-10-19
+status: final  # Epic 11 planned and validated 2026-10-22
 stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
 inputDocuments:
-  # Re-initialised from the template for Epic 10 on 2026-10-19 (md's choice). Epics 1–9 bodies are
-  # verbatim in epics-archive.md; the Epic 9 requirements inventory is in git at 4321365.
-  - docs/feedback.md
+  # Re-initialised from the template for Epic 11 on 2026-10-22 (md's choice). Epics 1–10 bodies are
+  # verbatim in epics-archive.md; the Epic 10 requirements inventory is in git at 8f64c42.
   - _bmad-output/planning-artifacts/prd.md
+  - _bmad-output/planning-artifacts/addendum.md
   - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/planning-artifacts/architecture/architecture-epic-9/ARCHITECTURE-SPINE.md
-  # UX design contract (bmad-ux spine pair, ux-epic-8 — the only run folder):
-  - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/DESIGN.md
-  - _bmad-output/planning-artifacts/ux-designs/ux-epic-8/EXPERIENCE.md
-  - _bmad-output/implementation-artifacts/deferred-work.md
-  - _bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md
-  # Epic 7 dependency-currency precedent (the HOLD/LAND protocol this epic reuses):
-  - _bmad-output/implementation-artifacts/spec-7-10-typescript-6-to-7.md
-  - _bmad-output/implementation-artifacts/spec-7-12-graphql-kotlin-9-to-10-with-kotlin.md
-  - _bmad-output/implementation-artifacts/spec-7-13-graphql-16-to-17.md
-  # Shipped code is authoritative where it disagrees with a planning document. Spot-checked 2026-10-19:
-  - bp_front/package.json
-  - gradle/libs.versions.toml
-  - bp_front/src/components/AppShell.tsx
-  - bp_front/src/routes/ListShoppingPage.tsx
-  - bp_front/src/routes/ListDetailPage.tsx
-  - bp_front/e2e/sharing.spec.ts
-  - AGENTS.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-11/ARCHITECTURE-SPINE.md
+  # Spine reviews (findings were folded into the spine on 2026-10-22; the ones still open are listed below):
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-adversary.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-reconcile.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-rubric.md
+  - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-versions.md
+  # Reference implementation for the Terraform and deploy stories (md's own project, same edge):
+  - /home/md/projects/personal/mal_ui/deploy/
+  - /home/md/projects/personal/mal_ui/mise.toml
+  # UX design contract deliberately excluded (md, 2026-10-22): Epic 11 changes no UI (FR70).
 ---
 
 # bag-please - Epic Breakdown
@@ -34,22 +26,23 @@ inputDocuments:
 This document provides the complete epic and story breakdown for bag-please, decomposing the requirements from the PRD,
 UX Design if it exists, and Architecture requirements into implementable stories.
 
-**Epic set:** this file holds the live epic (**Epic 10**). Closed Epics 1–9 live verbatim in
+**Epic set:** this file holds the live epic (**Epic 11**). Closed Epics 1–10 live verbatim in
 [`epics-archive.md`](./epics-archive.md). The two files are one epic set — sprint planning must be run with **both**
-(`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the story keys for Epics 1–9 are reported as orphans
+(`--epic-file .../epics.md --epic-file .../epics-archive.md`), or the story keys for Epics 1–10 are reported as orphans
 and dropped from `sprint-status.yaml`.
 
-**Scope source:** `docs/feedback.md` (2026-10-19) — one user-feedback item and two technical-debt items. Rulings by md
-on 2026-10-19: remove the back-to-lists link on **both** list screens; "Gql 11" means **graphql-kotlin 11**; the
-documentation cleanup covers the `docs/` scan output, stale planning artifacts, **and** the agent context files.
+**Scope source:** md, 2026-10-21 (PRD "Epic 11 — PostgreSQL and a DigitalOcean Deployment"), with the technical choices
+in `addendum.md` and every decision settled in the Epic 11 architecture spine (AD-1 … AD-20, final 2026-10-22). A
+platform change with no user-visible behaviour change: every existing FR keeps holding. Production has 2 real users;
+their data carries over.
 
 ## Requirements Inventory
 
 ### Functional Requirements
 
-Every active FR in `prd.md`, condensed. **Bold** = amended for Epic 10 and stated in full; the rest are delivered
-(Epics 1–9) and listed so a story can cite them without re-reading the PRD. `prd.md` does not yet carry the FR57
-amendment — the story that removes the links amends it in the same commit.
+Every active FR in `prd.md`, condensed. **Bold** = new for Epic 11 and stated in full; the rest are delivered
+(Epics 1–10) and listed so a story can cite them without re-reading the PRD. In Epic 11 they are the regression
+surface: every one must behave exactly as before on PostgreSQL (FR70).
 
 **User Authentication**
 FR1: Unregistered user can create an account with a username and password
@@ -85,7 +78,7 @@ FR19: Admin changes their own password only via environment variables
 FR20: Admin can enable/disable public self-registration at runtime
 FR21: The registration option is hidden on the login screen when registration is disabled
 FR22: Configuration changes take effect without a restart
-FR23: Configuration is persisted as a runtime entity in the database
+FR23: Configuration is persisted as a runtime entity in the database (the `app_config` row after Epic 11)
 
 **User Feedback**
 FR66: A regular user can send feedback — an idea, a feature request, or a problem — from any authenticated screen.
@@ -147,12 +140,13 @@ whether the id exists on the target list; an id on a different list, or a catego
 
 **Data Scoping & Migration**
 FR46: All new items and categories are associated with a list at creation
-FR47: The one-time Epic 4 migration moves unscoped data to a default "Groceries" list, recorded in `app_migrations`
+FR47: *(History after Epic 11.)* The one-time Epic 4 migration moved unscoped data to a default "Groceries" list,
+recorded in `app_migrations`; not carried forward (AD-5)
 FR56: The admin account is restricted only to user management, application configuration, and reviewing
 user feedback (FR67); admin callers are rejected by all list-related GQL operations (`createList`, `lists`, `items`,
 `categories`, `shareList`, `deleteList`, and all subscription operations); the admin cannot create, own, view, or be a
 member of any list, and does not send feedback (FR66).
-FR69: No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
+FR69: *(History after Epic 11; not carried forward, AD-5.)* No store data is lost when items move from one store to several (FR44): an item that had a store keeps it
 as its only store, and an item without one has no stores. The conversion runs once, on the first startup of the release
 that ships multi-store items, and does not re-run.
 
@@ -160,13 +154,13 @@ that ships multi-store items, and does not re-run.
 FR48, FR49: *(Superseded — Epic 4 bottom-tab design that never shipped.)*
 FR50: The lists index shows owned/member lists plus pending invites; a zero-lists state shows onboarding guidance
 FR51: Item creation and editing happen in overlays without leaving the current view
-**FR57 (amended for Epic 10): From any authenticated screen the user can return to the application home destination in
+FR57: From any authenticated screen the user can return to the application home destination in
 one action: the "Bag Please" app-bar title is a link to `/`, which delegates home resolution to the existing behaviour
 (the user's oldest list by creation date, the lists index when they own none, the admin area for the admin account).
 The account menu carries a Home entry that goes to the same destination as the title link (on the home route it simply
 closes the menu) and a My lists entry that opens the lists index. Those menu entries are the navigation; neither the
 shopping view nor the list management screen carries its own back-to-lists link. No screen is a navigational dead end
-requiring the browser back button.**
+requiring the browser back button.
 FR59: The app is installable from Chrome on Android as a standalone WebAPK (manifest + PNG icons + service worker); no
 offline capability
 FR60: The whole shopping-view item row is one check target and one accessible control
@@ -186,22 +180,47 @@ members in real time (FR52). The button stays reachable while scrolling and neve
 or its controls. If the list has no categories yet, the dialog says a category is needed first and offers a way to the
 list management screen.
 
+**Data Store & Deployment (new for Epic 11, stated in full)**
+**FR70: All persisted application data — users, refresh tokens, application configuration, lists, memberships and
+pending invites, items, categories and feedback — is stored in PostgreSQL. MongoDB is not part of any environment:
+local development, the E2E stack, or production. Every other FR behaves exactly as before.**
+**FR71: A one-time import script, run by the operator, loads a JSON export of the production MongoDB into an
+empty PostgreSQL database. Every user (with their existing password hash, so passwords keep working), list,
+membership, pending invite, item (stores, recurring setting, check and soft-delete state, `addedBy` included),
+category, feedback entry and configuration value carries over, and the relations between them stay intact.
+Refresh tokens are not carried over: each user signs in once after the move. The script refuses to run
+against a database that already holds application data, and finishes by printing, for each record type, the count
+in the export and the count loaded.**
+**FR72: The database schema is created and changed only by versioned migrations that the backend applies at
+startup. Each migration applies once; a restart against an up-to-date schema changes nothing.**
+**FR73: Production infrastructure is declared in Terraform in this repository: one droplet running the frontend
+and backend, joined to the existing io-workshop VPC and reachable only from the edge proxy, and one separate
+DigitalOcean Managed PostgreSQL database on the cheapest tier, which accepts connections only from that droplet.
+The operator applies infrastructure changes by hand; a deploy never applies them.**
+**FR74: The operator releases a version with one command: it builds and publishes the images, rolls the droplet to
+that version, and checks that the site answers at `https://bag-please.io-workshop.net/`. A second command reports
+which version is running.**
+
 **Real-Time Collaboration & Authentication**
 FR52: Item check-off, add, edit and delete reach other members' shopping views live via GraphQL subscription
 FR53: WebSocket subscriptions require a valid JWT in `connectionParams`; the backend closes on expiry; the frontend
 disposes the socket before clearing auth
 
-**Epic 10 FR scope:** FR57 (amended). Every other FR is delivered and must stay green through the dependency and
-documentation work — the upgrade stories are regression-gated against the whole suite, not against new behaviour.
-**Still deferred:** FR42, FR43 (not re-scoped by md). Phase 3 single-store shopping mode is not in Epic 10.
+
+**Epic 11 FR scope:** FR70–FR74 (new). FR71 is widened by spine AD-18: the import also prints, per record type, the
+rows **dropped** and why (orphans the new foreign keys cannot hold), so "export = loaded + dropped" is the count
+promise. FR47, FR69 (and NFR-L3) are Mongo-era history and are retired, not ported (AD-5). Every other FR is the
+regression surface. **Still deferred:** FR42, FR43 (backend support remains and moves to PostgreSQL with the item
+slice, including the scheduler steps).
 
 ### NonFunctional Requirements
 
-Carried verbatim from the Epic 9 inventory; all delivered and all still binding.
+Carried from the Epic 10 inventory; **bold** = new or amended for Epic 11 and stated in full.
 
 **Security**
 NFR1: Passwords hashed with bcrypt cost 12; plaintext never stored or logged
-NFR2: Refresh tokens stored in MongoDB with a 30-day TTL index
+**NFR2: Refresh tokens are stored with their 30-day expiry; an expired token is never accepted, and expired tokens
+are purged automatically.** *(Amended 2026-10-21: previously named a MongoDB TTL index.)*
 NFR3: Refresh tokens delivered only via httpOnly `SameSite=Strict` cookies
 NFR4: Access tokens 15 minutes; refresh tokens 30 days
 NFR5: All client-server communication uses HTTPS in production
@@ -213,7 +232,8 @@ NFR8: JWT payloads carry only username and role
 NFR9: Login, register and refresh complete in under 1 second under normal load
 NFR10: Auth screens render without perceptible layout shift on mobile
 NFR11: Small user base (tens of users); no horizontal scaling
-NFR12: ApplicationConfig may be cached in memory; writes invalidate immediately
+NFR12: ApplicationConfig may be cached in memory; writes invalidate immediately. *(Permissive, not a mandate: Epic 11
+removes the cache — AD-1 — and FR22 then holds trivially.)*
 
 **Accessibility**
 NFR13: Every input field has a visible, associated label
@@ -222,8 +242,11 @@ NFR15: Form error messages are associated with their fields
 NFR16: Text and interactive elements meet minimum colour contrast
 
 **Test gate**
-NFR17: A Playwright E2E suite covers every delivered flow, runs against the production artifact (Caddy-served SPA +
-backend + MongoDB) on a desktop and a mobile viewport, and passes with zero failures before any story is marked done
+**NFR17: The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
+production artifact — the built SPA served by Caddy, plus the backend and its database — on both a desktop viewport
+and a mobile viewport, and must pass with zero failures before any story in any epic is marked done.
+*Exception (2026-10-22, Epic 11 only): stories land on an `epic-11` branch where the suite may be red between
+stories; it must pass in full before the branch merges to main, and no release runs on the branch.***
 NFR18: E2E tests use browser-level isolation and are UI-driven — each spec registers a fresh user and signs in through
 the form; no login fixture, no `storageState`; direct API calls only to prepare the environment, never for the behaviour
 under assertion; sessions are never faked by intercepting requests
@@ -236,506 +259,771 @@ NFR65: The 320px floor is gated by the E2E suite on every phone-emulating projec
 **Lists & Sharing**
 NFR-L1: Subscription events are scoped per list, at subscribe time and per event (`takeWhile` membership re-check)
 NFR-L2: Every service method touching list-scoped data verifies membership before any access, reads included
-NFR-L3: The Epic 4 migration is idempotent via an `app_migrations` completion record
+NFR-L3: *(History after Epic 11; retired with FR47 by AD-5.)* The Epic 4 migration is idempotent via an
+`app_migrations` completion record
 NFR-L4: No list data is reachable by non-members at any layer; unauthorized access is a GQL error, not an empty result
 NFR-L5: Subscriptions validate the `connectionParams` JWT before any stream, close on expiry, and `clearAuth()` disposes
 the socket first
 
-**Epic 10 NFR scope:** NFR17, NFR18, NFR64, NFR65 bind every story that ships code. NFR-L1–NFR-L5 and NFR1–NFR8 are
-the regression surface the dependency bumps must not move (subscription auth, cookie flags, token lifetimes,
-rate-limit behaviour). The documentation story ships no code; NFR17 is not applicable to it, recorded as a decision.
+**Operations & Secrets (new for Epic 11; the repository is public, and every requirement here follows from that)**
+**NFR-D1: No secret is ever committed. This covers the DigitalOcean API token, Spaces keys, database passwords and
+connection strings, the JWT signing secret, admin credentials, Terraform state and variable files, and any data
+export. Secrets live only in gitignored files; each such file has a committed example with blank values and a
+comment per entry. The fixed local credentials that the dev and E2E Compose stack uses are not secrets: they
+open nothing outside the developer's machine and are never used in production.**
+**NFR-D2: Terraform state lives in a private remote store, never in the repository, because it holds the database
+password. Tasks that need a secret load it themselves; it is not exported into an interactive shell.**
+**NFR-D3: The managed database is not reachable from the public internet. It accepts connections only from the
+application droplet, and the backend connects to it over TLS.**
+**NFR-D4: Production data survives losing the droplet: it lives only in the managed database, which keeps the
+provider's automatic daily backups. There is no restore drill: md accepts the risk of losing production data
+(2026-10-22), and the off-repo Mongo archive (NFR-D5) is the manual fallback.**
+**NFR-D5: The production MongoDB export holds every user's password hash and all list content. It stays outside
+the repository (a gitignored path) and is removed from the repository working tree once the import is verified.
+md keeps a copy off-repo, in their own storage, as the manual fallback for NFR-D4.**
+**NFR-D6: The running cost stays at the smallest droplet that runs the frontend and backend, plus the cheapest
+managed PostgreSQL tier; nothing is sized for more than the tens of users NFR11 describes.**
+
+**Epic 11 NFR scope:** NFR2, NFR17 (with its branch exception) and NFR-D1–NFR-D6 are new work. NFR1–NFR8, NFR-L1,
+NFR-L2, NFR-L4 and NFR-L5 are the regression surface the persistence move must not shift (membership gates,
+subscription scoping, token lifetimes, cookie flags, rate limiting). NFR10, NFR13–NFR16, NFR64 and NFR65 are frontend
+properties that Epic 11 does not touch; the E2E suite at the merge proves they still hold.
 
 ### Additional Requirements
 
-From `architecture.md`, the Epic 9 spine's inherited invariants, the Epic 7 dependency-currency precedent (Stories
-7.8–7.13) and the `deferred-work.md` ledger. Identifiers are `AR-E10-n`. Versions below were measured against the live
-registries on 2026-10-19 and are a planning snapshot — every story re-measures before it moves anything.
+From the Epic 11 architecture spine (AD-n cited), its four reviews, `addendum.md` and the mal_ui reference. Identifiers
+are `AR-E11-n`. Versions are the spine's 2026-10-21 snapshot (verified in `review-versions.md`); a story re-measures
+before it pins anything.
 
 **Starter template:** none — brownfield.
 
-**Inherited, binding on every story**
-- AR-E10-0: The Epic 9 invariants stand unchanged (AR-E9-0, -0a, -0b): per-entity slice layout, one-way GQL → Service →
-  Storage → Repository; existing error classes, no new envelope; codegen regenerated in the same story as any schema or
-  GraphQL-server change, never hand-edited; backend and frontend ship in one app version (`gradle.properties` =
-  `package.json`); backend rules proven with Kotest + Testcontainers via `./gradlew :bp_back:cleanTest :bp_back:test`.
+**Branch and gate**
+- AR-E11-0: **Inherited, unchanged.** Per-entity slice layout `entity/<name>/{Service, gql/, db/}`; NFR-L2 membership
+  check in the service; FR56 admin excluded from lists and with no `users` row; Epic 9 AD-2 (one admin GQL gate on the
+  JWT `role`), AD-4 (server-normalized stores, case-insensitive identity), AD-6 (users by `username`, binary order,
+  server-located page), AD-9 (`/api/health` readiness; compose healthcheck on `bp_front` with busybox `wget`), AD-11
+  (one check-state transition); the GraphQL schema and every response shape unchanged, so `npm run generate` is
+  byte-identical; backend and frontend ship one app version.
+- AR-E11-1 (AD-15, NFR17 exception): Stories merge into the long-lived **`feature/pg-migration`** branch in
+  AR-E11-2's order. It is the branch NFR17 and the spine call `epic-11`, renamed in the plan by md (2026-10-22); the
+  rule is unchanged. The E2E
+  suite may be red between stories, but each story keeps `gradle :bp_back:test` green for what it touches. A slice is
+  on Mongo **or** PostgreSQL, never both, and no code writes one entity to both stores. `feature/pg-migration` merges
+  to `main` once, when Mongo is gone from code, Compose, tests and docs and the full NFR17 suite passes. No release
+  runs from the branch. The merge is a **merge commit**, not a squash, so each story's commits survive on `main`
+  (md, 2026-10-22; answers Epic 10 retro item 47's merge question for this epic).
+- AR-E11-2 (AD-19): Slice order on the branch: (1) foundation; (2) `user` + `features/auth` + `config` + `feedback`;
+  (3) `list` + membership; (4) `category`; (5) `item` + scheduler steps; (6) Mongo removal; (7) importer;
+  (8) Terraform; (9) deploy tasks + droplet compose; (10) cutover. A later slice may reference an earlier one, never the
+  reverse; a cross-slice call is non-atomic until both ends are on PostgreSQL, accepted on the branch only.
 
-**Dependency currency (feedback tech-debt item 1)**
-- AR-E10-1: **Inventory first.** Every direct dependency is listed with its locked version and its latest stable
-  version, measured on the day: `gradle/libs.versions.toml` (Kotlin 2.4.10, Ktor 3.5.2, graphql-kotlin 10.2.1, Arrow
-  2.2.3, Logback 1.6.2, Mongo driver 5.9.2, Kotest 6.2.4, Testcontainers 2.0.5, bcrypt 0.10.2), `bp_front/package.json`
-  (dependencies and devDependencies, including the `^`-ranged ones), the Docker base images (`gradle:9.6.1-jdk25`,
-  `eclipse-temurin:25`, `node:26-alpine`, `caddy:2-alpine`, `mongo:8`) and the `mise.toml` toolchains (temurin-25,
-  node 26). A prerelease (`-alpha`, `-beta`, `-RC`, `-canary`) is never a candidate.
-- AR-E10-2: **One variable per move.** Minor/patch bumps may land together per side (backend / frontend); each major
-  moves alone so a failure is attributable (Epic 7 ledger lesson, deferred-work.md "two variables" entry). A major may
-  carry a co-mover only when the upgraded artifact's published metadata requires it (e.g. a POM's Kotlin floor), cited.
-- AR-E10-3: **LAND or HOLD, never forced.** No `--legacy-peer-deps`, `--force`, `overrides`, `resolutions`, `.npmrc`
-  change, Gradle `force`/`strictly`, `-Xskip-metadata-version-check` or added `@Suppress` left in the tree. A bump
-  that cannot land cleanly is reverted to a byte-identical lockfile, its blocking symptom recorded verbatim in
-  `deferred-work.md`, and the story still closes `done` (the S-AC3 rule from Epic 7).
-- AR-E10-4: **TypeScript 7 retry.** Measured 2026-10-19: `typescript` latest `7.0.2`; `typescript-eslint` latest
-  `8.71.2` still declares peer `typescript >=4.8.4 <6.1.0` — the same blocker that held Story 7.10. The story re-measures
-  the peer range; if it still excludes 7.x the expected outcome is a HOLD at `6.0.3` with the evidence refreshed in the
-  Story 7.10 ledger entry (not a duplicate), plus a fresh `tsc -b --force` under TS 7 to confirm the code itself is
-  still clean. It does not swap the lint stack to escape the peer constraint.
-- AR-E10-5: **graphql-kotlin 11.** Measured 2026-10-19: `11.0.0` is released (locked `10.2.1`). Before the bump, the
-  open Story 7.12 ledger entry (Jackson 2 and Jackson 3 both on the runtime classpath; which `ContentNegotiation`
-  converter serialises GraphQL bodies unmeasured; `JacksonWebsocketContentConverter` at `GQL.kt` possibly vestigial) is
-  resolved by measurement and recorded as a rule — the ledger says "before the next graphql-kotlin major, not after".
-  The bump preserves the observable contract: failing-mutation and `FORBIDDEN` response bodies byte-identical; the
-  resolver error prefix `Exception while fetching data (/<field>) : ` that `bp_front/src/lib/admin/adminErrors.ts`
-  strips; `extensions.code` from the four `GraphQL*Exception` classes; a live subscription over `graphql-ws`; GraphiQL
-  status. Codegen is re-run and its output either byte-identical or committed.
-- AR-E10-6: **Verification set per bump:** `cleanTest test` totals read from the JUnit XML; `npm run lint`;
-  `npm run build`; `npm run test:e2e` on all Playwright projects against the production image; `npm run generate`
-  byte-check for any backend GraphQL change. Every count measured in the pass, none quoted from memory.
-- AR-E10-7: Docs that name pinned versions (root/per-directory `CLAUDE.md`, `AGENTS.md`, `architecture.md`
-  stack line) are updated in the same commit as the version they name.
+**Persistence (FR70, FR72)**
+- AR-E11-3 (AD-17): `plugins/Database.kt` exports `suspend fun <T> tx(block: suspend TxScope.() -> T): T`, the only
+  caller of `suspendTransaction`. It joins an open transaction or opens one; `useNestedTransactions = false`; max
+  attempts 1 (no implicit retry — Exposed's default of 3 re-runs the block); `TxScope.afterCommit {}` queues on the
+  outermost transaction, runs after its commit, and is dropped on rollback; Arrow `raise` inside `tx` rolls back, and
+  services put `either {}` outside `tx {}` so a `Left` means nothing was written. Tests prove that a rolled-back outer
+  `tx` drops a joined callee's queued events, and that `raise` rolls back.
+- AR-E11-4 (AD-2): Every service method that touches the database, of any visibility, runs its body in `tx {}`.
+  Repositories run only inside `tx`. GQL resolvers, REST routes, subscriptions and the scheduler call services only —
+  never a repository, never `tx`. A cross-slice workflow is one service method: `UserService.deleteUser`,
+  change-password + session invalidation, list views with members and unchecked counts
+  (`ItemService.countUncheckedByList(listIds)`). Today's violations (`ListApi.kt` reading `ListMemberRepository` /
+  `ItemStorage`, `UserAdminApi.kt` orchestrating the purge) are moved into services.
+- AR-E11-5 (AD-3): No `emit` inside a `tx` body; services register `afterCommit { channel.emit(x) }`. Event payloads and
+  the set of events each operation emits are unchanged.
+- AR-E11-6 (AD-1): `ItemStorage`, `CategoryStorage`, `ListStorage` and `ApplicationConfigService`'s `AtomicReference`
+  are deleted with no replacement cache. Each slice's `mongo/` becomes `db/` holding `<Name>Table.kt` (Exposed
+  `object <Name>s : Table("<snake_plural>")`), `<Name>RowMapper.kt`, `<Name>Repository.kt`; `config/db/`,
+  `features/auth/db/` likewise. Domain models keep their shape.
+- AR-E11-7 (AD-4): `list_members(list_id, user_id, status, created_at)`, PK `(list_id, user_id)`, status ∈
+  `PENDING | ACCEPTED | DECLINED`, is the only record of membership and invites. The owner holds an `ACCEPTED` row
+  written in the list-creating `tx`. Access = an `ACCEPTED` row exists. GQL `List.members` keeps its meaning: `PENDING`
+  + `ACCEPTED` rows **excluding the owner's**; the domain `members`/`memberUsernames` are derived the same way, never
+  stored. `ListService.isMember` becomes `suspend`; the subscription `takeWhile` re-check is one indexed read in its own
+  `tx`.
+- AR-E11-8 (AD-5): Flyway owns the schema: `bp_back/src/main/resources/db/migration/V<n>__<snake_name>.sql`, applied at
+  startup before GQL is configured, and by the importer before it loads. `V1__baseline.sql` is the **whole** Epic 11
+  schema. A shipped migration is never edited; migrations are DDL only, never data rows; each is additive and
+  backward-compatible with the previous release's image (a drop or rename ships one release after the code stops using
+  it). Exposed tables never issue DDL (`SchemaUtils` / `MigrationUtils` unused). `Migration.kt`,
+  `AppMigrationsRepository` and `app_migrations` are deleted; Mongo-era migrations are not ported.
+- AR-E11-9 (AD-6): `uuid` PKs generated by the application, `feedback.id` included (the mapper converts the domain
+  `String`). `app_config` has the fixed id `00000000-0000-0000-0000-000000000001`; a missing row means the defaults,
+  reads never write it, only `update` upserts it. Every instant is `timestamptz` ↔ `java.time.Instant` via
+  `exposed-java-time`. Enums are `text` + `CHECK`. snake_case identifiers. `users.username` is
+  `text COLLATE "C" UNIQUE`. `items.stores` is `text[]` keeping order and casing. `items.added_by`,
+  `feedback.username`, `refresh_tokens.username` are plain `text`, no FK. The repository translates SQLSTATE `23505`
+  into the slice's existing domain conflict; it aborts and rolls back the `tx`.
+- AR-E11-10 (AD-7): FKs to `lists` (`items`, `categories`, `list_members`) are `ON DELETE CASCADE` as a backstop; FKs to
+  `users` (`lists.owner_id`, `list_members.user_id`) are `ON DELETE RESTRICT`; `items (list_id, category_id)`
+  references `categories (list_id, id)` `ON DELETE CASCADE`, with `UNIQUE (list_id, id)` on `categories`. Services still
+  delete children explicitly in today's order inside one `tx`, returning the same counts and events. User deletion is
+  one `tx`: `SELECT … FOR UPDATE` on the user row, purge owned lists, delete the user's `list_members` rows and refresh
+  tokens, delete the `users` row **last** (supersedes Epic 9 AR-E9-8's row-first order).
+- AR-E11-11 (AD-8): Exposed DSL over `R2dbcDatabase` (`r2dbc-postgresql` + `r2dbc-pool`) on every request and
+  scheduler path; no DAO; blocking JDBC only for Flyway. One `db.postgres` block — `host, port, name, user, password,
+  sslmode, sslrootcert` ← `KTOR_DB_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`, `_SSLMODE`, `_SSLROOTCERT` — builds
+  both URLs (R2DBC spells the CA option `sslRootCert`, pgJDBC `sslrootcert`). `application.yaml` defaults are the local
+  dev values. `db.mongo.*`, `KTOR_MONGO_*` and `MIGRATION_TARGET_USER` are deleted.
+- AR-E11-12 (AD-8, review-versions #2): **Spike in the foundation story, before any slice moves:** the app starts and
+  connects to PostgreSQL over TLS with Ktor 3.6.0 (Netty 4.2.17) and `r2dbc-postgresql` 1.1.3 (reactor-netty 1.1.22,
+  built for Netty 4.1) on one classpath, with `dependencyInsight --dependency netty` recorded. If it fails, the story
+  stops and the persistence driver decision goes back to md.
+- AR-E11-13 (AD-10, NFR2): `AuthService` keeps rejecting `expires_at <= now()`. The hourly scheduler cycle calls one
+  service method per step — recurring restore, soft-delete hard-delete, `AuthService.purgeExpiredTokens()` — each in its
+  own `tx`; a step that throws is logged and the following steps still run.
+- AR-E11-14 (AD-16): PostgreSQL 18 everywhere: Compose `postgres:18` with fixed dev credentials (not secrets, NFR-D1)
+  and a named volume mounted at `/var/lib/postgresql` (the 18+ image path, not `…/data`); Testcontainers `postgres:18`
+  via `org.testcontainers.postgresql.PostgreSQLContainer` (`testcontainers-postgresql` 2.0.5); managed cluster on 18.
+  The `mongo` service, the `db_data` volume and Testcontainers Mongo are removed. A major-version change moves all three.
+- AR-E11-14a (review-rubric M9, review-adversary H3; md, 2026-10-22): **Local dev matches production privileges.**
+  Compose publishes PostgreSQL on loopback only, `127.0.0.1:25432` (the 27217 pattern: no clash with a local install).
+  An init script in Compose, and the same setup in `postgresContainer()`, creates a **non-superuser** role
+  `bag_please_app` that owns the `public` schema of `bag_please`, and the backend, Flyway and tests connect as it: the
+  privilege gap `db:bootstrap` closes in production then fails locally first. `application.yaml` defaults point at that
+  port and role. `docker:back` / `docker:up` descriptions stop naming Mongo; the dev DB is reset by dropping the volume
+  (Flyway `clean` stays disabled).
+- AR-E11-15 (Consistency Conventions): Indexes carry today's intents and no more: `users(username)` unique,
+  `items(list_id)`, `items(list_id, recurring, checked_at)`, `items(deleted, deleted_at)`,
+  `list_members(user_id, status)`, `refresh_tokens(expires_at)`, `refresh_tokens(username)`; any other only with a
+  reason in its migration. Tests: Kotest `FunSpec`; `FunSpec.postgresContainer()` replaces `mongoContainer()`; schema
+  by running Flyway, never `SchemaUtils`; fixtures write through services, repositories inside `tx`, or SQL. Errors:
+  expected outcomes become the slice's existing `Either` errors in the service, outside `tx`; GQL never inspects SQL
+  state.
+- AR-E11-16 (Stack): `exposed-core` / `exposed-r2dbc` / `exposed-java-time` 1.6.0; `r2dbc-postgresql` 1.1.3.RELEASE;
+  `r2dbc-pool` 1.0.2.RELEASE; `flyway-core` + `flyway-database-postgresql` 13.11.1; `org.postgresql:postgresql`
+  42.7.14 (Flyway only); `testcontainers-postgresql` 2.0.5. Kotlin 2.4.21 / Ktor 3.6.0 / temurin-25 unchanged.
 
-**Documentation cleanup (feedback tech-debt item 2)**
-- AR-E10-8: **Consumers decide what lives.** A file is kept only if something reads it: a `CLAUDE.md`/`AGENTS.md`
-  load, a BMAD skill or `_bmad` config path (`project_knowledge` → `docs/`, `planning_artifacts`,
-  `implementation_artifacts`), or a live planning document's citation. Each deletion is justified by a grep showing no
-  live consumer; historical records under `implementation-artifacts/` that cite a deleted file are records and are not
-  rewritten.
-- AR-E10-9: **`docs/` scan output.** The 11 files from the old `document-project` scan (`index.md`,
-  `project-overview.md`, `source-tree-analysis.md`, `api-contracts-bp_back.md`, `data-models-bp_back.md`,
-  `component-inventory-bp_front.md`, `architecture-routing.md`, `deployment-guide.md`, `development-guide.md`,
-  `project-parts.json`, `project-scan-report.json`) are reviewed against the code; anything still true and not already
-  in a `CLAUDE.md` is folded into the right one; the rest is deleted. `docs/feedback.md` stays (it is the backlog
-  intake). `project_knowledge` in the BMAD config is left pointing at a directory that exists and means something.
-- AR-E10-10: **Stale planning artifacts.** Candidates: the three `implementation-readiness-report-*.md`, the two
-  `ux-design-directions*.html`, the legacy `ux-design-specification*.md` (superseded by the `ux-epic-8` spine pair),
-  `prd-validation.md`, the two `sprint-change-proposal-*.md`, and the `review-*-epic9.md` / `.memlog.md` leftovers at
-  the planning root. Each is either deleted (no live consumer, value preserved in git) or kept with its consumer named.
-  `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair, `epics.md` and `epics-archive.md` are kept.
-- AR-E10-11: **Agent context files.** `AGENTS.md` (managed `bmad:context` block, verified at `1bb60cb`, 2026-09-07) is
-  refreshed with `bmad-project-context`; the four `CLAUDE.md` files are checked line by line against the code — stale
-  claims fixed, duplication between root, per-directory and `AGENTS.md` removed so each fact lives once.
+**One-time import (FR71)**
+- AR-E11-17 (AD-9): Export is `mongoexport --jsonArray` per collection, relaxed Extended JSON, into the gitignored
+  `migration-export/` at the repo root. The importer is `com.bagplease.tools.MongoImport` in its own Gradle source set
+  `bp_back/src/import/` — depends on `main`, reuses the `db/` Table objects, **not packaged into the image**. It runs
+  Flyway, then in one `tx`: refuse if any of `users`, `lists`, `list_members`, `categories`, `items`, `feedback`,
+  `refresh_tokens`, `app_config` holds a row (Flyway's history table excluded); load per AR-E11-18; print export /
+  loaded / dropped-with-reason per record type. A failure rolls back to an empty database, so it can be re-run.
+  `db:import` refuses a dirty tree and refuses while `bp_back` runs on the droplet (checked over SSH). It reaches the
+  cluster via `ssh -J <edge> -L <local port>:<cluster private host>:<port> deploy@<droplet>`; only this connection
+  uses `sslmode=verify-ca`. The `bag_please_app` credentials come from `terraform output` and go to the importer
+  process only — never Gradle, a file, or the shell.
+- AR-E11-18 (AD-18): Ids are accepted as a UUID string or `$binary` subtype `04`/`03` (`users._id` is binary today).
+  `list_members._id` is not carried. Each list's `memberUsernames`, resolved through `users.username`, is authoritative
+  for `ACCEPTED`; the owner is always `ACCEPTED`; a `list_members` document adds `PENDING`/`DECLINED` only for a user not
+  already `ACCEPTED`; `lists.members` ids are unused. Dropped and counted with reason: a member username/id resolving to
+  no user; a list whose owner resolves to no user; an item with null `listId`; an item whose category is the nil UUID
+  or missing from its list; a category with null `listId`. Refresh tokens not imported; `app_config` as its single row;
+  `{"$date": …}` → `timestamptz`.
+- AR-E11-18a (review-reconcile B9; md, 2026-10-22): Production runs Epic 9, so the export is already multi-store. The
+  importer still checks it: an item document carrying the legacy `store` field, or lacking `stores`, makes it **refuse
+  before loading anything** and name the offending documents. FR69's guarantee is then a checked precondition, not an
+  assumption.
 
-**Back-to-lists removal (feedback user item 1)**
-- AR-E10-12: The two links are `list-shopping-back` (`ListShoppingPage.tsx`, Story 6.2) and `list-detail-back`
-  (`ListDetailPage.tsx`). E2E that navigates through them (`e2e/sharing.spec.ts` `backToLists()`, five call sites, and
-  any spec asserting either test id) is moved to the account-menu `menu-lists` path through the shared helpers in
-  `e2e/support/ui.ts`, not re-declared in the spec. The now-unused imports (`ArrowBackIcon`, `RouterLink`/`Link` where
-  orphaned) are removed so lint stays clean.
+**Infrastructure and release (FR73, FR74)**
+- AR-E11-19 (AD-11, addendum): `deploy/terraform/` follows mal_ui: `main.tf`, `variables.tf`, `outputs.tf`,
+  `versions.tf`, `cloud-init.yaml.tftpl`, committed `.terraform.lock.hcl`, its own `.gitignore`; the VPC and SSH key are
+  data sources; the droplet has `lifecycle { ignore_changes = [user_data, image] }`; the firewall allows only 80 and 22
+  from the edge's private IP; SSH via the edge as jump host; S3 backend in the `io-workshop-tfstate` Spaces bucket, key
+  `bag-please/web.tfstate`. Terraform `~> 1.15`, provider `digitalocean` `~> 2.106`.
+- AR-E11-20 (AD-11, NFR-D3, NFR-D6): The managed cluster runs PostgreSQL 18 on the cheapest tier (slug confirmed with
+  `doctl databases options slugs --engine pg` at apply; ~$15/mo single node) in the same VPC; a
+  `digitalocean_database_firewall` has exactly one trusted source, the droplet. Terraform creates database `bag_please`
+  and user `bag_please_app` — the only identity of Flyway, the runtime and the importer. `doadmin` is used once, by
+  `db:bootstrap` over the tunnel, to give `bag_please_app` ownership of `public` in `bag_please`; the first apply
+  verifies against the real cluster that this is enough for Flyway. `infra:plan` / `infra:apply` are run by hand; a
+  deploy never runs Terraform. Droplet size slug, `-Xmx`, `mem_limit` and the R2DBC pool size are chosen in these stories
+  against the smallest droplet that runs both containers.
+- AR-E11-21 (AD-14): Runtime TLS to the database is `verify-full`. The droplet compose hardcodes
+  `KTOR_DB_SSLMODE: verify-full` and `KTOR_DB_SSLROOTCERT: /etc/bag-please/ca-certificate.crt` (committed, not secrets).
+  The deploy writes the CA from the `digitalocean_database_ca` data source to `bag-please/ca-certificate.crt` (mode
+  `644`), mounted read-only. The infra story verifies once from the droplet that `verify-full` passes against the
+  cluster's **private** host (unverified in DO docs — review-versions #5); if it fails, AD-14 goes back to md. Local dev,
+  E2E and Testcontainers run without TLS.
+- AR-E11-22 (AD-12, NFR-D1, NFR-D2): Operator secrets live in `.secure.build.env` (Docker Hub user, image names;
+  absorbs `project.env`, so `project.example.env` is retired) and `.secure.deploy.env` (DO token, Spaces key,
+  `EDGE_SSH`, `TF_VAR_*`, `KTOR_JWT_SECRET`, `KTOR_ADMIN_LOGIN`, `KTOR_ADMIN_PASS`), each with a committed `.example`
+  (blank values, a comment per entry). mise loads them per task; `lib.sh`'s strip list removes **every** variable of
+  `.secure.deploy.env`, `KTOR_*` included, before any nested Gradle or mise task. Runtime secrets reach the droplet only
+  in the deploy-written `bag-please/.env` (mode `600`, owner `deploy`); the deploy reads DB credentials from
+  `terraform output` and refuses to write an empty value. `.gitignore` covers `.secure.*.env`, `migration-export/`,
+  `*.tfstate*`, `*.tfvars`, `.terraform/`, `crash.log`, `*.archive` **before** the first such file exists. Images,
+  compose files and committed Terraform hold no secret.
+- AR-E11-23 (AD-13): The version is `gradle.properties`' `version`. `deploy:push` refuses a tag already on Docker Hub
+  and never pushes `latest` (replaces `images:build-push`). `deploy` with no argument: refuses a dirty tree; runs
+  `back:test`; builds and pushes; writes `.env` and runs `docker compose pull && up -d`; waits for `bp_front`'s
+  healthcheck (busybox `wget` of `/api/health` through Caddy, covering backend and database); smoke-tests the droplet
+  over the edge jump host (`http://<private ip>/api/health`). `deploy:status` checks the public
+  `https://bag-please.io-workshop.net/` and prints the running version. `deploy <version>` redeploys a pushed tag — the
+  rollback, safe across migrations by AR-E11-8. On failure it prints the rollback command and never rolls back itself.
+- AR-E11-24 (Consistency Conventions, review B3): Droplet compose (`deploy/docker-compose.yml` → droplet
+  `bag-please/docker-compose.yml`): `bp_front` published only on `${PRIVATE_IP}:80`; `bp_back` unpublished; both
+  `read_only`, `tmpfs: [/tmp]`, `cap_drop: [ALL]` (`bp_front` adds `NET_BIND_SERVICE`), `no-new-privileges`,
+  `mem_limit`; `bp_back` gets an explicit `-Xmx` via `JAVA_OPTS`. mise tasks: `infra:plan`, `infra:apply`,
+  `db:bootstrap`, `db:import`, `deploy:build`, `deploy:push`, `deploy`, `deploy:status`, each loading only the
+  `.secure.*.env` it needs; scripts in `deploy/scripts/` (`lib.sh`, `infra.sh`, `build.sh`, `push.sh`, `deploy.sh`,
+  `smoke.sh`, `status.sh`, `bootstrap-db.sh`, `import.sh`).
 
-**Out of scope unless md pulls them in:** the four open Epic 9 retro actions (ConfirmDialog consolidation of
-`DeleteFeedbackDialog`/`DeleteUserDialog`; `ItemLifecycleTest.kt` split; F19 `bmad-build-auto` resume path; F21
-`git_evidence.py` dotted story ids).
+**Cutover and docs**
+- AR-E11-25 (AD-20): Cutover order: `infra:apply` → `db:bootstrap` → md takes the Mongo export → `db:import` (`bp_back`
+  not yet deployed) → md checks the counts → `deploy` with the droplet smoke test → md checks both users' data through
+  the edge jump → repoint the edge → `deploy:status` → retire the old deployment. `migration-export/` leaves the repo
+  working tree once the import is verified; md keeps the export/archive off-repo as the only fallback. No restore drill.
+  Edge configuration for `bag-please.io-workshop.net` belongs to the io-workshop edge, outside this repo.
+- AR-E11-25a (review-reconcile B10, review-rubric H5; md, 2026-10-22): The root `CLAUDE.md` "Dump before a migration
+  release" section is **replaced by a pointer** to `deploy/README.md`, which documents the managed daily backups,
+  rollback by `deploy <previous>` (safe because migrations are additive, AR-E11-8), and an optional `pg_dump` over the
+  tunnel before a release that adds a migration.
+- AR-E11-26 (Consistency Conventions "Docs", review-rubric M8): Docs move with the behaviour they describe, in the story
+  that changes it, not as a merge-time sweep: root `CLAUDE.md` (stack, Compose commands, `project.env` /
+  `images:build-push`, the mongodump/restore section), `bp_back/CLAUDE.md` (layers, Storage, Mongo layer, tests, `tx`,
+  Security's TTL index), `routing/edge-proxy.md` (production domain), and a new `deploy/README.md` operator runbook
+  (infra, deploy, rollback, AR-E11-25). Zed tasks are re-synced whenever `mise.toml` tasks change (Story 10.10's
+  `sync-zed-mise-tasks`).
+- AR-E11-26a (review-rubric M6; md, 2026-10-22): Transactions run at PostgreSQL's default `READ COMMITTED`. The
+  check-then-write paths (`shareList`, `acceptInvite`, `saveItem` create-vs-update) keep today's semantics with no row
+  locks added; the only explicit lock is user deletion's `FOR UPDATE` (AR-E11-10). Creates `insert`; `ON CONFLICT`
+  upserts only where today's semantics need them (`app_config.update`).
 
 ### UX Design Requirements
 
-From the `ux-epic-8` contract (`DESIGN.md` + `EXPERIENCE.md`), as affected by the FR57 amendment.
-
-- UX-DR-E10-1: The shopping view (`/list/:id`) and the list management screen (`/lists/:id`) open directly on their
-  header — no back link above the title. Vertical rhythm above the header is re-checked so the title does not jump
-  against the app bar (the link's `mb: 2` spacing goes with it) on desktop and at the 320px floor.
-- UX-DR-E10-2: Navigation to the lists index is the account menu's **My lists** entry and home is **Home** / the
-  app-bar title; no in-page navigation affordance replaces the removed links.
-- UX-DR-E10-3: `EXPERIENCE.md` (navigation / information-architecture sections and both screens' anatomy) and
-  `DESIGN.md` (any back-link pattern or component listing) are corrected in the same commit as the removal; the
-  "one back-link pattern" note is deleted rather than left describing nothing.
+None. Epic 11 changes no screen, flow or copy (FR70), so the `ux-epic-8` contract was deliberately left out of the
+inputs (md, 2026-10-22). The only user-visible effect is FR71's one-time sign-in after cutover, because refresh tokens
+are not carried.
 
 ### FR Coverage Map
 
-FR57: Epic 10 — the back-to-lists links on `/list/:id` and `/lists/:id` are removed; the app-bar title and the
-account menu (Home, My lists) are the navigation.
-FR1–FR56, FR58–FR69 (except deferred FR42/FR43 and superseded FR48/FR49): delivered in Epics 1–9; regression-gated in
-Epic 10, no new work.
+FR70: Epic 11 — every slice (`user`, `features/auth`, `config`, `feedback`, `list` + membership, `category`, `item` +
+scheduler) moves to PostgreSQL; Mongo leaves code, Compose, Testcontainers and docs.
+FR71: Epic 11 — one-time, one-transaction import of the production `mongoexport`, with export / loaded / dropped counts
+per record type (widened by AD-18) and a refusal on legacy multi-store data (AR-E11-18a).
+FR72: Epic 11 — Flyway `V<n>__*.sql` applied at startup (and by the importer); `V1__baseline.sql` is the whole schema.
+FR73: Epic 11 — `deploy/terraform/`: droplet in the io-workshop VPC behind the edge, managed PostgreSQL 18 trusting only
+the droplet, applied by hand.
+FR74: Epic 11 — `deploy` (build, push an exact tag, roll the droplet, health wait, smoke test) and `deploy:status`.
+FR47, FR69 (and NFR-L3): Epic 11 — retired as Mongo-era history, not ported (AD-5).
+FR1–FR46, FR50–FR68 (except deferred FR42/FR43, superseded FR48/FR49, retired FR47): delivered in Epics 1–10;
+regression-gated in Epic 11 — backend tests per story on the branch, the full NFR17 suite before the single merge to
+`main`. FR42/FR43 stay deferred; their backend support moves with the item slice.
 
 ## Epic List
 
-### Epic 10: Lighter Screens, a Current Stack and Docs That Earn Their Place
+### Epic 11: Same App, New Home — PostgreSQL and a DigitalOcean Deployment
 
-The two list screens lose a back link the account menu already provides and open straight on their header. Underneath,
-every dependency is brought to its latest stable release or explicitly held with recorded evidence — including a retry
-of TypeScript 7 and graphql-kotlin 11, the latter only after the Jackson 2/3 question from Story 7.12 is settled. The
-documentation is cut to what agents and BMAD actually read, and what stays is verified against the code.
+Both production users keep every list, item, share and password across the move, and nothing they see changes; md
+gets a data store with real transactions and foreign keys in every environment, infrastructure declared in Terraform,
+and a one-command release with a status check — on a public repository that holds no secret.
 
-**FRs covered:** FR57 (amended); every other FR regression-gated
-**NFRs binding:** NFR17, NFR18, NFR64, NFR65 on every code story; NFR1–NFR8 and NFR-L1–NFR-L5 as the bump regression
-surface
-**Carries:** AR-E10-0 … AR-E10-12, UX-DR-E10-1 … UX-DR-E10-3
-**Source:** `docs/feedback.md` (2026-10-19) — user item 1, technical-debt items 1 and 2
+**FRs covered:** FR70, FR71, FR72, FR73, FR74 · retires FR47, FR69, NFR-L3 · regression surface: every other active FR
+**NFRs:** NFR2, NFR17 (branch exception), NFR-D1 … NFR-D6 · AR-E11-0 … AR-E11-26a
 
-**Why one epic (md, 2026-10-19).** No feedback loop runs between the three items: the removal is two screens and one
-spec, the bumps follow the LAND/HOLD protocol proven in Epic 7, and the documentation pass must run last regardless.
-The project ships one branch, one retro and one app version per epic.
+**Why one epic, not two:** a persistence epic without the deployment could not release — `main` on PostgreSQL has no
+production to run on until the droplet, the managed database and the import exist — and a deployment epic without the
+persistence move has nothing to deploy. The architecture is final, so no feedback between halves could change
+direction; the risk boundaries live inside the epic as gates instead (the Netty/TLS spike before any slice moves,
+`verify-full` on the private host before the first deploy, md's count check before the edge moves).
 
-**Ordering constraints for story creation:**
-
-1. The back-link removal lands first, so its E2E change (`backToLists()` → `menu-lists`) is in the suite every upgrade
-   is gated against.
-2. The Jackson 2/3 measurement precedes graphql-kotlin 11 (the 7.12 ledger entry: "before the next major, not after").
-3. Each major moves in its own story; minor/patch bumps are batched per side (backend / frontend).
-4. The TypeScript 7 retry follows the frontend bumps, so it is measured against the newest `typescript-eslint`.
-5. The documentation cleanup runs last: version lines in `CLAUDE.md`/`AGENTS.md` are only final after every bump, and
-   `AGENTS.md` is refreshed against the final HEAD.
+**Shape (story order follows AR-E11-2):** foundation (`tx`, Flyway, baseline schema, PostgreSQL in Compose and
+Testcontainers, the spike) → the slices in FK order → Mongo removal → importer → Terraform → deploy tasks and droplet
+compose → cutover. All land on `feature/pg-migration`; the merge to `main` is the epic's last gate.
 
 ---
 
-## Epic 10: Lighter Screens, a Current Stack and Docs That Earn Their Place
+## Epic 11: Same App, New Home — PostgreSQL and a DigitalOcean Deployment
 
-The two list screens open straight on their header, with navigation left to the account menu; every dependency is on
-its latest stable release or held with recorded evidence; and the documentation is only what something actually reads,
-verified against the code.
+Both production users keep every list, item, share and password across the move, and nothing they see changes; md
+gets a data store with real transactions and foreign keys in every environment, infrastructure declared in Terraform,
+and a one-command release with a status check — on a public repository that holds no secret.
 
-**Delivers:** FR57 (amended) · AR-E10-0 … AR-E10-12 · UX-DR-E10-1 … UX-DR-E10-3
+**Delivers:** FR70–FR74 · NFR2, NFR17 (branch exception), NFR-D1–NFR-D6 · AR-E11-0 … AR-E11-26a · retires FR47, FR69,
+NFR-L3
 
-**Binding on every story below:** the inherited invariants (AR-E10-0); E2E against the production artifact on desktop
-**and** the 320px floor, UI-driven (NFR17, NFR18, NFR64, NFR65) for every story that ships code; every new or changed
-test observed failing before it is accepted; every count, version and test total measured in the pass, never quoted;
-any blocked bump reverted to byte-identical manifests and lockfiles and recorded in `deferred-work.md` with the story
-still closing `done` (AR-E10-3); docs naming a moved version updated in the same commit (AR-E10-7); `DESIGN.md` /
-`EXPERIENCE.md` corrected in the same commit as any screen they describe; `sprint-status.yaml` reconciled at story
-close. Registry versions quoted below are the 2026-10-19 planning snapshot — each story re-measures before it moves
-anything, and a newer stable release found on the day is the target instead.
+**Binding on every story below:** the inherited invariants (AR-E11-0) — the GraphQL schema and every response shape are
+unchanged, so `npm run generate` stays byte-identical; stories land on `feature/pg-migration` in this order
+(AR-E11-1, AR-E11-2), and each keeps `gradle :bp_back:test` green for what it touches, while the E2E suite may be red
+until Story 11.7; no code writes one entity to both stores; every new or changed test is observed failing before it is
+accepted; test totals are read from the JUnit XML in the pass, never quoted; a migration file already on the branch is
+edited only before Story 11.11's merge, never after (AR-E11-8); docs describing a changed behaviour change in the same
+story (AR-E11-26); transactions stay at `READ COMMITTED`, creates are
+`insert`s and `ON CONFLICT` upserts appear only where today's semantics need them (AR-E11-26a); Zed tasks re-synced whenever `mise.toml` tasks change; `sprint-status.yaml` reconciled at story
+close. Versions are the 2026-10-21 snapshot (AR-E11-16) — each story re-measures before it pins anything.
 
-### Story 10.1: The list screens open on their header
+**Deliberate departure from "create tables only when needed":** Story 11.1 ships the whole schema in
+`V1__baseline.sql` (AD-19), so no later story edits a migration another story shipped. Nothing ships before the merge,
+so no release ever carries a table its code does not use.
 
-As a list member,
-I want the shopping view and the list management screen to start with the list's own header,
-So that I don't scroll past a back link that duplicates the account menu's Home and My lists entries.
+### Story 11.1: The backend can reach PostgreSQL safely
+
+As md, maintaining the backend,
+I want a PostgreSQL connection, a transaction helper and a versioned schema in place next to Mongo,
+So that every slice after this one moves onto a foundation that is already proven, not invented per slice.
 
 **Acceptance Criteria:**
 
-**Given** a signed-in user on the shopping view `/list/:id`
-**When** the page renders
-**Then** there is no back-to-lists link above the header: `list-shopping-back` is absent from the DOM
-**And** the header (`shopping-header`) is the first content in the page container (UX-DR-E10-1)
+**Given** nothing else in this story has been written yet
+**When** the spike adds `exposed-core` / `exposed-r2dbc` / `exposed-java-time`, `r2dbc-postgresql`, `r2dbc-pool`,
+`flyway-core` + `flyway-database-postgresql` and `org.postgresql:postgresql` (AR-E11-16) and starts the app against a
+TLS-enabled `postgres:18`
+**Then** the app starts on Ktor 3.6.0's Netty and runs `SELECT 1` over R2DBC with `sslmode=verify-full`, and the output
+of `gradle :bp_back:dependencyInsight --dependency netty` is recorded in the story (AR-E11-12)
+**And** if it cannot, the story stops there, records the failure verbatim, and the driver decision goes back to md;
+no slice code is written
 
-**Given** a signed-in user on the list management screen `/lists/:id`
-**When** the page renders
-**Then** `list-detail-back` is absent from the DOM and the header block is the first content in the page container
+**Given** the spike passed
+**When** `plugins/Database.kt` is written
+**Then** one `db.postgres` block (`host, port, name, user, password, sslmode, sslrootcert` ← `KTOR_DB_*`) builds both
+the R2DBC and the JDBC URL, with the CA option spelled `sslRootCert` for R2DBC and `sslrootcert` for pgJDBC, and
+`application.yaml` defaults are the local dev values: `localhost:25432`, database `bag_please`, role `bag_please_app`
+(AR-E11-11, AR-E11-14a)
+**And** it exports `suspend fun <T> tx(block: suspend TxScope.() -> T): T` — the only caller of `suspendTransaction` —
+which joins an open transaction or opens one, with `useNestedTransactions = false` and max attempts 1, and
+`TxScope.afterCommit {}` queuing on the outermost transaction (AR-E11-3)
 
-**Given** either screen on a desktop viewport and at the 320px floor
-**When** its top spacing is measured against the app bar
-**Then** the header sits at the container's top padding with no leftover gap from the removed link's `mb: 2`, nothing
-overflows horizontally, and the existing 320px layout assertions stay green (NFR64, NFR65)
+**Given** the `tx` helper
+**When** its tests run in a Kotest `FunSpec` against `postgresContainer()`
+**Then** an outer `tx` that fails after a joined inner `tx` registered `afterCommit` actions runs none of them
+**And** an Arrow `raise` inside `tx` leaves no row written, and a successful outer `tx` runs its queued actions once,
+after commit, in registration order
 
-**Given** a signed-in user on either screen
-**When** they open the account menu and choose **My lists**
-**Then** they land on `/lists`; choosing **Home** or the app-bar title still goes to the resolved home (FR57 amended,
-UX-DR-E10-2)
+**Given** `bp_back/src/main/resources/db/migration/V1__baseline.sql`
+**When** Flyway runs at startup, before GQL is configured
+**Then** it creates the eight tables `users`, `lists`, `list_members`, `categories`, `items`, `feedback`,
+`refresh_tokens`, `app_config` with the column conventions of AR-E11-9, the foreign keys and delete rules of
+AR-E11-10, and exactly the indexes of AR-E11-15, and it holds DDL only — no data row (AR-E11-8)
+**And** a second startup against the migrated database applies nothing and changes nothing (FR72)
+**And** no Exposed `SchemaUtils` or `MigrationUtils` call exists anywhere in `bp_back`
 
-**Given** the E2E suite (15 specs) references the removed test ids today — `sharing.spec.ts` (`backToLists()` helper),
-`shopping.spec.ts`, `admin.spec.ts`, `lists.spec.ts`, `navigation.spec.ts`
-**When** the story is done
-**Then** every navigation that clicked `list-detail-back` or `list-shopping-back` goes through the shared
-`openListsViaMenu()` in `e2e/support/ui.ts`, the local `backToLists()` helper is deleted, no spec re-declares a helper,
-and `grep -rn "list-detail-back\|list-shopping-back" bp_front/` returns nothing (AR-E10-12)
-**And** `navigation.spec.ts` assertions that the shopping view **shows** a back link (Story 6.2 / FR57) are replaced by
-assertions that neither screen has one, each observed failing against the pre-change build before it is accepted
+**Given** `docker-compose.yaml`
+**When** `docker compose up` runs
+**Then** a `postgres:18` service runs **next to** `mongo`, published only on `127.0.0.1:25432`, with a named volume
+mounted at `/var/lib/postgresql`, and an init script that creates the non-superuser role `bag_please_app` owning the
+`public` schema of `bag_please`; the backend connects as that role, not as the image superuser (AR-E11-14, AR-E11-14a)
+**And** `FunSpec.postgresContainer()` in `utils/TestContainers.kt` uses `org.testcontainers.postgresql.PostgreSQLContainer`
+with `postgres:18`, the same role setup, and runs Flyway for the schema
 
-**Given** `ArrowBackIcon` and `RouterLink`/`Link` imports become unused in `ListShoppingPage.tsx` and `ListDetailPage.tsx`
-**When** `npm run lint` and `npm run build` run
-**Then** both pass with the orphaned imports removed, and `DESIGN.md`'s icon inventory drops `ArrowBack` (no remaining
-consumer under `bp_front/src/`) with its count line updated
+**Given** `/api/health`
+**When** PostgreSQL does not answer `SELECT 1` within 2 s, or Mongo does not answer its ping
+**Then** it returns 503 `UNAVAILABLE`, and 200 `OK` only when both answer; `HealthApiTest` covers the PostgreSQL-down
+case (Epic 9 AD-9; the Mongo half leaves in Story 11.7)
 
-**Given** `prd.md` FR57 and the `ux-epic-8` contract still describe a back-to-lists affordance
-**When** the code change is committed
-**Then** the same commit amends FR57 in `prd.md` to the Epic 10 wording in this file's inventory (with a dated
-`changes` entry in its frontmatter), and corrects `EXPERIENCE.md` (navigation / IA, both screens' anatomy) and
-`DESIGN.md` so no sentence describes the removed link or the "one back-link pattern" (UX-DR-E10-3)
+**Given** the story closes
+**Then** `gradle :bp_back:test` is green, `bp_back/CLAUDE.md` documents `tx`, `afterCommit` and the Flyway rule, and no
+slice reads or writes PostgreSQL yet
 
-**Given** the full gate
+### Story 11.2: Accounts and sessions live in PostgreSQL
+
+As a bag-please user,
+I want my account, password and sign-in to work exactly as before when they move to PostgreSQL,
+So that the platform change is invisible to me.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.1 has landed
+**When** the `user` slice moves
+**Then** `entity/user/mongo/` is replaced by `entity/user/db/` (`UserTable.kt`, `UserRowMapper.kt`,
+`UserRepository.kt`), and `features/auth/RefreshTokenRepository` by `features/auth/db/` on `refresh_tokens`
+(AR-E11-6)
+**And** every service method that touches either runs its body in `tx {}`, and no route or GQL resolver calls a
+repository (AR-E11-4)
+
+**Given** a username that differs from an existing one only in letter case, and one that is identical
+**When** each is registered, or created by the admin
+**Then** the different-case name is accepted (unchanged Mongo behaviour) and the identical name gets the existing
+conflict error, produced by the repository translating SQLSTATE `23505` (AR-E11-9)
+**And** the admin user list keeps its binary `username` order and 20-per-page pagination (FR13, Epic 9 AD-6), proven
+by a test whose usernames mix cases and would sort differently under a locale collation
+
+**Given** a refresh token whose `expires_at` is in the past
+**When** it is presented to `/api/auth/refresh`
+**Then** it is rejected as today
+**And** `AuthService.purgeExpiredTokens()` deletes every expired row and no live one (NFR2, AR-E11-13)
+
+**Given** `plugins/Scheduler.kt`
+**When** the hourly cycle runs
+**Then** it calls one service method per step — the existing item cycle, then `purgeExpiredTokens()` — each in its own
+`tx`, and a test proves that a throwing step is logged and the next step still runs (AR-E11-13)
+
+**Given** a user changes their password
+**When** the change succeeds
+**Then** the new hash and the invalidation of their refresh tokens are one `tx` in one service method; a failure
+leaves both the old hash and the sessions in place
+
+**Given** the admin deletes a user
+**When** `UserService.deleteUser` runs (moved out of `UserAdminApi.kt`)
+**Then** it locks the user row with `SELECT … FOR UPDATE`, purges the user's owned lists and memberships through
+`ListService` (still on Mongo, so this call is not atomic yet — accepted on the branch, AR-E11-2), deletes their
+refresh tokens, and deletes the `users` row **last**, returning the same counts and events as before (AR-E11-10)
+**And** the user's feedback survives (FR67)
+
+**Given** the story closes
+**Then** `UserRegistrationTest`, `LoginTokenTest`, `AuthApiTest`, `AdminUserManagementTest` and `WebSocketAuthTest` run
+on `postgresContainer()` and are green, NFR1, NFR3, NFR4, NFR7 and NFR8 hold unchanged, and `bp_back/CLAUDE.md`'s
+Security section no longer names a TTL index
+
+### Story 11.3: Settings and feedback live in PostgreSQL
+
+As md, running bag-please as its admin,
+I want the registration switch and user feedback to behave as before on PostgreSQL,
+So that the admin area is unchanged and the import can trust an empty database to mean empty.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.2 has landed
+**When** the `config` slice moves to `config/db/`
+**Then** `app_config` is read by its fixed id `00000000-0000-0000-0000-000000000001`; a missing row returns the
+defaults **without writing one**; only `update` upserts it (AR-E11-9)
+**And** `ApplicationConfigService`'s `AtomicReference` cache is deleted with no replacement (AR-E11-6)
+
+**Given** a freshly migrated, empty database
+**When** the login page is loaded, `/api/auth/register` is attempted and the admin reads the configuration
+**Then** `app_config` still has zero rows — proven by a test, because the importer's emptiness check depends on it
+
+**Given** the admin toggles registration
+**When** the next request reads the setting
+**Then** it sees the new value with no restart (FR20, FR21, FR22)
+
+**Given** the `feedback` slice moves to `entity/feedback/db/`
+**When** a user sends feedback and the admin lists and deletes it
+**Then** behaviour is unchanged (FR66, FR67): newest first, plain text, 2000-character cap, survives user deletion
+**And** `feedback.id` is a `uuid` column converted by the mapper from the domain `String`, and deleting an id that is
+not a valid UUID returns the existing not-found error rather than a server error
+
+**Given** the story closes
+**Then** `ApplicationConfigTest` and `FeedbackTest` run on `postgresContainer()` and are green
+
+### Story 11.4: Lists, shares and invites live in PostgreSQL
+
+As a bag-please user who shares lists,
+I want my lists, the people I share them with and my pending invites to behave exactly as before,
+So that sharing keeps working after the move and nobody sees a list they are not a member of.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.3 has landed
+**When** the `list` slice moves to `entity/list/db/`
+**Then** `list_members(list_id, user_id, status, created_at)` is the only record of membership and invites; the
+`members` / `memberUsernames` arrays are not stored anywhere; `ListStorage` is deleted (AR-E11-6, AR-E11-7)
+**And** creating a list writes the list row and the owner's `ACCEPTED` membership row in one `tx`
+
+**Given** a list with an owner, one accepted member and one pending invitee
+**When** the GQL `List.members` field and the Share dialog's data are read
+**Then** they return the accepted member and the pending invitee and **not** the owner — byte-identical to the
+pre-move response for the same data, captured before the change (AR-E11-7)
+
+**Given** `ListApi.kt` today reads `ListMemberRepository` and `ItemStorage` directly
+**When** the slice moves
+**Then** list views with members and unchecked counts are composed by `ListService`, using
+`ItemService.countUncheckedByList(listIds)` (items are still on Mongo here — accepted on the branch), and no GQL
+resolver touches a repository or storage (AR-E11-4)
+
+**Given** a subscriber to a list's items or categories
+**When** they are removed from the list, or leave it, while subscribed
+**Then** the `takeWhile` re-check — now `suspend ListService.isMember`, one indexed read in its own `tx` — ends their
+stream on the next event (NFR-L1, AR-E11-7)
+**And** `SubscriptionScopingTest` and `ListAuthorizationTest` are green on `postgresContainer()`
+
+**Given** sharing by username, accepting, declining, leaving, removing a member and deleting a list
+**When** each runs
+**Then** it behaves as before (FR37, FR39, FR40, FR55): specific errors for unknown user, existing member and self; the
+admin is rejected by every list operation and never appears in `lists.owner_id` or `list_members` (FR56)
+**And** the membership check runs in the same `tx` as the work it guards (NFR-L2)
+
+**Given** the admin deletes a user who owns lists and is a member of others
+**When** `UserService.deleteUser` runs
+**Then** the list and membership parts of the purge and the `users` delete now share one `tx` (the purged lists'
+categories and items are still on Mongo, so that part stays non-atomic until Stories 11.5 and 11.6 — accepted on the
+branch, AR-E11-2); a user row cannot be deleted while a `lists.owner_id` or
+`list_members.user_id` row still references it (`ON DELETE RESTRICT`, AR-E11-10)
+
+**Given** the story closes
+**Then** `ListServiceTest` and `ListSharingTest` are green on `postgresContainer()`
+
+### Story 11.5: Categories live in PostgreSQL
+
+As a bag-please user,
+I want my categories to be created, renamed and deleted exactly as before,
+So that organising a list is unchanged after the move.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.4 has landed
+**When** the `category` slice moves to `entity/category/db/`
+**Then** `CategoryStorage` is deleted, every `CategoryService` method runs in `tx {}`, and its subscription events are
+registered with `afterCommit` (AR-E11-3, AR-E11-5, AR-E11-6)
+
+**Given** a member renames a category
+**When** the rename commits
+**Then** other members' views receive the update in real time (FR63), and a rename that fails emits nothing
+
+**Given** a category with items
+**When** it is deleted
+**Then** its items are deleted first and the category second, in today's order, inside one service method, with the
+same counts and events as before (Epic 9 AD-7); items still live on Mongo here, so that step is not atomic yet —
+accepted on the branch (AR-E11-2)
+
+**Given** a category on list A
+**When** a write tries to use it on list B
+**Then** it is rejected as before (FR58)
+
+**Given** the story closes
+**Then** the category cases of `ItemCategoryStorageTest` are green on `postgresContainer()`
+
+### Story 11.6: Items and the hourly jobs live in PostgreSQL
+
+As a bag-please user shopping with others,
+I want items, check-offs, stores and live updates to behave exactly as before,
+So that the core shopping loop does not notice the move.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.5 has landed
+**When** the `item` slice moves to `entity/item/db/`
+**Then** `ItemStorage` is deleted, `items.stores` is a `text[]` keeping each item's order and casing (FR44, Epic 9
+AD-4), `items.added_by` is plain text (FR45), and an item's category is enforced by the composite foreign key
+`(list_id, category_id) → categories (list_id, id)` (AR-E11-10)
+
+**Given** an item save
+**When** the id does not exist, exists on the target list, or exists on another list
+**Then** it is created, merged — `addedBy`, `checkedAt`, `deleted` / `deletedAt` surviving — or rejected, exactly as
+FR58 defines, with the one check-state transition of Epic 9 AD-11
+
+**Given** an item mutation inside a service method
+**When** the `tx` commits
+**Then** its event reaches subscribers once (FR52); when it rolls back, nothing is emitted (AR-E11-5)
+
+**Given** the hourly scheduler
+**When** a cycle runs
+**Then** recurring restore, soft-deleted hard-delete and `purgeExpiredTokens` are three steps, each one service method in
+its own `tx`, and a throwing step does not stop the others (FR54, AR-E11-13)
+
+**Given** a category deleted with items in it, and a list deleted with items and categories in it
+**When** each runs
+**Then** each is now one `tx`, removing children explicitly in today's order with the same counts and events
+(AR-E11-10)
+
+**Given** the story closes
+**Then** `ItemApiTest`, `ItemCategoryStorageTest`, `ItemLifecycleTest` and `SubscriptionScopingTest` are green on
+`postgresContainer()`, and no slice reads or writes Mongo any more
+
+### Story 11.7: MongoDB leaves the stack
+
+As md, maintaining bag-please,
+I want every trace of MongoDB gone from code, Compose, tests and docs, with the full E2E suite green on PostgreSQL,
+So that the branch is a single-store application that could merge.
+
+**Acceptance Criteria:**
+
+**Given** Story 11.6 has landed
+**When** the Mongo code is removed
+**Then** the `mongo/` package, `MongoConnection`, the BSON serializers, `plugins/Migration.kt`,
+`AppMigrationsRepository`, `MigrationTest`, `mongoContainer()`, the Mongo driver and Testcontainers Mongo
+dependencies, `db.mongo.*`, `KTOR_MONGO_*` and `MIGRATION_TARGET_USER` are deleted (AR-E11-8, AR-E11-11)
+**And** `grep -rniE 'mongo|bson|app_migrations' bp_back/src bp_front/e2e docker-compose.yaml gradle mise.toml` returns
+no hit outside a line that names the import of the Mongo export (Story 11.8)
+
+**Given** `docker-compose.yaml`
+**When** `docker compose up --build` runs
+**Then** it starts `postgres`, `bp_back` and `bp_front` only; the `mongo` service and the `db_data` volume are gone;
+`bp_front` and `bp_back` depend on `postgres` being healthy, and `/api/health` checks PostgreSQL only (AR-E11-14)
+**And** the `docker:up` / `docker:back` task descriptions no longer name Mongo, and Zed tasks are re-synced
+
+**Given** the full Playwright suite
+**When** `npm run test:e2e` runs against the production image on every project (desktop, mobile and the 320px floor)
+**Then** it passes with zero failures — the first time on the branch since Story 11.2 (FR70, NFR17, NFR18, NFR64,
+NFR65)
+**And** `npm run generate` is byte-identical to `main`
+
+**Given** the docs
 **When** the story closes
-**Then** `npm run lint`, `npm run build` and `npm run test:e2e` on every Playwright project pass with measured totals
-recorded
+**Then** root `CLAUDE.md` names PostgreSQL 18, its volume and `docker compose up postgres bp_back` for Vite dev work, and
+says that an old Mongo-based stack comes up on an empty PostgreSQL database; `bp_back/CLAUDE.md`'s layers read
+GQL → Service → Repository → PostgreSQL with no Storage layer; any Playwright comment naming Mongo is corrected
+(AR-E11-26)
+**And** the root `CLAUDE.md` dump-and-restore section is left in place, marked as superseded by Story 11.10, so the
+repo never documents a procedure for a database it no longer has without saying so
 
-### Story 10.2: We know which Jackson writes our GraphQL responses
+### Story 11.8: Production data can be imported in one go
 
-As md, maintaining the backend,
-I want a measured answer to which Jackson mapper serialises GraphQL bodies and WebSocket frames,
-So that the graphql-kotlin 11 bump cannot silently flip response serialisation.
-
-**Acceptance Criteria:**
-
-**Given** the open Story 7.12 ledger entry in `deferred-work.md` (Jackson 2 and Jackson 3 both on `runtimeClasspath`;
-`ContentNegotiation { jackson() }` on the root route at `Routing.kt`; `JacksonWebsocketContentConverter` at `GQL.kt`)
-**When** the story runs at least two of the black-box discriminators the entry names — non-ASCII / astral-plane escaping
-via the `emoji` field, `Accept`-header negotiation and 406 behaviour, the `Content-Type` `charset` suffix, field
-ordering / pretty-print defaults — or a throwaway-build `pluginOrNull(ContentNegotiation)` read
-**Then** the mapper serialising HTTP GraphQL `data`/`errors` is identified with the probe output captured verbatim
-**And** the same is established for subscription frames over `graphql-ws`
-
-**Given** the answer
-**When** it is recorded
-**Then** it becomes a rule in `bp_back/CLAUDE.md` (which mapper owns which path, and what moving or removing the root
-`ContentNegotiation` install would change)
-**And** a Kotest `testApplication` test pins the discriminating behaviour, so relocating the install fails the backend
-suite; the test is observed failing with the install moved before it is accepted
-
-**Given** the WebSocket converter is shown vestigial for GraphQL frames
-**When** it is removed
-**Then** a live subscription (item check-off reaching a second member) still works in E2E and the `FORBIDDEN` and
-failing-mutation response bodies stay byte-identical to a captured baseline (md5 recorded before and after)
-**And** if it is shown load-bearing instead, a code comment at `GQL.kt` says so and why, and nothing is removed
-
-**Given** the story closes
-**Then** the 7.12 ledger entry is closed in place with a pointer to the rule and the test; no dependency version moved
-(`git diff gradle/libs.versions.toml` empty); `cleanTest test` totals read from the JUnit XML and the full E2E gate pass
-
-### Story 10.3: The backend runs on current minor releases
-
-As md, maintaining the backend,
-I want every backend dependency below its next major brought to the latest stable minor/patch,
-So that the graphql-kotlin major lands on a current base as the only variable.
+As md, about to move two real users' data,
+I want an importer that loads a Mongo export into an empty PostgreSQL database in one transaction and tells me exactly
+what it loaded and dropped,
+So that I can trust the move, or re-run it from scratch if anything fails.
 
 **Acceptance Criteria:**
 
-**Given** the backend inventory (AR-E10-1), re-measured on the day — snapshot: Kotlin 2.4.10 → 2.4.21, Ktor 3.5.2 → 3.6.0,
-Mongo driver 5.9.2 → 5.13.0, Logback 1.6.2 → 1.6.5, Kotest 6.2.4 → 6.2.6; Arrow 2.2.3, Testcontainers 2.0.5, bcrypt 0.10.2
-current; `gradle:9.6.1-jdk25` → current Gradle 9.x image; `eclipse-temurin:25`, `mongo:8`, mise `temurin-25`
-**When** the story lists it
-**Then** the record shows locked vs latest-stable for each, prereleases excluded (Kotlin 2.5.0-Beta*, Arrow 2.3.0-alpha*),
-and `graphql-kotlin` explicitly left for Story 10.4
+**Given** Story 11.7 has landed, and before any export file exists in the tree
+**When** `.gitignore` is updated
+**Then** it covers `.secure.*.env`, `migration-export/`, `*.tfstate*`, `*.tfvars`, `.terraform/`, `crash.log` and
+`*.archive`, and `git check-ignore` confirms one sample path for each (AR-E11-22, NFR-D1, NFR-D5)
 
-**Given** the minor/patch bumps applied together in `libs.versions.toml` and `bp_back/Dockerfile`
-**When** `./gradlew :bp_back:cleanTest :bp_back:test` and `:bp_back:build` run
-**Then** both pass with no added `@Suppress`, `force`/`strictly`, or `-Xskip-metadata-version-check` (AR-E10-3)
-**And** if anything fails, the bumps are bisected and only the culprit is held — reverted and recorded verbatim in
-`deferred-work.md` — while the rest land
+**Given** the importer
+**When** it is built
+**Then** `com.bagplease.tools.MongoImport` lives in its own Gradle source set `bp_back/src/import/`, depends on `main`,
+reuses the `db/` Table objects, and is **not** in the `bp_back` image — proven by listing the image's classpath
+(AR-E11-17)
 
-**Given** the Story 10.2 rule and test
-**When** the bumped backend runs
-**Then** the Jackson-discrimination test stays green, and the `FORBIDDEN` / failing-mutation bodies match the 10.2 md5
-baseline
+**Given** a target database that holds any row in any of the eight application tables
+**When** the importer runs
+**Then** it refuses before loading and names the non-empty table; Flyway's history table does not count (FR71)
 
-**Given** Ktor moves a minor
-**When** the auth and rate-limit surfaces are exercised
-**Then** login, refresh-cookie flags (`Secure`, `HttpOnly`, `SameSite=Strict`), rate limiting, `/api/health` and the
-subscription JWT close-on-expiry behave as before — covered by the existing Kotest and E2E suites, totals measured
+**Given** an export in which any item document carries the legacy `store` field or lacks `stores`
+**When** the importer runs
+**Then** it refuses before loading anything and lists those documents' ids (AR-E11-18a)
 
-**Given** the bumped stack built with `docker compose up --build`
-**When** `npm run generate` runs with a fresh `CODEGEN_TOKEN`
-**Then** `git status --short bp_front/src/__generated__/` is empty, or the change is committed and explained
+**Given** fixture exports written as `mongoexport --jsonArray` relaxed Extended JSON, covering: `users._id` as
+`$binary` subtype `04` and `03` and other ids as strings; `{"$date": …}` instants; a list whose `memberUsernames`
+contains an accepted member, plus `list_members` documents with `PENDING` and `DECLINED`; an item with several stores,
+recurring settings, check state and soft-delete state; feedback; `app_config`; refresh tokens; and one of each orphan
+AR-E11-18 names
+**When** the importer runs against an empty `postgresContainer()`
+**Then** Flyway runs first, everything loads in one `tx`, and the report prints per record type the export count, the
+loaded count and the dropped count with one reason per dropped row, with export = loaded + dropped for every type
+**And** a user's imported password hash signs them in, owners are `ACCEPTED`, `memberUsernames` wins over a conflicting
+`list_members` document, no refresh token is loaded, and store order and casing are kept (FR71, AR-E11-18)
 
-**Given** the story closes
-**Then** the full E2E gate passes on every project, and `bp_back/CLAUDE.md` / `AGENTS.md` / `architecture.md` lines
-naming a moved version are updated in the same commit (AR-E10-7)
+**Given** a fixture that makes the load fail part-way
+**When** the importer runs
+**Then** the database is left with zero rows in every application table, and a second run on a corrected fixture
+succeeds
 
-### Story 10.4: graphql-kotlin 10 → 11
+**Given** the importer and `docker compose up postgres` with an empty volume
+**When** a local `db:import:local` task runs it against `migration-export/`
+**Then** it succeeds through the same code path the production run will use, without TLS (AR-E11-21)
+**And** the task passes database credentials to the importer process only, never to Gradle's environment or a file
 
-As md, maintaining the backend,
-I want graphql-kotlin on 11.x, or a recorded reason it cannot be,
-So that the GraphQL server stays on a supported major without changing what clients see.
+### Story 11.9: The new home exists in Terraform
 
-**Acceptance Criteria:**
-
-**Given** Story 10.3 has landed and `graphql-kotlin` latest stable is re-measured (snapshot `11.0.0`)
-**When** the compatibility source is checked
-**Then** the `graphql-kotlin-ktor-server` POM's Ktor and Kotlin floors are cited (snapshot: Ktor 3.4.1, Kotlin 2.3.0 —
-already met), and the release notes' breaking changes are listed against this codebase's usage (`GQL.kt`, schema
-hooks, the four `GraphQL*Exception` classes, subscription server)
-
-**Given** baselines captured before the bump: the failing-`saveItem` error body, a `FORBIDDEN` body, an
-`extensions.code` per exception class, `GET /api/graphiql` status, and the Story 10.2 discrimination output
-**When** the version moves and only the `bp_back/` edits a captured compile or test error forces are made
-**Then** after the bump the bodies are byte-identical (md5 before/after), `errors[0].message` still carries the prefix
-`Exception while fetching data (/saveItem) : ` that `bp_front/src/lib/admin/adminErrors.ts` strips, every
-`extensions.code` is unchanged, and GraphiQL answers as before (AR-E10-5)
-
-**Given** the bumped backend
-**When** `npm run generate` runs and the full E2E gate runs
-**Then** codegen output is byte-identical or committed and explained, a live subscription and a live mutation pass on
-both viewports, and the Story 10.2 test is green
-
-**Given** the bump cannot land under AR-E10-3's prohibitions
-**When** the story takes the HOLD branch
-**Then** `libs.versions.toml` and any touched source are restored to byte-identical, the blocking error is recorded
-verbatim in a `## Deferred from: Story 10.4` ledger section, and the story closes `done`
-
-**Given** the story closes on LAND
-**Then** `cleanTest test` totals come from the JUnit XML and docs naming the graphql-kotlin version are updated in the
-same commit
-
-### Story 10.5: The frontend runs on current minor releases
-
-As md, maintaining the frontend,
-I want every frontend dependency below its next major brought to the latest stable minor/patch,
-So that the PWA and TypeScript majors are each tried on a current base as the only variable.
+As md, operating bag-please,
+I want the droplet and the managed database declared in Terraform and reachable only the way the architecture says,
+So that production infrastructure is reproducible, private and sized for two users.
 
 **Acceptance Criteria:**
 
-**Given** the frontend inventory (AR-E10-1), re-measured on the day — snapshot: React/React DOM 19.2.8 → 19.3.1,
-`@apollo/client` 4.2.11 → 4.3.4, MUI 9.3.1 → 9.5.0, Vite 8.2.1 → 8.3.4, `@vitejs/plugin-react` → 6.1.2, Playwright
-1.62.1 → 1.64.1, eslint → 10.13.0, `typescript-eslint` → 8.71.2, `graphql-ws` 6.2.1 → 6.4.1, codegen cli 7.2.0 → 7.4.6
-and client-preset 6.1.3 → 6.2.3, `@types/*`, `react-router-dom`, `globals`, `eslint-plugin-react-refresh`; `node:26-alpine`,
-`caddy:2-alpine`, mise `node 26`
-**When** the story lists it
-**Then** locked vs latest-stable is recorded for each, and `typescript` (Story 10.7) and `vite-plugin-pwa` (Story 10.6)
-are explicitly left out
+**Given** Story 11.8 has landed
+**When** `deploy/terraform/` is written following mal_ui
+**Then** it holds `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf` (Terraform `~> 1.15`, provider
+`digitalocean ~> 2.106`), `cloud-init.yaml.tftpl`, a committed `.terraform.lock.hcl` and its own `.gitignore`; the VPC
+and SSH key are data sources; the droplet has `lifecycle { ignore_changes = [user_data, image] }`; the firewall allows
+only 80 and 22 from the edge's private IP; state goes to the `io-workshop-tfstate` Spaces bucket under
+`bag-please/web.tfstate` (FR73, AR-E11-19, NFR-D2)
 
-**Given** the bumps applied with exact pins where the package is pinned today and ranges kept where ranged today
-**When** `npm install` runs with no flags and no `.npmrc` change
-**Then** it exits 0 with no `overrides`/`resolutions`, and `npm run lint` and `npm run build` pass
-**And** a package that cannot land cleanly is held — reverted and recorded verbatim — while the rest land (AR-E10-3)
+**Given** the managed database
+**When** `infra:plan` shows it
+**Then** it is PostgreSQL 18 on the cheapest tier — the slug confirmed with `doctl databases options slugs --engine pg`
+and recorded — in the same VPC, with a `digitalocean_database_firewall` whose only trusted source is the droplet, a
+database `bag_please` and a user `bag_please_app` (AR-E11-20, NFR-D3, NFR-D6)
+**And** the droplet size is the smallest that runs both containers, recorded with its price
 
-**Given** `@apollo/client` and `graphql-ws` move a minor
-**When** the E2E suite exercises login, silent refresh, a mutation, a live subscription across two members, and logout
-disposing the socket before clearing auth
-**Then** all pass on every project (NFR-L5, FR53)
+**Given** `.secure.deploy.env.example`
+**When** it is committed
+**Then** every variable the infra and deploy tasks read is listed with a blank value and a one-line comment
+(AR-E11-22, NFR-D1)
+**And** `infra:plan` and `infra:apply` load `.secure.deploy.env` themselves, and nothing is exported into the
+operator's shell
 
-**Given** Playwright moves a minor
-**When** browsers are installed for the new version
-**Then** the four-project topology and count invariants documented in `playwright.config.ts` still hold, with totals
-measured
+**Given** `infra:apply` has run
+**When** `db:bootstrap` runs over `ssh -J <edge> -L …` as `doadmin`
+**Then** `bag_please_app` owns the `public` schema of `bag_please`, `doadmin` is used by no other task, and a Flyway run
+as `bag_please_app` through the tunnel creates the baseline schema (AR-E11-20)
 
-**Given** `npm run generate` runs against the live schema
-**Then** `src/__generated__/` is byte-identical or the change is committed and explained
+**Given** the cluster's CA from the `digitalocean_database_ca` data source
+**When** `psql "sslmode=verify-full sslrootcert=<ca> host=<private host>"` runs from the droplet
+**Then** it connects, and the result is recorded (AR-E11-21)
+**And** if it does not, the story stops and AD-14 goes back to md before any deploy is built on it
 
-**Given** the story closes
-**Then** the full E2E gate passes, `bp_front/CLAUDE.md` / `AGENTS.md` / `architecture.md` version lines are updated in
-the same commit, and the bundle-size delta of `npm run build` is recorded (not a failure criterion)
+**Given** `db:import`
+**When** it runs
+**Then** it refuses a dirty tree, refuses while `bp_back` runs on the droplet (checked over SSH), opens the tunnel,
+reads the `bag_please_app` credentials from `terraform output`, and passes them with `sslmode=verify-ca` to the importer
+process only — never to Gradle, a file or the shell (AR-E11-17)
+**And** a dry run against the empty cluster with a fixture export loads, and the cluster is emptied again afterwards
 
-### Story 10.6: vite-plugin-pwa 1 → 2
+### Story 11.10: One command releases a version
 
-As someone who installed Bag Please on their phone,
-I want the app to keep installing and updating exactly as it does today after the PWA plugin's major upgrade,
-So that the upgrade is invisible to me.
-
-**Acceptance Criteria:**
-
-**Given** Story 10.5 has landed and `vite-plugin-pwa` latest stable is re-measured (snapshot `2.0.0`, peer `vite ^3 … ^8`,
-`workbox-build`/`workbox-window ^7.4.1`)
-**When** the release notes are read against `bp_front/vite.config.ts`
-**Then** every breaking change touching the options this project uses — `registerType: 'autoUpdate'`,
-`navigateFallback: '/index.html'`, `navigateFallbackDenylist: [/^\/api/]`, empty `runtimeCaching`, manifest and icons —
-is listed with its effect
-
-**Given** the plugin moves and only the config edits a captured break forces are made
-**When** `npm install` (no flags), `npm run lint` and `npm run build` run
-**Then** all exit 0, and the built `dist/` still emits `manifest.webmanifest` (or the renamed equivalent, with Caddy's
-content type kept correct), `sw.js` at the root scope, and exactly one injected manifest link
-
-**Given** the production image
-**When** `e2e/pwa.spec.ts` runs
-**Then** all seven tests pass unchanged: manifest content type and install keys, real PNG icons at declared sizes, `sw.js`
-served as JavaScript and not long-term cached, one manifest link, the worker activated and answering navigations,
-`/api/health` reaching Ktor under the worker, and no `/api` entry in Cache Storage after an authenticated session
-(FR59, NFR-E7-7, AR-E7-15)
-**And** `routing/Caddyfile` needs no change, or its change is part of the story and covered by those tests
-
-**Given** an existing installation built on plugin 1.x
-**When** the 2.x build is deployed over it
-**Then** the old worker is replaced on the next load (`autoUpdate`) without a stale shell — verified by building 1.x,
-loading it, rebuilding on 2.x and reloading, with the result recorded
-
-**Given** the bump cannot land under AR-E10-3
-**When** the story takes the HOLD branch
-**Then** `package.json`, `package-lock.json` and `vite.config.ts` are byte-identical to before, the symptom is recorded in a
-`## Deferred from: Story 10.6` ledger section, and the story closes `done`
-
-**Given** the story closes on LAND
-**Then** the full E2E gate passes and the `vite-plugin-pwa` version in `CLAUDE.md` / `bp_front/CLAUDE.md` is updated in the
-same commit
-
-### Story 10.7: TypeScript 7, tried again
-
-As md, maintaining the frontend,
-I want TypeScript 7 adopted if the lint toolchain now allows it, and the blocker re-evidenced if it does not,
-So that the hold is current fact, not a two-month-old observation.
+As md, releasing bag-please,
+I want one command that builds, publishes and rolls an exact version onto the droplet and a second that tells me
+what is running,
+So that a release is repeatable, a rollback is one command, and no secret leaves the place it belongs.
 
 **Acceptance Criteria:**
 
-**Given** Story 10.5 has landed (`typescript-eslint` on its newest stable)
-**When** `npm view typescript version` and `npm view typescript-eslint peerDependencies` run
-**Then** both outputs are recorded verbatim (snapshot: `typescript` 7.0.2; `typescript-eslint` 8.71.2 peer
-`>=4.8.4 <6.1.0`)
+**Given** Story 11.9 has landed
+**When** `deploy/docker-compose.yml` is written
+**Then** `bp_front` is published only on `${PRIVATE_IP}:80`, `bp_back` is not published, both are `read_only` with
+`tmpfs: [/tmp]`, `cap_drop: [ALL]` (`bp_front` adds `NET_BIND_SERVICE`), `no-new-privileges` and a `mem_limit`,
+`bp_back` gets an explicit `-Xmx` through `JAVA_OPTS`, and `KTOR_DB_SSLMODE: verify-full` and
+`KTOR_DB_SSLROOTCERT: /etc/bag-please/ca-certificate.crt` are hardcoded (AR-E11-21, AR-E11-24)
+**And** `bp_front`'s healthcheck is busybox `wget` of `/api/health` through Caddy (Epic 9 AD-9)
 
-**Given** the peer range admits `7.x`
-**When** `typescript` moves to the latest 7.x with a plain `npm install`
-**Then** `npm run lint`, `npm run build` (`tsc -b && vite build`) and the full E2E gate pass, `tsconfig*.json` changes are
-only those a captured diagnostic forces, `tsconfig.app.json` still excludes `src/__generated__`, and version lines are
-updated in the same commit
+**Given** `deploy/scripts/lib.sh`
+**When** any task runs a nested Gradle or mise task
+**Then** every variable defined in `.secure.deploy.env` — `KTOR_*` included — is stripped first, proven by a nested
+`env` dump showing none of them (AR-E11-22)
 
-**Given** the peer range still excludes `7.x` (the expected path)
-**When** a throwaway reproduction forces the install (`--legacy-peer-deps`, in that task only)
-**Then** the `npm install` resolution error and the `npm run lint` failure are captured verbatim
-**And** `npx tsc -b tsconfig.json --force` under TS 7 is run and its exit code and any diagnostics recorded — a non-zero
-exit is new evidence and changes the ledger wording
-**And** the tree is restored: `git checkout -- bp_front/package.json bp_front/package-lock.json`, `npm ci`,
-`git status --short` empty, `npx tsc --version` reporting `6.0.3`
+**Given** `deploy:push`
+**When** the tag `gradle.properties`' `version` already exists on Docker Hub, or Docker Hub cannot be queried
+**Then** it refuses; it never pushes `latest`; `images:build-push`, `mise/images-build-push.sh`, `project.env` and
+`project.example.env` are retired in favour of `.secure.build.env` and its committed example (AR-E11-22, AR-E11-23)
 
-**Given** the HOLD branch
-**When** the evidence is recorded
-**Then** the existing Story 7.10 ledger entry in `deferred-work.md` is updated in place with the 2026-10 re-measurement
-(no duplicate section), the story does not swap the lint stack to escape the peer constraint (AR-E10-4), and it closes
-`done`
+**Given** `deploy` with no argument
+**When** it runs
+**Then** it refuses a dirty tree, runs `back:test`, builds and pushes, writes `bag-please/.env` (mode `600`, owner
+`deploy`) with the DB credentials from `terraform output` — refusing an empty value — plus the JWT secret and admin
+credentials, writes `ca-certificate.crt` (mode `644`), runs `docker compose pull && up -d`, waits for `bp_front`'s
+healthcheck, and smoke-tests `http://<private ip>/api/health` through the edge jump host (AR-E11-23)
+**And** on any failure it prints the rollback command and does not roll back itself
 
-### Story 10.8: Only documents something reads are kept
+**Given** `deploy <version>`
+**When** it names a tag already pushed
+**Then** it redeploys that tag without building — the rollback (AR-E11-8)
 
-As md, and as every agent loading context in this repo,
-I want documentation that no skill, config or context file reads removed, and anything still useful moved to where it is loaded,
-So that nobody reads a stale scan or a superseded spec as truth.
+**Given** `deploy:status`
+**When** it runs
+**Then** it prints the version running on the droplet and the HTTP status of `https://bag-please.io-workshop.net/`
 
-**Acceptance Criteria:**
+**Given** the branch is not merged yet, so no release may run from it (AR-E11-1)
+**When** the story is verified
+**Then** a deploy of a pre-release tag to the new droplet passes the private-IP smoke test while the public URL still
+serves the old deployment, `bp_back` is stopped again afterwards, and `app_config` on the cluster still has zero rows
 
-**Given** the candidates — `docs/` scan output (`index.md`, `project-overview.md`, `source-tree-analysis.md`,
-`api-contracts-bp_back.md`, `data-models-bp_back.md`, `component-inventory-bp_front.md`, `architecture-routing.md`,
-`deployment-guide.md`, `development-guide.md`, `project-parts.json`, `project-scan-report.json`) and planning-root
-leftovers (three `implementation-readiness-report-*.md`, two `ux-design-directions*.html`, `ux-design-specification.md`,
-`ux-design-specification-epic-4.md`, `prd-validation.md`, two `sprint-change-proposal-*.md`, `review-rubric-epic9.md`,
-`review-polish-epic9.md`, `.memlog.md`)
-**When** the story audits them
-**Then** a table records, per file, its live consumers found by grep over `CLAUDE.md` files, `AGENTS.md`, `_bmad/` config,
-`.claude/skills/`, `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair and `epics*.md` — and the
-verdict: delete, keep (consumer named), or fold-then-delete (AR-E10-8)
+**Given** the docs
+**When** the story closes
+**Then** `deploy/README.md` is the operator runbook — infra, bootstrap, import, deploy, status, rollback, the AD-20
+cutover order, the managed daily backups and the optional `pg_dump` over the tunnel before a release that adds a
+migration — and root `CLAUDE.md`'s dump-and-restore section is replaced by a pointer to it (NFR-D4, AR-E11-25a,
+AR-E11-26)
 
-**Given** a `docs/` file holds a fact that is still true against the code and is not already in a loaded file
-**When** it is folded
-**Then** the fact lands once in the `CLAUDE.md` whose tree it describes (root, `bp_back/`, `bp_front/`, `routing/`) and is
-checked against the cited source file; facts found false are dropped, not carried (AR-E10-9)
+### Story 11.11: Both users move to the new home
 
-**Given** `docs/feedback.md`
-**Then** it is kept as the backlog intake, and is the only file left in `docs/` unless the audit names another consumer
-
-**Given** `project_knowledge` resolves to `{project-root}/docs` in the BMAD config
-**When** `docs/` is reduced
-**Then** `project_knowledge` still points at an existing directory whose content matches what BMAD skills expect from it,
-changed through the supported config path (`_bmad/custom/` override or the installer config), and
-`uv run _bmad/scripts/resolve_config.py --project-root .` shows the resolved value
-
-**Given** a live planning document links to a deleted file
-**When** the deletion is committed
-**Then** the link is updated or removed in the same commit; historical records under `implementation-artifacts/` are not
-rewritten (AR-E10-8), and `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair, `epics.md` and
-`epics-archive.md` are kept (AR-E10-10)
-
-**Given** the story ships no product code
-**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty, and NFR17's E2E gate is deliberately not applicable —
-recorded so its absence reads as a decision
-
-### Story 10.9: The agent context files match the code
-
-As md, and as every agent working in this repo,
-I want `AGENTS.md` and the four `CLAUDE.md` files to say only what is true at HEAD, each fact once,
-So that an agent follows current commands and conventions instead of stale or contradicting ones.
+As a bag-please user,
+I want to open the app after the move and find every list, item and share where I left it,
+So that the change of home costs me one sign-in and nothing else.
 
 **Acceptance Criteria:**
 
-**Given** Stories 10.1–10.8 have landed
-**When** `AGENTS.md`'s managed `bmad:context` block is refreshed with `bmad-project-context`
-**Then** its "Verified" line names the current HEAD and date, and content outside the markers is preserved
+**Given** Stories 11.1–11.10 have landed on `feature/pg-migration`
+**When** the release is prepared
+**Then** `gradle.properties` and `bp_front/package.json` carry the next version, the full NFR17 suite passes with zero
+failures on every project, `gradle :bp_back:test` is green, `npm run generate` is byte-identical, and the branch merges
+to `main` as a **merge commit**, not a squash (AR-E11-1)
 
-**Given** the root, `bp_back/`, `bp_front/` and `routing/` `CLAUDE.md` files
-**When** each is checked line by line
-**Then** every command is run or its target confirmed to exist (Gradle tasks, npm scripts, mise tasks, file paths, test ids,
-ports), every version matches `libs.versions.toml` / `package.json` / Dockerfiles, and a table records each fixed or
-deleted claim with the evidence (AR-E10-11)
-**And** time-bound notes that no longer apply (e.g. the 2026-08-13 `./db/data` migration instructions, if the old bind
-mount data is gone) are removed or reworded by md's ruling, not silently
+**Given** `main` holds the merged epic
+**When** md runs the cutover from `main` in the AD-20 order — `infra:apply`, `db:bootstrap`, the production
+`mongoexport` into `migration-export/`, `db:import` with `bp_back` not running
+**Then** the import report shows, for each record type, export = loaded + dropped, and md accepts every dropped row by
+its reason before going further (FR71, AR-E11-25)
 
-**Given** a fact appears in more than one of these files
-**When** duplication is resolved
-**Then** it lives in the most specific file that loads where it is needed (per-directory over root, `CLAUDE.md` over
-`AGENTS.md` for architecture and commands, as `AGENTS.md` itself states), and the others drop it
+**Given** the import is accepted
+**When** `deploy` runs and md signs in as each production user through the edge jump host
+**Then** each user's lists, items (stores, recurring, check and soft-delete state, `addedBy`), categories, shares and
+pending invites match what the old deployment shows, and their existing password works; each signs in once, because
+sessions were not carried (FR71)
 
-**Given** `mise.toml` and `.zed/tasks.json`
-**When** any documented command changes
-**Then** the two stay in sync (the `sync-zed-mise-tasks` skill), or the record states no task changed
+**Given** both users' data is verified
+**When** the edge is repointed to the droplet's private IP and `deploy:status` runs
+**Then** `https://bag-please.io-workshop.net/` answers from the new droplet with the released version (FR74), and
+`routing/edge-proxy.md` describes the production domain and its upstream
 
-**Given** the story ships no product code
-**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty and NFR17 is recorded as not applicable
+**Given** the new deployment serves both users' real data
+**When** the move is closed
+**Then** `migration-export/` is removed from the repository working tree and md has the export or archive in their own
+off-repo storage (NFR-D5); the old deployment is retired only now; `git status` shows no secret or export file, and
+`git ls-files` shows no path that `.gitignore` covers (NFR-D1)
