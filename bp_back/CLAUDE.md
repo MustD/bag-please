@@ -84,6 +84,15 @@ PostgreSQL 18 is the only data store (MongoDB left the stack in Story 11.7). **U
 - Verified in the 11.1 spike: Ktor Netty and r2dbc-postgresql's reactor-netty run together (Gradle resolves Netty to
   4.2.17) and R2DBC connects over TLS with `verify-full`.
 
+## Mongo export importer (Story 11.8)
+
+`src/import/kotlin/com/bagplease/tools/MongoImport.kt` is an operator tool in its own source set (`import`), compiled
+against `main`, visible to tests, absent from `installDist` and the image. `gradle :bp_back:importClasspath` prints its
+classpath; `main` reads `IMPORT_DB_{HOST,PORT,NAME,USER,PASSWORD,SSLMODE,SSLROOTCERT}`. Mapping rules (AD-18): owner is
+always `ACCEPTED`; `lists.memberUsernames` decides `ACCEPTED`; a `list_members` doc only adds `PENDING`/`DECLINED`;
+orphans are dropped with a reason; refresh tokens are never loaded. Tests: `MongoImportTest` over
+`src/test/resources/mongo-export/`.
+
 ## Tests
 
 Kotest `FunSpec` only, no mocking library: tests run against a real PostgreSQL from the `FunSpec.postgresContainer()` helper

@@ -85,6 +85,10 @@ run = "docker compose down"
 description = "Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up postgres bp_back"
 
+[tasks."db:import:local"]
+description = "Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)"
+run = "./mise/db_import.sh"
+
 [tasks."images:build-push"]
 description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"
 run = "./mise/images-build-push.sh"

@@ -34,6 +34,17 @@
     "allow_concurrent_runs": false
   },
   {
+    "label": "db:import:local — Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)",
+    "command": "mise",
+    "args": [
+      "run",
+      "db:import:local"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
     "label": "docker:back — Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000",
     "command": "mise",
     "args": [

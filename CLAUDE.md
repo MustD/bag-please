@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `routing/` — `Caddyfile` for the frontend image: serves the built SPA and proxies `/api` to the backend (entry point port 2080)
 - PostgreSQL 18 (service `postgres`) is the only data store; its data lives in the named Docker volume `pg_data`
   (`docker-compose.yaml`). A stack that previously ran on MongoDB (the old `db_data` volume or `./db/data` bind mount)
-  comes up on an EMPTY PostgreSQL database; the Mongo export is brought in by the import of Story 11.8.
+  comes up on an EMPTY PostgreSQL database; the Mongo export is brought in by the importer below (Story 11.8).
 
 All services are orchestrated via Docker Compose. For day-to-day frontend work, run the Vite dev server locally
 (`npm run dev` on :5173, proxying `/api` to the backend on :4000); the full production stack (built SPA served by
@@ -110,6 +110,15 @@ docker compose up postgres bp_back
 Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`): it tags both images with
 `gradle.properties`' `version` and reads the image names from `project.env`, which is gitignored — copy
 `project.example.env` to `project.env` first.
+
+### Importing the Mongo export (Story 11.8)
+
+`com.bagplease.tools.MongoImport` (Gradle source set `bp_back/src/import/`, never packaged in the `bp_back` image) loads a
+`mongoexport --jsonArray` export (one `<collection>.json` per collection, directory `migration-export/`, gitignored)
+into an EMPTY PostgreSQL database: it runs Flyway, refuses a non-empty target or any legacy single-`store` item, loads
+everything in one transaction (any failure leaves zero rows) and prints export / loaded / dropped counts per record type.
+Locally: `docker compose up -d --wait postgres`, then `mise run db:import:local [-- <export-dir>]`. The DB credentials
+are `IMPORT_DB_*` variables set only on the `java` command in `mise/db_import.sh`. Never commit an export.
 
 ### Dump before a migration release, restore to roll back (AR-E9-5a)
 

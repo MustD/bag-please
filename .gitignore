@@ -51,3 +51,11 @@ bin/
 
 # Database dump archives (see CLAUDE.md, dump-and-restore section)
 *.archive
+
+# Secrets and migration data (AD-9): never committed
+.secure.*.env
+migration-export/
+*.tfstate*
+*.tfvars
+.terraform/
+crash.log

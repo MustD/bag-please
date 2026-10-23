@@ -25,6 +25,18 @@ repositories {
     mavenCentral()
 }
 
+// Operator-run Mongo export importer (Story 11.8). Its own source set so it is compiled against `main` but never
+// lands in `installDist` / the bp_back image, which only packages `main`.
+val importSet: SourceSet = sourceSets.create("import") {
+    compileClasspath += sourceSets.main.get().output + configurations.compileClasspath.get()
+    runtimeClasspath += output + sourceSets.main.get().output + configurations.runtimeClasspath.get()
+}
+
+sourceSets.test {
+    compileClasspath += importSet.output
+    runtimeClasspath += importSet.output
+}
+
 dependencies {
     implementation(libs.arrow.core)
     implementation(libs.arrow.fx.coroutines)
@@ -84,4 +96,11 @@ tasks.withType<Test>().configureEach {
         testList()
         quiet { testList() }
     }
+}
+
+// Prints the importer's runtime classpath (used by mise/db_import.sh to start it with plain `java`).
+tasks.register("importClasspath") {
+    val classpath = importSet.runtimeClasspath
+    dependsOn(tasks.named("importClasses"))
+    doLast { println(classpath.asPath) }
 }
