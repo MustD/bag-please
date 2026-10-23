@@ -148,7 +148,7 @@ development_status:
   11-6-items-and-the-hourly-jobs-live-in-postgresql: done
   11-7-mongodb-leaves-the-stack: done
   11-8-production-data-can-be-imported-in-one-go: done
-  11-9-the-new-home-exists-in-terraform: backlog
+  11-9-the-new-home-exists-in-terraform: review
   11-10-one-command-releases-a-version: backlog
   11-11-both-users-move-to-the-new-home: backlog
   epic-11-retrospective: optional

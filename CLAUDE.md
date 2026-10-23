@@ -120,6 +120,14 @@ everything in one transaction (any failure leaves zero rows) and prints export /
 Locally: `docker compose up -d --wait postgres`, then `mise run db:import:local [-- <export-dir>]`. The DB credentials
 are `IMPORT_DB_*` variables set only on the `java` command in `mise/db_import.sh`. Never commit an export.
 
+### Production infrastructure (Story 11.9)
+
+`deploy/terraform/` declares the DigitalOcean droplet, its firewall, a PostgreSQL 18 cluster (firewalled to the
+droplet only), the `bag_please` database and the `bag_please_app` user. Secrets live only in the gitignored
+`.secure.deploy.env` (copy `.secure.deploy.env.example`), loaded per task by mise: `mise run infra:plan`,
+`infra:apply`, `db:bootstrap`, `db:import [-- <export-dir>]`; `mise run deploy:test` checks the script guards.
+Never run `infra:apply` without md. Runbook, costs and live verification steps: `deploy/README.md`.
+
 ### Dump before a migration release, restore to roll back (AR-E9-5a)
 
 > **Superseded by Story 11.10.** This section describes the MongoDB-era procedure (the `mongo` service and

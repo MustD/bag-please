@@ -89,6 +89,32 @@ run = "docker compose up postgres bp_back"
 description = "Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)"
 run = "./mise/db_import.sh"
 
+# --- Production infrastructure (deploy/README.md). Each task loads .secure.deploy.env itself; nothing global. ---
+
+[tasks."infra:plan"]
+description = "Terraform plan for the DigitalOcean droplet + managed PostgreSQL (needs .secure.deploy.env)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/infra.sh plan"
+
+[tasks."infra:apply"]
+description = "Terraform apply for the DigitalOcean droplet + managed PostgreSQL (by hand, never from CI)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/infra.sh apply"
+
+[tasks."db:bootstrap"]
+description = "One-time: give bag_please_app the production database and run Flyway (tunnel, needs psql)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/bootstrap-db.sh"
+
+[tasks."db:import"]
+description = "Import a Mongo export (default migration-export/) into the production PostgreSQL through a tunnel"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/import.sh"
+
+[tasks."deploy:test"]
+description = "Run the deploy script guard tests (stubbed terraform/ssh/git; no network)"
+run = "deploy/scripts/test-guards.sh"
+
 [tasks."images:build-push"]
 description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"
 run = "./mise/images-build-push.sh"
