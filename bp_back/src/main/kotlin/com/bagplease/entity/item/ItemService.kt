@@ -3,10 +3,11 @@ package com.bagplease.entity.item
 import arrow.core.Either
 import arrow.core.raise.either
 import com.bagplease.entity.category.CategoryService
-import com.bagplease.entity.item.mongo.ItemRepository
+import com.bagplease.entity.item.db.ItemRepository
 import com.bagplease.entity.list.ListAuthError
 import com.bagplease.entity.list.ListService
 import com.bagplease.features.auth.CallerUsername
+import com.bagplease.plugins.tx
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -15,7 +16,6 @@ import java.time.temporal.ChronoUnit
 import java.util.*
 
 class ItemService(
-    private val storage: ItemStorage,
     private val listService: ListService,
     private val repository: ItemRepository,
     // CategoryService.deleteCategory cascades into this service, so the two are a construction cycle.
@@ -32,132 +32,141 @@ class ItemService(
     val itemUpdates = itemUpdateChannel as SharedFlow<Item>
     val itemDeletions = itemDeleteChannel as SharedFlow<Item>
 
-    /** Unchecked, non-deleted items per list; 0 for a list with none. Items stay on Mongo until Story 11.6. */
-    suspend fun countUncheckedByList(listIds: Collection<UUID>): Map<UUID, Int> =
-        listIds.associateWith { id -> storage.getByListId(id).count { !it.checked } }
+    /** Unchecked, non-deleted items per list; 0 for a list with none. Runs in the caller's tx or its own. */
+    suspend fun countUncheckedByList(listIds: Collection<UUID>): Map<UUID, Int> {
+        val counts = tx { repository.countUncheckedByList(listIds) }
+        return listIds.associateWith { counts[it] ?: 0 }
+    }
 
     suspend fun getItems(listId: UUID, caller: CallerUsername): Either<ListAuthError, List<Item>> = either {
-        listService.verifyMembership(caller, listId).bind()
-        storage.getByListId(listId)
+        tx {
+            listService.verifyMembership(caller, listId).bind()
+            repository.findActiveByListId(listId)
+        }
     }
 
     suspend fun saveItem(item: Item, caller: CallerUsername): Either<ListAuthError, Item> = either {
-        listService.verifyMembership(caller, item.listId).bind()
+        tx {
+            listService.verifyMembership(caller, item.listId).bind()
 
-        // Story 9.6 / AR-E9-4 — normalize ONCE, above the branch, so create and update cannot
-        // diverge. The client mirrors the same rule for immediate feedback, but the server is the
-        // authority: whatever it stores here is what every screen renders.
-        val incoming = item.copy(stores = StoreNames.normalize(item.stores))
+            // Story 9.6 / AR-E9-4 — normalize ONCE, above the branch, so create and update cannot
+            // diverge. The client mirrors the same rule for immediate feedback, but the server is the
+            // authority: whatever it stores here is what every screen renders.
+            val incoming = item.copy(stores = StoreNames.normalize(item.stores))
 
-        val stored = storage.getByIdCached(incoming.id, incoming.listId)
-        val toSave = if (stored != null) {
-            // BUG-E6-3b — a stale edit dialog can hold a category a co-member has since deleted;
-            // writing it strands the item under no group on either screen. Story 9.3 closed the
-            // matching CREATE hole below, so both branches now reject an out-of-list category with
-            // the SAME message (the frontend maps exactly this wording to friendly copy).
-            requireCategoryOnList(incoming.category, incoming.listId)
-            // AC1 / AR-E7-1 — merge, do not reconstruct. addedBy, checkedAt, deleted and deletedAt are
-            // server-owned and absent from ItemInput, so the incoming values are meaningless here.
-            // The merge is therefore an ALLOWLIST of the three plain input fields — `name`,
-            // `category` and, since Story 9.6, `stores` — and check state is
-            // then applied by `applyCheckState` (AR-E9-11) — the one transition table shared with
-            // checkItem/uncheckItem. Story 9.5: copying `checked` straight across (as this used to) left
-            // `checkedAt` at the stored null, so an edit that checked a recurring item produced
-            // `checked = true, checkedAt = null` — a row findCheckedRecurringItems returns and
-            // runSchedulerCycle then drops at its `checkedAt == null` guard, checked off forever.
-            applyCheckState(
-                stored.copy(name = incoming.name, category = incoming.category, stores = incoming.stores),
-                incoming.checked,
-                incoming.recurring,
-                Instant.now(),
-            )
-        } else {
-            // AC3 — getByIdCached is list-scoped, so an id on another list also misses. Without this,
-            // the create branch upserts by _id alone and silently relocates the item. It is checked
-            // BEFORE the category guard on purpose: "this id lives elsewhere" is the more specific
-            // diagnosis, and swapping the order would report a relocation attempt as a category error.
-            if (repository.findById(incoming.id) != null) {
+            // One global read inside the write's tx: it tells a new id from an id stored on this list or on another one.
+            val existing = repository.findById(incoming.id)
+            // An id on another list is rejected BEFORE the category guard: "this id lives elsewhere" is the more specific
+            // diagnosis, and without it the write would silently relocate the item.
+            if (existing != null && existing.listId != incoming.listId) {
                 throw IllegalArgumentException("Item ${incoming.id} belongs to a different list")
             }
-            // Story 9.3 — the create hole, closed. An add-item dialog left open while a co-member
-            // removes the category would otherwise manufacture a fresh orphan on submit, which was the
-            // last ordinary way to produce the data shape the cascade above exists to eliminate.
-            //
-            // With this, no SUCCESSFUL call on the ITEM surface can leave an item pointing at a
-            // category that is not on its list. That is narrower than "no orphan is reachable", and
-            // deliberately so (review finding, 2026-09-17). Two windows remain: (a) this check runs in its own
-            // transaction and `storage.save` runs outside any lock, so a create racing a cascade is a TOCTOU window; (b) the
-            // cascade spans Mongo items and PostgreSQL categories, so its failure residue IS an orphan. (Re-saving a category
-            // id on another list is rejected since Story 11.5.)
-            requireCategoryOnList(incoming.category, incoming.listId)
-            incoming // AC2 — create: addedBy from the caller, exactly as today
-        }
+            val stored = existing
+            val toSave = if (stored != null) {
+                // BUG-E6-3b — a stale edit dialog can hold a category a co-member has since deleted;
+                // writing it strands the item under no group on either screen. Story 9.3 closed the
+                // matching CREATE hole below, so both branches now reject an out-of-list category with
+                // the SAME message (the frontend maps exactly this wording to friendly copy).
+                requireCategoryOnList(incoming.category, incoming.listId)
+                // AC1 / AR-E7-1 — merge, do not reconstruct. addedBy, checkedAt, deleted and deletedAt are
+                // server-owned and absent from ItemInput, so the incoming values are meaningless here.
+                // The merge is therefore an ALLOWLIST of the three plain input fields — `name`,
+                // `category` and, since Story 9.6, `stores` — and check state is
+                // then applied by `applyCheckState` (AR-E9-11) — the one transition table shared with
+                // checkItem/uncheckItem. Story 9.5: copying `checked` straight across (as this used to) left
+                // `checkedAt` at the stored null, so an edit that checked a recurring item produced
+                // `checked = true, checkedAt = null` — a row findCheckedRecurringItems returns and
+                // runSchedulerCycle then drops at its `checkedAt == null` guard, checked off forever.
+                applyCheckState(
+                    stored.copy(name = incoming.name, category = incoming.category, stores = incoming.stores),
+                    incoming.checked,
+                    incoming.recurring,
+                    Instant.now(),
+                )
+            } else {
+                // Story 9.3 — the create hole, closed. An add-item dialog left open while a co-member
+                // removes the category would otherwise manufacture a fresh orphan on submit, which was the
+                // last ordinary way to produce the data shape the cascade above exists to eliminate.
+                //
+                // With this, no SUCCESSFUL call on the ITEM surface can leave an item pointing at a
+                // category that is not on its list. That is narrower than "no orphan is reachable", and
+                // deliberately so. The check and the insert share one transaction, and the composite FK
+                // `(list_id, category_id)` makes a category removed in between fail the insert instead of orphaning the row.
+                requireCategoryOnList(incoming.category, incoming.listId)
+                incoming // AC2 — create: addedBy from the caller, exactly as today
+            }
 
-        val savedItem = storage.save(toSave)
-        itemUpdateChannel.emit(savedItem)
-        savedItem
+            if (stored != null) repository.update(toSave) else repository.insert(toSave)
+            afterCommit { itemUpdateChannel.emit(toSave) }
+            toSave
+        }
     }
 
     suspend fun deleteItem(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Item> = either {
-        listService.verifyMembership(caller, listId).bind()
-        val deletedItem = storage.delete(id, listId)
-        itemDeleteChannel.emit(deletedItem)
-        deletedItem
+        tx {
+            listService.verifyMembership(caller, listId).bind()
+            val deletedItem = findOnList(id, listId) ?: throw IllegalStateException("Item not found")
+            repository.delete(id)
+            afterCommit { itemDeleteChannel.emit(deletedItem) }
+            deletedItem
+        }
     }
 
     suspend fun checkItem(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Item> = either {
-        listService.verifyMembership(caller, listId).bind()
-        val item = storage.getByIdCached(id, listId) ?: throw IllegalStateException("Item not found")
-        val updated = applyCheckState(item, true, item.recurring, Instant.now())
-        val saved = storage.save(updated)
-        itemUpdateChannel.emit(saved)
-        saved
+        tx {
+            listService.verifyMembership(caller, listId).bind()
+            val item = findOnList(id, listId) ?: throw IllegalStateException("Item not found")
+            val updated = applyCheckState(item, true, item.recurring, Instant.now())
+            repository.update(updated)
+            afterCommit { itemUpdateChannel.emit(updated) }
+            updated
+        }
     }
 
     suspend fun uncheckItem(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Item> = either {
-        listService.verifyMembership(caller, listId).bind()
-        storage.getByListId(listId)  // ensure sync
-        val item = storage.getByIdCached(id, listId) ?: throw IllegalStateException("Item not found")
-        // Story 9.3 — do not RESURRECT an orphan. Since the cascade, an item whose category is gone is
-        // almost always legacy data (see the residual windows listed on the CREATE branch above);
-        // un-checking it would take a soft-deleted row and put it back on both screens under no group.
-        // Deliberately `uncheckItem` only, not `checkItem` (md, 2026-09-17): a pre-existing orphan that
-        // is already checked stays checked until it is reassigned.
-        //
-        // Recovery is EditItemDialog (reassign the category) for an orphan that still RENDERS — one
-        // that is checked but not soft-deleted. For a soft-deleted one (a checked ONE_TIME), there is
-        // no recovery and this guard removes the API-only one that existed before: `getByListId`
-        // filters `deleted` rows out, so it reaches no screen and no dialog either way. Recorded rather
-        // than special-cased (review finding, 2026-09-17) — exempting soft-deleted rows would restore
-        // exactly the "back on both screens under no group" outcome this guard exists to prevent.
-        requireCategoryOnList(item.category, listId)
-        val restored = applyCheckState(item, false, item.recurring, Instant.now())
-        val saved = storage.save(restored)
-        itemUpdateChannel.emit(saved)
-        saved
+        tx {
+            listService.verifyMembership(caller, listId).bind()
+            val item = findOnList(id, listId) ?: throw IllegalStateException("Item not found")
+            // Story 9.3 — do not RESURRECT an orphan. An item whose category is gone is almost always legacy data;
+            // un-checking it would put a soft-deleted row back on both screens under no group.
+            // Deliberately `uncheckItem` only, not `checkItem` (md, 2026-09-17).
+            requireCategoryOnList(item.category, listId)
+            val restored = applyCheckState(item, false, item.recurring, Instant.now())
+            repository.update(restored)
+            afterCommit { itemUpdateChannel.emit(restored) }
+            restored
+        }
     }
 
+    /** The stored row, only when it lives on [listId]. Runs in the caller's tx. */
+    private suspend fun findOnList(id: UUID, listId: UUID): Item? =
+        repository.findById(id)?.takeIf { it.listId == listId }
+
     suspend fun getStoreSuggestions(listId: UUID, caller: CallerUsername): Either<ListAuthError, List<String>> = either {
-        listService.verifyMembership(caller, listId).bind()
-        // Story 9.6 — flatten every item's stores, then one name per key in the server's order
-        // (AR-E9-4). StoreField renders them as offered: the client no longer trims, dedupes or
-        // sorts, because only the server can see the whole list.
-        StoreNames.suggestions(storage.getByListId(listId).flatMap { it.stores })
+        tx {
+            listService.verifyMembership(caller, listId).bind()
+            // Story 9.6 — flatten every item's stores, then one name per key in the server's order
+            // (AR-E9-4). StoreField renders them as offered: the client no longer trims, dedupes or
+            // sorts, because only the server can see the whole list.
+            StoreNames.suggestions(repository.findActiveByListId(listId).flatMap { it.stores })
+        }
     }
 
     /**
      * Story 9.3 — the item half of `CategoryService.deleteCategory`'s cascade. `internal` on purpose:
      * membership is verified once, by `deleteCategory`, and nothing outside the module should be able
-     * to wipe a category's items without deleting the category. `ItemStorage.deleteAllInCategory` is
-     * `internal` too, for the same reason — otherwise the guarantee is one call away.
+     * to wipe a category's items without deleting the category. `ItemRepository` is only reachable from this service.
      *
      * It emits NOTHING. Both SharedFlows here are `extraBufferCapacity = 1` / `DROP_OLDEST`, so a
      * per-item fan-out would be truncated for any subscriber not consuming instantly — reproducing the
      * partial prune this story removes. The single category DELETED event is authoritative for the
      * children; clients fan it out locally.
      */
-    internal suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID) =
-        storage.deleteAllInCategory(listId, categoryId)
+    internal suspend fun deleteAllInCategory(listId: UUID, categoryId: UUID): Int =
+        tx { repository.deleteAllInCategory(listId, categoryId) }
+
+    /** The item half of the list delete cascade: every row of the list, soft-deleted included. Emits nothing. */
+    internal suspend fun deleteAllInList(listId: UUID): Int = tx { repository.deleteAllInList(listId) }
 
     /**
      * Story 9.5 / AR-E9-11 — the ONE check-state transition. `checkItem`, `uncheckItem` and
@@ -205,10 +214,9 @@ class ItemService(
         }
     }
 
-    internal suspend fun runSchedulerCycle() {
-        // Recurring restore
-        val candidates = repository.findCheckedRecurringItems()
-        for (item in candidates) {
+    /** Hourly step 1: un-check every recurring item whose cadence has elapsed. One tx; UPDATE events after commit. */
+    suspend fun restoreRecurring() = tx {
+        for (item in repository.findCheckedRecurring()) {
             val elapsedDays = when (item.recurring) {
                 Recurring.WEEKLY -> 7L
                 Recurring.BIWEEKLY -> 14L
@@ -218,17 +226,18 @@ class ItemService(
             val threshold = Instant.now().minus(elapsedDays, ChronoUnit.DAYS)
             if (item.checkedAt == null || item.checkedAt.isAfter(threshold)) continue
             // Through the same transition as every other uncheck (Story 9.5): a restored row must also
-            // shed `deleted`/`deletedAt`, which the hand-written copy here left set.
+            // shed `deleted`/`deletedAt`.
             val restored = applyCheckState(item, false, item.recurring, Instant.now())
-            storage.save(restored)
-            itemUpdateChannel.emit(restored)
+            repository.update(restored)
+            afterCommit { itemUpdateChannel.emit(restored) }
         }
+    }
 
-        // Hard-delete soft-deleted one-timers
-        val toDelete = repository.findSoftDeletedToHardDelete()
-        for (item in toDelete) {
-            storage.delete(item.id, item.listId)
-            itemDeleteChannel.emit(item)
+    /** Hourly step 2: remove soft-deleted items whose `deletedAt` is over an hour old. One tx; DELETE events after commit. */
+    suspend fun hardDeleteSoftDeleted() = tx {
+        for (item in repository.findSoftDeletedBefore(Instant.now().minus(1, ChronoUnit.HOURS))) {
+            repository.delete(item.id)
+            afterCommit { itemDeleteChannel.emit(item) }
         }
     }
 }

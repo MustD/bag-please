@@ -52,7 +52,7 @@ class ItemCategoryStorageTest : FunSpec({
         return mapper.readTree(body)["data"]["createList"]["id"].asText()
     }
 
-    test("AC4 evictList on ItemStorage: post-evict getByListId returns empty") {
+    test("AC4 deleting a list removes its items: afterwards the list is gone for its owner") {
         val username = "evict_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
@@ -88,7 +88,7 @@ class ItemCategoryStorageTest : FunSpec({
             }.bodyAsText()
             beforeEvict shouldContain itemId.toString()
 
-            // deleteList triggers evictList
+            // deleteList removes the list's items in the same transaction
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)

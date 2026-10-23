@@ -5,8 +5,6 @@ import arrow.core.raise.either
 import arrow.core.raise.ensure
 import com.bagplease.entity.category.CategoryService
 import com.bagplease.entity.item.ItemService
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.db.DuplicateMemberException
 import com.bagplease.entity.list.db.ListRepository
 import com.bagplease.entity.user.User
@@ -58,13 +56,11 @@ data class GetListsResult(
 class ListService(
     private val repository: ListRepository,
     private val userLookup: UserLookup,
-    // Items stay on Mongo until Story 11.6 and verify membership through this service, so the two are a
+    // Items verify membership through this service, so the two are a
     // construction cycle: the item service is resolved on first use.
     private val itemService: Lazy<ItemService>,
-    private val itemRepository: ItemRepository,
     // Categories are reached only through their service; it depends on this one, so it is resolved on first use.
     private val categoryService: Lazy<CategoryService>,
-    private val itemStorage: ItemStorage,
     private val adminLogin: String,
 ) {
 
@@ -158,17 +154,13 @@ class ListService(
     // The one place a list and everything hanging off it is destroyed: `deleteList` (owner-initiated) and
     // `purgeUser` (admin user delete) both route through here. It performs NO authorization of its own.
     //
-    // cascade: items (Mongo, until Story 11.6) -> categories -> members -> list (PostgreSQL, in the caller's tx). The
-    // Mongo item delete is NOT atomic with the PostgreSQL ones on this branch (AR-E11-2, accepted).
+    // cascade: items -> categories -> members -> list, all in the caller's tx.
     private suspend fun cascadeDeleteList(list: List): DeleteListResult {
         val id = list.id
-        val deletedItems = itemRepository.deleteAllInList(id)
+        val deletedItems = itemService.value.deleteAllInList(id)
         val deletedCategories = categoryService.value.deleteAllInList(id)
         repository.deleteMembersInList(id)
         repository.deleteList(id)
-
-        // evict the in-memory item cache after the deletes succeed
-        itemStorage.evictList(id)
 
         return DeleteListResult(
             deletedItemCount = deletedItems,

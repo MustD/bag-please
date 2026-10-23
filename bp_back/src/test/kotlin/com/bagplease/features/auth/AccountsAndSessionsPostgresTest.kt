@@ -1,7 +1,5 @@
 package com.bagplease.features.auth
 
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.user.AdminError
 import com.bagplease.entity.user.AuthError
@@ -65,7 +63,7 @@ class AccountsAndSessionsPostgresTest : FunSpec({
             .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
             .build()
         val db = MongoClient.create(settings).getDatabase("test")
-        return com.bagplease.utils.buildTestServices(db).listService
+        return com.bagplease.utils.buildTestServices().listService
     }
 
     lateinit var userService: UserService
@@ -133,17 +131,18 @@ class AccountsAndSessionsPostgresTest : FunSpec({
         val ran = mutableListOf<String>()
         runSchedulerCycle(
             listOf(
-                SchedulerStep("item cycle") { ran += "item"; error("boom") },
+                SchedulerStep("restore") { ran += "restore"; error("boom") },
+                SchedulerStep("hard delete") { ran += "hard"; error("boom") },
                 SchedulerStep("purge") { ran += "purge"; authService.purgeExpiredTokens() },
             )
         )
-        ran shouldContainExactly listOf("item", "purge")
+        ran shouldContainExactly listOf("restore", "hard", "purge")
         scalar("SELECT count(*) FROM refresh_tokens") shouldBe "0"
     }
 
     test("the production scheduler steps purge expired refresh tokens, even after a failing item cycle") {
         tx { tokenRepository.save(RefreshToken("old", "a", "user", Instant.now().minusSeconds(60))) }
-        runSchedulerCycle(schedulerSteps({ error("boom") }, authService))
+        runSchedulerCycle(schedulerSteps({ error("boom") }, { error("boom") }, authService))
         scalar("SELECT count(*) FROM refresh_tokens") shouldBe "0"
     }
 

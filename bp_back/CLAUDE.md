@@ -7,16 +7,10 @@ Guidance for working in the Kotlin/Ktor GraphQL backend. Build/test commands liv
 ```
 GQL layer      (entity/<name>/gql/)          – graphql-kotlin Query/Mutation/Subscription objects
 Service layer  (entity/<name>/<Name>Service) – business logic + Kotlin SharedFlow subscriptions
-Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with lazy sync on first access
-Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
+DB layer       (entity/<name>/db/)           – Exposed-on-R2DBC table, row mapper and repository over PostgreSQL
 ```
 
-(Users, refresh tokens, feedback, the app config and lists/list members and categories are the exception since Stories 11.2-11.5: they use a `db/` package over PostgreSQL and no storage cache, see below. Only `item` still has a Storage and a `mongo/` layer.)
-
-Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
-startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
-written straight to Mongo after a storage's first access stays invisible to the app until restart. Mutations emit on a
-`MutableSharedFlow` which the GraphQL subscriptions expose as a `Flow`.
+Every slice (users, refresh tokens, feedback, the app config, lists/list members, categories and, since Story 11.6, items) uses a `db/` package over PostgreSQL and no storage cache, see below. Data flows from the GQL layer down through the service (which owns every `tx {}`) to the repository. Mutations emit on a `MutableSharedFlow` (queued with `afterCommit`) which the GraphQL subscriptions expose as a `Flow`.
 
 Shared code sits beside the entity slices under `src/main/kotlin/com/bagplease/`: `config/` (application config,
 its GQL and PostgreSQL `db/` parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
@@ -26,17 +20,14 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 `list`, `user`, `feedback`) holds all of that entity's layers, e.g. `entity/item/`:
 
 - `Item.kt` — plain domain model
-- `ItemService.kt` — orchestrates storage + emits subscription events
-- `ItemStorage.kt` — the in-memory cache (only `item` has one; `user`, `feedback`, `list` and `category`
-  services call their repository directly inside `tx {}`)
+- `ItemService.kt` — orchestrates the repository inside `tx {}` + emits subscription events with `afterCommit`
 - `gql/` — GraphQL model + `object` mapper, and the `ItemApi.kt` Query/Mutation/Subscription objects, registered in
   `plugins/GQL.kt`'s `configureGql()`
-- `mongo/` — MongoDB BSON model + `object` mapper + `ItemRepository`
+- `db/` — Exposed `Table`, row mapper + `ItemRepository`
 
 ## PostgreSQL foundation (Epic 11, Story 11.1)
 
-PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4) and categories (Story 11.5) live in PostgreSQL**; items
-are still Mongo. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
+PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4), categories (Story 11.5) and items with the hourly item jobs (Story 11.6) live in PostgreSQL**; no slice reads or writes Mongo any more (only `Migration.kt` still touches it, via raw documents, until Story 11.7 deletes it). The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
   defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
@@ -68,8 +59,7 @@ are still Mongo. The registration switch is read from `app_config` on every requ
   `DECLINED` user flips that row to `PENDING` with a fresh `created_at`; the admin has no rows and every list operation
   rejects it. `ListService` takes `Lazy<ItemService>` (items verify membership, list views count unchecked items via
   `ItemService.countUncheckedByList`); `Application.kt` builds `ItemService` after a `lateinit var`. The list cascade
-  deletes items (Mongo) first, then categories, members and the list (PostgreSQL): the two stores are not atomic on
-  this branch (AR-E11-2). `UserService.deleteUser` calls `ListService.purgeUser(userId)`; the `lists.owner_id` /
+  deletes items, then categories, members and the list, all in one `tx` (`ItemService.deleteAllInList`). `UserService.deleteUser` calls `ListService.purgeUser(userId)`; the `lists.owner_id` /
   `list_members.user_id` FKs are `RESTRICT`, so the `users` row can only go after the purge.
 - **Categories (Story 11.5)**: `entity/category/db/` (`CategoryTable`, `CategoryRowMapper`, `CategoryRepository`).
   `CategoryService` owns every `tx {}` and is the only caller of the repository; `ItemService` and `ListService` reach
@@ -77,9 +67,18 @@ are still Mongo. The registration switch is read from `app_config` on every requ
   `Application.kt` builds `CategoryService` after `ItemService`). Subscription events are emitted with `afterCommit`, so
   a failed save/delete emits nothing. `saveCategory` inserts a new id, renames an existing id on the same list, and
   rejects an id that lives on another list (`IllegalArgumentException`; categories are never relocated, the `items`
-  composite FK depends on it). `deleteCategory` runs membership, find, `ItemService.deleteAllInCategory` (Mongo), the row
-  delete, then the DELETED event after commit. The Epic 4 seed still stamps `listId` on legacy Mongo category
+  composite FK depends on it). `deleteCategory` runs membership, find, `ItemService.deleteAllInCategory`, the row
+  delete (one `tx`), then the DELETED event after commit. The Epic 4 seed still stamps `listId` on legacy Mongo category
   documents; nothing reads them (Story 11.8 imports them).
+- **Items (Story 11.6)**: `entity/item/db/` (`ItemTable`, `ItemRowMapper`, `ItemRepository`); `ItemService` is the only
+  caller and owns every `tx {}`, membership running in the same tx as the write. `items.stores` is a `text[]` (order and
+  casing kept); `category_id` is guarded by the composite FK `(list_id, category_id)`, so a category delete removes its
+  items and an item can never carry another list's category. `saveItem` reads the stored row inside the write's tx (no
+  cache): same list -> category guard + merge allowlist + `applyCheckState`; id on another list ->
+  `IllegalArgumentException("Item <id> belongs to a different list")`; new id -> category guard + insert. Events go out
+  with `afterCommit`. `deleteAllInCategory` / `deleteAllInList` also remove soft-deleted rows and emit nothing.
+- **Hourly scheduler** (`plugins/Scheduler.kt`): three ordered steps, each its own `tx` and its own try/catch -
+  `ItemService.restoreRecurring()`, `ItemService.hardDeleteSoftDeleted()`, `AuthService.purgeExpiredTokens()`.
 - **Expired refresh tokens** are rejected on read (`AuthService.refresh`) and purged by the hourly scheduler step
   `purgeExpiredTokens()` (`plugins/Scheduler.kt`: ordered named steps, each in its own try/catch). Nothing expires them automatically in the database.
 - `/api/health` answers 200 only when `SELECT 1` and the Mongo ping both answer within 2 s in total; otherwise 503.

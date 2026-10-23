@@ -14,9 +14,14 @@ private val logger = LoggerFactory.getLogger("Scheduler")
 /** One named hourly job. Each step owns its transaction(s); the scheduler never opens one for it. */
 class SchedulerStep(val name: String, val run: suspend () -> Unit)
 
-/** The ordered hourly steps (AD-10): the item cycle, then the expired refresh-token purge. */
-fun schedulerSteps(itemCycle: suspend () -> Unit, authService: AuthService): List<SchedulerStep> = listOf(
-    SchedulerStep("item cycle") { itemCycle() },
+/** The ordered hourly steps (AD-10): recurring restore, soft-deleted hard delete, expired refresh-token purge. */
+fun schedulerSteps(
+    restoreRecurring: suspend () -> Unit,
+    hardDeleteSoftDeleted: suspend () -> Unit,
+    authService: AuthService,
+): List<SchedulerStep> = listOf(
+    SchedulerStep("restore recurring items") { restoreRecurring() },
+    SchedulerStep("hard-delete soft-deleted items") { hardDeleteSoftDeleted() },
     SchedulerStep("purge expired refresh tokens") { authService.purgeExpiredTokens() },
 )
 
@@ -34,7 +39,7 @@ suspend fun runSchedulerCycle(steps: List<SchedulerStep>) {
 }
 
 fun Application.configureScheduler(itemService: ItemService, authService: AuthService) {
-    val steps = schedulerSteps({ itemService.runSchedulerCycle() }, authService)
+    val steps = schedulerSteps({ itemService.restoreRecurring() }, { itemService.hardDeleteSoftDeleted() }, authService)
     launch {
         while (true) {
             runSchedulerCycle(steps)

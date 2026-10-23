@@ -1,11 +1,13 @@
 package com.bagplease
 
 import com.bagplease.entity.item.ItemService
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.SharedPostgres
+import com.bagplease.utils.appConfig
+import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgExec
+import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -164,21 +166,56 @@ class ItemLifecycleTest : FunSpec({
         return res.bodyAsText()
     }
 
-    // ── Direct MongoDB connection (for scheduler seeding) ──────────────────
+    // ── Direct PostgreSQL access (scheduler seeding and row assertions) ─────
 
-    fun connectToDb(): MongoDatabase {
-        val credential = MongoCredential.createScramSha1Credential(
-            "test_user", "admin", "test_pass".toCharArray()
+    // A row of `items` keyed like the GraphQL fields; booleans are real Booleans, timestamps are PostgreSQL's text.
+    fun itemRow(id: UUID): Map<String, Any?> {
+        val r = pgRows(
+            "SELECT name, checked, checked_at, deleted, deleted_at, recurring, added_by, category_id, stores FROM items WHERE id = '$id'"
+        ).single()
+        return mapOf(
+            "name" to r[0], "checked" to (r[1] == "t"), "checkedAt" to r[2], "deleted" to (r[3] == "t"),
+            "deletedAt" to r[4], "recurring" to r[5], "addedBy" to r[6], "category" to r[7], "stores" to r[8],
         )
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        return MongoClient.create(settings).getDatabase("test")
     }
 
-    fun buildItemService(db: MongoDatabase): ItemService = com.bagplease.utils.buildTestServices(db).itemService
+    fun itemCount(where: String): Long = pgCount("SELECT count(*) FROM items WHERE $where")
+
+    // Backdates a stored timestamp column RELATIVE to what the app left behind.
+    fun backdate(itemId: UUID, column: String, interval: String) =
+        pgExec("UPDATE items SET $column = $column - interval '$interval' WHERE id = '$itemId'")
+
+    // A real user + list + category, because the items FKs reject anything else. Returns (listId, categoryId).
+    fun seedListAndCategory(): Pair<UUID, UUID> {
+        val userId = UUID.randomUUID()
+        val listId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        pgExec("INSERT INTO users (id, username, password_hash, role) VALUES ('$userId', 'seed_${userId.toString().take(8)}', 'x', 'user')")
+        pgExec("INSERT INTO lists (id, name, owner_id, origin, created_at) VALUES ('$listId', 'Seeded', '$userId', 'USER_CREATED', now())")
+        pgExec("INSERT INTO categories (id, name, list_id) VALUES ('$catId', 'Seeded', '$listId')")
+        return listId to catId
+    }
+
+    fun seedItem(
+        listId: UUID, catId: UUID, name: String, checked: Boolean, recurring: String?,
+        checkedAt: String? = null, deleted: Boolean = false, deletedAt: String? = null,
+    ): UUID {
+        val id = UUID.randomUUID()
+        fun q(v: String?) = v?.let { "'$it'" } ?: "NULL"
+        pgExec(
+            "INSERT INTO items (id, name, checked, category_id, list_id, recurring, deleted, checked_at, deleted_at) VALUES " +
+                "('$id', '$name', $checked, '$catId', '$listId', ${q(recurring)}, $deleted, ${checkedAt ?: "NULL"}, ${deletedAt ?: "NULL"})"
+        )
+        return id
+    }
+
+    // The two item steps of the hourly cycle, on services built over the shared PostgreSQL.
+    suspend fun runSchedulerCycle() {
+        com.bagplease.plugins.connectDatabase(SharedPostgres.container.appConfig())
+        val items = com.bagplease.utils.buildTestServices().itemService
+        items.restoreRecurring()
+        items.hardDeleteSoftDeleted()
+    }
 
     // ── AC1 / AC2 / AC3 ── field round-trips ──────────────────────────────
 
@@ -424,104 +461,45 @@ class ItemLifecycleTest : FunSpec({
     // ── AC9 ── recurring restore scheduler ────────────────────────────────
 
     test("AC9 scheduler restores WEEKLY item after 8 days") {
-        val db = connectToDb()
-        val itemService = buildItemService(db)
+        val (listId, catId) = seedListAndCategory()
+        val itemId = seedItem(listId, catId, "RecurringItem", true, "WEEKLY", checkedAt = "now() - interval '8 days'")
 
-        val itemId = UUID.randomUUID()
-        val listId = UUID.randomUUID()
-        val eightDaysAgo = Instant.now().minus(8, ChronoUnit.DAYS)
+        runSchedulerCycle()
 
-        db.getCollection<Document>("items").insertOne(
-            Document(mapOf(
-                "_id" to itemId.toString(),
-                "name" to "RecurringItem",
-                "checked" to true,
-                "category" to UUID.randomUUID().toString(),
-                "listId" to listId.toString(),
-                "recurring" to "WEEKLY",
-                "checkedAt" to Date.from(eightDaysAgo),
-            ))
-        )
-
-        itemService.runSchedulerCycle()
-
-        val items = db.getCollection<Document>("items")
-            .find(Filters.eq("_id", itemId.toString()))
-            .toList()
-        items.size shouldBe 1
-        items[0].getBoolean("checked") shouldBe false
-        items[0]["checkedAt"] shouldBe null
+        val row = itemRow(itemId)
+        row["checked"] shouldBe false
+        row["checkedAt"] shouldBe null
     }
 
     test("AC9 scheduler does not double-restore on second run") {
-        val db = connectToDb()
-        val itemService = buildItemService(db)
+        val (listId, catId) = seedListAndCategory()
+        val itemId = seedItem(listId, catId, "RecurringNoDouble", true, "WEEKLY", checkedAt = "now() - interval '8 days'")
 
-        val itemId = UUID.randomUUID()
-        val listId = UUID.randomUUID()
-        val eightDaysAgo = Instant.now().minus(8, ChronoUnit.DAYS)
+        runSchedulerCycle()
+        runSchedulerCycle()
 
-        db.getCollection<Document>("items").insertOne(
-            Document(mapOf(
-                "_id" to itemId.toString(),
-                "name" to "RecurringNoDouble",
-                "checked" to true,
-                "category" to UUID.randomUUID().toString(),
-                "listId" to listId.toString(),
-                "recurring" to "WEEKLY",
-                "checkedAt" to Date.from(eightDaysAgo),
-            ))
-        )
-
-        itemService.runSchedulerCycle()
-        itemService.runSchedulerCycle()
-
-        val items = db.getCollection<Document>("items")
-            .find(Filters.eq("_id", itemId.toString()))
-            .toList()
-        items.size shouldBe 1
-        items[0].getBoolean("checked") shouldBe false
+        itemCount("id = '$itemId'") shouldBe 1L
+        itemRow(itemId)["checked"] shouldBe false
     }
 
     // ── AC10 ── hard-delete scheduler ─────────────────────────────────────
 
     test("AC10 scheduler hard-deletes soft-deleted ONE_TIME items older than 1 hour") {
-        val db = connectToDb()
-        val itemService = buildItemService(db)
-
-        val itemId = UUID.randomUUID()
-        val listId = UUID.randomUUID()
-        val twoHoursAgo = Instant.now().minus(2, ChronoUnit.HOURS)
-
-        db.getCollection<Document>("items").insertOne(
-            Document(mapOf(
-                "_id" to itemId.toString(),
-                "name" to "OneTimerOld",
-                "checked" to true,
-                "category" to UUID.randomUUID().toString(),
-                "listId" to listId.toString(),
-                "recurring" to "ONE_TIME",
-                "deleted" to true,
-                "deletedAt" to Date.from(twoHoursAgo),
-            ))
+        val (listId, catId) = seedListAndCategory()
+        val itemId = seedItem(
+            listId, catId, "OneTimerOld", true, "ONE_TIME", deleted = true, deletedAt = "now() - interval '2 hours'",
         )
 
-        itemService.runSchedulerCycle()
+        runSchedulerCycle()
 
-        val items = db.getCollection<Document>("items")
-            .find(Filters.eq("_id", itemId.toString()))
-            .toList()
-        items.size shouldBe 0
+        itemCount("id = '$itemId'") shouldBe 0L
     }
 
     // ── AC11 ── scheduler no-op ────────────────────────────────────────────
 
     test("AC11 scheduler no-op on clean database runs without error") {
-        val db = connectToDb()
-        val itemService = buildItemService(db)
-
         // runs without exception; no specific assertion needed beyond non-throw
-        itemService.runSchedulerCycle()
+        runSchedulerCycle()
     }
 
     // ── AC13 ── store suggestions ─────────────────────────────────────────
@@ -584,16 +562,11 @@ class ItemLifecycleTest : FunSpec({
 
     // ── AC14 ── compound indexes ──────────────────────────────────────────
 
-    test("AC14 compound indexes exist after app start") {
-        val db = connectToDb()
-        // create ItemRepository which runs init{} to create indexes
-        ItemRepository(db)
-
-        val indexes = db.getCollection<Document>("items").listIndexes().toList()
-        val indexKeys = indexes.map { it.get("key", Document::class.java).keys.toSet() }
-
-        indexKeys shouldContain setOf("listId", "recurring", "checkedAt")
-        indexKeys shouldContain setOf("deleted", "deletedAt")
+    test("AC14 the items indexes exist after startup") {
+        val names = pgRows("SELECT indexname FROM pg_indexes WHERE tablename = 'items'").map { it[0] }
+        names shouldContain "items_list_id_idx"
+        names shouldContain "items_list_recurring_checked_at_idx"
+        names shouldContain "items_deleted_deleted_at_idx"
     }
 
     // ── auth checks ───────────────────────────────────────────────────────
@@ -884,9 +857,6 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch74_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -913,20 +883,16 @@ class ItemLifecycleTest : FunSpec({
             // Backdate RELATIVE to whatever the edit actually left behind, deliberately. An absolute
             // Updates.set(..., eightDaysAgo) would hand the scheduler a valid clock even when the merge
             // had just wiped it, and this test would then pass with the bug fully present.
-            val checkedAtAfterEdit = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
-            itemsCol.updateOne(
-                itemFilter,
-                Updates.set("checkedAt", checkedAtAfterEdit?.let { Date.from(it.toInstant().minus(8, ChronoUnit.DAYS)) }),
-            )
+            val checkedAtAfterEdit = itemRow(itemId)["checkedAt"]
+            checkedAtAfterEdit shouldNotBe null
+            backdate(itemId, "checked_at", "8 days")
         }
 
-        // Built AFTER the HTTP writes: this ItemService owns a separate ItemStorage and only sees the
-        // rows written above through its own first lazy sync().
-        buildItemService(db).runSchedulerCycle()
+        runSchedulerCycle()
 
-        val restored = itemsCol.find(itemFilter).toList().single()
-        restored.getString("name") shouldBe "Ground coffee"
-        restored.getBoolean("checked") shouldBe false
+        val restored = itemRow(itemId)
+        restored["name"] shouldBe "Ground coffee"
+        restored["checked"] shouldBe false
         restored["checkedAt"] shouldBe null
     }
 
@@ -965,8 +931,6 @@ class ItemLifecycleTest : FunSpec({
         val visibleIds = List(5) { UUID.randomUUID() }
         val softDeletedId = UUID.randomUUID()
         val survivorId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
 
         testApplication {
             setUpMongo(container)
@@ -982,12 +946,11 @@ class ItemLifecycleTest : FunSpec({
             }
             // A ONE_TIME item that has been checked is SOFT-deleted (deleted = true), so getItems
             // already hides it. It is in this fixture because the obvious cascade implementation reads
-            // ItemStorage.getByListId, whose `!deleted` filter would skip exactly this row and leave it
-            // behind in Mongo pointing at a category that no longer exists.
+            // a `!deleted`-filtered read, which would skip exactly this row and leave it
+            // behind in the table pointing at a category that no longer exists.
             saveItem(token, softDeletedId, catId, listId, name = "SoftGone", recurring = "ONE_TIME") shouldNotContain "errors"
             checkItem(token, softDeletedId, listId) shouldContain """"deleted":true"""
-            itemsCol.find(Filters.eq("_id", softDeletedId.toString())).toList().single()
-                .getBoolean("deleted") shouldBe true
+            itemRow(softDeletedId)["deleted"] shouldBe true
 
             // The control row: a sibling category's item must survive, or "everything vanished" would
             // also satisfy every assertion below.
@@ -1004,8 +967,8 @@ class ItemLifecycleTest : FunSpec({
 
             // …and gone from MONGO, not merely from the cache: a cache-only prune would come back on
             // the next restart as exactly the orphans this story removes.
-            itemsCol.find(Filters.eq("category", catId.toString())).toList().size shouldBe 0
-            itemsCol.find(Filters.eq("_id", survivorId.toString())).toList().size shouldBe 1
+            itemCount("category_id = '$catId'") shouldBe 0L
+            itemCount("id = \'$survivorId\'") shouldBe 1L
         }
     }
 
@@ -1014,8 +977,6 @@ class ItemLifecycleTest : FunSpec({
         val strangerUsername = "cascstr93_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
 
         testApplication {
             setUpMongo(container)
@@ -1033,67 +994,35 @@ class ItemLifecycleTest : FunSpec({
             // and its items exactly where they were.
             getCategories(ownerToken, listId) shouldContain catId.toString()
             getItems(ownerToken, listId) shouldContain itemId.toString()
-            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().size shouldBe 1
+            itemCount("id = \'$itemId\'") shouldBe 1L
         }
     }
 
-    // Review finding, 2026-09-17: every other 9.3 cascade case uses ONE list, so deleting the `listId`
-    // clause from ItemRepository.deleteAllInCategory's filter left the whole suite green — the clause
-    // its own KDoc argues for was untested. Category ids are UUIDs, so a natural cross-list collision
-    // does not happen; this fixture forces the collision at the ITEM level, which is where the filter
-    // applies — the shape a category relocation, or any legacy orphan, leaves behind.
-    test("9.3 the cascade is scoped by listId, not by category id alone") {
+    // A category delete is scoped to its own list. With the composite FK `(list_id, category_id)` an item can no
+    // longer carry a category of another list, so the control is a SECOND list with its own category and item.
+    test("9.3 the cascade leaves another list's items alone") {
         val username = "casctwolist93_${UUID.randomUUID().toString().take(8)}"
-        val sharedCatId = UUID.randomUUID()
+        val catA = UUID.randomUUID()
+        val catB = UUID.randomUUID()
         val doomedItemId = UUID.randomUUID()
         val otherListItemId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        var listA = ""
 
         testApplication {
             setUpMongo(container)
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
-            listA = createList(token, "ListA")
+            val listA = createList(token, "ListA")
             val listB = createList(token, "ListB")
-            saveCategory(token, sharedCatId, listA, "Shared") shouldNotContain "errors"
-            saveItem(token, doomedItemId, sharedCatId, listA, name = "OnA") shouldNotContain "errors"
+            saveCategory(token, catA, listA, "A") shouldNotContain "errors"
+            saveCategory(token, catB, listB, "B") shouldNotContain "errors"
+            saveItem(token, doomedItemId, catA, listA, name = "OnA") shouldNotContain "errors"
+            saveItem(token, otherListItemId, catB, listB, name = "OnB") shouldNotContain "errors"
 
-            // List B gets an ITEM carrying the SAME category id, which is what the filter's `listId`
-            // clause actually guards — the categories collection is keyed by `_id`, so the category
-            // document itself can only ever live on one list. It cannot be created through the API
-            // (saveItem's guard rejects a category that is not on the target list — the point of this
-            // story), so the row is written straight to Mongo and a fresh instance picks it up on sync.
-            // That is also exactly the shape a relocated category leaves behind, and the shape of the
-            // legacy rows the `Uncategorized` bucket exists for.
-            itemsCol.insertOne(
-                Document(
-                    mapOf(
-                        "_id" to otherListItemId.toString(),
-                        "name" to "OnB",
-                        "checked" to false,
-                        "category" to sharedCatId.toString(),
-                        "listId" to listB,
-                        "deleted" to false,
-                        "addedBy" to username,
-                    )
-                )
-            )
-        }
+            deleteCategory(token, catA, listA) shouldNotContain "errors"
 
-        testApplication {
-            setUpMongo(container)
-            setUpJwt()
-            application { module() }
-            val token = loginToken(username, "pass1234")
-
-            deleteCategory(token, sharedCatId, listA) shouldNotContain "errors"
-
-            // List A's row is gone from Mongo; list B's row with the identical category id is NOT.
-            itemsCol.find(Filters.eq("_id", doomedItemId.toString())).toList().size shouldBe 0
-            itemsCol.find(Filters.eq("_id", otherListItemId.toString())).toList().size shouldBe 1
+            itemCount("id = '$doomedItemId'") shouldBe 0L
+            itemCount("id = '$otherListItemId'") shouldBe 1L
         }
     }
 
@@ -1106,8 +1035,6 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
         val survivorCatId = UUID.randomUUID()
         val survivorId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
 
         testApplication {
             setUpMongo(container)
@@ -1131,8 +1058,8 @@ class ItemLifecycleTest : FunSpec({
             val body = getItems(ownerToken, listId)
             body shouldNotContain (itemId.toString())
             body shouldContain survivorId.toString()
-            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().size shouldBe 0
-            itemsCol.find(Filters.eq("_id", survivorId.toString())).toList().size shouldBe 1
+            itemCount("id = \'$itemId\'") shouldBe 0L
+            itemCount("id = \'$survivorId\'") shouldBe 1L
         }
     }
 
@@ -1179,47 +1106,32 @@ class ItemLifecycleTest : FunSpec({
         }
     }
 
-    test("9.3 uncheckItem refuses to resurrect an item whose category is gone") {
+    // The orphan this guard was written for cannot exist any more: in V1__baseline.sql the FK
+    // `items (list_id, category_id) -> categories (list_id, id)` is ON DELETE CASCADE, so deleting the category row
+    // deletes its items too. The guard in `uncheckItem` stays as a second line of defence.
+    test("9.3 uncheckItem on an item whose category row is gone finds no item") {
         val username = "orph93_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        var listId = ""
 
-        // FIRST app instance: create the row pair legitimately, then strip the category straight out of
-        // PostgreSQL. The API can no longer produce an orphan at all (that is the point of the cascade
-        // above), so the raw delete reproduces the legacy shape this guard exists for.
         testApplication {
             setUpMongo(container)
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
-            listId = createList(token)
+            val listId = createList(token)
             saveCategory(token, catId, listId, "Vanishing") shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, name = "Ghost item") shouldNotContain "errors"
             checkItem(token, itemId, listId) shouldNotContain "errors"
             pgExec("DELETE FROM categories WHERE id = '$catId'")
-        }
-
-        // SECOND app instance: fresh caches, so it reads the orphan as it really is on disk.
-        testApplication {
-            setUpMongo(container)
-            setUpJwt()
-            application { module() }
-            val token = loginToken(username, "pass1234")
+            itemCount("id = '$itemId'") shouldBe 0L
 
             val res = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
                 setBody("""{"query":"mutation { uncheckItem(id: \"$itemId\", listId: \"$listId\") { id checked } }"}""")
             }.bodyAsText()
-            res shouldContain "Category $catId does not belong to list $listId"
-
-            // Not resurrected: the stored row is still checked. Without this the test would pass on an
-            // implementation that threw AFTER writing.
-            itemsCol.find(Filters.eq("_id", itemId.toString())).toList().single()
-                .getBoolean("checked") shouldBe true
+            res shouldContain "Item not found"
         }
     }
 
@@ -1229,9 +1141,6 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch95a_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1256,28 +1165,23 @@ class ItemLifecycleTest : FunSpec({
             // Backdate RELATIVE to what the edit left behind (the 7.4 AC5 idiom): an absolute
             // Updates.set would hand the scheduler a valid clock the merge never wrote, and this test
             // would pass with the bug fully present.
-            val checkedAtAfterEdit = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
-            itemsCol.updateOne(
-                itemFilter,
-                Updates.set("checkedAt", checkedAtAfterEdit?.let { Date.from(it.toInstant().minus(8, ChronoUnit.DAYS)) }),
-            )
+            val checkedAtAfterEdit = itemRow(itemId)["checkedAt"]
+            checkedAtAfterEdit shouldNotBe null
+            backdate(itemId, "checked_at", "8 days")
         }
 
-        buildItemService(db).runSchedulerCycle()
+        runSchedulerCycle()
 
-        val restored = itemsCol.find(itemFilter).toList().single()
-        restored.getBoolean("checked") shouldBe false
+        val restored = itemRow(itemId)
+        restored["checked"] shouldBe false
         restored["checkedAt"] shouldBe null
-        restored.getString("addedBy") shouldBe username
+        restored["addedBy"] shouldBe username
     }
 
     test("9.5 an edit of an already-checked recurring item does not restart the check-off clock") {
         val username = "sch95b_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1289,7 +1193,7 @@ class ItemLifecycleTest : FunSpec({
 
             saveItem(token, itemId, catId, listId, name = "Milk", recurring = "WEEKLY") shouldNotContain "errors"
             checkItem(token, itemId, listId) shouldNotContain "errors"
-            val checkedAtT = itemsCol.find(itemFilter).toList().single()["checkedAt"] as Date?
+            val checkedAtT = itemRow(itemId)["checkedAt"]
             checkedAtT shouldNotBe null
 
             // A rename must not postpone the restore — otherwise editing a checked weekly item every
@@ -1297,16 +1201,16 @@ class ItemLifecycleTest : FunSpec({
             saveItem(
                 token, itemId, catId, listId, name = "Whole milk", recurring = "WEEKLY", checked = true,
             ) shouldNotContain "errors"
-            itemsCol.find(itemFilter).toList().single()["checkedAt"] shouldBe checkedAtT
+            itemRow(itemId)["checkedAt"] shouldBe checkedAtT
 
             // Nor may changing the cadence, which takes the same branch with a different Recurring.
             saveItem(
                 token, itemId, catId, listId, name = "Whole milk", recurring = "MONTHLY", checked = true,
             ) shouldNotContain "errors"
-            val afterCadence = itemsCol.find(itemFilter).toList().single()
+            val afterCadence = itemRow(itemId)
             afterCadence["checkedAt"] shouldBe checkedAtT
-            afterCadence.getString("recurring") shouldBe "MONTHLY"
-            afterCadence.getString("addedBy") shouldBe username
+            afterCadence["recurring"] shouldBe "MONTHLY"
+            afterCadence["addedBy"] shouldBe username
         }
     }
 
@@ -1314,9 +1218,6 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch95c_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1331,12 +1232,12 @@ class ItemLifecycleTest : FunSpec({
                 token, itemId, catId, listId, name = "Batteries", checked = true,
             ) shouldNotContain "errors"
 
-            val stored = itemsCol.find(itemFilter).toList().single()
-            stored.getBoolean("checked") shouldBe true
+            val stored = itemRow(itemId)
+            stored["checked"] shouldBe true
             stored["checkedAt"] shouldBe null
-            stored.getBoolean("deleted") shouldBe false
+            stored["deleted"] shouldBe false
             stored["deletedAt"] shouldBe null
-            stored.getString("addedBy") shouldBe username
+            stored["addedBy"] shouldBe username
         }
     }
 
@@ -1344,9 +1245,6 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch95d_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1360,20 +1258,20 @@ class ItemLifecycleTest : FunSpec({
             // uncheck branch clears all three fields and not just the clock.
             saveItem(token, itemId, catId, listId, name = "Bin bags", recurring = "ONE_TIME") shouldNotContain "errors"
             checkItem(token, itemId, listId) shouldNotContain "errors"
-            val checkedRow = itemsCol.find(itemFilter).toList().single()
-            checkedRow.getBoolean("deleted") shouldBe true
+            val checkedRow = itemRow(itemId)
+            checkedRow["deleted"] shouldBe true
             checkedRow["deletedAt"] shouldNotBe null
 
             saveItem(
                 token, itemId, catId, listId, name = "Bin bags", recurring = "ONE_TIME", checked = false,
             ) shouldNotContain "errors"
 
-            val stored = itemsCol.find(itemFilter).toList().single()
-            stored.getBoolean("checked") shouldBe false
+            val stored = itemRow(itemId)
+            stored["checked"] shouldBe false
             stored["checkedAt"] shouldBe null
-            stored.getBoolean("deleted") shouldBe false
+            stored["deleted"] shouldBe false
             stored["deletedAt"] shouldBe null
-            stored.getString("addedBy") shouldBe username
+            stored["addedBy"] shouldBe username
         }
     }
 
@@ -1381,9 +1279,6 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch95e_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1398,9 +1293,9 @@ class ItemLifecycleTest : FunSpec({
                 token, itemId, catId, listId, name = "Cling film", recurring = "ONE_TIME", checked = true,
             ) shouldNotContain "errors"
 
-            val soft = itemsCol.find(itemFilter).toList().single()
-            soft.getBoolean("deleted") shouldBe true
-            val deletedAtT = soft["deletedAt"] as Date?
+            val soft = itemRow(itemId)
+            soft["deleted"] shouldBe true
+            val deletedAtT = soft["deletedAt"]
             deletedAtT shouldNotBe null
             getItems(token, listId) shouldNotContain itemId.toString()
 
@@ -1411,43 +1306,28 @@ class ItemLifecycleTest : FunSpec({
                 token, itemId, catId, listId, name = "Cling film XL", recurring = "ONE_TIME", checked = true,
             ) shouldNotContain "errors"
 
-            val again = itemsCol.find(itemFilter).toList().single()
+            val again = itemRow(itemId)
             again["deletedAt"] shouldBe deletedAtT
-            again.getString("name") shouldBe "Cling film XL"
-            again.getString("addedBy") shouldBe username
+            again["name"] shouldBe "Cling film XL"
+            again["addedBy"] shouldBe username
         }
     }
 
     test("9.5 the scheduler's restore clears the soft delete as well as the clock") {
-        val db = connectToDb()
-        val itemService = buildItemService(db)
-        val itemId = UUID.randomUUID()
-        val listId = UUID.randomUUID()
-        val itemsCol = db.getCollection<Document>("items")
-
-        // Seeded raw (the AC10 idiom): a checked WEEKLY row that ALSO carries a soft delete — the shape
-        // a cadence change on a checked one-timer leaves behind. The restore has to shed all of it;
-        // a hand-written copy(checked = false, checkedAt = null) would leave the row invisible forever.
-        itemsCol.insertOne(
-            Document(mapOf(
-                "_id" to itemId.toString(),
-                "name" to "Stuck",
-                "checked" to true,
-                "category" to UUID.randomUUID().toString(),
-                "listId" to listId.toString(),
-                "recurring" to "WEEKLY",
-                "deleted" to true,
-                "deletedAt" to Date.from(Instant.now()),
-                "checkedAt" to Date.from(Instant.now().minus(8, ChronoUnit.DAYS)),
-            ))
+        // Seeded raw: a checked WEEKLY row that ALSO carries a soft delete — the shape a cadence change on a
+        // checked one-timer leaves behind. The restore has to shed all of it.
+        val (listId, catId) = seedListAndCategory()
+        val itemId = seedItem(
+            listId, catId, "Stuck", true, "WEEKLY",
+            checkedAt = "now() - interval '8 days'", deleted = true, deletedAt = "now()",
         )
 
-        itemService.runSchedulerCycle()
+        runSchedulerCycle()
 
-        val restored = itemsCol.find(Filters.eq("_id", itemId.toString())).toList().single()
-        restored.getBoolean("checked") shouldBe false
+        val restored = itemRow(itemId)
+        restored["checked"] shouldBe false
         restored["checkedAt"] shouldBe null
-        restored.getBoolean("deleted") shouldBe false
+        restored["deleted"] shouldBe false
         restored["deletedAt"] shouldBe null
     }
 
@@ -1455,43 +1335,27 @@ class ItemLifecycleTest : FunSpec({
         val username = "sch95g_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
-        val stale = Date.from(Instant.now().minus(8, ChronoUnit.DAYS))
-        var listId = ""
 
-        // FIRST instance: create the row, then plant the legacy shape straight in Mongo —
-        // `checked = false` with a stale non-null `checkedAt`, which is exactly what the pre-9.5 merge
-        // used to leave behind. It has to be done behind the running app's back and read by a SECOND
-        // instance, because ItemStorage is an in-memory cache.
         testApplication {
             setUpMongo(container)
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
-            listId = createList(token)
+            val listId = createList(token)
             saveCategory(token, catId, listId) shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, name = "Rice", recurring = "WEEKLY") shouldNotContain "errors"
-            itemsCol.updateOne(itemFilter, Updates.set("checkedAt", stale))
-        }
+            // The legacy shape the pre-9.5 merge left behind: `checked = false` with a stale non-null `checkedAt`.
+            pgExec("UPDATE items SET checked_at = now() - interval '8 days' WHERE id = '$itemId'")
 
-        // SECOND instance: fresh caches, so checkItem reads the stale clock off disk. Reusing it would
-        // put the item straight past the 7-day threshold and the very next cycle would un-check it.
-        testApplication {
-            setUpMongo(container)
-            setUpJwt()
-            application { module() }
-            val token = loginToken(username, "pass1234")
+            // Reusing the stale clock would put the item straight past the 7-day threshold.
             checkItem(token, itemId, listId) shouldNotContain "errors"
-
-            itemsCol.find(itemFilter).toList().single()["checkedAt"] shouldNotBe stale
+            pgCount("SELECT count(*) FROM items WHERE id = '$itemId' AND checked_at > now() - interval '1 minute'") shouldBe 1L
         }
 
-        buildItemService(db).runSchedulerCycle()
+        runSchedulerCycle()
 
-        val afterCycle = itemsCol.find(itemFilter).toList().single()
-        afterCycle.getBoolean("checked") shouldBe true
+        val afterCycle = itemRow(itemId)
+        afterCycle["checked"] shouldBe true
         afterCycle["checkedAt"] shouldNotBe null
     }
     // ── Story 9.6 ── an item can be in several stores ─────────────────────
@@ -1608,13 +1472,10 @@ class ItemLifecycleTest : FunSpec({
         }
     }
 
-    test("9.6 every write unsets the legacy single-value store field") {
+    test("9.6 stores are kept as an ordered text array with their casing") {
         val username = "st96e_${UUID.randomUUID().toString().take(8)}"
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
-        val db = connectToDb()
-        val itemsCol = db.getCollection<Document>("items")
-        val itemFilter = Filters.eq("_id", itemId.toString())
 
         testApplication {
             setUpMongo(container)
@@ -1623,19 +1484,11 @@ class ItemLifecycleTest : FunSpec({
             val token = registerAndLogin(username)
             val listId = createList(token)
             saveCategory(token, catId, listId) shouldNotContain "errors"
-            saveItem(token, itemId, catId, listId, stores = listOf("Lidl")) shouldNotContain "errors"
+            saveItem(token, itemId, catId, listId, stores = listOf("Lidl", "aldi")) shouldNotContain "errors"
+            itemRow(itemId)["stores"] shouldBe "{Lidl,aldi}"
 
-            // Plant the legacy field behind the app's back — the shape a pre-9.6 image, or a row the
-            // startup migration has not reached, would leave. AR-E9-3: the very next write must take
-            // it away, because `save` sets `stores` and unsets `store` in ONE update.
-            itemsCol.updateOne(itemFilter, Updates.set("store", "Aldi"))
-            itemsCol.find(itemFilter).toList().single().containsKey("store") shouldBe true
-
-            saveItem(token, itemId, catId, listId, stores = listOf("Lidl", "Aldi")) shouldNotContain "errors"
-
-            val row = itemsCol.find(itemFilter).toList().single()
-            row.containsKey("store") shouldBe false
-            row.getList("stores", String::class.java) shouldBe listOf("Lidl", "Aldi")
+            saveItem(token, itemId, catId, listId, stores = listOf("aldi", "Lidl", "Rewe")) shouldNotContain "errors"
+            itemRow(itemId)["stores"] shouldBe "{aldi,Lidl,Rewe}"
         }
     }
 })

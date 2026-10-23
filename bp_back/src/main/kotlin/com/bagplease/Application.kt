@@ -4,10 +4,9 @@ import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.db.ApplicationConfigRepository
 import com.bagplease.entity.category.CategoryService
 import com.bagplease.entity.category.db.CategoryRepository
-import com.bagplease.entity.item.mongo.ItemRepository
+import com.bagplease.entity.item.db.ItemRepository
 import com.bagplease.entity.list.db.ListRepository
 import com.bagplease.entity.user.UserService
-import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.user.UserLookup
@@ -49,8 +48,6 @@ fun Application.module() {
     val refreshTokenRepository = RefreshTokenRepository()
     val userLookup = UserLookup(userRepository)
 
-    val itemRepository = ItemRepository(connection.db)
-    val itemStorage = ItemStorage(itemRepository)
     // ItemService verifies membership through ListService, ListService counts items through ItemService and cascades
     // into CategoryService, and CategoryService cascades into ItemService: the cycle is cut with lazy references.
     lateinit var itemService: ItemService
@@ -59,12 +56,10 @@ fun Application.module() {
         repository = ListRepository(),
         userLookup = userLookup,
         itemService = lazy { itemService },
-        itemRepository = itemRepository,
         categoryService = lazy { categoryService },
-        itemStorage = itemStorage,
         adminLogin = adminLogin,
     )
-    itemService = ItemService(itemStorage, listService, itemRepository, lazy { categoryService })
+    itemService = ItemService(listService, ItemRepository(), lazy { categoryService })
     categoryService = CategoryService(CategoryRepository(), listService, itemService)
     val userService = UserService(userRepository, refreshTokenRepository, listService, adminLogin, adminPass)
 
@@ -100,7 +95,6 @@ fun Application.module() {
     configureMigration(
         db = connection.db,
         userLookup = userLookup,
-        itemRepository = itemRepository,
         listService = listService,
         migrationTargetUsername = migrationTargetUser,
     )

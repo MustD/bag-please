@@ -326,7 +326,7 @@ class ListServiceTest : FunSpec({
                 setBody("""{"query":"mutation { acceptInvite(listId: \"$sharedId\") { id } }"}""")
             }.bodyAsText() shouldNotContain "errors"
 
-            val service = buildTestServices(connectToDb()).listService
+            val service = buildTestServices().listService
 
             fun snapshot() = pgRows(
                 "SELECT l.id, l.name, m.user_id, m.status FROM lists l LEFT JOIN list_members m ON m.list_id = l.id ORDER BY l.id, m.user_id"

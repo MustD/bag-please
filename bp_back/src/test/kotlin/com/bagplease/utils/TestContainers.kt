@@ -183,21 +183,17 @@ class TestServices(
     val categoryService: com.bagplease.entity.category.CategoryService,
 )
 
-fun buildTestServices(db: com.mongodb.kotlin.client.coroutine.MongoDatabase): TestServices {
-    val itemRepository = com.bagplease.entity.item.mongo.ItemRepository(db)
-    val itemStorage = com.bagplease.entity.item.ItemStorage(itemRepository)
+fun buildTestServices(): TestServices {
     lateinit var itemService: com.bagplease.entity.item.ItemService
     lateinit var categoryService: com.bagplease.entity.category.CategoryService
     val listService = com.bagplease.entity.list.ListService(
         repository = com.bagplease.entity.list.db.ListRepository(),
         userLookup = com.bagplease.entity.user.UserLookup(com.bagplease.entity.user.db.UserRepository()),
         itemService = lazy { itemService },
-        itemRepository = itemRepository,
         categoryService = lazy { categoryService },
-        itemStorage = itemStorage,
         adminLogin = "admin",
     )
-    itemService = com.bagplease.entity.item.ItemService(itemStorage, listService, itemRepository, lazy { categoryService })
+    itemService = com.bagplease.entity.item.ItemService(listService, com.bagplease.entity.item.db.ItemRepository(), lazy { categoryService })
     categoryService = com.bagplease.entity.category.CategoryService(
         com.bagplease.entity.category.db.CategoryRepository(), listService, itemService,
     )

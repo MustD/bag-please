@@ -163,7 +163,7 @@ class ListPostgresTest : FunSpec({
                 MongoClientSettings.builder().credential(credential).uuidRepresentation(UuidRepresentation.STANDARD)
                     .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test")).build()
             ).getDatabase("test")
-            val service = buildTestServices(db).listService
+            val service = buildTestServices().listService
             val listId = java.util.UUID.fromString(id)
 
             service.isMember(CallerUsername("pgMemA"), listId) shouldBe true

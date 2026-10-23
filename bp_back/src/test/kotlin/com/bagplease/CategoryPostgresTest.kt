@@ -4,13 +4,12 @@ import com.bagplease.entity.category.Category
 import com.bagplease.entity.category.CategoryService
 import com.bagplease.entity.category.db.CategoryRepository
 import com.bagplease.entity.item.ItemService
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.features.auth.CallerUsername
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.mongoContainer
 import com.bagplease.utils.buildTestServices
 import com.bagplease.utils.pgCount
+import com.bagplease.utils.pgExec
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
@@ -186,7 +185,7 @@ class CategoryPostgresTest : FunSpec({
             setUpMongo(container); setUpJwt(); application { module() }
             val shared = sharedList("catEvt")
             val other = list(login("catEvtOwner", "pass1234"), "Other")
-            val service = buildTestServices(mongoClient().getDatabase("test")).categoryService
+            val service = buildTestServices().categoryService
             val cat = Category(UUID.randomUUID(), "Dairy", shared.listId)
             service.saveCategory(cat, CallerUsername(shared.owner)).isRight() shouldBe true
 
@@ -220,23 +219,26 @@ class CategoryPostgresTest : FunSpec({
         testApplication {
             setUpMongo(container); setUpJwt(); application { module() }
             val shared = sharedList("catRoll")
-            val healthy = buildTestServices(mongoClient().getDatabase("test"))
+            val healthy = buildTestServices()
             val cat = Category(UUID.randomUUID(), "Doomed", shared.listId)
             healthy.categoryService.saveCategory(cat, CallerUsername(shared.owner)).isRight() shouldBe true
 
-            // An item service over a CLOSED Mongo client: deleteAllInCategory throws.
-            val client = mongoClient()
-            val repo = ItemRepository(client.getDatabase("test"))
-            client.close()
-            val broken = ItemService(ItemStorage(repo), healthy.listService, repo, lazy { healthy.categoryService })
-            val service = CategoryService(CategoryRepository(), healthy.listService, broken)
+            // A statement trigger makes every DELETE on items fail, so the item cascade throws inside the tx.
+            pgExec("CREATE FUNCTION fail_item_delete() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RAISE EXCEPTION 'boom'; END \$\$")
+            pgExec("CREATE TRIGGER fail_item_delete BEFORE DELETE ON items FOR EACH STATEMENT EXECUTE FUNCTION fail_item_delete()")
+            val service = healthy.categoryService
 
             val event = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).async {
                 withTimeoutOrNull(700) { service.categoryDeletions.first() }
             }
             kotlinx.coroutines.delay(100)
-            shouldThrow<Exception> { service.deleteCategory(cat.id, shared.listId, CallerUsername(shared.owner)) }
-            event.await() shouldBe null
+            try {
+                shouldThrow<Exception> { service.deleteCategory(cat.id, shared.listId, CallerUsername(shared.owner)) }
+                event.await() shouldBe null
+            } finally {
+                pgExec("DROP TRIGGER fail_item_delete ON items")
+                pgExec("DROP FUNCTION fail_item_delete()")
+            }
             pgCount("SELECT count(*) FROM categories WHERE id = '${cat.id}'") shouldBe 1L
         }
     }
@@ -245,7 +247,7 @@ class CategoryPostgresTest : FunSpec({
         testApplication {
             setUpMongo(container); setUpJwt(); application { module() }
             val shared = sharedList("catDelEvt")
-            val services = buildTestServices(mongoClient().getDatabase("test"))
+            val services = buildTestServices()
             val service = services.categoryService
             val cat = Category(UUID.randomUUID(), "Doomed", shared.listId)
             service.saveCategory(cat, CallerUsername(shared.owner)).isRight() shouldBe true

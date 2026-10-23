@@ -145,7 +145,7 @@ development_status:
   11-3-settings-and-feedback-live-in-postgresql: done
   11-4-lists-shares-and-invites-live-in-postgresql: done
   11-5-categories-live-in-postgresql: done
-  11-6-items-and-the-hourly-jobs-live-in-postgresql: backlog
+  11-6-items-and-the-hourly-jobs-live-in-postgresql: done
   11-7-mongodb-leaves-the-stack: backlog
   11-8-production-data-can-be-imported-in-one-go: backlog
   11-9-the-new-home-exists-in-terraform: backlog

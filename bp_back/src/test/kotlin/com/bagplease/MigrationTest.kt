@@ -1,6 +1,5 @@
 package com.bagplease
 
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.user.User
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.entity.user.db.UserRepository
@@ -80,8 +79,7 @@ class MigrationTest : FunSpec({
         configureMigration(
             db = db,
             userLookup = userRepo,
-            itemRepository = ItemRepository(db),
-            listService = buildTestServices(db).listService,
+            listService = buildTestServices().listService,
             migrationTargetUsername = username,
         )
 
@@ -116,11 +114,10 @@ class MigrationTest : FunSpec({
             Document(mapOf("_id" to UUID.randomUUID().toString(), "name" to "Item", "checked" to false))
         )
 
-        val itemRepo = ItemRepository(db)
-        val listSvc = buildTestServices(db).listService
+        val listSvc = buildTestServices().listService
 
-        configureMigration(db, userRepo, itemRepo, listSvc, username)
-        configureMigration(db, userRepo, itemRepo, listSvc, username)
+        configureMigration(db, userRepo, listSvc, username)
+        configureMigration(db, userRepo, listSvc, username)
 
         pgCount("SELECT count(*) FROM lists") shouldBe 1L
         // NARROWED by Story 9.6, not removed: `app_migrations` now also holds `epic9-multi-store`,
@@ -143,8 +140,7 @@ class MigrationTest : FunSpec({
             configureMigration(
                 db = db,
                 userLookup = UserLookup(UserRepository()),
-                itemRepository = ItemRepository(db),
-                listService = buildTestServices(db).listService,
+                listService = buildTestServices().listService,
                 migrationTargetUsername = "",
             )
         }
@@ -164,8 +160,7 @@ class MigrationTest : FunSpec({
             configureMigration(
                 db = db,
                 userLookup = UserLookup(UserRepository()),
-                itemRepository = ItemRepository(db),
-                listService = buildTestServices(db).listService,
+                listService = buildTestServices().listService,
                 migrationTargetUsername = ghost,
             )
         }
@@ -180,8 +175,7 @@ class MigrationTest : FunSpec({
         configureMigration(
             db = db,
             userLookup = UserLookup(UserRepository()),
-            itemRepository = ItemRepository(db),
-            listService = buildTestServices(db).listService,
+            listService = buildTestServices().listService,
             migrationTargetUsername = "",
         )
 
@@ -198,11 +192,13 @@ class MigrationTest : FunSpec({
     // already recorded for exactly that reason.
     // ─────────────────────────────────────────────────────────────────────────
 
+    suspend fun storesOf(db: MongoDatabase): List<String> =
+        db.getCollection<Document>("items").find().toList().single().getList("stores", String::class.java) ?: emptyList()
+
     suspend fun runMigrations(db: MongoDatabase, username: String = "") = configureMigration(
         db = db,
         userLookup = UserLookup(UserRepository()),
-        itemRepository = ItemRepository(db),
-        listService = buildTestServices(db).listService,
+        listService = buildTestServices().listService,
         migrationTargetUsername = username,
     )
 
@@ -270,15 +266,13 @@ class MigrationTest : FunSpec({
             )
         )
 
-        // `MongoItem` DROPPED the `store` property rather than renaming it, which only works because
-        // the driver's codec ignores unknown BSON keys. Reading a legacy row through `getAll` before
-        // the migration is what proves that — a codec that rejected it would fail the whole app on
-        // startup, since `ItemStorage.sync()` calls exactly this.
-        ItemRepository(db).getAll().single().stores shouldBe emptyList()
+        // The legacy row carries no `stores` before the migration (items are raw Mongo documents here; the
+        // slice itself is on PostgreSQL since Story 11.6, and Story 11.7 deletes this migration).
+        storesOf(db) shouldBe emptyList()
 
         runMigrations(db)
 
-        ItemRepository(db).getAll().single().stores shouldBe listOf("Lidl")
+        storesOf(db) shouldBe listOf("Lidl")
     }
 
     test("9.6 re-running changes nothing, and a fresh database still records the migration") {

@@ -1,7 +1,6 @@
 package com.bagplease.plugins
 
 import com.bagplease.entity.item.StoreNames
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.user.UserLookup
 import com.bagplease.mongo.AppMigrationsRepository
@@ -26,12 +25,11 @@ private val logger = KtorSimpleLogger("Migration")
  * have run on any database that had already seen it, i.e. on every real one.
  *
  * It is called from `Application.module()` BEFORE `configureGql`, and therefore before any
- * `ItemStorage.sync()` can cache a pre-migration row.
+ * item is read.
  */
 fun configureMigration(
     db: MongoDatabase,
     userLookup: UserLookup,
-    itemRepository: ItemRepository,
     listService: ListService,
     migrationTargetUsername: String,
 ) {

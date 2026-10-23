@@ -611,12 +611,9 @@ class ListSharingTest : FunSpec({
     }
 
     // AC-7.6-persist — Story 7.6: the domain `status` is a `MemberStatus` enum, but the persisted value must stay
-    // the BSON *string* "PENDING"/"ACCEPTED"/"DECLINED", so no data migration is needed.
-    // What this pins is that MemberStatus's CONSTANT NAMES are byte-identical to the persisted strings — rename a
-    // constant and this goes red. It does NOT pin `ListMemberRepository.save` passing `.name`: measured 2026-08-12,
-    // reverting that to `member.status` leaves this green, because `org.bson.codecs.EnumCodecProvider` is in the
-    // driver's default registry and encodes the enum to the same string. `.name` is kept for explicitness (matching
-    // `ItemRepository.kt:60`) and to stop the wire format depending on a driver default — not as a corruption fix.
+    // the string "PENDING"/"ACCEPTED"/"DECLINED" (`list_members.status` is text with a CHECK on those names).
+    // What this pins is that MemberStatus's CONSTANT NAMES are byte-identical to the stored strings: rename a
+    // constant and this goes red.
     test("AC-7.6-persist MemberStatus constant names round-trip as the stored list_members.status strings") {
         val owner = "persistOwner_${UUID.randomUUID().toString().take(8)}"
         val invitee = "persistInvitee_${UUID.randomUUID().toString().take(8)}"
@@ -788,8 +785,6 @@ class ListSharingTest : FunSpec({
             shareList(vToken, sharedDeclined, u) shouldNotContain "errors"
             rejectInvite(uToken, sharedDeclined) shouldNotContain "errors"
 
-            val db = connectToDb() // items are still Mongo
-            val itemCol = db.getCollection<Document>("items")
             // Owner rows (ACCEPTED) of U's own lists are part of the picture: U holds 2 owner rows + 3 invite rows.
             fun uStatuses() = pgRows("SELECT status FROM list_members WHERE user_id = '$uId'").map { it[0] }.toSet()
 
@@ -819,12 +814,12 @@ class ListSharingTest : FunSpec({
 
             // Both lists U owned are gone, with their items and categories.
             pgCount("SELECT count(*) FROM lists WHERE id IN ('$ownedA', '$ownedB')") shouldBe 0L
-            itemCol.countDocuments(Filters.`in`("_id", itemA, itemB)) shouldBe 0L
+            pgCount("SELECT count(*) FROM items WHERE id IN ('$itemA', '$itemB')") shouldBe 0L
             pgCount("SELECT count(*) FROM categories WHERE id IN ('$catA', '$catB')") shouldBe 0L
 
             // V's own lists and their content are untouched.
             pgCount("SELECT count(*) FROM lists WHERE id IN ('$sharedAccepted', '$sharedPending', '$sharedDeclined')") shouldBe 3L
-            itemCol.countDocuments(Filters.eq("_id", itemV)) shouldBe 1L
+            pgCount("SELECT count(*) FROM items WHERE id = '$itemV'") shouldBe 1L
             pgCount("SELECT count(*) FROM categories WHERE id = '$catV'") shouldBe 1L
 
             // The deleted user's refresh tokens are gone (step 3 of the ordered sequence).
