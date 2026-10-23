@@ -6,7 +6,6 @@ import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.gql.ApplicationConfigMutations
 import com.bagplease.config.gql.ApplicationConfigQueries
 import com.bagplease.entity.category.CategoryService
-import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.category.gql.CategoryMutations
 import com.bagplease.entity.category.gql.CategoryQueries
 import com.bagplease.entity.category.gql.CategorySubscriptions
@@ -56,7 +55,7 @@ fun Application.configureGql(
     userService: UserService,
     listService: ListService,
     itemService: ItemService,
-    categoryStorage: CategoryStorage,
+    categoryService: CategoryService,
 ) {
 
     val feedbackRepository = FeedbackRepository()
@@ -64,8 +63,6 @@ fun Application.configureGql(
     val feedbackService = FeedbackService(feedbackRepository, adminLogin)
 
     configureScheduler(itemService, authService)
-    // itemService is built in Application.kt (ListService needs it): CategoryService.deleteCategory cascades into it.
-    val categoryService = CategoryService(categoryStorage, listService, itemService)
 
     install(GraphQL) {
         schema {

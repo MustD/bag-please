@@ -2,7 +2,7 @@ package com.bagplease.entity.item
 
 import arrow.core.Either
 import arrow.core.raise.either
-import com.bagplease.entity.category.CategoryStorage
+import com.bagplease.entity.category.CategoryService
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListAuthError
 import com.bagplease.entity.list.ListService
@@ -18,7 +18,8 @@ class ItemService(
     private val storage: ItemStorage,
     private val listService: ListService,
     private val repository: ItemRepository,
-    private val categoryStorage: CategoryStorage,
+    // CategoryService.deleteCategory cascades into this service, so the two are a construction cycle.
+    private val categoryService: Lazy<CategoryService>,
 ) {
 
     private val itemUpdateChannel = MutableSharedFlow<Item>(
@@ -84,13 +85,10 @@ class ItemService(
             //
             // With this, no SUCCESSFUL call on the ITEM surface can leave an item pointing at a
             // category that is not on its list. That is narrower than "no orphan is reachable", and
-            // deliberately so (review finding, 2026-09-17). Three windows remain, all recorded in
-            // deferred-work.md: (a) `CategoryService.saveCategory` re-saves by `_id` and sets `listId`,
-            // so an existing category can be RELOCATED to another list, stranding the old list's items
-            // — `saveItem` guards exactly this for items, categories have no equivalent; (b) this check
-            // reads the in-memory `CategoryStorage` and `storage.save` runs outside any lock, so a
-            // create racing a cascade is a TOCTOU window; (c) the cascade is non-transactional, and its
-            // failure residue IS an orphan.
+            // deliberately so (review finding, 2026-09-17). Two windows remain: (a) this check runs in its own
+            // transaction and `storage.save` runs outside any lock, so a create racing a cascade is a TOCTOU window; (b) the
+            // cascade spans Mongo items and PostgreSQL categories, so its failure residue IS an orphan. (Re-saving a category
+            // id on another list is rejected since Story 11.5.)
             requireCategoryOnList(incoming.category, incoming.listId)
             incoming // AC2 — create: addedBy from the caller, exactly as today
         }
@@ -202,7 +200,7 @@ class ItemService(
         }
 
     private suspend fun requireCategoryOnList(categoryId: UUID, listId: UUID) {
-        if (categoryStorage.getByListId(listId).none { it.id == categoryId }) {
+        if (!categoryService.value.existsOnList(categoryId, listId)) {
             throw IllegalArgumentException("Category $categoryId does not belong to list $listId")
         }
     }

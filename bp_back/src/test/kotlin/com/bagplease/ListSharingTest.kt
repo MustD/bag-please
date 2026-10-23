@@ -788,9 +788,8 @@ class ListSharingTest : FunSpec({
             shareList(vToken, sharedDeclined, u) shouldNotContain "errors"
             rejectInvite(uToken, sharedDeclined) shouldNotContain "errors"
 
-            val db = connectToDb() // items and categories are still Mongo
+            val db = connectToDb() // items are still Mongo
             val itemCol = db.getCollection<Document>("items")
-            val categoryCol = db.getCollection<Document>("categories")
             // Owner rows (ACCEPTED) of U's own lists are part of the picture: U holds 2 owner rows + 3 invite rows.
             fun uStatuses() = pgRows("SELECT status FROM list_members WHERE user_id = '$uId'").map { it[0] }.toSet()
 
@@ -821,12 +820,12 @@ class ListSharingTest : FunSpec({
             // Both lists U owned are gone, with their items and categories.
             pgCount("SELECT count(*) FROM lists WHERE id IN ('$ownedA', '$ownedB')") shouldBe 0L
             itemCol.countDocuments(Filters.`in`("_id", itemA, itemB)) shouldBe 0L
-            categoryCol.countDocuments(Filters.`in`("_id", catA, catB)) shouldBe 0L
+            pgCount("SELECT count(*) FROM categories WHERE id IN ('$catA', '$catB')") shouldBe 0L
 
             // V's own lists and their content are untouched.
             pgCount("SELECT count(*) FROM lists WHERE id IN ('$sharedAccepted', '$sharedPending', '$sharedDeclined')") shouldBe 3L
             itemCol.countDocuments(Filters.eq("_id", itemV)) shouldBe 1L
-            categoryCol.countDocuments(Filters.eq("_id", catV)) shouldBe 1L
+            pgCount("SELECT count(*) FROM categories WHERE id = '$catV'") shouldBe 1L
 
             // The deleted user's refresh tokens are gone (step 3 of the ordered sequence).
             pgCount("SELECT count(*) FROM refresh_tokens WHERE username = '$u'") shouldBe 0L

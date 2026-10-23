@@ -2,12 +2,12 @@ package com.bagplease
 
 import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.db.ApplicationConfigRepository
-import com.bagplease.entity.category.mongo.CategoryRepository
+import com.bagplease.entity.category.CategoryService
+import com.bagplease.entity.category.db.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.db.ListRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.user.UserLookup
@@ -50,23 +50,22 @@ fun Application.module() {
     val userLookup = UserLookup(userRepository)
 
     val itemRepository = ItemRepository(connection.db)
-    val categoryRepository = CategoryRepository(connection.db)
     val itemStorage = ItemStorage(itemRepository)
-    val categoryStorage = CategoryStorage(categoryRepository)
-    // ItemService verifies membership through ListService, and ListService counts items through ItemService:
-    // the list service gets the item service lazily.
+    // ItemService verifies membership through ListService, ListService counts items through ItemService and cascades
+    // into CategoryService, and CategoryService cascades into ItemService: the cycle is cut with lazy references.
     lateinit var itemService: ItemService
+    lateinit var categoryService: CategoryService
     val listService = ListService(
         repository = ListRepository(),
         userLookup = userLookup,
         itemService = lazy { itemService },
         itemRepository = itemRepository,
-        categoryRepository = categoryRepository,
+        categoryService = lazy { categoryService },
         itemStorage = itemStorage,
-        categoryStorage = categoryStorage,
         adminLogin = adminLogin,
     )
-    itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
+    itemService = ItemService(itemStorage, listService, itemRepository, lazy { categoryService })
+    categoryService = CategoryService(CategoryRepository(), listService, itemService)
     val userService = UserService(userRepository, refreshTokenRepository, listService, adminLogin, adminPass)
 
     val secret = config.property("jwt.secret").getString()
@@ -102,7 +101,6 @@ fun Application.module() {
         db = connection.db,
         userLookup = userLookup,
         itemRepository = itemRepository,
-        categoryRepository = categoryRepository,
         listService = listService,
         migrationTargetUsername = migrationTargetUser,
     )
@@ -115,7 +113,7 @@ fun Application.module() {
         userService = userService,
         listService = listService,
         itemService = itemService,
-        categoryStorage = categoryStorage,
+        categoryService = categoryService,
     )
     configureRouting()
 }

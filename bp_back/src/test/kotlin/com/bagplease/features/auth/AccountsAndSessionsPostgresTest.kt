@@ -1,7 +1,5 @@
 package com.bagplease.features.auth
 
-import com.bagplease.entity.category.CategoryStorage
-import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService

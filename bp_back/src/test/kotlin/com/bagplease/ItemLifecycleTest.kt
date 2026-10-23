@@ -1,12 +1,11 @@
 package com.bagplease
 
-import com.bagplease.entity.category.CategoryStorage
-import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.pgExec
 import com.bagplease.utils.setUpJwt
 import com.bagplease.utils.setUpMongo
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -1186,15 +1185,11 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
         val db = connectToDb()
         val itemsCol = db.getCollection<Document>("items")
-        val categoriesCol = db.getCollection<Document>("categories")
         var listId = ""
 
         // FIRST app instance: create the row pair legitimately, then strip the category straight out of
-        // Mongo. It has to be done this way round — CategoryStorage is an in-memory cache, so a category
-        // removed behind its back is still "present" to this instance, and the API can no longer produce
-        // an orphan at all (that is the point of the cascade above). The orphan therefore only becomes
-        // visible to a process that syncs AFTER the raw delete, which is precisely the legacy shape this
-        // guard exists for.
+        // PostgreSQL. The API can no longer produce an orphan at all (that is the point of the cascade
+        // above), so the raw delete reproduces the legacy shape this guard exists for.
         testApplication {
             setUpMongo(container)
             setUpJwt()
@@ -1204,7 +1199,7 @@ class ItemLifecycleTest : FunSpec({
             saveCategory(token, catId, listId, "Vanishing") shouldNotContain "errors"
             saveItem(token, itemId, catId, listId, name = "Ghost item") shouldNotContain "errors"
             checkItem(token, itemId, listId) shouldNotContain "errors"
-            categoriesCol.deleteOne(Filters.eq("_id", catId.toString()))
+            pgExec("DELETE FROM categories WHERE id = '$catId'")
         }
 
         // SECOND app instance: fresh caches, so it reads the orphan as it really is on disk.

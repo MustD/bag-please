@@ -1,6 +1,5 @@
 package com.bagplease.plugins
 
-import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.StoreNames
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
@@ -33,7 +32,6 @@ fun configureMigration(
     db: MongoDatabase,
     userLookup: UserLookup,
     itemRepository: ItemRepository,
-    categoryRepository: CategoryRepository,
     listService: ListService,
     migrationTargetUsername: String,
 ) {

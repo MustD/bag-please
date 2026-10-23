@@ -166,28 +166,40 @@ fun pgRows(sql: String): List<List<String?>> =
         }
     }
 
+/** Runs a statement that returns no rows (DELETE, UPDATE …) on the shared app database. */
+fun pgExec(sql: String) {
+    java.sql.DriverManager.getConnection(
+        SharedPostgres.container.appJdbcUrl(), SharedPostgres.APP_USER, SharedPostgres.APP_PASSWORD,
+    ).use { c -> c.createStatement().use { it.execute(sql) } }
+}
+
 /** `SELECT count(*) …` on the shared app database. */
 fun pgCount(sql: String): Long = pgRows(sql).single().single()!!.toLong()
 
 /** The services that Application.kt wires together, built over [db] for tests that call them directly. */
-class TestServices(val listService: com.bagplease.entity.list.ListService, val itemService: com.bagplease.entity.item.ItemService)
+class TestServices(
+    val listService: com.bagplease.entity.list.ListService,
+    val itemService: com.bagplease.entity.item.ItemService,
+    val categoryService: com.bagplease.entity.category.CategoryService,
+)
 
 fun buildTestServices(db: com.mongodb.kotlin.client.coroutine.MongoDatabase): TestServices {
     val itemRepository = com.bagplease.entity.item.mongo.ItemRepository(db)
-    val categoryRepository = com.bagplease.entity.category.mongo.CategoryRepository(db)
     val itemStorage = com.bagplease.entity.item.ItemStorage(itemRepository)
-    val categoryStorage = com.bagplease.entity.category.CategoryStorage(categoryRepository)
     lateinit var itemService: com.bagplease.entity.item.ItemService
+    lateinit var categoryService: com.bagplease.entity.category.CategoryService
     val listService = com.bagplease.entity.list.ListService(
         repository = com.bagplease.entity.list.db.ListRepository(),
         userLookup = com.bagplease.entity.user.UserLookup(com.bagplease.entity.user.db.UserRepository()),
         itemService = lazy { itemService },
         itemRepository = itemRepository,
-        categoryRepository = categoryRepository,
+        categoryService = lazy { categoryService },
         itemStorage = itemStorage,
-        categoryStorage = categoryStorage,
         adminLogin = "admin",
     )
-    itemService = com.bagplease.entity.item.ItemService(itemStorage, listService, itemRepository, categoryStorage)
-    return TestServices(listService, itemService)
+    itemService = com.bagplease.entity.item.ItemService(itemStorage, listService, itemRepository, lazy { categoryService })
+    categoryService = com.bagplease.entity.category.CategoryService(
+        com.bagplease.entity.category.db.CategoryRepository(), listService, itemService,
+    )
+    return TestServices(listService, itemService, categoryService)
 }

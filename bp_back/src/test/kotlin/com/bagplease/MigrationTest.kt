@@ -1,6 +1,5 @@
 package com.bagplease
 
-import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.user.User
 import com.bagplease.entity.user.UserLookup
@@ -82,7 +81,6 @@ class MigrationTest : FunSpec({
             db = db,
             userLookup = userRepo,
             itemRepository = ItemRepository(db),
-            categoryRepository = CategoryRepository(db),
             listService = buildTestServices(db).listService,
             migrationTargetUsername = username,
         )
@@ -119,11 +117,10 @@ class MigrationTest : FunSpec({
         )
 
         val itemRepo = ItemRepository(db)
-        val catRepo = CategoryRepository(db)
         val listSvc = buildTestServices(db).listService
 
-        configureMigration(db, userRepo, itemRepo, catRepo, listSvc, username)
-        configureMigration(db, userRepo, itemRepo, catRepo, listSvc, username)
+        configureMigration(db, userRepo, itemRepo, listSvc, username)
+        configureMigration(db, userRepo, itemRepo, listSvc, username)
 
         pgCount("SELECT count(*) FROM lists") shouldBe 1L
         // NARROWED by Story 9.6, not removed: `app_migrations` now also holds `epic9-multi-store`,
@@ -147,7 +144,6 @@ class MigrationTest : FunSpec({
                 db = db,
                 userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
-                categoryRepository = CategoryRepository(db),
                 listService = buildTestServices(db).listService,
                 migrationTargetUsername = "",
             )
@@ -169,7 +165,6 @@ class MigrationTest : FunSpec({
                 db = db,
                 userLookup = UserLookup(UserRepository()),
                 itemRepository = ItemRepository(db),
-                categoryRepository = CategoryRepository(db),
                 listService = buildTestServices(db).listService,
                 migrationTargetUsername = ghost,
             )
@@ -186,7 +181,6 @@ class MigrationTest : FunSpec({
             db = db,
             userLookup = UserLookup(UserRepository()),
             itemRepository = ItemRepository(db),
-            categoryRepository = CategoryRepository(db),
             listService = buildTestServices(db).listService,
             migrationTargetUsername = "",
         )
@@ -208,7 +202,6 @@ class MigrationTest : FunSpec({
         db = db,
         userLookup = UserLookup(UserRepository()),
         itemRepository = ItemRepository(db),
-        categoryRepository = CategoryRepository(db),
         listService = buildTestServices(db).listService,
         migrationTargetUsername = username,
     )
