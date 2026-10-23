@@ -1,17 +1,12 @@
 package com.bagplease
 
 import com.bagplease.utils.buildTestServices
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.kotlin.client.coroutine.MongoClient
-import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -26,14 +21,13 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import org.bson.UuidRepresentation
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
 
 class ListServiceTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -68,7 +62,7 @@ class ListServiceTest : FunSpec({
     test("AC5 createList happy path") {
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -90,7 +84,7 @@ class ListServiceTest : FunSpec({
     test("AC6 createList with null emoji") {
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -111,7 +105,7 @@ class ListServiceTest : FunSpec({
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         val longName = "x".repeat(101)
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -129,7 +123,7 @@ class ListServiceTest : FunSpec({
         val userA = "userA_${UUID.randomUUID().toString().take(8)}"
         val userB = "userB_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = createUserAndLogin(userA)
@@ -153,7 +147,7 @@ class ListServiceTest : FunSpec({
     test("AC9 lists query empty for new user") {
         val username = "newuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -174,7 +168,7 @@ class ListServiceTest : FunSpec({
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -208,7 +202,7 @@ class ListServiceTest : FunSpec({
         val owner = "owner_${UUID.randomUUID().toString().take(8)}"
         val nonOwner = "nonowner_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = createUserAndLogin(owner)
@@ -226,7 +220,7 @@ class ListServiceTest : FunSpec({
 
     test("AC15 admin blocked on createList") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()
@@ -242,7 +236,7 @@ class ListServiceTest : FunSpec({
 
     test("AC15 admin blocked on lists query") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()
@@ -259,7 +253,7 @@ class ListServiceTest : FunSpec({
     test("AC15 admin blocked on deleteList") {
         val owner = "owner2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = createUserAndLogin(owner)
@@ -275,19 +269,6 @@ class ListServiceTest : FunSpec({
         }
     }
 
-    // Direct, raw-Mongo access for the service-level test below — the same shape as `ListSharingTest.connectToDb()`.
-    fun connectToDb(): MongoDatabase {
-        val credential = MongoCredential.createScramSha1Credential(
-            "test_user", "admin", "test_pass".toCharArray()
-        )
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        return MongoClient.create(settings).getDatabase("test")
-    }
-
     // AC-9.4-rerun — `purgeUser` is IDEMPOTENT, asserted at the service level because that is the only place the
     // claim can be tested: through `deleteUser` a second call raises NOT_FOUND on the missing user row and never
     // reaches the purge, so it proves nothing about running the purge twice.
@@ -297,7 +278,7 @@ class ListServiceTest : FunSpec({
         val owner = "rerunOwner_${UUID.randomUUID().toString().take(8)}"
         val other = "rerunOther_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()

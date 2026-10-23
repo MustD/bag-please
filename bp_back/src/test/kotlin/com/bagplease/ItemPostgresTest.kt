@@ -8,12 +8,12 @@ import com.bagplease.plugins.SchedulerStep
 import com.bagplease.plugins.runSchedulerCycle
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.buildTestServices
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgExec
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -43,7 +43,7 @@ private val mapper = jacksonObjectMapper()
 // Story 11.6: items and the hourly item jobs live in PostgreSQL. Matrix rows asserted against the `items` table.
 class ItemPostgresTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     beforeTest { SharedPostgres.reset() }
 
@@ -89,7 +89,7 @@ class ItemPostgresTest : FunSpec({
 
     test("create and merge keep stores order and casing, and emit one UPDATE event per save after commit") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemMerge")
             val items = buildTestServices().itemService
             val id = UUID.randomUUID()
@@ -109,7 +109,7 @@ class ItemPostgresTest : FunSpec({
 
     test("a non-member save is an auth error and emits nothing") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemNonMember")
             val items = buildTestServices().itemService
             val seen = scope.collectFor(items.itemUpdates, 700)
@@ -122,7 +122,7 @@ class ItemPostgresTest : FunSpec({
 
     test("an id stored on another list is rejected and the row is left unchanged") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemForeign")
             val items = buildTestServices().itemService
             val otherList = mapper.readTree(gql(f.ownerToken, """mutation { createList(name: "B") { id } }"""))["data"]["createList"]["id"].asText()
@@ -141,7 +141,7 @@ class ItemPostgresTest : FunSpec({
 
     test("a category of another list is rejected (FR58)") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemBadCat")
             val items = buildTestServices().itemService
             shouldThrow<IllegalArgumentException> {
@@ -153,7 +153,7 @@ class ItemPostgresTest : FunSpec({
 
     test("a write that fails inside the tx changes no row and emits no event") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemRollback")
             val items = buildTestServices().itemService
             val id = UUID.randomUUID()
@@ -181,7 +181,7 @@ class ItemPostgresTest : FunSpec({
 
     test("soft-deleted rows are hidden from getItems, the unchecked count and store suggestions") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemHidden")
             val items = buildTestServices().itemService
             val live = Item(name = "Live", category = f.categoryId, listId = f.listId, stores = listOf("Lidl"))
@@ -207,7 +207,7 @@ class ItemPostgresTest : FunSpec({
 
     test("restore un-checks recurring items past their cadence and emits UPDATE; hard delete removes old soft-deleted rows and emits DELETE") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemSched")
             val items = buildTestServices().itemService
             val weekly = seed(f, "Weekly", true, "WEEKLY", checkedAt = "now() - interval '8 days'")
@@ -237,7 +237,7 @@ class ItemPostgresTest : FunSpec({
 
     test("a throwing restore step does not stop the hard-delete step or the token purge") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemStep")
             val services = buildTestServices()
             val items = services.itemService
@@ -267,7 +267,7 @@ class ItemPostgresTest : FunSpec({
 
     test("deleting a list reports counts equal to the rows removed, soft-deleted items included") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemListDel")
             seed(f, "A", false, null)
             seed(f, "B", true, "ONE_TIME", deleted = true, deletedAt = "now()")
@@ -281,7 +281,7 @@ class ItemPostgresTest : FunSpec({
 
     test("a failing list delete leaves items, categories, members and the list in place") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemListRoll")
             seed(f, "A", false, null)
             pgExec("CREATE FUNCTION fail_list_delete() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RAISE EXCEPTION 'boom'; END \$\$")
@@ -301,7 +301,7 @@ class ItemPostgresTest : FunSpec({
 
     test("checkItem and uncheckItem emit one UPDATE after commit, deleteItem one DELETE; non-members and failed writes emit nothing") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val f = fixture("itemEvents")
             val items = buildTestServices().itemService
             val owner = CallerUsername(f.owner)

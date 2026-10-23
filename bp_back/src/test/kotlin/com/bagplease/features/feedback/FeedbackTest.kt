@@ -3,9 +3,9 @@ package com.bagplease.features.feedback
 import com.bagplease.module
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.appJdbcUrl
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
@@ -31,7 +31,7 @@ import io.ktor.server.testing.testApplication
 // client, `shouldContain`/`shouldNotContain` on the response body.
 class FeedbackTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
     // One PostgreSQL per JVM: start every test from empty tables so no test depends on declaration order.
     beforeTest { SharedPostgres.reset() }
 
@@ -109,14 +109,14 @@ class FeedbackTest : FunSpec({
         }.bodyAsText()
 
     // Story 9.10 I/O matrix row "No feedback yet". MUST run before any other
-    // test in this spec inserts a row: `container` is one Mongo instance shared
+    // test in this spec inserts a row: `container` is one PostgreSQL instance shared
     // by every `test()` block in this file (declared once above, not reset
     // between tests), so this is the only point at which the `feedback`
-    // collection is guaranteed empty. Kotest's default FunSpec order is
+    // table is guaranteed empty. Kotest's default FunSpec order is
     // declaration order, which is why this is placed first.
     test("the feedback query returns an empty list when nothing has been submitted yet") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -130,7 +130,7 @@ class FeedbackTest : FunSpec({
     // Happy path: regular user, text trimmed server-side.
     test("a regular user's feedback is accepted and trimmed") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_happy")
@@ -158,7 +158,7 @@ class FeedbackTest : FunSpec({
     // Blank text (after trim) is rejected.
     test("blank feedback text is rejected") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_blank")
@@ -176,7 +176,7 @@ class FeedbackTest : FunSpec({
     // Over-length text (post-trim, > 2000 UTF-16 chars) is rejected.
     test("feedback text over 2000 characters is rejected") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_toolong")
@@ -195,7 +195,7 @@ class FeedbackTest : FunSpec({
     // Exactly 2000 characters (post-trim) is accepted.
     test("feedback text of exactly 2000 characters is accepted") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_exact")
@@ -216,7 +216,7 @@ class FeedbackTest : FunSpec({
     // The admin caller is rejected exactly like every other admin-blocked mutation.
     test("the admin account cannot send feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -233,7 +233,7 @@ class FeedbackTest : FunSpec({
     // No JWT on /graphql returns HTTP 401, same as every other GraphQL mutation.
     test("unauthenticated sendFeedback returns HTTP 401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
 
@@ -252,7 +252,7 @@ class FeedbackTest : FunSpec({
 
     test("the admin lists feedback newest-first") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_list_order")
@@ -276,7 +276,7 @@ class FeedbackTest : FunSpec({
 
     test("a non-admin caller cannot query feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_query_forbidden")
@@ -288,7 +288,7 @@ class FeedbackTest : FunSpec({
 
     test("the admin deletes a feedback entry and it no longer appears") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_delete_happy")
@@ -309,7 +309,7 @@ class FeedbackTest : FunSpec({
 
     test("deleting a non-existent feedback id returns NOT_FOUND") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -321,7 +321,7 @@ class FeedbackTest : FunSpec({
 
     test("a non-admin caller cannot delete feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_delete_forbidden")
@@ -341,7 +341,7 @@ class FeedbackTest : FunSpec({
 
     test("deleting a user does not delete their feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_survives_user_delete")
@@ -372,7 +372,7 @@ class FeedbackTest : FunSpec({
 
     test("deleting a feedback id that is not a UUID returns NOT_FOUND") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -384,7 +384,7 @@ class FeedbackTest : FunSpec({
 
     test("entries with equal timestamps are listed newest-first with id as the tiebreak") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()

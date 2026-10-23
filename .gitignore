@@ -49,5 +49,5 @@ bin/
 .tmp/
 .playwright-mcp/
 
-# Mongo dumps (see CLAUDE.md, dump before a migration release)
+# Database dump archives (see CLAUDE.md, dump-and-restore section)
 *.archive

@@ -99,22 +99,6 @@ class ListService(
         }
     }
 
-    // The Epic 4 startup migration: one default list for the migration target, with the owner's ACCEPTED row.
-    suspend fun seedMigratedList(owner: User, name: String, emoji: String?): List = tx {
-        val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
-        val list = List(
-            name = name,
-            emoji = emoji,
-            ownerId = owner.id,
-            ownerUsername = owner.username,
-            origin = "MIGRATED",
-            createdAt = now,
-        )
-        repository.insertList(list)
-        repository.insertMember(list.id, owner.id, MemberStatus.ACCEPTED, now)
-        list
-    }
-
     suspend fun getLists(caller: CallerUsername): Either<ListAuthError, GetListsResult> = either {
         ensure(caller.value != adminLogin) { ListAuthError.AdminBlocked }
         tx {

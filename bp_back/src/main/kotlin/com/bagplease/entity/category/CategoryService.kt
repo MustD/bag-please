@@ -61,13 +61,11 @@ class CategoryService(
      *
      * The cascade lives HERE, not in `ItemService`: this is where membership is verified (so the item removal
      * inherits NFR-L2 without a second check) and where the one authoritative event is emitted. Order inside one
-     * `tx`: membership, find (missing -> "Category not found"), items deleted (Mongo, until Story 11.6), then the
-     * category row. The DELETED event is queued with `afterCommit`, so a failed cascade or delete emits nothing and
-     * leaves the category row in place.
+     * `tx`: membership, find (missing -> "Category not found"), items deleted, then the category row. The DELETED event is queued with `afterCommit`, so a failed cascade or delete
+     * emits nothing and leaves the category row in place.
      *
      * Exactly ONE event is emitted, the category `DELETED`. Clients treat it as authoritative for the category's
      * children and prune locally; see `ItemService.deleteAllInCategory` for why a per-item fan-out would be dropped.
-     * The items (Mongo) and the row (PostgreSQL) are not one atomic unit on this branch (AR-E11-2, accepted).
      */
     suspend fun deleteCategory(id: UUID, listId: UUID, caller: CallerUsername): Either<ListAuthError, Category> = either {
         tx {

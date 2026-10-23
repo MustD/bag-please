@@ -2,9 +2,9 @@ package com.bagplease.features.admin
 
 import com.bagplease.module
 import com.bagplease.utils.SharedPostgres
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.assertions.ktor.client.shouldHaveStatus
@@ -23,12 +23,11 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import org.testcontainers.containers.wait.strategy.Wait
-import org.testcontainers.mongodb.MongoDBContainer
 import java.util.*
 
 class AdminUserManagementTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginAdmin(): String {
         val res = client.post("/auth/login") {
@@ -58,8 +57,8 @@ class AdminUserManagementTest : FunSpec({
 
     // ── Story 9.2: the paged users(limit, offset, around) field ───────────────
     //
-    // The Mongo container is PROJECT-SCOPED and shared, so rows leak in from
-    // every other test in the run and the `users` collection has no total any
+    // The PostgreSQL container is PROJECT-SCOPED and shared, so rows leak in from
+    // every other test in the run and the `users` table has no total any
     // test may assume. Every assertion below is therefore either a property of
     // the page the server served (sorted, clamped, sized) or an index DERIVED
     // from the server's own answers — never a literal count.
@@ -118,7 +117,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 the users page is sorted by username ascending") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -140,7 +139,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 limit is clamped to 1..100") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -156,7 +155,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 offset is clamped to the last page and to zero") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -176,7 +175,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 around returns the page containing that user") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -194,7 +193,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 around on an absent username returns the page where it would sort") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -217,7 +216,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 omitting offset serves the first page") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -237,7 +236,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("9.2 an explicit in-range offset is served exactly") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -271,19 +270,12 @@ class AdminUserManagementTest : FunSpec({
         // would otherwise go negative) is unreachable there.
         //
         // The `admin` account is config-based and has no row, so a fresh database
-        // really does mean zero users. `configureMigration` returns early on it:
-        // with no unscoped items or categories there is nothing to migrate, so it
-        // never asks for MIGRATION_TARGET_USER.
+        // really does mean zero users.
         // Users live in the JVM-shared PostgreSQL now (Story 11.2): empty it explicitly.
         SharedPostgres.reset()
-        val emptyContainer = MongoDBContainer("mongo:8")
-            .withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
-            .withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
-            .waitingFor(Wait.forListeningPort())
-        emptyContainer.start()
-        try {
+        run {
             testApplication {
-                setUpMongo(emptyContainer)
+                setUpPostgres()
                 setUpJwt()
                 application { module() }
                 val adminToken = loginAdmin()
@@ -295,8 +287,6 @@ class AdminUserManagementTest : FunSpec({
                 // Zero, not a negative skip.
                 page.offset() shouldBe 0
             }
-        } finally {
-            emptyContainer.stop()
         }
     }
 
@@ -308,19 +298,14 @@ class AdminUserManagementTest : FunSpec({
         //
         // That distinction is the point. The other `around` cases read the page
         // index back out of a `users(around: …)` call, so an off-by-one in
-        // `countUsernamesBefore` (`Filters.lt` → `lte`) would move both sides of
+        // `countUsernamesBefore` (`<` → `<=`) would move both sides of
         // the comparison and keep them agreeing; and `limit is clamped to 1..100`
         // can only observe the upper clamp on a table that HOLDS more than 100
         // rows, which the shared one need not. 105 seeded rows pin both.
         SharedPostgres.reset()
-        val isolatedContainer = MongoDBContainer("mongo:8")
-            .withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
-            .withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
-            .waitingFor(Wait.forListeningPort())
-        isolatedContainer.start()
-        try {
+        run {
             testApplication {
-                setUpMongo(isolatedContainer)
+                setUpPostgres()
                 setUpJwt()
                 application { module() }
                 val adminToken = loginAdmin()
@@ -351,14 +336,12 @@ class AdminUserManagementTest : FunSpec({
                 clamped.usernames().size shouldBe 100
                 clamped.usernames() shouldBe names.subList(0, 100)
             }
-        } finally {
-            isolatedContainer.stop()
         }
     }
 
     test("AC1 users query returns registered users excluding admin") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -396,7 +379,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC2 createUser mutation creates user and subsequent users query includes them") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -425,7 +408,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC3 deleteUser removes user and subsequent query excludes them") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -459,7 +442,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC4 resetUserPassword updates hash and new password works for login") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -498,7 +481,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC5 non-admin JWT on users query returns FORBIDDEN") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val username = "nonAdmin_ac5_${UUID.randomUUID().toString().take(8)}"
@@ -515,7 +498,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC5 non-admin JWT on createUser mutation returns FORBIDDEN") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val username = "nonAdmin_ac5m_${UUID.randomUUID().toString().take(8)}"
@@ -537,7 +520,7 @@ class AdminUserManagementTest : FunSpec({
     // another FORBIDDEN assertion.
     test("AC5 non-admin JWT on deleteUser mutation returns FORBIDDEN and deletes nothing") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -566,7 +549,7 @@ class AdminUserManagementTest : FunSpec({
 
     test("AC6 deleteUser with non-existent UUID returns NOT_FOUND") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()

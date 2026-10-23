@@ -14,18 +14,15 @@ import com.bagplease.entity.user.db.UserRepository
 import com.bagplease.features.auth.AuthService
 import com.bagplease.features.auth.db.RefreshTokenRepository
 import com.bagplease.features.auth.configureAuthRoutes
-import com.bagplease.mongo.MongoConnection
 import com.bagplease.plugins.configureCors
 import com.bagplease.plugins.configureDatabase
 import com.bagplease.plugins.configureForwardedHeaders
 import com.bagplease.plugins.configureGql
-import com.bagplease.plugins.configureMigration
 import com.bagplease.plugins.configureMonitoring
 import com.bagplease.plugins.configureRateLimiting
 import com.bagplease.plugins.configureRouting
 import com.bagplease.plugins.configureSecurity
 import io.ktor.server.application.Application
-import io.ktor.server.plugins.di.dependencies
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -33,17 +30,11 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     val config = environment.config
-    dependencies {
-        provide { MongoConnection(config) }
-    }
-
-    val connection: MongoConnection by dependencies
     val adminLogin = config.property("jwt.admin_login").getString()
     val adminPass = config.property("jwt.admin_pass").getString()
 
-    // PostgreSQL repositories take no connection: they run inside a service's `tx {}` (configureDatabase() below
-    // opens the pool before any service method is called). The Mongo slices are still built here because
-    // UserService.deleteUser purges the user's lists through ListService.
+    // Repositories take no connection: they run inside a service's `tx {}` (configureDatabase() below
+    // opens the pool before any service method is called).
     val userRepository = UserRepository()
     val refreshTokenRepository = RefreshTokenRepository()
     val userLookup = UserLookup(userRepository)
@@ -81,23 +72,14 @@ fun Application.module() {
     val appConfigRepository = ApplicationConfigRepository()
     val appConfigService = ApplicationConfigService(appConfigRepository)
 
-    val migrationTargetUser = config.propertyOrNull("migration.targetUser")?.getString() ?: ""
-
     configureCors()
     configureMonitoring()
     configureForwardedHeaders()
     configureRateLimiting()
     configureSecurity()
 
-    // Flyway + the R2DBC pool, before GQL (AD-5). Users and refresh tokens live in PostgreSQL (Story 11.2).
+    // Flyway + the R2DBC pool, before GQL (AD-5).
     configureDatabase()
-
-    configureMigration(
-        db = connection.db,
-        userLookup = userLookup,
-        listService = listService,
-        migrationTargetUsername = migrationTargetUser,
-    )
 
     configureAuthRoutes(appConfigService, adminLogin, authService, userService)
     configureGql(

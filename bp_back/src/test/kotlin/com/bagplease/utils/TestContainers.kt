@@ -1,29 +1,10 @@
 package com.bagplease.utils
 
-import io.kotest.core.extensions.install
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.extensions.testcontainers.TestContainerProjectExtension
 import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.config.mergeWith
 import io.ktor.server.testing.ApplicationTestBuilder
-import org.testcontainers.containers.wait.strategy.Wait
-import org.testcontainers.mongodb.MongoDBContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
-
-fun FunSpec.mongoContainer(): MongoDBContainer {
-    val container = install(
-        TestContainerProjectExtension(
-            MongoDBContainer("mongo:8")
-        )
-    ) {
-        withEnv("MONGO_INITDB_ROOT_USERNAME", "test_user")
-        withEnv("MONGO_INITDB_ROOT_PASSWORD", "test_pass")
-        waitingFor(Wait.forListeningPort())
-    }
-    // Users and sessions live in the shared PostgreSQL (Story 11.2): start every spec from empty tables.
-    beforeSpec { SharedPostgres.reset() }
-    return container
-}
 
 // One PostgreSQL 18 per test JVM, started on first use and reaped by Testcontainers' Ryuk at exit.
 // `module()` runs Flyway at startup (Story 11.1), so every app-booting test needs a reachable PostgreSQL,
@@ -65,7 +46,11 @@ object SharedPostgres {
     }
 }
 
-fun FunSpec.postgresContainer(): PostgreSQLContainer = SharedPostgres.container
+/** The shared PostgreSQL; every spec starts from empty tables. */
+fun FunSpec.postgresContainer(): PostgreSQLContainer {
+    beforeSpec { SharedPostgres.reset() }
+    return SharedPostgres.container
+}
 
 /** JDBC url of the app database on the shared container, as the non-superuser app role. */
 fun PostgreSQLContainer.appJdbcUrl(): String =
@@ -83,21 +68,6 @@ fun ApplicationTestBuilder.setUpPostgres(container: PostgreSQLContainer = Shared
             "db.postgres.sslrootcert" to "",
         )
     )
-}
-
-fun ApplicationTestBuilder.setUpMongo(container: MongoDBContainer) {
-    setUpPostgres() // module() migrates PostgreSQL at startup; see SharedPostgres
-    environment {
-        config = config.mergeWith(
-            MapApplicationConfig(
-                "db.mongo.host" to "localhost",
-                "db.mongo.port" to container.firstMappedPort.toString(),
-                "db.mongo.db_name" to "test",
-                "db.mongo.user" to "test_user",
-                "db.mongo.pass" to "test_pass",
-            )
-        )
-    }
 }
 
 // Writes the app_config row directly to PostgreSQL before the application starts. Config is never cached, so

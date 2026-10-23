@@ -15,11 +15,7 @@ import com.bagplease.plugins.tx
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.appConfig
 import com.bagplease.utils.appJdbcUrl
-import com.bagplease.utils.mongoContainer
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.kotlin.client.coroutine.MongoClient
+import com.bagplease.utils.postgresContainer
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -29,7 +25,6 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
-import org.bson.UuidRepresentation
 import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Instant
@@ -37,10 +32,10 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 // Story 11.2: accounts and sessions live in PostgreSQL. These specs drive the services directly against the
-// shared PostgreSQL container (and Mongo for the list purge that deleteUser still routes through ListService).
+// shared PostgreSQL container.
 class AccountsAndSessionsPostgresTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     val userRepository = UserRepository()
     val tokenRepository = RefreshTokenRepository()
@@ -56,13 +51,6 @@ class AccountsAndSessionsPostgresTest : FunSpec({
     }
 
     fun listService(): ListService {
-        val credential = MongoCredential.createScramSha1Credential("test_user", "admin", "test_pass".toCharArray())
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        val db = MongoClient.create(settings).getDatabase("test")
         return com.bagplease.utils.buildTestServices().listService
     }
 

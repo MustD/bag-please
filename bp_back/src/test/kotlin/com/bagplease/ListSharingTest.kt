@@ -1,18 +1,12 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.client.model.Filters
-import com.mongodb.kotlin.client.coroutine.MongoClient
-import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -28,15 +22,13 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
-import org.bson.Document
-import org.bson.UuidRepresentation
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
 
 class ListSharingTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -117,28 +109,12 @@ class ListSharingTest : FunSpec({
         return res.bodyAsText()
     }
 
-    // Read-only direct MongoDB access, used purely for assertions the GraphQL API cannot make:
-    // the persisted BSON type of `list_members.status`, and the presence of an orphaned membership row
-    // (`ListService.getLists` null-maps orphans away, so they are invisible through the API).
-    // Shape copied from `ItemLifecycleTest.connectToDb()`.
-    fun connectToDb(): MongoDatabase {
-        val credential = MongoCredential.createScramSha1Credential(
-            "test_user", "admin", "test_pass".toCharArray()
-        )
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        return MongoClient.create(settings).getDatabase("test")
-    }
-
     // AC1 — shareList happy path
     test("AC1 shareList creates PENDING member record, not in List.members yet") {
         val owner = "shareOwner_${UUID.randomUUID().toString().take(8)}"
         val invitee = "shareInvitee_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -160,7 +136,7 @@ class ListSharingTest : FunSpec({
     test("AC2 shareList with unknown username returns GQL error") {
         val owner = "shareOwner2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -177,7 +153,7 @@ class ListSharingTest : FunSpec({
         val owner = "shareOwner3_${UUID.randomUUID().toString().take(8)}"
         val member = "shareMember3_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -200,7 +176,7 @@ class ListSharingTest : FunSpec({
         val owner = "shareOwner4_${UUID.randomUUID().toString().take(8)}"
         val invitee = "shareInvitee4_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -218,7 +194,7 @@ class ListSharingTest : FunSpec({
     test("AC5 shareList with own username returns GQL error") {
         val owner = "shareOwner5_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -236,7 +212,7 @@ class ListSharingTest : FunSpec({
         val nonOwner = "shareNonOwner6_${UUID.randomUUID().toString().take(8)}"
         val invitee = "shareInvitee6_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (ownerToken, nonOwnerToken) = registerManyAndLogin(owner, nonOwner, invitee)
@@ -253,7 +229,7 @@ class ListSharingTest : FunSpec({
         val invitee = "accInvitee_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -291,7 +267,7 @@ class ListSharingTest : FunSpec({
         val owner = "rejOwner_${UUID.randomUUID().toString().take(8)}"
         val invitee = "rejInvitee_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -324,7 +300,7 @@ class ListSharingTest : FunSpec({
         val owner = "pendOwner_${UUID.randomUUID().toString().take(8)}"
         val invitee = "pendInvitee_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -357,7 +333,7 @@ class ListSharingTest : FunSpec({
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (ownerToken, memberToken, otherToken) = registerManyAndLogin(owner, member, otherUser)
@@ -417,7 +393,7 @@ class ListSharingTest : FunSpec({
         val member = "remMember2_${UUID.randomUUID().toString().take(8)}"
         val intruder = "remIntruder_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (ownerToken, memberToken, intruderToken) = registerManyAndLogin(owner, member, intruder)
@@ -439,7 +415,7 @@ class ListSharingTest : FunSpec({
     test("AC12 removeMember targeting owner returns GQL error with exact message") {
         val owner = "remOwner3_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -462,7 +438,7 @@ class ListSharingTest : FunSpec({
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -519,7 +495,7 @@ class ListSharingTest : FunSpec({
     test("AC14 leaveList by owner returns GQL error with exact message") {
         val owner = "leaveOwner2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -540,7 +516,7 @@ class ListSharingTest : FunSpec({
         val owner = "pendOwner2_${UUID.randomUUID().toString().take(8)}"
         val invitee = "pendInvitee2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -570,7 +546,7 @@ class ListSharingTest : FunSpec({
     test("AC16 admin blocked on shareList, acceptInvite, rejectInvite, removeMember, leaveList") {
         val owner = "adminBlkOwner_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -618,7 +594,7 @@ class ListSharingTest : FunSpec({
         val owner = "persistOwner_${UUID.randomUUID().toString().take(8)}"
         val invitee = "persistInvitee_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (ownerToken, inviteeToken) = registerManyAndLogin(owner, invitee)
@@ -655,7 +631,7 @@ class ListSharingTest : FunSpec({
         val invitee1 = "cascadeInvitee1_${UUID.randomUUID().toString().take(8)}"
         val invitee2 = "cascadeInvitee2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (ownerToken, invitee1Token, invitee2Token) = registerManyAndLogin(owner, invitee1, invitee2)
@@ -759,7 +735,7 @@ class ListSharingTest : FunSpec({
         val v = "purgeV_${UUID.randomUUID().toString().take(8)}"
         val w = "purgeW_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (adminToken, ids, tokens) = registerManyWithAdmin(u, v, w)
@@ -836,7 +812,7 @@ class ListSharingTest : FunSpec({
         val u = "idemU_${UUID.randomUUID().toString().take(8)}"
         val v = "idemV_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (adminToken, ids, tokens) = registerManyWithAdmin(u, v)
@@ -871,7 +847,7 @@ class ListSharingTest : FunSpec({
     test("AC-9.4-order createList on a deleted user's still-valid token is refused, not re-creating membership") {
         val u = "orderU_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (adminToken, ids, tokens) = registerManyWithAdmin(u)

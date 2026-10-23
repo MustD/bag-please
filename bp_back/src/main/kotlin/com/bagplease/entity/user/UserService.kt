@@ -39,8 +39,8 @@ class UserService(
 ) {
     private companion object {
         // The bounds `getUserPage` coerces `limit` into. 100 caps what one call
-        // can cost the server; 1 keeps a zero or negative limit from asking Mongo
-        // for an unbounded page (`.limit(0)` means "no limit" to the driver).
+        // can cost the server; 1 keeps a zero or negative limit from
+        // asking the database for an unbounded page.
         const val MIN_PAGE_SIZE = 1
         const val MAX_PAGE_SIZE = 100
     }

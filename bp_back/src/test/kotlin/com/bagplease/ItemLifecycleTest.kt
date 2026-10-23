@@ -2,22 +2,15 @@ package com.bagplease
 
 import com.bagplease.entity.item.ItemService
 import com.bagplease.entity.user.db.UserRepository
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.appConfig
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgExec
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.client.model.Filters
-import com.mongodb.client.model.Updates
-import com.mongodb.kotlin.client.coroutine.MongoClient
-import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -33,8 +26,6 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.flow.toList
-import org.bson.Document
-import org.bson.UuidRepresentation
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
@@ -43,7 +34,7 @@ private val mapper = jacksonObjectMapper()
 
 class ItemLifecycleTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     // ── GQL API helpers ────────────────────────────────────────────────────
 
@@ -225,7 +216,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -246,7 +237,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -267,7 +258,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -298,7 +289,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -331,7 +322,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -365,7 +356,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -398,7 +389,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -437,7 +428,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -509,7 +500,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -544,7 +535,7 @@ class ItemLifecycleTest : FunSpec({
         val nonMemberUsername = "nonmem_${UUID.randomUUID().toString().take(8)}"
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
@@ -578,7 +569,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
@@ -614,7 +605,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             // Exactly two registerAndLogin calls: each costs two /auth/login requests and the `auth`
@@ -650,7 +641,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -680,7 +671,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -710,7 +701,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -744,7 +735,7 @@ class ItemLifecycleTest : FunSpec({
         val catElsewhere = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -777,7 +768,7 @@ class ItemLifecycleTest : FunSpec({
         val catGhost = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -809,7 +800,7 @@ class ItemLifecycleTest : FunSpec({
         val catGhost = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -835,7 +826,7 @@ class ItemLifecycleTest : FunSpec({
         val catElsewhere = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -859,7 +850,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -903,7 +894,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
@@ -933,7 +924,7 @@ class ItemLifecycleTest : FunSpec({
         val survivorId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -965,7 +956,7 @@ class ItemLifecycleTest : FunSpec({
             body shouldNotContain (softDeletedId.toString())
             body shouldContain survivorId.toString()
 
-            // …and gone from MONGO, not merely from the cache: a cache-only prune would come back on
+            // …and gone from the database, not merely from a cache: a cache-only prune would come back on
             // the next restart as exactly the orphans this story removes.
             itemCount("category_id = '$catId'") shouldBe 0L
             itemCount("id = \'$survivorId\'") shouldBe 1L
@@ -979,7 +970,7 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
@@ -1008,7 +999,7 @@ class ItemLifecycleTest : FunSpec({
         val otherListItemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1037,7 +1028,7 @@ class ItemLifecycleTest : FunSpec({
         val survivorId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(ownerUsername)
@@ -1070,7 +1061,7 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1092,7 +1083,7 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1115,7 +1106,7 @@ class ItemLifecycleTest : FunSpec({
         val itemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1143,7 +1134,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1184,7 +1175,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1220,7 +1211,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1247,7 +1238,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1281,7 +1272,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1337,7 +1328,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1371,7 +1362,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1395,7 +1386,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1427,7 +1418,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1449,7 +1440,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)
@@ -1478,7 +1469,7 @@ class ItemLifecycleTest : FunSpec({
         val catId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)

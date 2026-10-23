@@ -5,16 +5,12 @@ import com.bagplease.features.auth.CallerUsername
 import com.bagplease.utils.SharedPostgres
 import com.bagplease.utils.appJdbcUrl
 import com.bagplease.utils.buildTestServices
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.kotlin.client.coroutine.MongoClient
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -28,7 +24,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import org.bson.UuidRepresentation
 import java.sql.DriverManager
 
 private val mapper = jacksonObjectMapper()
@@ -36,7 +31,7 @@ private val mapper = jacksonObjectMapper()
 // Story 11.4: lists, shares and invites live in PostgreSQL. Matrix rows that the GraphQL-level specs do not pin.
 class ListPostgresTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     // The container is shared across specs and tests: every test counts rows, so each starts from empty tables.
     beforeTest { SharedPostgres.reset() }
@@ -68,7 +63,7 @@ class ListPostgresTest : FunSpec({
 
     test("createList writes the list row and the owner's ACCEPTED row; members stays empty") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("pgOwner")
             val body = gql(owner, """mutation { createList(name: "L") { id members { username } } }""")
             body shouldNotContain "errors"
@@ -81,7 +76,7 @@ class ListPostgresTest : FunSpec({
 
     test("createList is atomic: a failing owner-row insert leaves no list row") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("pgAtomic")
             sql(
                 """CREATE FUNCTION fail_member_insert() RETURNS trigger LANGUAGE plpgsql AS
@@ -101,7 +96,7 @@ class ListPostgresTest : FunSpec({
 
     test("re-inviting a DECLINED user turns the row back into PENDING with a fresh created_at") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner, guest) = users("pgInviter", "pgGuest")
             val id = mapper.readTree(gql(owner, """mutation { createList(name: "L") { id } }"""))["data"]["createList"]["id"].asText()
             fun row() = pgRows("SELECT status, created_at FROM list_members WHERE list_id = '$id' AND user_id = (SELECT id FROM users WHERE username = 'pgGuest')").single()
@@ -125,7 +120,7 @@ class ListPostgresTest : FunSpec({
 
     test("the admin is rejected by every list operation and never gets a row") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val admin = login("admin", "admin")
             gql(admin, """mutation { createList(name: "A") { id } }""") shouldContain "errors"
             gql(admin, """{ lists { lists { id } } }""") shouldContain "errors"
@@ -137,7 +132,7 @@ class ListPostgresTest : FunSpec({
 
     test("a users row cannot be deleted while a list or membership still references it") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner, guest) = users("pgRestrictOwner", "pgRestrictGuest")
             val id = mapper.readTree(gql(owner, """mutation { createList(name: "L") { id } }"""))["data"]["createList"]["id"].asText()
             gql(owner, """mutation { shareList(listId: "$id", username: "pgRestrictGuest") { id } }""") shouldNotContain "errors"
@@ -151,18 +146,13 @@ class ListPostgresTest : FunSpec({
 
     test("isMember turns false the moment a member leaves or is removed") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner, a, b) = users("pgMemOwner", "pgMemA", "pgMemB")
             val id = mapper.readTree(gql(owner, """mutation { createList(name: "L") { id } }"""))["data"]["createList"]["id"].asText()
             for ((name, token) in listOf("pgMemA" to a, "pgMemB" to b)) {
                 gql(owner, """mutation { shareList(listId: "$id", username: "$name") { id } }""") shouldNotContain "errors"
                 gql(token, """mutation { acceptInvite(listId: "$id") { id } }""") shouldNotContain "errors"
             }
-            val credential = MongoCredential.createScramSha1Credential("test_user", "admin", "test_pass".toCharArray())
-            val db = MongoClient.create(
-                MongoClientSettings.builder().credential(credential).uuidRepresentation(UuidRepresentation.STANDARD)
-                    .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test")).build()
-            ).getDatabase("test")
             val service = buildTestServices().listService
             val listId = java.util.UUID.fromString(id)
 

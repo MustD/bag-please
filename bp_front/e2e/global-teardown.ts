@@ -9,7 +9,7 @@
 // owed on its own account — and it also drains the rows earlier runs already
 // banked, which merely stopping the growth would not.
 //
-// WHY A SWEEP AND NOT A DATABASE RESET. The named `db_data` volume is the
+// WHY A SWEEP AND NOT A DATABASE RESET. The named `pg_data` volume is the
 // configuration the whole suite depends on and is always kept: no `down -v`, no
 // wipe. A sweep also needs no privileged docker step inside `webServer`, and it
 // runs once at teardown so it can add no per-test latency.

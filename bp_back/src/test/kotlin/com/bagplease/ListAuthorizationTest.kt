@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
@@ -21,7 +21,7 @@ private val mapper = jacksonObjectMapper()
 
 class ListAuthorizationTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -56,7 +56,7 @@ class ListAuthorizationTest : FunSpec({
         val userA = "authA_${UUID.randomUUID().toString().take(8)}"
         val userB = "authB_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = createUserAndLogin(userA)
@@ -77,7 +77,7 @@ class ListAuthorizationTest : FunSpec({
         val userA = "authC_${UUID.randomUUID().toString().take(8)}"
         val userB = "authD_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = createUserAndLogin(userA)
@@ -99,7 +99,7 @@ class ListAuthorizationTest : FunSpec({
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = createUserAndLogin(userA)
@@ -140,7 +140,7 @@ class ListAuthorizationTest : FunSpec({
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = createUserAndLogin(owner)

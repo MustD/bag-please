@@ -20,12 +20,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Since Story 7.14 it is an **installable PWA**: the build emits a web app manifest and a service worker
   (`vite-plugin-pwa`), so the served origin registers a worker that intercepts every navigation
 - `routing/` — `Caddyfile` for the frontend image: serves the built SPA and proxies `/api` to the backend (entry point port 2080)
-- MongoDB 8 data lives in the named Docker volume `db_data` (`docker-compose.yaml`). A stack that previously ran with
-  the old `./db/data` bind mount comes up on an EMPTY database.
+- PostgreSQL 18 (service `postgres`) is the only data store; its data lives in the named Docker volume `pg_data`
+  (`docker-compose.yaml`). A stack that previously ran on MongoDB (the old `db_data` volume or `./db/data` bind mount)
+  comes up on an EMPTY PostgreSQL database; the Mongo export is brought in by the import of Story 11.8.
 
 All services are orchestrated via Docker Compose. For day-to-day frontend work, run the Vite dev server locally
 (`npm run dev` on :5173, proxying `/api` to the backend on :4000); the full production stack (built SPA served by
-Caddy + backend + mongo) runs on :2080 via `docker compose up --build`.
+Caddy + backend + postgres) runs on :2080 via `docker compose up --build`.
 
 An external edge proxy on the host terminates TLS and serves the app over HTTPS at **`https://bag-please.localhost`**,
 forwarding to the single Caddy entrypoint on `127.0.0.1:2080`. HTTPS is required for auth to persist (the refresh cookie
@@ -99,11 +100,11 @@ E2E_BASE_URL=https://bag-please.localhost npm run test:e2e
 ### Docker Compose
 
 ```bash
-# Build & start everything (Caddy-served frontend + mongo + backend) on :2080
+# Build & start everything (Caddy-served frontend + postgres + backend) on :2080
 docker compose up --build
 
-# Start only mongo + backend so the local Vite dev server can proxy to :4000
-docker compose up mongo bp_back
+# Start only postgres + backend so the local Vite dev server can proxy to :4000
+docker compose up postgres bp_back
 ```
 
 Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`): it tags both images with
@@ -111,6 +112,9 @@ Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`)
 `project.example.env` to `project.env` first.
 
 ### Dump before a migration release, restore to roll back (AR-E9-5a)
+
+> **Superseded by Story 11.10.** This section describes the MongoDB-era procedure (the `mongo` service and
+> `Migration.kt` no longer exist); Story 11.10 replaces it with a PostgreSQL release procedure. Kept until then.
 
 Startup migrations (`bp_back/.../plugins/Migration.kt`) rewrite documents in place, each gated on its own
 `app_migrations` record, and the app cannot reverse them (`epic9-multi-store` unsets every item's legacy `store`

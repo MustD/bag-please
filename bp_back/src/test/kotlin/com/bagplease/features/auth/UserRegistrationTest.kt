@@ -1,9 +1,9 @@
 package com.bagplease.features.auth
 
 import com.bagplease.module
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.bagplease.utils.setUpRegistration
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
@@ -23,14 +23,14 @@ import java.util.*
 
 class UserRegistrationTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     context("POST /auth/register") {
 
         test("successful registration returns username and role") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -50,7 +50,7 @@ class UserRegistrationTest : FunSpec({
         test("duplicate username returns 400") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -71,7 +71,7 @@ class UserRegistrationTest : FunSpec({
 
         test("reserved admin username returns 400") {
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -88,7 +88,7 @@ class UserRegistrationTest : FunSpec({
         test("uniform error message for duplicate and reserved username") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -112,11 +112,11 @@ class UserRegistrationTest : FunSpec({
             }
         }
 
-        test("registered user persists across app restart (MongoDB persistence)") {
+        test("registered user persists across app restart (database persistence)") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
 
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -126,9 +126,9 @@ class UserRegistrationTest : FunSpec({
                 }.shouldHaveStatus(HttpStatusCode.OK)
             }
 
-            // Registers in one app instance, verifies second instance sees the user via MongoDB
+            // Registers in one app instance, verifies second instance sees the user via the database
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -142,7 +142,7 @@ class UserRegistrationTest : FunSpec({
         test("concurrent registration with same username: exactly one succeeds") {
             val username = "user_${UUID.randomUUID().toString().take(8)}"
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }
@@ -171,7 +171,7 @@ class UserRegistrationTest : FunSpec({
 
         test("rate limit returns 429 on 6th request from same IP") {
             testApplication {
-                setUpMongo(container)
+                setUpPostgres()
                 setUpJwt()
                 setUpRegistration(true)
                 application { module() }

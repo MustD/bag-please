@@ -71,19 +71,19 @@ description = "Run Playwright E2E tests"
 dir = "bp_front"
 run = "npm run test:e2e"
 
-# --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
+# --- Docker Compose (Caddy frontend + postgres + back; entry point :2080) ---
 
 [tasks."docker:up"]
-description = "Build & start everything (frontend[Caddy] + mongo + back) on :2080"
+description = "Build & start everything (frontend[Caddy] + postgres + back) on :2080"
 run = "docker compose up --build"
 
 [tasks."docker:down"]
-description = "Stop everything (frontend[Caddy] + mongo + back) on :2080"
+description = "Stop everything (frontend[Caddy] + postgres + back) on :2080"
 run = "docker compose down"
 
 [tasks."docker:back"]
-description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
-run = "docker compose up mongo bp_back"
+description = "Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000"
+run = "docker compose up postgres bp_back"
 
 [tasks."images:build-push"]
 description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"

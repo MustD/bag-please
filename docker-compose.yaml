@@ -3,32 +3,11 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
   pg_data:
 
 services:
-  mongo:
-    image: mongo:8
-    volumes:
-      - db_data:/data/db
-    ports:
-      - "127.0.0.1:27217:27017" # loopback only — host-side dev access; host port 27217 avoids conflict with local MongoDB
-    networks:
-      - bp_network
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: "user"
-      MONGO_INITDB_ROOT_PASSWORD: "pass"
-      #kernel >= 6.19 workaround
-      GLIBC_TUNABLES: "glibc:pthread:rseq=1"
-    healthcheck:
-      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  # PostgreSQL 18 (Epic 11, AD-16). Runs next to mongo until Story 11.7. The volume mounts at
-  # /var/lib/postgresql (the image's data root from 18 on), not the old .../data.
+  # PostgreSQL 18 (Epic 11, AD-16), the only data store. The volume mounts at /var/lib/postgresql
+  # (the image's data root from 18 on), not the old .../data.
   postgres:
     image: postgres:18
     volumes:
@@ -57,7 +36,7 @@ services:
     ports:
       - "127.0.0.1:2080:80"
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
       bp_back:
         condition: service_started
@@ -73,19 +52,11 @@ services:
       # 4000 is published solely so the local Vite dev server can proxy /api to it.
       - "127.0.0.1:4000:4000"
     depends_on:
-      mongo:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
       - bp_network
     environment:
-      KTOR_MONGO_HOST: "mongo"
-      KTOR_MONGO_PORT: "27017"
-      KTOR_MONGO_DB_NAME: "bag_please"
-      KTOR_MONGO_USER: "user"
-      KTOR_MONGO_PASS: "pass"
-      MIGRATION_TARGET_USER: "mia"
       KTOR_DB_HOST: "postgres"
       KTOR_DB_PORT: "5432"
       KTOR_DB_NAME: "bag_please"

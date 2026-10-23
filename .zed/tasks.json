@@ -34,7 +34,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:back — Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000",
+    "label": "docker:back — Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000",
     "command": "mise",
     "args": [
       "run",
@@ -45,7 +45,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:down — Stop everything (frontend[Caddy] + mongo + back) on :2080",
+    "label": "docker:down — Stop everything (frontend[Caddy] + postgres + back) on :2080",
     "command": "mise",
     "args": [
       "run",
@@ -56,7 +56,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:up — Build & start everything (frontend[Caddy] + mongo + back) on :2080",
+    "label": "docker:up — Build & start everything (frontend[Caddy] + postgres + back) on :2080",
     "command": "mise",
     "args": [
       "run",

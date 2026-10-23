@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -19,11 +19,11 @@ private val mapper = jacksonObjectMapper()
 
 /**
  * Story 11.4 characterization: the exact GraphQL JSON of the list flows with an owner, an accepted member and a
- * pending invitee. Captured green on the Mongo implementation first; it must pass unchanged on PostgreSQL.
+ * pending invitee. Captured green on the previous storage implementation first; it passes unchanged on PostgreSQL.
  */
 class ListCharacterizationTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.login(username: String, password: String): String {
         val res = client.post("/auth/login") {
@@ -42,7 +42,7 @@ class ListCharacterizationTest : FunSpec({
 
     test("owner + accepted + pending: members JSON, order and owner exclusion are unchanged") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val admin = login("admin", "admin")
@@ -86,7 +86,7 @@ class ListCharacterizationTest : FunSpec({
     }
     test("uncheckedItemCount counts only unchecked items, per list, in the lists query and mutation payloads") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val admin = login("admin", "admin")

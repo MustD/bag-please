@@ -32,8 +32,8 @@ class UserAdminQueries(
     ): GqlUserPage {
         env.requireAdmin()
         val page = userService.getUserPage(limit, offset, around)
-        // Owned-list counts are joined here, off the in-memory list cache: one
-        // scan for the whole page, not 20 Mongo round-trips, and `getUserPage`
+        // Owned-list counts are joined here: one
+        // query for the whole page, not 20 round-trips, and `getUserPage`
         // stays list-agnostic (Story 9.4).
         val counts = listService.countOwnedLists(page.users.map { it.id })
         return GqlUserMapper.toGql(page, counts)

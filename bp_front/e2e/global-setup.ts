@@ -1,7 +1,7 @@
 // One-time suite setup: enable public registration so the real register flow
 // (Scenario 1) can succeed. This is environment prep — the registration and
 // login endpoints themselves stay real in every test; we only flip a shared
-// backend flag once, up front. The db_data named volume persists across runs, so
+// backend flag once, up front. The pg_data named volume persists across runs, so
 // this is written idempotently (set to true; never assume a starting value) —
 // which is also what recovers a flag stranded OFF by a crashed prior run.
 //
@@ -25,7 +25,7 @@ import {BACKEND, gql, loginApi} from './support/api'
 
 // Readiness poll first, so setup is robust regardless of the
 // webServer/globalSetup ordering. GET /api/health (Story 9.1) is 200 only when
-// Ktor is warm AND Mongo answers a ping — not merely when Caddy answers — and it
+// Ktor is warm AND PostgreSQL answers SELECT 1 — not merely when Caddy answers — and it
 // is outside the auth rate limiter, so polling it spends no auth slots (the old
 // /api/auth/config probe did).
 async function waitForBackend(): Promise<void> {

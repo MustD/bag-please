@@ -7,14 +7,14 @@ Guidance for working in the Kotlin/Ktor GraphQL backend. Build/test commands liv
 ```
 GQL layer      (entity/<name>/gql/)          – graphql-kotlin Query/Mutation/Subscription objects
 Service layer  (entity/<name>/<Name>Service) – business logic + Kotlin SharedFlow subscriptions
-DB layer       (entity/<name>/db/)           – Exposed-on-R2DBC table, row mapper and repository over PostgreSQL
+Repository     (entity/<name>/db/)           – Exposed-on-R2DBC table, row mapper and repository
+PostgreSQL                                   – the only data store
 ```
 
-Every slice (users, refresh tokens, feedback, the app config, lists/list members, categories and, since Story 11.6, items) uses a `db/` package over PostgreSQL and no storage cache, see below. Data flows from the GQL layer down through the service (which owns every `tx {}`) to the repository. Mutations emit on a `MutableSharedFlow` (queued with `afterCommit`) which the GraphQL subscriptions expose as a `Flow`.
+Every slice (users, refresh tokens, feedback, the app config, lists/list members, categories and, since Story 11.6, items) uses a `db/` package over PostgreSQL and no storage cache, see below. Data flows GQL -> Service -> Repository -> PostgreSQL: from the GQL layer down through the service (which owns every `tx {}`) to the repository. Mutations emit on a `MutableSharedFlow` (queued with `afterCommit`) which the GraphQL subscriptions expose as a `Flow`.
 
 Shared code sits beside the entity slices under `src/main/kotlin/com/bagplease/`: `config/` (application config,
-its GQL and PostgreSQL `db/` parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
-(`MongoConnection`, `AppMigrationsRepository`) and `plugins/` (Ktor plugins, `GQL.kt`, `Migration.kt`).
+its GQL and PostgreSQL `db/` parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), and `plugins/` (Ktor plugins, `GQL.kt`, `Database.kt`).
 
 The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease/entity/<name>/` (`item`, `category`,
 `list`, `user`, `feedback`) holds all of that entity's layers, e.g. `entity/item/`:
@@ -27,7 +27,7 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 
 ## PostgreSQL foundation (Epic 11, Story 11.1)
 
-PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4), categories (Story 11.5) and items with the hourly item jobs (Story 11.6) live in PostgreSQL**; no slice reads or writes Mongo any more (only `Migration.kt` still touches it, via raw documents, until Story 11.7 deletes it). The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
+PostgreSQL 18 is the only data store (MongoDB left the stack in Story 11.7). **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4), categories (Story 11.5) and items with the hourly item jobs (Story 11.6) live in PostgreSQL**; there is no Mongo driver, connection or startup data migration. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
   defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
@@ -47,7 +47,7 @@ PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (St
   `Database.kt`). `username` is `COLLATE "C"`: case-sensitive equality, binary order for the admin list. Password
   change / admin reset drop the user's refresh tokens in the same transaction as the new hash.
   `UserService.deleteUser` is one transaction: `SELECT … FOR UPDATE`, list purge via `ListService`, tokens deleted,
-  `users` row deleted last. `ListService` and the epic-4 migration look users up through `UserLookup`
+  `users` row deleted last. `ListService` looks users up through `UserLookup`
   (`tx { findByUsername }`, joins an open tx), never a PG repository directly.
 - **Lists, shares and invites (Story 11.4)**: `entity/list/db/` (`ListTable`, `ListMemberTable`, `ListRowMapper`,
   `ListRepository`). `list_members` is the sole membership/invite record: the owner holds an `ACCEPTED` row but is
@@ -68,8 +68,7 @@ PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (St
   a failed save/delete emits nothing. `saveCategory` inserts a new id, renames an existing id on the same list, and
   rejects an id that lives on another list (`IllegalArgumentException`; categories are never relocated, the `items`
   composite FK depends on it). `deleteCategory` runs membership, find, `ItemService.deleteAllInCategory`, the row
-  delete (one `tx`), then the DELETED event after commit. The Epic 4 seed still stamps `listId` on legacy Mongo category
-  documents; nothing reads them (Story 11.8 imports them).
+  delete (one `tx`), then the DELETED event after commit.
 - **Items (Story 11.6)**: `entity/item/db/` (`ItemTable`, `ItemRowMapper`, `ItemRepository`); `ItemService` is the only
   caller and owns every `tx {}`, membership running in the same tx as the write. `items.stores` is a `text[]` (order and
   casing kept); `category_id` is guarded by the composite FK `(list_id, category_id)`, so a category delete removes its
@@ -81,17 +80,16 @@ PostgreSQL 18 runs beside Mongo until Story 11.7. **Users and refresh tokens (St
   `ItemService.restoreRecurring()`, `ItemService.hardDeleteSoftDeleted()`, `AuthService.purgeExpiredTokens()`.
 - **Expired refresh tokens** are rejected on read (`AuthService.refresh`) and purged by the hourly scheduler step
   `purgeExpiredTokens()` (`plugins/Scheduler.kt`: ordered named steps, each in its own try/catch). Nothing expires them automatically in the database.
-- `/api/health` answers 200 only when `SELECT 1` and the Mongo ping both answer within 2 s in total; otherwise 503.
+- `/api/health` answers 200 only when `SELECT 1` answers within 2 s; otherwise 503.
 - Verified in the 11.1 spike: Ktor Netty and r2dbc-postgresql's reactor-netty run together (Gradle resolves Netty to
   4.2.17) and R2DBC connects over TLS with `verify-full`.
 
 ## Tests
 
-Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
-in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`. `FunSpec.postgresContainer()` returns one shared
-`postgres:18` per test JVM; PostgreSQL rows (users, lists, members, ...) outlive a spec, so `mongoContainer()` calls `SharedPostgres.reset()`
-(TRUNCATE … CASCADE) before each spec, and PG-only specs call it explicitly. Specs that build services directly call
-`connectDatabase(container.appConfig())` first (role `bag_please_app` set up like Compose); `setUpMongo` also points the app at it, because
+Kotest `FunSpec` only, no mocking library: tests run against a real PostgreSQL from the `FunSpec.postgresContainer()` helper
+in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`: one shared `postgres:18` per test JVM. Its rows (users, lists, members, ...) outlive a spec, so `postgresContainer()` calls `SharedPostgres.reset()`
+(TRUNCATE … CASCADE) before each spec, and specs that need clean tables per test call it again. Specs that build services directly call
+`connectDatabase(container.appConfig())` first (role `bag_please_app` set up like Compose); `setUpPostgres()` points the app at it, because
 `module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`. `buildTestServices(db)` wires `ListService` + `ItemService` the way `Application.kt` does, and `pgRows` / `pgCount` assert on PostgreSQL over JDBC.
 
 ## Config

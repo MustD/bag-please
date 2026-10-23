@@ -6,18 +6,14 @@ import com.bagplease.entity.category.db.CategoryRepository
 import com.bagplease.entity.item.ItemService
 import com.bagplease.features.auth.CallerUsername
 import com.bagplease.utils.SharedPostgres
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.buildTestServices
 import com.bagplease.utils.pgCount
 import com.bagplease.utils.pgExec
 import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.kotlin.client.coroutine.MongoClient
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -34,7 +30,6 @@ import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import org.bson.UuidRepresentation
 import java.util.UUID
 
 private val mapper = jacksonObjectMapper()
@@ -42,7 +37,7 @@ private val mapper = jacksonObjectMapper()
 // Story 11.5: categories live in PostgreSQL. Matrix rows asserted against the `categories` table.
 class CategoryPostgresTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     beforeTest { SharedPostgres.reset() }
 
@@ -75,7 +70,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("create inserts a row and saving the same id on the same list renames it") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("catOwner")
             val listId = list(owner)
             val cat = UUID.randomUUID()
@@ -87,7 +82,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("an id that exists on another list is rejected and the row is left unchanged") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("catForeignOwner")
             val listA = list(owner, "A")
             val listB = list(owner, "B")
@@ -100,7 +95,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("a non-member cannot save or delete and the row is untouched") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner, stranger) = users("catMemOwner", "catStranger")
             val listId = list(owner)
             val cat = UUID.randomUUID()
@@ -113,7 +108,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("deleting a category removes the row; a second delete reports Category not found") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("catDelOwner")
             val listId = list(owner)
             val cat = UUID.randomUUID()
@@ -126,7 +121,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("deleting a category through the API removes its items; a category passed with another list's id is not found") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("catItemsOwner")
             val listA = list(owner, "A")
             val listB = list(owner, "B")
@@ -148,7 +143,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("deleting a list reports deletedCategoryCount equal to the rows removed") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val (owner) = users("catCascadeOwner")
             val listId = list(owner)
             val other = list(owner, "Other")
@@ -160,14 +155,6 @@ class CategoryPostgresTest : FunSpec({
             pgCount("SELECT count(*) FROM categories WHERE list_id = '$other'") shouldBe 1L
         }
     }
-
-    fun mongoClient() = MongoClient.create(
-        MongoClientSettings.builder()
-            .credential(MongoCredential.createScramSha1Credential("test_user", "admin", "test_pass".toCharArray()))
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-    )
 
     /** Registers two users and a list they share, through the API, then returns the ids needed by service-level checks. */
     data class Shared(val owner: String, val member: String, val listId: UUID)
@@ -182,7 +169,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("a member's rename is emitted once, after commit; a rejected save and a non-member emit nothing") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val shared = sharedList("catEvt")
             val other = list(login("catEvtOwner", "pass1234"), "Other")
             val service = buildTestServices().categoryService
@@ -217,7 +204,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("a failing item cascade keeps the category row and emits no DELETED event") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val shared = sharedList("catRoll")
             val healthy = buildTestServices()
             val cat = Category(UUID.randomUUID(), "Doomed", shared.listId)
@@ -245,7 +232,7 @@ class CategoryPostgresTest : FunSpec({
 
     test("deleting a category deletes its items first and emits exactly one DELETED event after the row is gone") {
         testApplication {
-            setUpMongo(container); setUpJwt(); application { module() }
+            setUpPostgres(); setUpJwt(); application { module() }
             val shared = sharedList("catDelEvt")
             val services = buildTestServices()
             val service = services.categoryService

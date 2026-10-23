@@ -46,9 +46,6 @@ dependencies {
     implementation(libs.graphql.kotlin.ktor.server)
     implementation(libs.logback.classic)
 
-    implementation(libs.mongodb.driver.kotlin.coroutine)
-    implementation(libs.mongodb.bson.kotlinx)
-
     implementation(libs.exposed.core)
     implementation(libs.exposed.r2dbc)
     implementation(libs.exposed.java.time)
@@ -64,9 +61,7 @@ dependencies {
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotest.assertions.ktor)
-    testImplementation(libs.testcontainers.mongodb)
     testImplementation(libs.testcontainers.postgresql)
-    testImplementation(libs.kotest.testcontainers)
 }
 
 tasks.withType<Test>().configureEach {
