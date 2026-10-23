@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs each I/O matrix row of Story 11.9 against the real scripts with stubbed terraform/ssh/git/psql/gradle/java on
-# PATH, and asserts the refusal, the exit code, and that no tunnel (`ssh ... -L`) was started.
+# PATH, and asserts the refusal, the exit code, and that no database client (psql/java) was started.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
@@ -24,7 +24,10 @@ cat >"$WORK/bin/git" <<'STUB'
 if [ "$1" = status ]; then printf '%s' "${STUB_DIRTY:-}"; fi
 exit 0
 STUB
-printf '#!/usr/bin/env bash\necho "UNEXPECTED psql" >&2\nexit 0\n' >"$WORK/bin/psql"
+cat >"$WORK/bin/psql" <<'STUB'
+#!/usr/bin/env bash
+echo psql >>"$WORK_LOG/db.log"
+STUB
 cat >"$WORK/bin/gradle" <<'STUB'
 #!/usr/bin/env bash
 env >"$WORK_LOG/gradle.env"
@@ -34,6 +37,7 @@ cat >"$WORK/bin/java" <<'STUB'
 #!/usr/bin/env bash
 env >"$WORK_LOG/java.env"
 echo "$*" >"$WORK_LOG/java.args"
+echo java >>"$WORK_LOG/db.log"
 STUB
 export WORK_LOG="$WORK"
 chmod +x "$WORK/bin/"*
@@ -45,12 +49,12 @@ run_case() {
 	local -a envs=()
 	while [ "$1" != -- ]; do envs+=("$1"); shift; done
 	shift
-	: >"$SSH_LOG"
+	: >"$SSH_LOG"; : >"$WORK/db.log"
 	err="$(env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h "${envs[@]}" "$@" 2>&1 >/dev/null)"
 	rc=$?
 	if [ "$rc" != "$want" ]; then echo "FAIL $name: exit $rc, wanted $want ($err)"; fails=$((fails + 1)); return; fi
 	if [[ $err != *"$msg"* ]]; then echo "FAIL $name: stderr lacks '$msg' ($err)"; fails=$((fails + 1)); return; fi
-	if grep -q -e ' -L ' -e ' -L' "$SSH_LOG"; then echo "FAIL $name: a tunnel was started"; fails=$((fails + 1)); return; fi
+	if [ -s "$WORK/db.log" ]; then echo "FAIL $name: a database client was started"; fails=$((fails + 1)); return; fi
 	echo "ok   $name"
 }
 
@@ -59,18 +63,15 @@ run_case "missing export" 2 "export directory not found" -- "$HERE/import.sh" "$
 run_case "dirty tree" 1 "working tree is not clean" STUB_DIRTY=" M file" -- "$HERE/import.sh" "$WORK/export"
 run_case "backend running" 1 "bp_back is running" STUB_RUNNING=bp_back -- "$HERE/import.sh" "$WORK/export"
 
-run_case "dirty tree (bootstrap)" 1 "working tree is not clean" STUB_DIRTY=" M file" -- "$HERE/bootstrap-db.sh"
+run_case "dirty tree (bootstrap)" 1 "working tree is not clean" STUB_DIRTY=" M file" HUB_DIR=/hub -- "$HERE/bootstrap-db.sh"
 run_case "docker ps fails" 1 "could not check" STUB_PS_FAIL=1 -- "$HERE/import.sh" "$WORK/export"
 
-# Happy path: a tunnel is opened, java gets IMPORT_DB_* (verify-ca), no deploy variable reaches gradle or java.
-: >"$SSH_LOG"
+# Happy path: java gets IMPORT_DB_* (verify-full, the public host), no deploy variable reaches gradle or java.
+: >"$SSH_LOG"; : >"$WORK/db.log"
 if ! env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h DIGITALOCEAN_TOKEN=t \
-	TF_VAR_vpc_name=v TF_VAR_edge_private_ip=1.2.3.4 "$HERE/import.sh" "$WORK/export" >/dev/null 2>&1; then
+	TF_VAR_vpc_name=v TF_VAR_edge_private_ip=1.2.3.4 HUB_DIR=/hub "$HERE/import.sh" "$WORK/export" >/dev/null 2>&1; then
 	echo "FAIL happy path: import.sh exited non-zero"; fails=$((fails + 1))
-elif ! grep -q ' -L ' "$SSH_LOG"; then
-	echo "FAIL happy path: no tunnel opened"; fails=$((fails + 1))
-elif ! grep -q '^IMPORT_DB_SSLMODE=verify-ca$' "$WORK/java.env" || ! grep -q '^IMPORT_DB_PASSWORD=stub-db_app_password$' "$WORK/java.env" \
-	|| ! grep -q '^IMPORT_DB_HOST=127.0.0.1$' "$WORK/java.env"; then
+elif ! grep -q '^IMPORT_DB_SSLMODE=verify-full$' "$WORK/java.env" || ! grep -q '^IMPORT_DB_HOST=stub-db_public_host$' "$WORK/java.env" || ! grep -q '^IMPORT_DB_PASSWORD=stub-db_app_password$' "$WORK/java.env"; then
 	echo "FAIL happy path: java lacks IMPORT_DB_*"; fails=$((fails + 1))
 elif grep -qE '^(DIGITALOCEAN_TOKEN|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|EDGE_SSH|TF_VAR_[A-Za-z_]*)=' "$WORK/gradle.env" "$WORK/java.env"; then
 	echo "FAIL happy path: a deploy variable leaked into gradle or java"; fails=$((fails + 1))

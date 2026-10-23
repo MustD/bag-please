@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# bootstrap-db.sh - one-time: make bag_please_app own the bag_please database (as doadmin, the only use of doadmin),
-# then run Flyway as bag_please_app by pointing the importer at an empty export directory.
-# Needs psql locally. Reaches the database through an SSH tunnel over the droplet; verify-ca (host is 127.0.0.1).
+# bootstrap-db.sh - one-time, idempotent: the io-workshop hub's recipe for a project database on the shared cluster
+# (as doadmin, the only use of doadmin), then Flyway as bag_please_app by pointing the importer at an empty export
+# directory. doadmin's credentials come from the hub's Terraform state (HUB_DIR). Needs psql locally and this
+# machine's public IP in the hub's admin_cidrs (hub: mise run postgres:apply). Connects to the cluster's public host
+# with verify-full.
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
-require_env AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH
+require_env AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH HUB_DIR
 command -v psql >/dev/null || { echo "psql is not installed" >&2; exit 1; }
 require_clean_tree
 make_scratch
 tf_init
 load_db_outputs
-ADMIN_USER="$(need_out db_admin_user)"
-ADMIN_PASSWORD="$(need_out db_admin_password)"
-open_tunnel "$DB_HOST" "$DB_PORT"
+load_admin
 
 (
 	unset_deploy
 	PGPASSWORD="$ADMIN_PASSWORD" psql -v ON_ERROR_STOP=1 \
-		"host=127.0.0.1 port=$LOCAL_TUNNEL_PORT dbname=$DB_NAME user=$ADMIN_USER sslmode=verify-ca sslrootcert=$SCRATCH/ca.pem" <<SQL
-GRANT "$DB_APP_USER" TO "$ADMIN_USER";
-ALTER DATABASE "$DB_NAME" OWNER TO "$DB_APP_USER";
+		"host=$DB_PUBLIC_HOST port=$DB_PORT dbname=$DB_NAME user=$ADMIN_USER sslmode=verify-full sslrootcert=$SCRATCH/ca.pem" <<SQL
+GRANT ALL ON SCHEMA public TO "$DB_APP_USER";
+REVOKE CONNECT ON DATABASE "$DB_NAME" FROM PUBLIC;
+GRANT CONNECT ON DATABASE "$DB_NAME" TO "$DB_APP_USER";
 SQL
 )
 

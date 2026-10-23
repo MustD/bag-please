@@ -17,6 +17,8 @@ resource "digitalocean_droplet" "web" {
   image    = var.image
   vpc_uuid = data.digitalocean_vpc.edge.id
   ssh_keys = [data.digitalocean_ssh_key.deploy.id]
+  # The hub's database firewall trusts every droplet carrying this tag; that is the droplet's only way in.
+  tags = [var.pg_client_tag]
 
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
     ssh_public_key = trimspace(data.digitalocean_ssh_key.deploy.public_key)
@@ -64,39 +66,29 @@ resource "digitalocean_firewall" "web" {
   }
 }
 
-# Managed PostgreSQL: one node, cheapest tier, inside the VPC. Reachable only through the private network from
-# the droplet (see the database firewall below); operators reach it through an SSH tunnel over the droplet.
-resource "digitalocean_database_cluster" "pg" {
-  name                 = "bag-please-pg"
-  engine               = "pg"
-  version              = "18"
-  size                 = var.db_size
-  region               = var.region
-  node_count           = 1
-  private_network_uuid = data.digitalocean_vpc.edge.id
+# The PostgreSQL cluster is shared and owned by the io-workshop hub (postgres/ stack): looked up by name, never
+# created here, and its firewall (digitalocean_database_firewall) is never managed from here - that would overwrite
+# the hub's rules. This stack owns only this app's database and user.
+data "digitalocean_database_cluster" "shared" {
+  name = var.pg_cluster_name
 }
 
 resource "digitalocean_database_db" "app" {
-  cluster_id = digitalocean_database_cluster.pg.id
+  cluster_id = data.digitalocean_database_cluster.shared.id
   name       = "bag_please"
-}
 
-resource "digitalocean_database_user" "app" {
-  cluster_id = digitalocean_database_cluster.pg.id
-  name       = "bag_please_app"
-}
-
-# Exactly one rule: the droplet. Nothing else, the public internet included, can open a connection.
-resource "digitalocean_database_firewall" "pg" {
-  cluster_id = digitalocean_database_cluster.pg.id
-
-  rule {
-    type  = "droplet"
-    value = digitalocean_droplet.web.id
+  lifecycle {
+    # Destroying the database drops every list, item and account.
+    prevent_destroy = true
   }
 }
 
-# The cluster's CA, for `verify-ca` (importer tunnel) and `verify-full` (runtime) connections.
-data "digitalocean_database_ca" "pg" {
-  cluster_id = digitalocean_database_cluster.pg.id
+resource "digitalocean_database_user" "app" {
+  cluster_id = data.digitalocean_database_cluster.shared.id
+  name       = "bag_please_app"
+}
+
+# The cluster's CA, for the `verify-full` connections (runtime and importer).
+data "digitalocean_database_ca" "shared" {
+  cluster_id = data.digitalocean_database_cluster.shared.id
 }

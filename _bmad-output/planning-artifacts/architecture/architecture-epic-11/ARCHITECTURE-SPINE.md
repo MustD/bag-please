@@ -42,7 +42,7 @@ flowchart LR
     Repo -->|R2DBC| PG[(PostgreSQL 18)]
     Health[/api/health/] --> PG
   end
-  Import[import source set, operator laptop] -->|Flyway + R2DBC via SSH tunnel| PG
+  Import[import source set, operator laptop] -->|Flyway + R2DBC, public host, verify-full| PG
 ```
 
 ## Inherited Invariants
@@ -191,7 +191,7 @@ write it, and only `update` upserts it. Every instant is
   slice moves, that the app starts and connects to PostgreSQL over TLS with Ktor's Netty 4.2 and `r2dbc-postgresql`'s
   reactor-netty on one classpath.
 
-### AD-9 — The import runs from the operator's machine through a tunnel, as one transaction
+### AD-9 — The import runs from the operator's machine, as one transaction
 
 - **Binds:** FR71, NFR-D3, NFR-D5
 - **Prevents:** a partly loaded database, a second definition of the schema, the managed DB opened to the internet, and
@@ -206,9 +206,9 @@ write it, and only `update` upserts it. Every instant is
   3. Print export / loaded / dropped-with-reason for each record type.
 
   A failure rolls back to an empty database, so the import can be re-run. `db:import` refuses a dirty tree, and it
-  refuses when `bp_back` is running on the droplet (checked over SSH). It reaches the cluster through
-  `ssh -J <edge> -L <local port>:<cluster private host>:<port> deploy@<droplet>`, and only this connection uses
-  `sslmode=verify-ca` (AD-14). It passes the `bag_please_app` credentials, read from `terraform output`, to the importer
+  refuses when `bp_back` is running on the droplet (checked over SSH). It connects directly to the shared
+  cluster's public host with `sslmode=verify-full` (the operator's IP is in the hub's `admin_cidrs`; no tunnel, amended
+  2026-10-23). It passes the `bag_please_app` credentials, read from `terraform output`, to the importer
   process only: never to Gradle, a file or the shell.
 
 ### AD-10 — Expired refresh tokens: rejected on read, purged hourly
@@ -232,11 +232,13 @@ write it, and only `update` upserts it. Every instant is
   - State lives in the `io-workshop-tfstate` Spaces bucket under the key `bag-please/web.tfstate`.
   - `.terraform.lock.hcl` is committed.
 
-  The managed cluster runs PostgreSQL 18 on the cheapest tier, in the same VPC. A `digitalocean_database_firewall` has
-  exactly one trusted source, the droplet. Terraform creates database `bag_please` and user `bag_please_app`. That user
-  is the only identity used by Flyway, the runtime and the importer. `doadmin` is used once only, by the `db:bootstrap`
-  task over the tunnel, to give `bag_please_app` ownership of the `public` schema in `bag_please`. The first apply
-  verifies against the real cluster that this is enough for Flyway. `infra:plan` and `infra:apply` are run by hand,
+  The PostgreSQL 18 cluster `io-workshop-pg` is shared and owned by the io-workshop hub repo (amended 2026-10-23): it is a
+  `data` source here, and neither the cluster nor `digitalocean_database_firewall` is declared (that would overwrite the
+  hub's rules). The droplet carries the hub's `postgres-client` tag, which is the firewall's trusted source for it.
+  Terraform creates database `bag_please` and user `bag_please_app`. That user is the only identity used by Flyway, the
+  runtime and the importer. `doadmin` is used once only, by the `db:bootstrap` task (credentials from the hub's state),
+  for the hub's recipe: `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to
+  `bag_please_app`. The shared cluster allows about 22 connections for all projects, so the runtime pool is 5 or less. `infra:plan` and `infra:apply` are run by hand,
   and a deploy never runs Terraform.
 
 ### AD-12 — Secrets reach only the process that needs them
@@ -283,7 +285,7 @@ write it, and only `update` upserts it. Every instant is
   `KTOR_DB_SSLROOTCERT: /etc/bag-please/ca-certificate.crt`. These are committed and are not secrets. The deploy writes
   the CA, from the `digitalocean_database_ca` data source, to `bag-please/ca-certificate.crt` with mode `644` and mounts
   it read-only. The infra story verifies once from the droplet that `verify-full` passes against the cluster's private
-  host. The importer through the tunnel (AD-9) is the only connection allowed `verify-ca`. Local dev, E2E and
+  host. No connection is allowed a weaker mode; the importer also uses `verify-full`. Local dev, E2E and
   Testcontainers run without TLS.
 
 ### AD-15 — Stories land on the `epic-11` branch; `main` never runs two stores
@@ -426,9 +428,9 @@ flowchart LR
     subgraph Droplet[droplet: docker compose]
       Caddy[bp_front: Caddy + SPA, healthcheck] -->|/api| Back[bp_back: Ktor]
     end
-    Back -->|R2DBC TLS verify-full| DB[(DO Managed PostgreSQL 18, trusted source = droplet)]
+    Back -->|R2DBC TLS verify-full| DB[(DO Managed PostgreSQL 18, trusted via the postgres-client tag)]
   end
-  Op[operator laptop] -->|ssh -J edge, tunnel for db:bootstrap / db:import| Droplet
+  Op[operator laptop] -->|ssh -J edge for the backend-running check; db:bootstrap / db:import connect to the public host| Droplet
   Op -->|terraform, S3 backend| Spaces[(Spaces: io-workshop-tfstate)]
   Op -->|deploy:push| Hub[(Docker Hub: exact tags)]
   Droplet -->|pull tag| Hub

@@ -122,11 +122,13 @@ are `IMPORT_DB_*` variables set only on the `java` command in `mise/db_import.sh
 
 ### Production infrastructure (Story 11.9)
 
-`deploy/terraform/` declares the DigitalOcean droplet, its firewall, a PostgreSQL 18 cluster (firewalled to the
-droplet only), the `bag_please` database and the `bag_please_app` user. Secrets live only in the gitignored
-`.secure.deploy.env` (copy `.secure.deploy.env.example`), loaded per task by mise: `mise run infra:plan`,
-`infra:apply`, `db:bootstrap`, `db:import [-- <export-dir>]`; `mise run deploy:test` checks the script guards.
-Never run `infra:apply` without md. Runbook, costs and live verification steps: `deploy/README.md`.
+`deploy/terraform/` declares the DigitalOcean droplet, its firewall, and the `bag_please` database and `bag_please_app`
+user on the SHARED PostgreSQL cluster `io-workshop-pg`, which the io-workshop hub repo owns (looked up by name; never
+create it or its database firewall here). The droplet carries the `postgres-client` tag; the operator's machine reaches
+the cluster's public host directly (its IP must be in the hub's `admin_cidrs`), so there is no SSH tunnel. Secrets live
+only in the gitignored `.secure.deploy.env` (copy `.secure.deploy.env.example`), loaded per task by mise:
+`mise run infra:plan`, `infra:apply`, `db:bootstrap`, `db:import [-- <export-dir>]`; `mise run deploy:test` checks the
+script guards. Never run `infra:apply` without md. Runbook, costs and live verification steps: `deploy/README.md`.
 
 ### Dump before a migration release, restore to roll back (AR-E9-5a)
 

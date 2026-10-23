@@ -34,7 +34,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "db:bootstrap — One-time: give bag_please_app the production database and run Flyway (tunnel, needs psql)",
+    "label": "db:bootstrap — One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql, hub checkout)",
     "command": "mise",
     "args": [
       "run",
@@ -45,7 +45,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "db:import — Import a Mongo export (default migration-export/) into the production PostgreSQL through a tunnel",
+    "label": "db:import — Import a Mongo export (default migration-export/) into the production PostgreSQL",
     "command": "mise",
     "args": [
       "run",
@@ -188,7 +188,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "infra:apply — Terraform apply for the DigitalOcean droplet + managed PostgreSQL (by hand, never from CI)",
+    "label": "infra:apply — Terraform apply for the DigitalOcean droplet + this app's database on the shared PostgreSQL (by hand, never from CI)",
     "command": "mise",
     "args": [
       "run",
@@ -199,7 +199,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "infra:plan — Terraform plan for the DigitalOcean droplet + managed PostgreSQL (needs .secure.deploy.env)",
+    "label": "infra:plan — Terraform plan for the DigitalOcean droplet + this app's database on the shared PostgreSQL (needs .secure.deploy.env)",
     "command": "mise",
     "args": [
       "run",

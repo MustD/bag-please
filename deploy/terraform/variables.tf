@@ -5,7 +5,7 @@ variable "edge_private_ip" {
 
 variable "vpc_name" {
   type        = string
-  description = "Name of the existing VPC the edge lives in. The droplet and the database cluster join it."
+  description = "Name of the existing VPC the edge lives in. The droplet joins it."
 }
 
 variable "ssh_key_name" {
@@ -30,8 +30,14 @@ variable "image" {
   description = "Droplet image slug. Nothing falls back: if the region does not offer it, set ubuntu-24-04-x64."
 }
 
-variable "db_size" {
+variable "pg_cluster_name" {
   type        = string
-  default     = "db-s-1vcpu-1gb"
-  description = "Managed PostgreSQL node size slug (cheapest tier, single node)."
+  default     = "io-workshop-pg"
+  description = "Name of the shared PostgreSQL cluster owned by the io-workshop hub; looked up, never created here."
+}
+
+variable "pg_client_tag" {
+  type        = string
+  default     = "postgres-client"
+  description = "Tag the hub's database firewall trusts. The droplet carries it."
 }

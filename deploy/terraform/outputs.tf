@@ -8,12 +8,17 @@ output "droplet_id" {
 }
 
 output "db_host" {
-  value       = digitalocean_database_cluster.pg.private_host
-  description = "Private (VPC) hostname of the cluster."
+  value       = data.digitalocean_database_cluster.shared.private_host
+  description = "Private (VPC) hostname of the shared cluster: what the droplet connects to."
+}
+
+output "db_public_host" {
+  value       = data.digitalocean_database_cluster.shared.host
+  description = "Public hostname of the shared cluster: what the operator's machine connects to (its IP must be in the hub's admin_cidrs)."
 }
 
 output "db_port" {
-  value = digitalocean_database_cluster.pg.port
+  value = data.digitalocean_database_cluster.shared.port
 }
 
 output "db_name" {
@@ -29,16 +34,7 @@ output "db_app_password" {
   sensitive = true
 }
 
-output "db_admin_user" {
-  value = digitalocean_database_cluster.pg.user
-}
-
-output "db_admin_password" {
-  value     = digitalocean_database_cluster.pg.password
-  sensitive = true
-}
-
 output "db_ca_certificate" {
-  value       = data.digitalocean_database_ca.pg.certificate
+  value       = data.digitalocean_database_ca.shared.certificate
   description = "PEM CA certificate of the cluster (public)."
 }

@@ -19,11 +19,11 @@ deferred: []
 
 **Problem:** Production has no declared home: no droplet, no managed PostgreSQL, no tunnel path to it, and no way for md to bootstrap the database or run the import against it without leaking a secret.
 
-**Approach:** `deploy/terraform/` (mal_ui layout) declares the droplet, its firewall, a PostgreSQL 18 cluster with a droplet-only firewall, database `bag_please` and user `bag_please_app`; `deploy/scripts/` and the mise tasks `infra:plan`, `infra:apply`, `db:bootstrap`, `db:import` drive it with secrets loaded per task from a gitignored `.secure.deploy.env` (committed blank `.example`).
+**Approach:** `deploy/terraform/` (mal_ui layout) declares the droplet, its firewall, database `bag_please` and user `bag_please_app` on the hub-owned shared PostgreSQL cluster `io-workshop-pg` (a data source; the droplet carries the hub's `postgres-client` tag); `deploy/scripts/` and the mise tasks `infra:plan`, `infra:apply`, `db:bootstrap`, `db:import` drive it with secrets loaded per task from a gitignored `.secure.deploy.env` (committed blank `.example`).
 
 ## Boundaries & Constraints
 
-**Always:** Terraform `~> 1.15`, provider `digitalocean ~> 2.106`; VPC and SSH key are data sources; droplet `ignore_changes = [user_data, image]`; firewall inbound only 80 and 22 from `${edge_private_ip}/32`; S3 backend bucket `io-workshop-tfstate`, key `bag-please/web.tfstate`; `.terraform.lock.hcl` committed, own `.gitignore`. Cluster: PostgreSQL 18, one node, cheapest tier, same VPC; `digitalocean_database_firewall` has exactly one rule, `droplet` = the droplet. Secrets reach only the process that needs them: tasks load `.secure.deploy.env` themselves, `lib.sh` strips every deploy variable before any nested Gradle/mise task, nothing exported into the operator's shell, DB credentials read from `terraform output` and passed only as the `IMPORT_DB_*` env of the `java` command (importer uses `verify-ca`). `doadmin` is used by `db:bootstrap` only. `db:import` refuses a dirty tree and refuses while `bp_back` runs on the droplet. Docs move with behaviour: new `deploy/README.md`, root `CLAUDE.md`, Zed tasks re-synced.
+**Always:** Terraform `~> 1.15`, provider `digitalocean ~> 2.106`; VPC and SSH key are data sources; droplet `ignore_changes = [user_data, image]`; firewall inbound only 80 and 22 from `${edge_private_ip}/32`; S3 backend bucket `io-workshop-tfstate`, key `bag-please/web.tfstate`; `.terraform.lock.hcl` committed, own `.gitignore`. The cluster is owned by the io-workshop hub and only looked up; no cluster and no `digitalocean_database_firewall` here. Secrets reach only the process that needs them: tasks load `.secure.deploy.env` themselves, `lib.sh` strips every deploy variable before any nested Gradle/mise task, nothing exported into the operator's shell, DB credentials read from `terraform output` and passed only as the `IMPORT_DB_*` env of the `java` command (importer uses `verify-full` against the public host, no tunnel). `doadmin` is used by `db:bootstrap` only. `db:import` refuses a dirty tree and refuses while `bp_back` runs on the droplet. Docs move with behaviour: new `deploy/README.md`, root `CLAUDE.md`, Zed tasks re-synced.
 
 **Never:** No `terraform apply` or any DigitalOcean call without md; no secret, state or tfvars committed; no deploy tasks, droplet compose, `deploy:*` or `.secure.build.env` (Story 11.10); no runtime change to `bp_back`; the importer is not edited.
 
@@ -66,6 +66,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-23, user-directed rework (md): PostgreSQL moved to the io-workshop hub's shared cluster `io-workshop-pg`. Amended: cluster and database firewall removed from Terraform (data source plus the `postgres-client` tag instead); `doadmin` credentials read from the hub's state (`HUB_DIR`); bootstrap SQL is the hub's recipe; no tunnel, importer and bootstrap use `verify-full` on the public host. KEEP: guard scripts, per-task secret loading, `deploy:test`. Avoids: a second cluster and a firewall resource that overwrites the hub's rules.
+
 ## Review Triage Log
 
 ### 2026-10-23 — Review pass
@@ -98,4 +100,5 @@ Status: done (repository artifacts only; live verification pending md)
 - Review: patches applied 6 (low); deferred 0; rest rejected per log. Follow-up review recommended: false.
 - Verification: `terraform init -backend=false`, `validate`, `fmt -check` pass; `shellcheck` clean; `mise run deploy:test` 7 rows pass; lock file not ignored. Guard tests were not observed failing first.
 - NOT run (needs md's DigitalOcean account): `infra:plan`/`apply`, `doctl` slug confirmation, `db:bootstrap`, the `verify-full` psql from the droplet (if it fails, AD-14 returns to md), the `db:import` dry run. Sprint status stays `review` until those are done.
+- Rework (2026-10-23): see Spec Change Log; the review above applied to the earlier cluster-owning design, the reworked parts were re-checked with validate/shellcheck/`deploy:test` only.
 - Residual risks: `db-s-1vcpu-1gb`, `s-1vcpu-1gb`, the Ubuntu image slug and prices are unconfirmed; bootstrap SQL (`GRANT ... TO doadmin`, `ALTER DATABASE ... OWNER`) unverified on managed PostgreSQL and does not alter the `public` schema owner explicitly; `psql` is needed locally.

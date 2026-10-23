@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # import.sh [<export-dir>] - load a mongoexport --jsonArray export into the production PostgreSQL (Story 11.8's
-# importer) through an SSH tunnel. Refuses before any tunnel: missing export (exit 2), dirty tree, backend running.
+# importer) directly (the cluster's public host, verify-full; this machine's IP must be in the hub's admin_cidrs). Refuses before any database connection: missing export (exit 2), dirty tree, backend running.
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
 export_dir="${1:-migration-export}"
@@ -18,5 +18,4 @@ if [ -n "$running" ]; then
 	echo "bp_back is running on the droplet ($running) - stop it before importing." >&2
 	exit 1
 fi
-open_tunnel "$DB_HOST" "$DB_PORT"
 run_importer "$export_dir"
