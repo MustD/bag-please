@@ -66,8 +66,6 @@ deferred: []
 
 ## Review Triage Log
 
-## Review Triage Log
-
 ### 2026-10-23 — Review pass
 - verdicts: 17 findings — high 0, medium 0, low 5, false 12, maybe-false 0
 - findings:
