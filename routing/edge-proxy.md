@@ -90,3 +90,19 @@ E2E_BASE_URL=https://bag-please.localhost npm run test:e2e
 
 `ignoreHTTPSErrors` is enabled, so an untrusted local cert won't fail the run. One-time backend setup
 (`e2e/global-setup.ts`) still talks to `:2080` directly.
+
+## Production: `https://bag-please.io-workshop.net`
+
+The edge proxy terminates TLS for `bag-please.io-workshop.net` and forwards everything to the droplet's `bp_front`
+container on its private address:
+
+```
+https://bag-please.io-workshop.net  ->  edge proxy (TLS)  ->  http://<droplet private IP>:80 (Caddy)
+```
+
+- **Upstream** — `deploy/docker-compose.yml` publishes `bp_front` as `${PRIVATE_IP}:80:80`; `bp_back` publishes no port.
+  Do not route `/api` separately — Caddy inside `bp_front` splits SPA, `/api/*` and the `/api/subscriptions` WebSocket.
+- **Firewall** — the droplet accepts ports 80 and 22 only from the edge's private IP.
+- **Headers, WebSocket, TLS** — the same requirements as above (overwrite `X-Forwarded-For`, pass `Upgrade`/`Connection`,
+  HTTPS only).
+- `mise run deploy:status` checks this URL and prints the running version.
