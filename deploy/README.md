@@ -9,12 +9,12 @@ droplet compose) arrive with Story 11.10.
 
 ## What is declared
 
-| Resource | Value | Cost note (2026-10-23 snapshot) |
-|---|---|---|
-| Droplet `bag-please-web` | `s-1vcpu-1gb`, `ubuntu-26-04-x64`, `fra1`, edge's VPC, client tag | about 6 USD/month |
-| Droplet firewall | inbound 80 and 22 from `<edge private ip>/32` only | free |
-| Cluster `TF_VAR_pg_cluster_name` | data source only (managed elsewhere, shared) | not billed here |
-| Database / user | `bag_please` / `bag_please_app` (both `prevent_destroy`) | free |
+| Resource                         | Value                                                             | Cost note (2026-10-23 snapshot) |
+|----------------------------------|-------------------------------------------------------------------|---------------------------------|
+| Droplet `bag-please-web`         | `s-1vcpu-1gb`, `ubuntu-26-04-x64`, `fra1`, edge's VPC, client tag | about 6 USD/month               |
+| Droplet firewall                 | inbound 80 and 22 from `<edge private ip>/32` only                | free                            |
+| Cluster `TF_VAR_pg_cluster_name` | data source only (managed elsewhere, shared)                      | not billed here                 |
+| Database / user                  | `bag_please` / `bag_please_app` (both `prevent_destroy`)          | free                            |
 
 How the database is reached: the cluster's firewall trusts droplets carrying the client tag (every project's that
 shares the cluster, not only this one), plus whatever other sources its owner allows, such as the operator's public IP.
