@@ -17,7 +17,7 @@ resource "digitalocean_droplet" "web" {
   image    = var.image
   vpc_uuid = data.digitalocean_vpc.edge.id
   ssh_keys = [data.digitalocean_ssh_key.deploy.id]
-  # The hub's database firewall trusts every droplet carrying this tag; that is the droplet's only way in.
+  # The cluster's database firewall trusts every droplet carrying this tag; that is the droplet's only way in.
   tags = [var.pg_client_tag]
 
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
@@ -66,9 +66,9 @@ resource "digitalocean_firewall" "web" {
   }
 }
 
-# The PostgreSQL cluster is shared and owned by the io-workshop hub (postgres/ stack): looked up by name, never
-# created here, and its firewall (digitalocean_database_firewall) is never managed from here - that would overwrite
-# the hub's rules. This stack owns only this app's database and user.
+# The PostgreSQL cluster is shared and managed outside this repo: looked up by name, never created here, and its
+# firewall (digitalocean_database_firewall) is never managed from here - that would overwrite its owner's rules.
+# This stack owns only this app's database and user.
 data "digitalocean_database_cluster" "shared" {
   name = var.pg_cluster_name
 }
@@ -86,6 +86,12 @@ resource "digitalocean_database_db" "app" {
 resource "digitalocean_database_user" "app" {
   cluster_id = data.digitalocean_database_cluster.shared.id
   name       = "bag_please_app"
+
+  lifecycle {
+    # The user owns every Flyway-created table and its password is the runtime's; replacing it means re-running
+    # db:bootstrap's grants and redeploying the credentials.
+    prevent_destroy = true
+  }
 }
 
 # The cluster's CA, for the `verify-full` connections (runtime and importer).

@@ -21,14 +21,15 @@ require_env() {
 # that has no use for them (Gradle, with its daemon and plugins; java; psql), so it never sees them.
 unset_deploy() {
 	local v
-	unset DIGITALOCEAN_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH HUB_DIR
+	unset DIGITALOCEAN_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH PG_ADMIN_USER PG_ADMIN_PASSWORD
 	for v in $(compgen -e); do
 		if [[ $v == TF_VAR_* ]]; then unset "$v"; fi
 	done
 }
 
-# terraform output reads the S3 state with the Spaces key alone, so the DigitalOcean token is dropped.
-tf() { (cd deploy/terraform && unset DIGITALOCEAN_TOKEN && terraform "$@"); }
+# terraform output reads the S3 state with the Spaces key alone, so the DigitalOcean token and the cluster admin's
+# credentials are dropped.
+tf() { (cd deploy/terraform && unset DIGITALOCEAN_TOKEN PG_ADMIN_USER PG_ADMIN_PASSWORD && terraform "$@"); }
 tf_init() { tf init -input=false >/dev/null; }
 tf_out() { tf output -raw "$1"; }
 
@@ -97,18 +98,11 @@ need_out() {
 	printf '%s' "$v"
 }
 
-# load_admin: doadmin's credentials from the HUB's Terraform state (the hub owns the cluster; this repo never holds
-# them), parsed from its admin_uri output into shell variables of this script only. Used by db:bootstrap alone.
+# load_admin: the cluster admin's credentials from .secure.deploy.env, moved into unexported shell variables of this
+# script, so no child process (git, terraform, gradle, java) inherits them and only the bootstrap psql gets the
+# password, as PGPASSWORD. Used by db:bootstrap alone.
 load_admin() {
-	local uri
-	[ -d "$HUB_DIR/postgres" ] || { echo "HUB_DIR/postgres not found: $HUB_DIR" >&2; exit 1; }
-	uri="$(cd "$HUB_DIR/postgres" && unset DIGITALOCEAN_TOKEN && terraform output -raw admin_uri)" \
-		|| { echo "terraform output admin_uri failed in $HUB_DIR/postgres (hub initialised? Spaces key right?)" >&2; exit 1; }
-	if [[ $uri =~ ^postgres(ql)?://([^:]+):([^@]+)@[^/]+/ ]]; then
-		ADMIN_USER="${BASH_REMATCH[2]}"
-		ADMIN_PASSWORD="${BASH_REMATCH[3]}"
-	else
-		echo "hub admin_uri has an unexpected shape" >&2
-		exit 1
-	fi
+	ADMIN_USER="$PG_ADMIN_USER"
+	ADMIN_PASSWORD="$PG_ADMIN_PASSWORD"
+	unset PG_ADMIN_USER PG_ADMIN_PASSWORD
 }

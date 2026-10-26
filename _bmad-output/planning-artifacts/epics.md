@@ -273,9 +273,11 @@ comment per entry. The fixed local credentials that the dev and E2E Compose stac
 open nothing outside the developer's machine and are never used in production.**
 **NFR-D2: Terraform state lives in a private remote store, never in the repository, because it holds the database
 password. Tasks that need a secret load it themselves; it is not exported into an interactive shell.**
-**NFR-D3: The managed database is not open to the public internet. The shared cluster (owned by the io-workshop hub,
-md 2026-10-23) accepts connections only from droplets tagged `postgres-client` and from the operator's allow-listed IP;
-the backend connects to it over TLS.**
+**NFR-D3: The managed database is not open to the public internet. The shared cluster (managed outside this repo,
+md 2026-10-23) accepts connections only from the sources its owner trusts: droplets carrying the client tag (every
+project's that shares it), any other trusted apps and the operator's allow-listed IP. Isolation of `bag_please` from
+the other projects rests on `bag_please_app`'s credentials and `REVOKE CONNECT ... FROM PUBLIC`; the backend connects
+over TLS.**
 **NFR-D4: Production data survives losing the droplet: it lives only in the managed database, which keeps the
 provider's automatic daily backups. There is no restore drill: md accepts the risk of losing production data
 (2026-10-22), and the off-repo Mongo archive (NFR-D5) is the manual fallback.**
@@ -283,7 +285,8 @@ provider's automatic daily backups. There is no restore drill: md accepts the ri
 the repository (a gitignored path) and is removed from the repository working tree once the import is verified.
 md keeps a copy off-repo, in their own storage, as the manual fallback for NFR-D4.**
 **NFR-D6: The running cost stays at the smallest droplet that runs the frontend and backend, plus this app's
-share of the hub's shared PostgreSQL cluster (about 22 connections for all projects: pool of 5 or less); nothing is sized for more than the tens of users NFR11 describes.**
+share of the shared PostgreSQL cluster (the smallest tier allows about 22 connections for all projects: pool of 5 or
+less); nothing is sized for more than the tens of users NFR11 describes.**
 
 **Epic 11 NFR scope:** NFR2, NFR17 (with its branch exception) and NFR-D1–NFR-D6 are new work. NFR1–NFR8, NFR-L1,
 NFR-L2, NFR-L4 and NFR-L5 are the regression surface the persistence move must not shift (membership gates,
@@ -425,14 +428,15 @@ before it pins anything.
   data sources; the droplet has `lifecycle { ignore_changes = [user_data, image] }`; the firewall allows only 80 and 22
   from the edge's private IP; SSH via the edge as jump host; S3 backend in the `io-workshop-tfstate` Spaces bucket, key
   `bag-please/web.tfstate`. Terraform `~> 1.15`, provider `digitalocean` `~> 2.106`.
-- AR-E11-20 (AD-11, NFR-D3, NFR-D6): The PostgreSQL 18 cluster `io-workshop-pg` is shared and owned by the io-workshop hub repo
-  (md, 2026-10-23): here it is only a `data` source, and no cluster or `digitalocean_database_firewall` is declared.
-  The droplet carries the `postgres-client` tag the hub's firewall trusts; the operator reaches the public host from an
-  IP in the hub's `admin_cidrs`, so there is no SSH tunnel. Terraform creates database `bag_please` and user
-  `bag_please_app` — the only identity of Flyway, the runtime and the importer. `doadmin` (credentials from the hub's
-  state) is used once, by `db:bootstrap`, for the hub's recipe: `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM
-  PUBLIC`, `GRANT CONNECT` to `bag_please_app`. `infra:plan` / `infra:apply` are run by hand; a
-  deploy never runs Terraform. Droplet size slug, `-Xmx`, `mem_limit` and the R2DBC pool size are chosen in these stories
+- AR-E11-20 (AD-11, NFR-D3, NFR-D6): The PostgreSQL 18 cluster is shared with other projects and managed outside this
+  repo (md, 2026-10-23; no link to the repo that manages it, md 2026-10-25): here it is only a `data` source named by
+  `TF_VAR_pg_cluster_name`, and no cluster or `digitalocean_database_firewall` is declared. The droplet carries the
+  client tag `TF_VAR_pg_client_tag` the cluster's firewall trusts; the operator reaches the public host from an IP among
+  the cluster's trusted sources, so there is no SSH tunnel. Terraform creates database `bag_please` and user
+  `bag_please_app` — the only identity of Flyway, the runtime and the importer. The cluster admin (`doadmin`,
+  credentials entered in `.secure.deploy.env`) is used once, by `db:bootstrap`, for the shared-cluster recipe:
+  `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to `bag_please_app`. `infra:plan` /
+  `infra:apply` are run by hand; a deploy never runs Terraform. Droplet size slug, `-Xmx`, `mem_limit` and the R2DBC pool size are chosen in these stories
   against the smallest droplet that runs both containers.
 - AR-E11-21 (AD-14): Runtime TLS to the database is `verify-full`. The droplet compose hardcodes
   `KTOR_DB_SSLMODE: verify-full` and `KTOR_DB_SSLROOTCERT: /etc/bag-please/ca-certificate.crt` (committed, not secrets).
@@ -907,11 +911,11 @@ and SSH key are data sources; the droplet has `lifecycle { ignore_changes = [use
 only 80 and 22 from the edge's private IP; state goes to the `io-workshop-tfstate` Spaces bucket under
 `bag-please/web.tfstate` (FR73, AR-E11-19, NFR-D2)
 
-**Given** the shared PostgreSQL cluster `io-workshop-pg`, owned by the io-workshop hub repo (md, 2026-10-23)
+**Given** the shared PostgreSQL cluster named by `TF_VAR_pg_cluster_name`, managed outside this repo (md, 2026-10-23)
 **When** `infra:plan` runs
 **Then** the cluster is only a data source — no cluster and no `digitalocean_database_firewall` is declared here — and
-the plan adds a database `bag_please`, a user `bag_please_app`, and the `postgres-client` tag on the droplet, which is
-how the hub's firewall admits it (AR-E11-20, NFR-D3, NFR-D6)
+the plan adds a database `bag_please`, a user `bag_please_app`, and the client tag `TF_VAR_pg_client_tag` on the
+droplet, which is how the cluster's firewall admits it (AR-E11-20, NFR-D3, NFR-D6)
 **And** the droplet size is the smallest that runs both containers, recorded with its price
 
 **Given** `.secure.deploy.env.example`
@@ -921,9 +925,9 @@ how the hub's firewall admits it (AR-E11-20, NFR-D3, NFR-D6)
 **And** `infra:plan` and `infra:apply` load `.secure.deploy.env` themselves, and nothing is exported into the
 operator's shell
 
-**Given** `infra:apply` has run and the operator's IP is in the hub's `admin_cidrs`
-**When** `db:bootstrap` runs as `doadmin` (credentials read from the hub's Terraform state, `HUB_DIR`)
-**Then** the hub's recipe is applied — `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to
+**Given** `infra:apply` has run and the operator's IP is among the cluster's trusted sources
+**When** `db:bootstrap` runs as `doadmin` (credentials from `.secure.deploy.env`, as are the cluster name and client tag)
+**Then** the shared-cluster recipe is applied — `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to
 `bag_please_app` — `doadmin` is used by no other task, and a Flyway run as `bag_please_app` creates the baseline
 schema (AR-E11-20)
 

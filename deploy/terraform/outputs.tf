@@ -14,7 +14,7 @@ output "db_host" {
 
 output "db_public_host" {
   value       = data.digitalocean_database_cluster.shared.host
-  description = "Public hostname of the shared cluster: what the operator's machine connects to (its IP must be in the hub's admin_cidrs)."
+  description = "Public hostname of the shared cluster: what the operator's machine connects to (its IP must be among the cluster's trusted sources)."
 }
 
 output "db_port" {

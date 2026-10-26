@@ -34,7 +34,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "db:bootstrap — One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql, hub checkout)",
+    "label": "db:bootstrap — One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)",
     "command": "mise",
     "args": [
       "run",

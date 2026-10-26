@@ -129,6 +129,17 @@ class MongoImportTest : FunSpec({
         allEmpty()
     }
 
+    // Story 11.9: db:bootstrap runs Flyway by importing an export whose collections are all `[]`; the list it seeds is
+    // read from the script itself, so a misspelt or newly required collection fails here and not on the live run.
+    test("db:bootstrap's all-empty export loads zero rows") {
+        val script = Files.readString(Path.of("../deploy/scripts/bootstrap-db.sh"))
+        val seeded = Regex("""for c in ([a-z_ ]+); do echo '\[\]'""").find(script)!!.groupValues[1].trim().split(" ")
+        val dir = Files.createTempDirectory("bootstrap-export")
+        seeded.forEach { Files.writeString(dir.resolve("$it.json"), "[]") }
+        MongoImport.run(container.appConfig(), dir).forEach { (it.exported to it.loaded) shouldBe (0 to 0) }
+        allEmpty()
+    }
+
     test("a part-way failure leaves zero rows and a corrected rerun succeeds") {
         val dir = fixtureCopy()
         // Duplicate feedback id: fails on the LAST table written, after users, lists and items are already inserted.

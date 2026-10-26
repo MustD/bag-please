@@ -207,8 +207,8 @@ write it, and only `update` upserts it. Every instant is
 
   A failure rolls back to an empty database, so the import can be re-run. `db:import` refuses a dirty tree, and it
   refuses when `bp_back` is running on the droplet (checked over SSH). It connects directly to the shared
-  cluster's public host with `sslmode=verify-full` (the operator's IP is in the hub's `admin_cidrs`; no tunnel, amended
-  2026-10-23). It passes the `bag_please_app` credentials, read from `terraform output`, to the importer
+  cluster's public host with `sslmode=verify-full` (the operator's IP is among the cluster's trusted sources; no
+  tunnel, amended 2026-10-23). It passes the `bag_please_app` credentials, read from `terraform output`, to the importer
   process only: never to Gradle, a file or the shell.
 
 ### AD-10 — Expired refresh tokens: rejected on read, purged hourly
@@ -232,13 +232,15 @@ write it, and only `update` upserts it. Every instant is
   - State lives in the `io-workshop-tfstate` Spaces bucket under the key `bag-please/web.tfstate`.
   - `.terraform.lock.hcl` is committed.
 
-  The PostgreSQL 18 cluster `io-workshop-pg` is shared and owned by the io-workshop hub repo (amended 2026-10-23): it is a
-  `data` source here, and neither the cluster nor `digitalocean_database_firewall` is declared (that would overwrite the
-  hub's rules). The droplet carries the hub's `postgres-client` tag, which is the firewall's trusted source for it.
-  Terraform creates database `bag_please` and user `bag_please_app`. That user is the only identity used by Flyway, the
-  runtime and the importer. `doadmin` is used once only, by the `db:bootstrap` task (credentials from the hub's state),
-  for the hub's recipe: `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to
-  `bag_please_app`. The shared cluster allows about 22 connections for all projects, so the runtime pool is 5 or less. `infra:plan` and `infra:apply` are run by hand,
+  The PostgreSQL 18 cluster is shared with other projects and managed outside this repo (amended 2026-10-23; no link to
+  the repo that manages it, 2026-10-25): it is a `data` source named by `TF_VAR_pg_cluster_name`, and neither the
+  cluster nor `digitalocean_database_firewall` is declared (that would overwrite its owner's rules). The droplet carries
+  the client tag `TF_VAR_pg_client_tag`, which is the cluster firewall's trusted source for it. Terraform creates
+  database `bag_please` and user `bag_please_app`. That user is the only identity used by Flyway, the runtime and the
+  importer. The cluster admin (`doadmin`) is used once only, by the `db:bootstrap` task, with credentials entered in
+  `.secure.deploy.env` like the cluster name and client tag, for the shared-cluster recipe: `GRANT ALL ON SCHEMA
+  public`, `REVOKE CONNECT … FROM PUBLIC`, `GRANT CONNECT` to `bag_please_app`. The smallest cluster tier allows about
+  22 connections for all projects, so the runtime pool is 5 or less. `infra:plan` and `infra:apply` are run by hand,
   and a deploy never runs Terraform.
 
 ### AD-12 — Secrets reach only the process that needs them
@@ -428,7 +430,7 @@ flowchart LR
     subgraph Droplet[droplet: docker compose]
       Caddy[bp_front: Caddy + SPA, healthcheck] -->|/api| Back[bp_back: Ktor]
     end
-    Back -->|R2DBC TLS verify-full| DB[(DO Managed PostgreSQL 18, trusted via the postgres-client tag)]
+    Back -->|R2DBC TLS verify-full| DB[(DO Managed PostgreSQL 18, trusted via the client tag)]
   end
   Op[operator laptop] -->|ssh -J edge for the backend-running check; db:bootstrap / db:import connect to the public host| Droplet
   Op -->|terraform, S3 backend| Spaces[(Spaces: io-workshop-tfstate)]

@@ -32,12 +32,10 @@ variable "image" {
 
 variable "pg_cluster_name" {
   type        = string
-  default     = "io-workshop-pg"
-  description = "Name of the shared PostgreSQL cluster owned by the io-workshop hub; looked up, never created here."
+  description = "Name of the shared PostgreSQL cluster, managed outside this repo; looked up, never created here."
 }
 
 variable "pg_client_tag" {
   type        = string
-  default     = "postgres-client"
-  description = "Tag the hub's database firewall trusts. The droplet carries it."
+  description = "Tag the cluster's database firewall trusts. The droplet carries it; a wrong value plans cleanly but every connection is refused."
 }

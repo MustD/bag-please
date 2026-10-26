@@ -5,6 +5,7 @@
 gradle = "9"
 java = "temurin-25"
 node = "26"
+terraform = "1.15" # deploy/terraform's required_version
 
 # Regenerates .zed/tasks.json from the tasks above so Zed's task picker
 # mirrors mise. Hidden so it doesn't list itself; rerun after editing tasks.
@@ -102,7 +103,7 @@ env = { _ = { file = ".secure.deploy.env" } }
 run = "deploy/scripts/infra.sh apply"
 
 [tasks."db:bootstrap"]
-description = "One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql, hub checkout)"
+description = "One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)"
 env = { _ = { file = ".secure.deploy.env" } }
 run = "deploy/scripts/bootstrap-db.sh"
 
