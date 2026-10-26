@@ -2,7 +2,7 @@
 review-of: _bmad-output/planning-artifacts/architecture/architecture-epic-11/ARCHITECTURE-SPINE.md
 lens: good-spine checklist (rubric)
 reviewed: 2026-10-21
-inputs: spine + .memlog.md, Epic 9 spine, prd.md (Epic 11, FR70-74, NFR2, NFR17, NFR-D1-D6), addendum.md, bp_back/CLAUDE.md, root CLAUDE.md, bp_back/src (main + test), docker-compose.yaml, mise.toml, .gitignore, bp_back/Dockerfile, mal_ui/deploy
+inputs: spine + .memlog.md, Epic 9 spine, prd.md (Epic 11, FR70-74, NFR2, NFR17, NFR-D1-D6), addendum.md, bp_back/CLAUDE.md, root CLAUDE.md, bp_back/src (main + test), docker-compose.yaml, mise.toml, .gitignore, bp_back/Dockerfile, <reference project>/deploy
 verdict: not ready to finalize. The spine is sound and covers every dimension it owns, but it gets one GraphQL contract fact wrong, several of its rules are not airtight, and it misses some real divergence points.
 counts: critical 1, high 12, medium 11, low 11
 ---
@@ -12,7 +12,7 @@ counts: critical 1, high 12, medium 11, low 11
 ## Verdict
 
 The spine is well built. It is short, every AD names what it prevents, the deliberate supersessions are listed, the
-mal_ui deploy pattern is ratified correctly (I checked it against `mal_ui/deploy`), and every dimension has an owner:
+the reference project deploy pattern is ratified correctly (I checked it against <reference project>/deploy`), and every dimension has an owner:
 persistence, infra, deployment, secrets, TLS, tests and branch strategy. The problems are in where it meets the
 existing code. It describes the GraphQL `List.members` contract wrongly (C1). It claims user deletion becomes one
 transaction, which the current orchestration cannot do (H1). It does not mention that the GQL layer calls repositories
@@ -265,7 +265,7 @@ default `READ COMMITTED`, AD-2's "membership check in the same transaction" does
 ### M7. Prod secrets may reach Gradle and the test JVM through the `deploy` task
 
 AD-12 puts the JWT secret and admin credentials in `.secure.deploy.env`, and AD-13's `deploy` runs the backend
-tests. mal_ui's `lib.sh task()` strips only `DIGITALOCEAN_TOKEN`, `AWS_*`, `EDGE_SSH` and `TF_VAR_*`. If the JWT and
+tests. the reference project's `lib.sh task()` strips only `DIGITALOCEAN_TOKEN`, `AWS_*`, `EDGE_SSH` and `TF_VAR_*`. If the JWT and
 admin entries are named `KTOR_JWT_SECRET`/`KTOR_ADMIN_PASS`, they are not stripped. `application.yaml` would also
 substitute them into any test that does not override `jwt.*`. **Fix:** require a stripped prefix for every
 deploy-only secret, e.g. `TF_VAR_` or `PROD_`, mapped to `KTOR_*` only when `.env` is written, and say so in AD-12.
@@ -327,7 +327,7 @@ the children.
   `migration.targetUser` config key and the `MIGRATION_TARGET_USER` compose env, the `mongodb` entries in
   `libs.versions.toml`, and `MigrationTest`/`ItemCategoryStorageTest`. Also state what replaces DI for
   `R2dbcDatabase`.
-- **L5. Droplet compose hardening.** `read_only: true` on the JVM container needs `tmpfs: [/tmp]`, as mal_ui does.
+- **L5. Droplet compose hardening.** `read_only: true` on the JVM container needs `tmpfs: [/tmp]`, as the reference project does.
   Also set Docker log rotation (`max-size`), since `docker compose logs` is the whole observability story and an
   unbounded json-file log can fill the smallest droplet's disk.
 - **L6. `verify-full` over the private hostname.** Confirm that DO's server certificate covers the cluster's
@@ -340,7 +340,7 @@ the children.
   `useNestedTransactions = false`, the default, in `plugins/Database.kt` and say so, so that no slice turns on
   savepoints.
 - **L9. Terraform state key.** Name the backend `key` (e.g. `bag-please/prod.tfstate`). Ensure the `.gitignore`
-  patterns from AD-12 land in the first infra commit. mal_ui's working tree has local `terraform.tfstate` files under
+  patterns from AD-12 land in the first infra commit. the reference project's working tree has local `terraform.tfstate` files under
   `deploy/terraform/`, which shows how easily they appear.
 - **L10. The health route.** The health route is neither a service nor a repository. Say how it pings: one
   `SELECT 1` in its own `suspendTransaction` inside `withTimeout(2.seconds)`. Say also that pool-acquisition timeouts

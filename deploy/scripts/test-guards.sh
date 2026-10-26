@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Runs each I/O matrix row of Stories 11.9 and 11.10 against the real scripts with stubbed terraform/ssh/git/psql/gradle/
-# java/docker/mise/curl on PATH, and asserts the refusal, the exit code, and that no database client (psql/java) was
-# started.
+# Runs the infra, push, deploy and status guard rows (Stories 11.9, 11.10) against the real scripts with stubbed
+# terraform/ssh/git/docker/mise/curl on PATH, and asserts the refusal, the exit code and where secrets may go.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REAL_DOCKER="$(command -v docker || true)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-mkdir "$WORK/bin" "$WORK/export"
+# Start from none of the real .secure.*.env values (mise may have loaded them for a dependent task): every case sets
+# what it needs.
+for v in $(grep -hoE '^[A-Z][A-Z0-9_]*=' "$HERE/../../.secure.deploy.env.example" "$HERE/../../.secure.build.env.example" | tr -d '=') \
+	$(compgen -e | grep -E '^(TF_VAR_|KTOR_)' || true); do
+	unset "$v"
+done
+mkdir "$WORK/bin"
 export SSH_LOG="$WORK/ssh.log"
 
 cat >"$WORK/bin/terraform" <<'STUB'
@@ -23,11 +28,11 @@ STUB
 cat >"$WORK/bin/ssh" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >>"$SSH_LOG"
+env >>"$WORK_LOG/ssh.env"
 cat >>"$WORK_LOG/ssh.stdin"
 [ -z "${STUB_SSH_DEAD:-}" ] || exit 255
 if [ -n "${STUB_SSH_FAIL:-}" ] && [[ "$*" == *"$STUB_SSH_FAIL"* ]]; then exit 1; fi
 case "$*" in
-	*"docker ps"*) [ -z "${STUB_PS_FAIL:-}" ] || exit 1; printf '%s' "${STUB_RUNNING:-}" ;;
 	*'BP_VERSION=//p'*) [ -z "${STUB_PREV:-}" ] || printf '%s\n' "$STUB_PREV" ;;
 	*"compose ps"*) printf '%s' "${STUB_COMPOSE_PS:-}" ;;
 	*"/api/health"*) printf '%s' "${STUB_HEALTH:-OK}" ;;
@@ -40,30 +45,10 @@ env >>"$WORK_LOG/git.env"
 if [ "$1" = status ]; then printf '%s' "${STUB_DIRTY:-}"; fi
 exit 0
 STUB
-cat >"$WORK/bin/psql" <<'STUB'
-#!/usr/bin/env bash
-env >"$WORK_LOG/psql.env"
-echo "$*" >"$WORK_LOG/psql.args"
-cat >"$WORK_LOG/psql.stdin"
-echo psql >>"$WORK_LOG/db.log"
-STUB
-cat >"$WORK/bin/gradle" <<'STUB'
-#!/usr/bin/env bash
-env >"$WORK_LOG/gradle.env"
-echo /stub/classpath
-STUB
-cat >"$WORK/bin/java" <<'STUB'
-#!/usr/bin/env bash
-env >"$WORK_LOG/java.env"
-echo "$*" >"$WORK_LOG/java.args"
-cat "$IMPORT_DB_SSLROOTCERT" >"$WORK_LOG/ca.seen"
-for f in "${!#}"/*; do printf '%s %s\n' "${f##*/}" "$(cat "$f")"; done >"$WORK_LOG/export.seen"
-echo java >>"$WORK_LOG/db.log"
-STUB
 cat >"$WORK/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >>"$WORK_LOG/docker.log"
-case "$1" in build | push) env >>"$WORK_LOG/docker.env" ;; esac
+case "$1" in build | push) env >>"$WORK_LOG/docker.env" ;; *) env >>"$WORK_LOG/docker.other.env" ;; esac
 if [ "$1 $2" = "manifest inspect" ]; then
 	if [ -n "${STUB_HUB_ERROR:-}" ]; then echo "unauthorized: authentication required" >&2; exit 1; fi
 	for p in ${STUB_TAGS_PRESENT:-}; do [[ "$3" == *"$p"* ]] && { echo '{}'; exit 0; }; done
@@ -92,26 +77,15 @@ run_case() {
 	local -a envs=()
 	while [ "$1" != -- ]; do envs+=("$1"); shift; done
 	shift
-	: >"$SSH_LOG"; : >"$WORK/db.log"
-	err="$(env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h "${envs[@]}" "$@" 2>&1 >/dev/null </dev/null)"
+	: >"$SSH_LOG"
+	err="$(env PATH="$WORK/bin:$PATH" TF_STATE_BUCKET=b AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h "${envs[@]}" "$@" 2>&1 >/dev/null </dev/null)"
 	rc=$?
 	if [ "$rc" != "$want" ]; then echo "FAIL $name: exit $rc, wanted $want ($err)"; fails=$((fails + 1)); return; fi
 	if [[ $err != *"$msg"* ]]; then echo "FAIL $name: stderr lacks '$msg' ($err)"; fails=$((fails + 1)); return; fi
-	if [ -s "$WORK/db.log" ]; then echo "FAIL $name: a database client was started"; fails=$((fails + 1)); return; fi
 	echo "ok   $name"
 }
 
 run_case "missing secret" 1 "DIGITALOCEAN_TOKEN is empty" DIGITALOCEAN_TOKEN= -- "$HERE/infra.sh" plan
-run_case "missing export" 2 "export directory not found" -- "$HERE/import.sh" "$WORK/nope"
-run_case "dirty tree" 1 "working tree is not clean" STUB_DIRTY=" M file" -- "$HERE/import.sh" "$WORK/export"
-run_case "backend running" 1 "bp_back is running" STUB_RUNNING=bp_back -- "$HERE/import.sh" "$WORK/export"
-
-run_case "dirty tree (bootstrap)" 1 "working tree is not clean" STUB_DIRTY=" M file" PG_ADMIN_USER=doadmin PG_ADMIN_PASSWORD=adminpw -- "$HERE/bootstrap-db.sh"
-run_case "docker ps fails" 1 "could not check" STUB_PS_FAIL=1 -- "$HERE/import.sh" "$WORK/export"
-run_case "empty output" 1 "terraform output db_app_password is empty" STUB_EMPTY_OUTPUT=db_app_password -- "$HERE/import.sh" "$WORK/export"
-run_case "missing admin password" 1 "PG_ADMIN_PASSWORD is empty" PG_ADMIN_USER=doadmin -- "$HERE/bootstrap-db.sh"
-# A relative export dir means the caller's directory (MISE_ORIGINAL_CWD under mise), not the repo root.
-run_case "missing relative export" 2 "export directory not found: $WORK/nope" MISE_ORIGINAL_CWD="$WORK" -- "$HERE/import.sh" nope
 
 # Every variable a script require_env's is in .secure.deploy.env.example, and the example carries no value.
 missing=""
@@ -123,78 +97,28 @@ if [ -n "$missing" ]; then echo "FAIL env example: missing or filled in:$missing
 elif grep -qE '^[A-Z_]+=.+' "$HERE/../../.secure.deploy.env.example" "$HERE/../../.secure.build.env.example"; then echo "FAIL env example: a variable has a value"; fails=$((fails + 1))
 else echo "ok   env example"; fi
 
-LEAK='^(DIGITALOCEAN_TOKEN|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|EDGE_SSH|PG_ADMIN_USER|PG_ADMIN_PASSWORD|TF_VAR_[A-Za-z_]*|KTOR_[A-Za-z_]*|DOCKER_IMAGE_[A-Z]*)='
-ADMIN='^(PG_ADMIN_USER|PG_ADMIN_PASSWORD)='
+LEAK='^(DIGITALOCEAN_TOKEN|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|EDGE_SSH|TF_VAR_[A-Za-z_]*|KTOR_[A-Za-z_]*|DOCKER_IMAGE_[A-Z]*)='
 
-# infra: terraform gets the token and TF_VAR_*, never the cluster admin's credentials.
+# infra: terraform gets the token and TF_VAR_*.
 : >"$WORK/terraform.env"
-if ! env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s DIGITALOCEAN_TOKEN=t TF_VAR_edge_private_ip=1.2.3.4 \
+: >"$WORK/terraform.args"
+if ! env PATH="$WORK/bin:$PATH" TF_STATE_BUCKET=b AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s DIGITALOCEAN_TOKEN=t TF_VAR_edge_private_ip=1.2.3.4 \
 	TF_VAR_vpc_name=v TF_VAR_ssh_key_name=k TF_VAR_pg_cluster_name=c TF_VAR_pg_client_tag=t \
-	PG_ADMIN_USER=doadmin PG_ADMIN_PASSWORD=adminpw "$HERE/infra.sh" plan >/dev/null 2>&1 </dev/null; then
+	"$HERE/infra.sh" plan >/dev/null 2>&1 </dev/null; then
 	echo "FAIL infra: infra.sh plan exited non-zero"; fails=$((fails + 1))
-elif ! grep -q '^DIGITALOCEAN_TOKEN=t$' "$WORK/terraform.env" || grep -qE "$ADMIN" "$WORK/terraform.env"; then
-	echo "FAIL infra: terraform lacks the token or saw the cluster admin's credentials"; fails=$((fails + 1))
+elif ! grep -q '^DIGITALOCEAN_TOKEN=t$' "$WORK/terraform.env"; then
+	echo "FAIL infra: terraform lacks the token"; fails=$((fails + 1))
+elif ! grep -q '^init -input=false -backend-config=bucket=b$' "$WORK/terraform.args"; then
+	echo "FAIL infra: terraform init lacks the state bucket from TF_STATE_BUCKET"; fails=$((fails + 1))
 else
 	echo "ok   infra"
 fi
 
-# Happy path: java gets IMPORT_DB_* (verify-full, the public host, the cluster CA) and the relative export dir resolved
-# against MISE_ORIGINAL_CWD, no deploy variable reaches gradle or java, and terraform output never sees the
-# DigitalOcean token or the cluster admin's credentials.
-: >"$SSH_LOG"; : >"$WORK/db.log"; : >"$WORK/terraform.env"
-if ! env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h DIGITALOCEAN_TOKEN=t \
-	TF_VAR_vpc_name=v TF_VAR_edge_private_ip=1.2.3.4 PG_ADMIN_USER=doadmin PG_ADMIN_PASSWORD=adminpw MISE_ORIGINAL_CWD="$WORK" \
-	"$HERE/import.sh" export >/dev/null 2>&1 </dev/null; then
-	echo "FAIL happy path: import.sh exited non-zero"; fails=$((fails + 1))
-elif ! grep -q '^IMPORT_DB_SSLMODE=verify-full$' "$WORK/java.env" || ! grep -q '^IMPORT_DB_HOST=stub-db_public_host$' "$WORK/java.env" || ! grep -q '^IMPORT_DB_PASSWORD=stub-db_app_password$' "$WORK/java.env"; then
-	echo "FAIL happy path: java lacks IMPORT_DB_*"; fails=$((fails + 1))
-elif [ "$(cat "$WORK/ca.seen")" != stub-db_ca_certificate ]; then
-	echo "FAIL happy path: IMPORT_DB_SSLROOTCERT does not hold db_ca_certificate"; fails=$((fails + 1))
-elif grep -qE "$LEAK" "$WORK/gradle.env" "$WORK/java.env"; then
-	echo "FAIL happy path: a deploy variable leaked into gradle or java"; fails=$((fails + 1))
-elif [ "$(awk '{print $NF}' "$WORK/java.args")" != "$WORK/export" ]; then
-	echo "FAIL happy path: importer got $(awk '{print $NF}' "$WORK/java.args"), not $WORK/export"; fails=$((fails + 1))
-elif grep -qE "^DIGITALOCEAN_TOKEN=|$ADMIN" "$WORK/terraform.env"; then
-	echo "FAIL happy path: terraform output saw DIGITALOCEAN_TOKEN or the cluster admin's credentials"; fails=$((fails + 1))
-else
-	echo "ok   happy path"
-fi
-
-# Bootstrap happy path: psql connects as the cluster admin to bag_please (verify-full), with PGPASSWORD alone, runs the
-# grants for the app user; then java runs Flyway on an export of empty collections. No deploy variable reaches either.
-: >"$SSH_LOG"; : >"$WORK/db.log"; : >"$WORK/terraform.env"; : >"$WORK/git.env"; rm -f "$WORK/psql."* "$WORK/java.env" "$WORK/export.seen"
-if ! env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s DIGITALOCEAN_TOKEN=t TF_VAR_vpc_name=v \
-	PG_ADMIN_USER=doadmin PG_ADMIN_PASSWORD=adminpw "$HERE/bootstrap-db.sh" >/dev/null 2>&1 </dev/null; then
-	echo "FAIL bootstrap happy path: bootstrap-db.sh exited non-zero"; fails=$((fails + 1))
-elif ! grep -q 'dbname=stub-db_name user=doadmin sslmode=verify-full sslrootcert=' "$WORK/psql.args" \
-	|| ! grep -q 'host=stub-db_public_host' "$WORK/psql.args" || ! grep -q 'connect_timeout=10' "$WORK/psql.args"; then
-	echo "FAIL bootstrap happy path: psql connection string ($(cat "$WORK/psql.args"))"; fails=$((fails + 1))
-elif ! grep -q '^PGPASSWORD=adminpw$' "$WORK/psql.env"; then
-	echo "FAIL bootstrap happy path: psql lacks PGPASSWORD"; fails=$((fails + 1))
-elif ! grep -q 'GRANT ALL ON SCHEMA public TO "stub-db_app_user"' "$WORK/psql.stdin" \
-	|| ! grep -q 'REVOKE CONNECT ON DATABASE "stub-db_name" FROM PUBLIC' "$WORK/psql.stdin" \
-	|| ! grep -q 'GRANT CONNECT ON DATABASE "stub-db_name" TO "stub-db_app_user"' "$WORK/psql.stdin"; then
-	echo "FAIL bootstrap happy path: grants missing from psql input"; fails=$((fails + 1))
-elif grep -qE "$LEAK" "$WORK/psql.env" "$WORK/gradle.env" "$WORK/java.env"; then
-	echo "FAIL bootstrap happy path: a deploy variable leaked into psql, gradle or java"; fails=$((fails + 1))
-elif grep -q '^PGPASSWORD=' "$WORK/java.env"; then
-	echo "FAIL bootstrap happy path: PGPASSWORD reached java"; fails=$((fails + 1))
-elif grep -qE "$ADMIN" "$WORK/terraform.env" "$WORK/git.env"; then
-	echo "FAIL bootstrap happy path: terraform or git saw the cluster admin's credentials"; fails=$((fails + 1))
-# The names are checked against the importer by MongoImportTest ("db:bootstrap's all-empty export ..."); here, that
-# every seeded file holds an empty array.
-elif [ "$(wc -l <"$WORK/export.seen")" -ne 7 ] || grep -qv ' \[\]$' "$WORK/export.seen" || [ -s "$SSH_LOG" ]; then
-	echo "FAIL bootstrap happy path: export dir not seeded with 7 empty collections, or ssh was used"; fails=$((fails + 1))
-else
-	echo "ok   bootstrap happy path"
-fi
-
-
 # --- Story 11.10: build, push, deploy, status ---------------------------------------------------------------------
-reset_logs() { for f in docker.log docker.env mise.log ssh.stdin terraform.args mise.env; do : >"$WORK/$f"; done; : >"$SSH_LOG"; : >"$WORK/db.log"; }
+reset_logs() { for f in docker.log docker.env docker.other.env ssh.env mise.log ssh.stdin terraform.args terraform.env git.env mise.env; do : >"$WORK/$f"; done; : >"$SSH_LOG"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 DEP=(DOCKER_IMAGE_BACK=hub/back DOCKER_IMAGE_FRONT=hub/front KTOR_JWT_SECRET=jwt-secret-value KTOR_ADMIN_LOGIN=admin-login-value
-	KTOR_ADMIN_PASS=admin-pass-value SMOKE_SLEEP=0 DIGITALOCEAN_TOKEN=t TF_VAR_vpc_name=v PG_ADMIN_PASSWORD=adminpw)
+	KTOR_ADMIN_PASS=admin-pass-value SMOKE_SLEEP=0 DIGITALOCEAN_TOKEN=t TF_VAR_vpc_name=v)
 VERSION="$(sed -n 's/^version=//p' "$HERE/../../gradle.properties")"
 # deploy_case <name> <expected-exit> <stderr-substring> <env...> -- <script> [args]: like run_case, with the deploy env and
 # the logs reset first; the logs stay for the assertions that follow.
@@ -228,6 +152,7 @@ deploy_case "deploy <version>" 0 "" STUB_TAGS_PRESENT=hub/ -- "$HERE/deploy.sh" 
 if [ -s "$WORK/mise.log" ] || grep -qE '^(build|push) ' "$WORK/docker.log"; then fail "deploy <version>: tested, built or pushed"
 elif ! grep -q "BP_VERSION='0.1.0'" "$WORK/ssh.stdin" || ! grep -q 'compose pull' "$SSH_LOG" || ! grep -q 'up -d --wait' "$SSH_LOG"; then
 	fail "deploy <version>: remote steps missing"
+elif grep -qE '^(DIGITALOCEAN_TOKEN|KTOR_JWT_SECRET)=' "$WORK/terraform.env" "$WORK/git.env"; then fail "deploy <version>: the DigitalOcean token or a runtime secret reached terraform or git"
 else echo "ok   deploy <version> steps"; fi
 
 # deploy, new version
@@ -248,6 +173,13 @@ elif ! grep -q 'umask 077 .*chmod 600 bag-please/.env.new && mv bag-please/.env.
 elif ! grep -q 'umask 022 .*chmod 644 bag-please/ca-certificate.crt.new' "$SSH_LOG"; then fail "deploy: CA not written mode 644"
 elif ! grep -q 'curl -fsS' "$SSH_LOG"; then fail "deploy: no smoke test"
 else echo "ok   deploy, new version"; fi
+# The Spaces key, the edge address, the bucket and TF_VAR_* reach terraform only; the bucket arrives as backend config.
+PRIVATE='^(AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|EDGE_SSH|TF_STATE_BUCKET|TF_VAR_[A-Za-z_]*)='
+if grep -qE "$PRIVATE" "$WORK/git.env" "$WORK/ssh.env" "$WORK/docker.other.env"; then
+	fail "deploy: the Spaces key, EDGE_SSH, TF_STATE_BUCKET or a TF_VAR_ reached git, ssh or docker"
+elif ! grep -q '^AWS_ACCESS_KEY_ID=k$' "$WORK/terraform.env"; then fail "deploy: terraform lost the Spaces key"
+elif ! grep -q '^init -input=false -backend-config=bucket=b$' "$WORK/terraform.args"; then fail "deploy: terraform init lacks the state bucket"
+else echo "ok   deploy keeps the Spaces key to terraform"; fi
 deploy_case "deploy, back:test fails" 1 "mise run deploy -- 0.20.2" STUB_TEST_FAIL=1 STUB_PREV="'0.20.2'" -- "$HERE/deploy.sh"
 if grep -qE '^(build|push) ' "$WORK/docker.log" || [ -s "$WORK/ssh.stdin" ]; then fail "deploy, back:test fails: built, pushed or wrote to the droplet"; fi
 deploy_case "deploy, back:test fails says untouched" 1 "it is untouched" STUB_TEST_FAIL=1 -- "$HERE/deploy.sh"
@@ -262,17 +194,18 @@ deploy_case "deploy refuses latest" 1 "invalid version" STUB_TAGS_PRESENT=hub/ -
 
 # status
 reset_logs
-out="$(env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h STUB_COMPOSE_PS=$'bp_front hub/front:0.21.0\nbp_back hub/back:0.21.0' "$HERE/status.sh" 2>&1 </dev/null)"; rc=$?
-if [ $rc -ne 0 ] || [[ $out != *"bp_back hub/back:0.21.0"* ]] || [[ $out != *"https://bag-please.io-workshop.net/ -> HTTP 200"* ]]; then fail "status: rc=$rc output: $out"; else echo "ok   status"; fi
+out="$(env PATH="$WORK/bin:$PATH" TF_STATE_BUCKET=b AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h STUB_COMPOSE_PS=$'bp_front hub/front:0.21.0\nbp_back hub/back:0.21.0' "$HERE/status.sh" 2>&1 </dev/null)"; rc=$?
+if grep -qE "$PRIVATE" "$WORK/ssh.env"; then fail "status: the Spaces key or EDGE_SSH reached ssh"
+elif [ $rc -ne 0 ] || [[ $out != *"bp_back hub/back:0.21.0"* ]] || [[ $out != *"https://bag-please.io-workshop.net/ -> HTTP 200"* ]]; then fail "status: rc=$rc output: $out"; else echo "ok   status"; fi
 reset_logs
-out="$(env PATH="$WORK/bin:$PATH" AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h STUB_SSH_DEAD=1 STUB_HTTP=502 "$HERE/status.sh" 2>&1 </dev/null)"; rc=$?
+out="$(env PATH="$WORK/bin:$PATH" TF_STATE_BUCKET=b AWS_ACCESS_KEY_ID=k AWS_SECRET_ACCESS_KEY=s EDGE_SSH=u@h STUB_SSH_DEAD=1 STUB_HTTP=502 "$HERE/status.sh" 2>&1 </dev/null)"; rc=$?
 if [ $rc -eq 0 ] || [[ $out != *"unreachable"* ]] || [[ $out != *"-> HTTP 502"* ]]; then fail "status, droplet down: rc=$rc output: $out"; else echo "ok   status, droplet unreachable"; fi
 
 # The nested-env derivation covers every name in both examples, TF_VAR_* and KTOR_*.
 leaked="$(env -i PATH="$PATH" bash -c '
 	. "'"$HERE"'/lib.sh"
-	export DIGITALOCEAN_TOKEN=x DOCKER_IMAGE_BACK=x KTOR_JWT_SECRET=x TF_VAR_anything=x KTOR_NEW_ONE=x PG_ADMIN_PASSWORD=x EDGE_SSH=x
-	(unset_deploy; env | grep -E "^(DIGITALOCEAN_TOKEN|DOCKER_IMAGE_BACK|KTOR_|TF_VAR_|PG_ADMIN|EDGE_SSH)" || true)')"
+	export DIGITALOCEAN_TOKEN=x DOCKER_IMAGE_BACK=x KTOR_JWT_SECRET=x TF_VAR_anything=x KTOR_NEW_ONE=x EDGE_SSH=x
+	(unset_deploy; env | grep -E "^(DIGITALOCEAN_TOKEN|DOCKER_IMAGE_BACK|KTOR_|TF_VAR_|EDGE_SSH)" || true)')"
 if [ -n "$leaked" ]; then fail "unset_deploy left: $leaked"; else echo "ok   unset_deploy"; fi
 
 # The droplet compose parses and carries the hardening.

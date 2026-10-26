@@ -3,9 +3,8 @@
 Terraform declares the app's side of the new home: one DigitalOcean droplet with its firewall, and this app's database
 `bag_please` and user `bag_please_app` **on a shared PostgreSQL cluster** (PostgreSQL 18, fra1). The cluster and its
 firewall are managed outside this repo; everything this repo needs about them comes from `.secure.deploy.env`
-(`TF_VAR_pg_cluster_name`, `TF_VAR_pg_client_tag`, `PG_ADMIN_USER`, `PG_ADMIN_PASSWORD`). This repo only looks the
-cluster up by name and must never create it or manage `digitalocean_database_firewall`. Releases (`deploy`, the droplet
-compose file) are below.
+(`TF_VAR_pg_cluster_name`, `TF_VAR_pg_client_tag`). This repo only looks the cluster up by name and must never create
+it or manage `digitalocean_database_firewall`. Releases (`deploy`, the droplet compose file) are below.
 
 ## What is declared
 
@@ -21,11 +20,14 @@ shares the cluster, not only this one), plus whatever other sources its owner al
 What keeps other projects out of `bag_please` is therefore `bag_please_app`'s password plus
 `REVOKE CONNECT ... FROM PUBLIC`, not the network. The app never uses the cluster admin (`doadmin`). The droplet uses
 the cluster's **private** host (`db_host`); the operator's machine uses the **public** host (`db_public_host`)
-directly, so `db:bootstrap` and `db:import` need no SSH tunnel, and both verify the certificate with `verify-full`. The
+directly (no SSH tunnel; its IP must be among the cluster's trusted sources), with `verify-full`. The
 smallest DigitalOcean cluster allows about 22 connections for ALL projects: keep the backend's R2DBC pool at 5 or less
 (the backend sets `maxSize=5` on its R2DBC pool; `KTOR_DB_POOL_MAX_SIZE` overrides).
 
-State: Spaces bucket `io-workshop-tfstate`, key `bag-please/web.tfstate`, no locking (never run two applies at once).
+State: the shared Spaces bucket named by `TF_STATE_BUCKET` (kept out of the repo; the scripts pass it as
+`-backend-config=bucket=...`), key `bag-please/web.tfstate`, no locking (never run two applies at once). If a checkout
+initialised before the bucket moved out of `versions.tf` reports a backend change, run `terraform init -reconfigure
+-backend-config=bucket=<name>` once in `deploy/terraform/`.
 `deploy/terraform/.terraform.lock.hcl` is committed. Droplet `user_data` and `image` are in `ignore_changes`: replacing
 the droplet is a deliberate `terraform apply -replace=digitalocean_droplet.web` followed by updating the edge upstream
 and `ssh-keygen -R <private ip>` (a recreated droplet may reuse an IP already in known_hosts).
@@ -35,58 +37,51 @@ and `ssh-keygen -R <private ip>` (a recreated droplet may reuse an IP already in
 Two gitignored files, each with a committed blank `.example`: `.secure.deploy.env` (infrastructure, edge SSH and the
 backend's runtime secrets `KTOR_JWT_SECRET`, `KTOR_ADMIN_LOGIN`, `KTOR_ADMIN_PASS`) and `.secure.build.env` (the Docker
 Hub image names `DOCKER_IMAGE_BACK`, `DOCKER_IMAGE_FRONT`). `deploy:build` and `deploy:push` load only the build file;
-`deploy` loads both; `deploy:status` and the infra/db tasks load only the deploy file. Run `docker login` once on this
+`deploy` loads both; `deploy:status` and the infra tasks load only the deploy file. Run `docker login` once on this
 machine.
 
 Copy `.secure.deploy.env.example` to `.secure.deploy.env` (gitignored) and fill every variable. Two of them reach
 further than this app: the DigitalOcean token can modify or delete the shared cluster (DigitalOcean has no narrower
 database scope), and the Spaces key can write the other state objects in the shared bucket. Each mise task loads
 that file itself; nothing is global and nothing is exported into your shell. `deploy/scripts/lib.sh` removes every
-variable named in either example, and every `TF_VAR_*` and `KTOR_*`, before it runs Gradle, mise, `java` or `psql`; database credentials are read from `terraform output` and set
-only as the environment of the one process that needs them (`IMPORT_DB_*` for the importer `java`, `PGPASSWORD` for the
-bootstrap `psql`). The cluster admin's credentials (`PG_ADMIN_USER`, `PG_ADMIN_PASSWORD`, DigitalOcean's `doadmin`)
-are required by `db:bootstrap` alone. mise loads them into every task with the rest of the file, so each script drops
-them before it runs anything (Terraform, git, Gradle), and only the bootstrap `psql` gets the password, as
-`PGPASSWORD`. They can be blanked again after the bootstrap. A blank variable stops the script naming it.
+variable named in either example, and every `TF_VAR_*` and `KTOR_*`, before it runs a nested mise task (and the Gradle
+it starts); database credentials are read from `terraform output` and reach the droplet's `.env` only as ssh stdin. A blank variable stops the script naming it.
 
 ## Tasks
 
 - `mise run infra:plan` / `infra:apply` - Terraform (`init` runs first). Apply is manual, never from CI.
-- `mise run db:bootstrap` - once, after the first apply (safe to repeat before any import): as the cluster admin, the
-  recipe for a project database on a shared cluster - `GRANT ALL ON SCHEMA public`, `REVOKE CONNECT ... FROM PUBLIC`,
-  `GRANT CONNECT` to `bag_please_app` - then Flyway as `bag_please_app` by running the importer on an export whose
-  collections are all `[]` (zero rows). Needs `psql` locally and this machine's public IP among the cluster's trusted
-  sources. Do not re-run it after an import: the importer refuses a non-empty database.
-- `mise run db:import [-- <export-dir>]` (default: the repo root's `migration-export/`; a relative `<export-dir>` is
-  the directory you ran mise from) - the Story 11.8 importer against production.
-  Refuses, before any database connection: a missing export directory (exit 2), a dirty git tree, `bp_back` running on
-  the droplet. Same database IP requirement as above, and it checks the droplet over SSH through the edge, so this
-  machine's IP must also be allowed on the edge's port 22.
 - `mise run deploy:build` - build both images tagged `:<gradle.properties version>` (never `latest`).
 - `mise run deploy:push` - refuses a dirty tree, a tag that already exists on Docker Hub for either image (Hub
   overwrites tags silently; checked with `docker manifest inspect`) and a Hub it cannot query; otherwise builds and
   pushes `:<version>` only.
 - `mise run deploy [-- <version>]` - the release, see below. `mise run deploy:status` - see below.
-- `mise run deploy:test` - guard tests for the refusals and the happy paths (import, bootstrap, push, deploy, status),
+- `mise run deploy:test` - guard tests for the refusals and the happy paths (infra, push, deploy, status),
   the nested-environment proof, and the droplet compose file's hardening keys, with stubbed
-  `terraform`/`ssh`/`git`/`psql`/`gradle`/`java`/`docker`/`mise`/`curl`; no network.
+  `terraform`/`ssh`/`git`/`docker`/`mise`/`curl`; no network. `mise run deploy` runs it first (a mise `depends`), so a
+  broken guard stops the release before anything is tested, built or pushed.
 
-## Live runbook (md; none of this was run by the implementer)
+## Setting up a new database (md; e.g. after `-replace` of the user or a fresh cluster)
 
-1. Make sure this machine's current public IP is allowed by the cluster's firewall (database access) and on the
-   edge's port 22 (used by `db:import`); both are managed outside this repo. The cluster must already exist. Fill
-   `.secure.deploy.env`, including the cluster name, client tag and admin credentials. `mise install` provides
-   Terraform 1.15.
-2. `mise run infra:plan` - expect the droplet, its firewall, the database and the user to be added, nothing on the
-   cluster. `mise run infra:apply`; record the droplet private IP (`terraform output private_ip`) for the edge.
-3. `mise run db:bootstrap`.
+1. Make sure this machine's current public IP is allowed by the cluster's firewall; it is managed outside this repo.
+   The cluster must already exist. Fill `.secure.deploy.env`. `mise install` provides Terraform 1.15.
+2. `mise run infra:plan` - expect only this app's resources, nothing on the cluster. `mise run infra:apply`; record the
+   droplet private IP (`terraform output private_ip`) for the edge.
+3. As the cluster admin (DigitalOcean: `doadmin`, never stored in this repo), run the shared cluster's recipe for a
+   project database, with the CA from `terraform output -raw db_ca_certificate` saved as `ca.pem`:
+   ```bash
+   psql -v ON_ERROR_STOP=1 "host=<db_public_host> port=<db_port> dbname=bag_please user=doadmin sslmode=verify-full sslrootcert=ca.pem connect_timeout=10" <<'SQL'
+   GRANT ALL ON SCHEMA public TO "bag_please_app";
+   REVOKE CONNECT ON DATABASE "bag_please" FROM PUBLIC;
+   GRANT CONNECT ON DATABASE "bag_please" TO "bag_please_app";
+   SQL
+   ```
 4. Verify `verify-full` from the droplet (the runtime mode): copy the CA certificate to it
    (`terraform output -raw db_ca_certificate`) and run, there,
    `psql "host=<db_host> port=<db_port> dbname=bag_please user=bag_please_app sslmode=verify-full sslrootcert=ca.pem"`
    (`db_host` is the private hostname; unverified in DigitalOcean's docs that its certificate covers it). If it fails,
    stop: AD-14 goes back to md.
-5. Import dry run: `mise run db:import -- <export-dir>` with a fixture export, then empty the database again; check the
-   printed export / loaded / dropped counts.
+5. `mise run deploy -- <current version>` (an already published version; plain `mise run deploy` needs a version bump):
+   the backend applies the Flyway migrations on startup, as `bag_please_app`.
 
 ## Releasing
 
@@ -122,13 +117,6 @@ read-only at `/etc/bag-please/ca-certificate.crt`; both are fixed in the file.
 
 If the Docker Hub repositories are private, run `docker login` once on the droplet as `deploy`.
 
-## Cutover order (AD-20, Story 11.11)
-
-`infra:apply` (md only), `db:bootstrap`, md takes the Mongo export, `db:import` (backend not yet deployed), md checks
-the counts, `deploy`, md verifies both users through the edge jump host, repoint the edge upstream, `deploy:status`,
-retire the old deployment. `migration-export/` leaves the working tree once the import is verified. None of this is
-done by Story 11.10.
-
 ## Live acceptance of Story 11.10 (md; not run by the implementer)
 
 1. Fill `.secure.build.env`, `docker login`, bump the version to a pre-release tag (e.g. `0.22.0-rc1`), commit.
@@ -142,7 +130,7 @@ done by Story 11.10.
 
 The shared cluster keeps daily backups with 7-day point-in-time recovery for the whole cluster; a restore creates a
 new cluster. Managed daily backups are the only automated protection. For this app alone, `pg_dump` is optional before
-a release that adds a migration (same `verify-full` public-host connection as `db:import`, as `bag_please_app`):
+a release that adds a migration (`verify-full` over the public host, as `bag_please_app`):
 
 ```bash
 PGPASSWORD="$(cd deploy/terraform && terraform output -raw db_app_password)" pg_dump \

@@ -8,13 +8,15 @@ ktor:
     port: 4000
     rootPath: "api"
 
+# No fallbacks for the secrets: the backend refuses to start without them (the defaults are public in this repo).
+# Dev values come from docker-compose.yaml and the Gradle `run` task.
 jwt:
-  secret: "$KTOR_JWT_SECRET:secret"
+  secret: "$KTOR_JWT_SECRET"
   issuer: "bag-please.com"
   audience: "bag-please.com"
   realm: "bag-please.com"
-  admin_login: "$KTOR_ADMIN_LOGIN:admin"
-  admin_pass: "$KTOR_ADMIN_PASS:admin"
+  admin_login: "$KTOR_ADMIN_LOGIN"
+  admin_pass: "$KTOR_ADMIN_PASS"
   accessExpiryMinutes: "$KTOR_JWT_ACCESS_EXPIRY_MINUTES:15"
   refreshExpiryDays: "$KTOR_JWT_REFRESH_EXPIRY_DAYS:30"
 

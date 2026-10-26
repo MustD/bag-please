@@ -1,6 +1,7 @@
 package com.bagplease
 
 import com.bagplease.plugins.PostgresConfig
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
@@ -24,5 +25,13 @@ class PostgresConfigTest : FunSpec({
         tls.r2dbcUrl().contains("maxSize=5") shouldBe true
         tls.copy(poolMaxSize = 3).r2dbcUrl().endsWith("&maxSize=3") shouldBe true
         tls.jdbcUrl().contains("maxSize") shouldBe false
+    }
+
+    test("a remote host needs verify-full; only local hosts may connect without it") {
+        tls.requireVerifiedTlsForRemoteHost()
+        listOf("disable", "prefer", "require", "verify-ca").forEach { mode ->
+            shouldThrow<IllegalArgumentException> { tls.copy(sslmode = mode).requireVerifiedTlsForRemoteHost() }
+        }
+        PostgresConfig.LOCAL_HOSTS.forEach { tls.copy(host = it, sslmode = "disable").requireVerifiedTlsForRemoteHost() }
     }
 })

@@ -14,8 +14,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-rubric.md
   - _bmad-output/planning-artifacts/architecture/architecture-epic-11/reviews/review-versions.md
   # Reference implementation for the Terraform and deploy stories (md's own project, same edge):
-  - /home/md/projects/personal/mal_ui/deploy/
-  - /home/md/projects/personal/mal_ui/mise.toml
+  - <reference project>/deploy/
+  - <reference project>/mise.toml
   # UX design contract deliberately excluded (md, 2026-10-22): Epic 11 changes no UI (FR70).
 ---
 
@@ -194,7 +194,7 @@ in the export and the count loaded.**
 **FR72: The database schema is created and changed only by versioned migrations that the backend applies at
 startup. Each migration applies once; a restart against an up-to-date schema changes nothing.**
 **FR73: Production infrastructure is declared in Terraform in this repository: one droplet running the frontend
-and backend, joined to the existing io-workshop VPC and reachable only from the edge proxy, and one separate
+and backend, joined to the existing edge VPC and reachable only from the edge proxy, and one separate
 DigitalOcean Managed PostgreSQL database on the cheapest tier, which accepts connections only from that droplet.
 The operator applies infrastructure changes by hand; a deploy never applies them.**
 **FR74: The operator releases a version with one command: it builds and publishes the images, rolls the droplet to
@@ -295,7 +295,7 @@ properties that Epic 11 does not touch; the E2E suite at the merge proves they s
 
 ### Additional Requirements
 
-From the Epic 11 architecture spine (AD-n cited), its four reviews, `addendum.md` and the mal_ui reference. Identifiers
+From the Epic 11 architecture spine (AD-n cited), its four reviews, `addendum.md` and the the reference project reference. Identifiers
 are `AR-E11-n`. Versions are the spine's 2026-10-21 snapshot (verified in `review-versions.md`); a story re-measures
 before it pins anything.
 
@@ -423,10 +423,10 @@ before it pins anything.
   assumption.
 
 **Infrastructure and release (FR73, FR74)**
-- AR-E11-19 (AD-11, addendum): `deploy/terraform/` follows mal_ui: `main.tf`, `variables.tf`, `outputs.tf`,
+- AR-E11-19 (AD-11, addendum): `deploy/terraform/` follows the reference project: `main.tf`, `variables.tf`, `outputs.tf`,
   `versions.tf`, `cloud-init.yaml.tftpl`, committed `.terraform.lock.hcl`, its own `.gitignore`; the VPC and SSH key are
   data sources; the droplet has `lifecycle { ignore_changes = [user_data, image] }`; the firewall allows only 80 and 22
-  from the edge's private IP; SSH via the edge as jump host; S3 backend in the `io-workshop-tfstate` Spaces bucket, key
+  from the edge's private IP; SSH via the edge as jump host; S3 backend in the `<state bucket>` Spaces bucket, key
   `bag-please/web.tfstate`. Terraform `~> 1.15`, provider `digitalocean` `~> 2.106`.
 - AR-E11-20 (AD-11, NFR-D3, NFR-D6): The PostgreSQL 18 cluster is shared with other projects and managed outside this
   repo (md, 2026-10-23; no link to the repo that manages it, md 2026-10-25): here it is only a `data` source named by
@@ -473,7 +473,7 @@ before it pins anything.
   not yet deployed) → md checks the counts → `deploy` with the droplet smoke test → md checks both users' data through
   the edge jump → repoint the edge → `deploy:status` → retire the old deployment. `migration-export/` leaves the repo
   working tree once the import is verified; md keeps the export/archive off-repo as the only fallback. No restore drill.
-  Edge configuration for `bag-please.io-workshop.net` belongs to the io-workshop edge, outside this repo.
+  Edge configuration for `bag-please.io-workshop.net` belongs to the edge, outside this repo.
 - AR-E11-25a (review-reconcile B10, review-rubric H5; md, 2026-10-22): The root `CLAUDE.md` "Dump before a migration
   release" section is **replaced by a pointer** to `deploy/README.md`, which documents the managed daily backups,
   rollback by `deploy <previous>` (safe because migrations are additive, AR-E11-8), and an optional `pg_dump` over the
@@ -502,7 +502,7 @@ scheduler) moves to PostgreSQL; Mongo leaves code, Compose, Testcontainers and d
 FR71: Epic 11 — one-time, one-transaction import of the production `mongoexport`, with export / loaded / dropped counts
 per record type (widened by AD-18) and a refusal on legacy multi-store data (AR-E11-18a).
 FR72: Epic 11 — Flyway `V<n>__*.sql` applied at startup (and by the importer); `V1__baseline.sql` is the whole schema.
-FR73: Epic 11 — `deploy/terraform/`: droplet in the io-workshop VPC behind the edge, managed PostgreSQL 18 trusting only
+FR73: Epic 11 — `deploy/terraform/`: droplet in the edge VPC behind the edge, managed PostgreSQL 18 trusting only
 the droplet, applied by hand.
 FR74: Epic 11 — `deploy` (build, push an exact tag, roll the droplet, health wait, smoke test) and `deploy:status`.
 FR47, FR69 (and NFR-L3): Epic 11 — retired as Mongo-era history, not ported (AD-5).
@@ -904,11 +904,11 @@ So that production infrastructure is reproducible, private and sized for two use
 **Acceptance Criteria:**
 
 **Given** Story 11.8 has landed
-**When** `deploy/terraform/` is written following mal_ui
+**When** `deploy/terraform/` is written following the reference project
 **Then** it holds `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf` (Terraform `~> 1.15`, provider
 `digitalocean ~> 2.106`), `cloud-init.yaml.tftpl`, a committed `.terraform.lock.hcl` and its own `.gitignore`; the VPC
 and SSH key are data sources; the droplet has `lifecycle { ignore_changes = [user_data, image] }`; the firewall allows
-only 80 and 22 from the edge's private IP; state goes to the `io-workshop-tfstate` Spaces bucket under
+only 80 and 22 from the edge's private IP; state goes to the `<state bucket>` Spaces bucket under
 `bag-please/web.tfstate` (FR73, AR-E11-19, NFR-D2)
 
 **Given** the shared PostgreSQL cluster named by `TF_VAR_pg_cluster_name`, managed outside this repo (md, 2026-10-23)

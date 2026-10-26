@@ -3,7 +3,8 @@
 # require the body `OK`. A few retries: the backend may still be warming up after `up --wait`.
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
-require_env AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH
+require_env TF_STATE_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH
+keep_deploy_env_private
 tf_init
 DROPLET_IP="$(need_out private_ip)"
 body=""

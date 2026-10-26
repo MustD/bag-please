@@ -5,8 +5,8 @@
 - **Target:** `ARCHITECTURE-SPINE.md` (draft, 2026-10-21) and `.memlog.md`
 - **Grounded in:** `bp_back/src/main/kotlin/com/bagplease/**` (services, `mongo/` models and repositories, `Scheduler.kt`,
   `GQL.kt`, `Application.kt`, `Routing.kt`, `Migration.kt`), `application.yaml`, `docker-compose.yaml`, `mise.toml`,
-  `routing/Caddyfile`, `bp_back/src/test/.../utils/TestContainers.kt`, `/home/md/projects/personal/mal_ui/deploy/**` and
-  `mal_ui/mise.toml`
+  `routing/Caddyfile`, `bp_back/src/test/.../utils/TestContainers.kt`, `<reference project>/deploy/**` and
+  <reference project>/mise.toml`
 - **Date:** 2026-10-21
 
 ## Verdict
@@ -229,7 +229,7 @@ The export does not have one shape:
 - **Story D, secrets:**
   - It names the JWT secret and admin credentials in `.secure.deploy.env` exactly as the container reads them
     (`KTOR_JWT_SECRET`, `KTOR_ADMIN_PASS`).
-  - mal_ui's `lib.sh` strip list (copied by the deploy story) strips only `DIGITALOCEAN_TOKEN`, `AWS_*`,
+  - the reference project's `lib.sh` strip list (copied by the deploy story) strips only `DIGITALOCEAN_TOKEN`, `AWS_*`,
     `EDGE_SSH` and `TF_VAR_*`.
   - `deploy` runs `back:test` (AD-13), so production's JWT secret and admin password reach Gradle and the test JVM.
     `application.yaml` substitutes them. This breaks AD-12's "never to Gradle".
@@ -249,7 +249,7 @@ The export does not have one shape:
 - **Story A, deploy:** it delivers `bag-please/ca-certificate.crt` "next to `.env`" and copies `.env`'s treatment:
   mode `600`, owned by `deploy`.
 - **Story B, hardened compose:**
-  - It follows mal_ui: `read_only`, `cap_drop: [ALL]`.
+  - It follows the reference project: `read_only`, `cap_drop: [ALL]`.
   - The `eclipse-temurin` image runs as root. Root without `CAP_DAC_OVERRIDE` cannot read a `600` file owned by
     uid 1000.
 - **Clash:** the TLS handshake fails at startup. Flyway exits, `restart: unless-stopped` loops, and `deploy` times
@@ -363,7 +363,7 @@ The export does not have one shape:
 
 ### M3. Health check and deploy wait (Epic 9 AD-9 × AD-13 × compose hardening)
 
-- **Story A, compose:** following mal_ui, `bp_front.depends_on.bp_back: service_healthy`.
+- **Story A, compose:** following the reference project, `bp_front.depends_on.bp_back: service_healthy`.
 - **Story B, health:** `/api/health` returns 503 whenever `SELECT 1` fails within 2 s.
 - **Clash:** a DO maintenance failover or slow first connect during `up -d` keeps Caddy from starting at all. That
   turns a degraded API into a dead site, including the SPA shell, which could have shown its own offline handling.
@@ -398,7 +398,7 @@ The export does not have one shape:
 
 - **Story A, `db:import`:** it loads `.secure.deploy.env` (it needs `EDGE_SSH` and the Spaces key for
   `terraform output`) and runs `task back:build` (or `installDist`) "without secrets".
-- **The gap:** mal_ui's `task()` strips only the four known names (H1). Whether "without secrets" holds depends on
+- **The gap:** the reference project's `task()` strips only the four known names (H1). Whether "without secrets" holds depends on
   H1's prefix rule, not on AD-9 itself.
 - **How the password reaches the importer is unnamed.** AD-9 rules out Gradle, a file and the shell, which leaves an
   env var on one `exec`. A developer using `KTOR_DB_PASSWORD=… java -cp …` puts the password into the process table,

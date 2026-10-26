@@ -7,7 +7,7 @@ editHistory:
   - date: '2026-10-22'
     changes: 'Epic 11 architecture pass (md, see architecture/architecture-epic-11/ARCHITECTURE-SPINE.md AD-15, AD-20): NFR17 gains a scoped exception, so Epic 11 stories land on an epic-11 branch where E2E may be red until the single merge to main. NFR-D4 drops the restore drill; md accepts the risk of production data loss and relies on the managed tier''s daily backups plus an off-repo Mongo archive. NFR-D5: the export leaves the repository working tree after the import is verified and md keeps it off-repo instead of deleting it. Risk rows updated to match.'
   - date: '2026-10-21'
-    changes: 'Epic 11 planning pass (md): persistence moves from MongoDB to a DigitalOcean Managed PostgreSQL database, and production moves to a fresh droplet provisioned by Terraform, modeled on md''s mal_ui project. Added FR70-FR74 (Data Store & Deployment) and NFR-D1-NFR-D6 (Operations & Secrets, written for an open-source repository). NFR2 and NFR17 reworded to name no database product; FR47, FR69 and NFR-L3 marked as Mongo-era history. No user-visible behaviour changes. Technical choices (Exposed, Terraform layout, tier sizes) live in addendum.md.'
+    changes: 'Epic 11 planning pass (md): persistence moves from MongoDB to a DigitalOcean Managed PostgreSQL database, and production moves to a fresh droplet provisioned by Terraform, modeled on md''s reference project project. Added FR70-FR74 (Data Store & Deployment) and NFR-D1-NFR-D6 (Operations & Secrets, written for an open-source repository). NFR2 and NFR17 reworded to name no database product; FR47, FR69 and NFR-L3 marked as Mongo-era history. No user-visible behaviour changes. Technical choices (Exposed, Terraform layout, tier sizes) live in addendum.md.'
   - date: '2026-10-20'
     changes: 'Epic 10 Story 10.1: FR57 amended. The back-to-lists links on the shopping view (/list/:id) and the list management screen (/lists/:id) duplicated the account menu Home / My lists entries and pushed each screen header down, so both are removed; the app-bar title and account menu are the only navigation and no in-page affordance replaces them.'
   - date: '2026-09-15'
@@ -558,8 +558,8 @@ Production has 2 real users today; their data must carry over.
   script (FR71)
 - The database schema is versioned and applied by the backend itself (FR72)
 - Infrastructure is declared in Terraform: a fresh droplet for the frontend and backend behind the existing
-  io-workshop edge, and a separate managed PostgreSQL database on the cheapest tier (FR73)
-- Release is an operator-run command, as in mal_ui; no CI deploy (FR74)
+  edge, and a separate managed PostgreSQL database on the cheapest tier (FR73)
+- Release is an operator-run command, as in the reference project; no CI deploy (FR74)
 - The repository is open source, so secrets hygiene is a requirement of its own, not a convention (NFR-D1–NFR-D6)
 - **Cutover:** md exports the current production data, imports it into the new database and checks it, then points
   `https://bag-please.io-workshop.net/` at the new droplet. The old deployment is retired only after the new one serves
@@ -772,7 +772,7 @@ database starts from an export of already-migrated data (FR71), and those migrat
 - **FR72:** The database schema is created and changed only by versioned migrations that the backend applies at
   startup. Each migration applies once; a restart against an up-to-date schema changes nothing.
 - **FR73:** Production infrastructure is declared in Terraform in this repository: one droplet running the frontend
-  and backend, joined to the existing io-workshop VPC and reachable only from the edge proxy, and one separate
+  and backend, joined to the existing edge VPC and reachable only from the edge proxy, and one separate
   DigitalOcean Managed PostgreSQL database on the cheapest tier, which accepts connections only from that droplet.
   The operator applies infrastructure changes by hand; a deploy never applies them.
 - **FR74:** The operator releases a version with one command: it builds and publishes the images, rolls the droplet to

@@ -62,5 +62,9 @@ services:
       KTOR_DB_NAME: "bag_please"
       KTOR_DB_USER: "bag_please_app"
       KTOR_DB_PASSWORD: "bag_please_app"
+      # Local-only values: the backend has no fallback for these (production gets real ones from deploy).
+      KTOR_JWT_SECRET: "local-dev-jwt-secret-not-for-production"
+      KTOR_ADMIN_LOGIN: "admin"
+      KTOR_ADMIN_PASS: "admin"
 
       KTOR_RATE_LIMIT_ATTEMPTS: 6000

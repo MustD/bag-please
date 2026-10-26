@@ -19,11 +19,11 @@ deferred: []
 
 **Problem:** Production has no declared home: no droplet, no database on the managed PostgreSQL, and no way for md to bootstrap the database or run the import against it without leaking a secret.
 
-**Approach:** `deploy/terraform/` (mal_ui layout) declares the droplet, its firewall, database `bag_please` and user `bag_please_app` on a shared PostgreSQL cluster managed outside this repo (a data source named by `TF_VAR_pg_cluster_name`; the droplet carries the client tag `TF_VAR_pg_client_tag`); `deploy/scripts/` and the mise tasks `infra:plan`, `infra:apply`, `db:bootstrap`, `db:import` drive it with secrets loaded per task from a gitignored `.secure.deploy.env` (committed blank `.example`).
+**Approach:** `deploy/terraform/` (the reference project layout) declares the droplet, its firewall, database `bag_please` and user `bag_please_app` on a shared PostgreSQL cluster managed outside this repo (a data source named by `TF_VAR_pg_cluster_name`; the droplet carries the client tag `TF_VAR_pg_client_tag`); `deploy/scripts/` and the mise tasks `infra:plan`, `infra:apply`, `db:bootstrap`, `db:import` drive it with secrets loaded per task from a gitignored `.secure.deploy.env` (committed blank `.example`).
 
 ## Boundaries & Constraints
 
-**Always:** Terraform `~> 1.15`, provider `digitalocean ~> 2.106`; VPC and SSH key are data sources; droplet `ignore_changes = [user_data, image]`; firewall inbound only 80 and 22 from `${edge_private_ip}/32`; S3 backend bucket `io-workshop-tfstate`, key `bag-please/web.tfstate`; `.terraform.lock.hcl` committed, own `.gitignore`. The cluster is managed outside this repo and only looked up; no cluster and no `digitalocean_database_firewall` here; nothing reads another repo — every value about the cluster comes from `.secure.deploy.env`. Secrets reach only the process that needs them: tasks load `.secure.deploy.env` themselves, `lib.sh` strips every deploy variable before any nested Gradle/mise task, nothing exported into the operator's shell, DB credentials read from `terraform output` and passed only as the `IMPORT_DB_*` env of the `java` command (importer uses `verify-full` against the public host, no tunnel). `doadmin` (`PG_ADMIN_USER`/`PG_ADMIN_PASSWORD`) is used by `db:bootstrap` only. `db:import` refuses a dirty tree and refuses while `bp_back` runs on the droplet. Docs move with behaviour: new `deploy/README.md`, root `CLAUDE.md`, Zed tasks re-synced.
+**Always:** Terraform `~> 1.15`, provider `digitalocean ~> 2.106`; VPC and SSH key are data sources; droplet `ignore_changes = [user_data, image]`; firewall inbound only 80 and 22 from `${edge_private_ip}/32`; S3 backend bucket `<state bucket>`, key `bag-please/web.tfstate`; `.terraform.lock.hcl` committed, own `.gitignore`. The cluster is managed outside this repo and only looked up; no cluster and no `digitalocean_database_firewall` here; nothing reads another repo — every value about the cluster comes from `.secure.deploy.env`. Secrets reach only the process that needs them: tasks load `.secure.deploy.env` themselves, `lib.sh` strips every deploy variable before any nested Gradle/mise task, nothing exported into the operator's shell, DB credentials read from `terraform output` and passed only as the `IMPORT_DB_*` env of the `java` command (importer uses `verify-full` against the public host, no tunnel). `doadmin` (`PG_ADMIN_USER`/`PG_ADMIN_PASSWORD`) is used by `db:bootstrap` only. `db:import` refuses a dirty tree and refuses while `bp_back` runs on the droplet. Docs move with behaviour: new `deploy/README.md`, root `CLAUDE.md`, Zed tasks re-synced.
 
 **Never:** No `terraform apply` or any DigitalOcean call without md; no secret, state or tfvars committed; no deploy tasks, droplet compose, `deploy:*` or `.secure.build.env` (Story 11.10); no runtime change to `bp_back`; the importer is not edited.
 
@@ -40,7 +40,7 @@ deferred: []
 
 ## Code Map
 
-- `/home/md/projects/personal/mal_ui/deploy/terraform/*`, `deploy/scripts/{lib,infra}.sh`, `mise.toml` infra tasks -- reference layout to mirror (state key and names changed to bag-please).
+- `<reference project>/deploy/terraform/*`, `deploy/scripts/{lib,infra}.sh`, `mise.toml` infra tasks -- reference layout to mirror (state key and names changed to bag-please).
 - `mise/db_import.sh`, `bp_back/src/import/.../MongoImport.kt` -- importer takes `IMPORT_DB_*` env + export dir; it reads every required `<collection>.json` BEFORE Flyway, so `db:bootstrap` gives it a dir of `[]` files, which loads zero rows after Flyway and is how Flyway runs as `bag_please_app`.
 - `mise.toml`, `.zed/tasks.json` -- new tasks; `mise run zed:sync`.
 - `.gitignore` -- already covers `.secure.*.env`, `*.tfstate*`, `*.tfvars`, `.terraform/`; `.terraform.lock.hcl` must not be ignored.
@@ -78,7 +78,7 @@ Review pass 3 (2026-10-26, 2026-10-25 "no hub link" rework, uncommitted diff vs 
 - [x] [Review][Defer] Broken reflow in the Production infrastructure paragraph ("so\nthere is no SSH tunnel. Secrets live\nonly") [CLAUDE.md:130] — deferred: agent-context file
 
 Rejected:
-- Spec record stale (`Status: done`, "7 rows", pass-2 hub items not marked superseded, "io-workhop" typo) — fix edits the spec under review; refreshed at the status update.
+- Spec record stale (`Status: done`, "7 rows", pass-2 hub items not marked superseded, typo) — fix edits the spec under review; refreshed at the status update.
 - Spec Never "no `deploy:*`" vs `deploy:test` — pre-existing spec wording.
 - `realpath -m` GNU-only / empty result — toolchain is Linux; GNU `-m` does not fail on missing paths.
 - No missing-secret case for `TF_VAR_pg_cluster_name`/`TF_VAR_pg_client_tag` — low; Terraform still refuses an unset variable with no default.
@@ -93,7 +93,7 @@ Rejected:
 
 ## Spec Change Log
 
-- 2026-10-23, user-directed rework (md): PostgreSQL moved to the io-workshop hub's shared cluster `io-workshop-pg`. Amended: cluster and database firewall removed from Terraform (data source plus the `postgres-client` tag instead); `doadmin` credentials read from the hub's state (`HUB_DIR`); bootstrap SQL is the hub's recipe; no tunnel, importer and bootstrap use `verify-full` on the public host. KEEP: guard scripts, per-task secret loading, `deploy:test`. Avoids: a second cluster and a firewall resource that overwrites the hub's rules.
+- 2026-10-23, user-directed rework (md): PostgreSQL moved to the hub's shared cluster `<shared cluster>`. Amended: cluster and database firewall removed from Terraform (data source plus the `postgres-client` tag instead); `doadmin` credentials read from the hub's state (`HUB_DIR`); bootstrap SQL is the hub's recipe; no tunnel, importer and bootstrap use `verify-full` on the public host. KEEP: guard scripts, per-task secret loading, `deploy:test`. Avoids: a second cluster and a firewall resource that overwrites the hub's rules.
 - 2026-10-25, user-directed (md): no link to the hub repo. `HUB_DIR` and reading `admin_uri` from the hub's Terraform state removed; the admin credentials (`PG_ADMIN_USER`, `PG_ADMIN_PASSWORD`), cluster name (`TF_VAR_pg_cluster_name`) and client tag (`TF_VAR_pg_client_tag`, no defaults) are entered in `.secure.deploy.env`; docs no longer name hub commands. KEEP: everything else from review pass 2.
 
 ## Review Triage Log
@@ -107,12 +107,12 @@ Rejected:
   - `[low]` `patch` ssh key unquoted in cloud-init YAML — jsonencode.
   - `[low]` `patch` only refusal paths tested — happy path (env stripping, verify-ca, ssh -L) and failing `docker ps` rows added.
   - `[low]` `patch` README garbled bootstrap sentence; known_hosts after droplet replace — fixed.
-  - `[low]` `reject` `groups: [docker]` before group exists, image slug ubuntu-26-04, droplet hardening — identical to mal_ui, which runs in production.
+  - `[low]` `reject` `groups: [docker]` before group exists, image slug ubuntu-26-04, droplet hardening — identical to the reference project, which runs in production.
   - `[low]` `reject` no `prevent_destroy`, relative export path vs cd, classpath last-line parsing (same as db_import.sh), untracked export marks tree dirty (migration-export/ is gitignored), "all secrets stripped" claim (terraform legitimately gets them).
   - `[low]` `defer`→`reject` `docker ps --filter name=bp_back` and CI wiring of `deploy:test` — compose names and release tooling arrive in Story 11.10.
 
 
-### 2026-10-23 — Review pass 2 (shared-cluster rework, cross-checked against io-workhop-hub/postgres)
+### 2026-10-23 — Review pass 2 (shared-cluster rework, cross-checked against the hub repo)
 - verdicts: 29 findings (adversarial 12, edge-case 11, verification-gap 6, with overlap); VPC mismatch dismissed (md: the edge sits in fra1's default VPC, as the cluster does)
 - findings:
   - `patch` `db:bootstrap` always failed: the importer reads required export files before Flyway — seeds `[]` per collection.

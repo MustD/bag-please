@@ -3,8 +3,9 @@
 # the HTTP status is still printed (exit 1 then).
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
-require_env AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH
-unset DIGITALOCEAN_TOKEN PG_ADMIN_USER PG_ADMIN_PASSWORD
+require_env TF_STATE_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH
+keep_deploy_env_private
+unset DIGITALOCEAN_TOKEN
 tf_init
 DROPLET_IP="$(need_out private_ip)"
 rc=0

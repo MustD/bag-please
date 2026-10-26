@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: '2026-05-08'
-last_updated: '10-22-2026 15:01'
+last_updated: '10-26-2026 12:20'
 project: bag-please
 project_key: NOKEY
 tracking_system: file-system
@@ -148,10 +148,10 @@ development_status:
   11-6-items-and-the-hourly-jobs-live-in-postgresql: done
   11-7-mongodb-leaves-the-stack: done
   11-8-production-data-can-be-imported-in-one-go: done
-  11-9-the-new-home-exists-in-terraform: review
+  11-9-the-new-home-exists-in-terraform: done
   11-10-one-command-releases-a-version: done
-  11-11-both-users-move-to-the-new-home: backlog
-  epic-11-retrospective: optional
+  11-11-both-users-move-to-the-new-home: done
+  epic-11-retrospective: done
 action_items:
   - epic: 7
     action: "Re-check typescript-eslint for TypeScript 7 support before any future
@@ -476,7 +476,7 @@ action_items:
       unless the caller manually reformats ids. Bit two epics in a row (Epic 8: 0/16
       matched, Epic 9: 0/12 matched until worked around manually)."
     owner: "md"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-09-24.md"
   - id: "epic-10-retro-item-46-add-story-10-10-zed-tasks-json-sync-with"
     epic: 10
@@ -514,3 +514,74 @@ action_items:
     owner: "md"
     status: done  # Duplicates 35/44 and 40/45 closed by closing 35 and 40 (spec-10-retro-items-3-and-5-flaky-subscription-tests-and-duplicate-action-items.md).
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-21.md"
+  - id: "epic-11-retro-item-51-push-the-2-local-pg-migration-commits-e3"
+    epic: 11
+    action: "Push the 2 local pg-migration commits (e314b42, 7a264d6) and tag 1.0.0;
+      keep refs/pull/38/head reachable if per-story history should survive."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-52-reconcile-story-11-11-ac1-ar-e11-1-merge"
+    epic: 11
+    action: "Reconcile Story 11.11 AC1 / AR-E11-1 (merge commit to main) with the
+      accepted practice of squashing into pg-migration."
+    owner: "John"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-53-record-live-verification-evidence-11-9-v"
+    epic: 11
+    action: "Record live-verification evidence: 11.9 verify-full psql result, dry
+      run, droplet price, then status done; 11.10 whether the pre-release rehearsal
+      ran; 11.11 the import count table and md acceptance of dropped rows."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-54-set-epic-11-to-done-in-sprint-status"
+    epic: 11
+    action: "Set epic-11 to done in sprint-status."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-55-add-the-lost-story-11-1-deferral-to-defe"
+    epic: 11
+    action: "Add the lost Story 11.1 deferral to deferred-work.md: afterCommit exception
+      semantics (Database.kt:163)."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-56-run-one-sql-check-on-production-for-lega"
+    epic: 11
+    action: "Run one SQL check on production for legacy item states (checked recurring
+      with null checked_at; deleted with null deleted_at) and fix any rows found."
+    owner: "md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-57-fix-the-db-bootstrap-idempotency-claim-r"
+    epic: 11
+    action: "Fix the db:bootstrap idempotency claim (refuses after import) and derive
+      unset_deploy names from the real secure files, not only the examples."
+    owner: "Amelia"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-58-process-make-the-observed-failing-test-r"
+    epic: 11
+    action: "PROCESS - make the observed-failing test rule real (run new tests against
+      the story baseline and record the red) or drop it from the binding list; broken
+      in 7 of 11 Epic 11 stories."
+    owner: "John"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-59-process-copy-every-defer-triage-row-into"
+    epic: 11
+    action: "PROCESS - copy every defer triage row into the spec deferred: frontmatter
+      at finalize (Story 11.1 lost 5 deferred groups)."
+    owner: "John"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"
+  - id: "epic-11-retro-item-60-record-which-e2e-tests-fail-on-a-first-r"
+    epic: 11
+    action: "Record which E2E tests fail on a first run when a rerun passes, so recurring
+      flakes stay visible."
+    owner: "Murat"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-10-26.md"

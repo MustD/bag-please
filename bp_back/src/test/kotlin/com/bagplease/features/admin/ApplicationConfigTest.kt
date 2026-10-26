@@ -65,7 +65,7 @@ class ApplicationConfigTest : FunSpec({
         return jacksonObjectMapper().readTree(res.bodyAsText())["accessToken"].asText()
     }
 
-    // Story 11.3: reads never write app_config, so an empty database stays empty (the importer relies on it).
+    // Story 11.3: reads never write app_config, so an empty database stays empty.
     test("cold reads leave app_config empty and report registration disabled") {
         testApplication {
             setUpPostgres()
