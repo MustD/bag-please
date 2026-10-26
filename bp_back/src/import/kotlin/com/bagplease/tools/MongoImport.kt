@@ -128,16 +128,18 @@ object MongoImport {
         val tokenDocs = read(dir, "refresh_tokens", required = false)
         val configDocs = read(dir, "app_config")
 
-        val legacy = itemDocs.filter { it.get("stores").let { s -> s == null || !s.isArray } || it.has("store") }
+        // A missing `stores` is the Mongo-era `Item.stores` default (`emptyList()`): items saved without a store never
+        // had the field, and epic9-multi-store only rewrote items carrying `store`.
+        val legacy = itemDocs.filter { it.get("stores").let { s -> s != null && !s.isArray } || it.has("store") }
             .map { it.get("_id").toString() }
         if (legacy.isNotEmpty()) {
-            throw ImportRefused("Items in the legacy single-store shape (missing or non-array 'stores', or carrying 'store'): ${legacy.joinToString()}")
+            throw ImportRefused("Items in the legacy single-store shape (non-array 'stores', or carrying 'store'): ${legacy.joinToString()}")
         }
 
         val reports = mutableListOf<TypeReport>()
 
         val users = userDocs.map {
-            UserRow(uuidOf(it.get("_id"))!!, it.text("username")!!, it.text("passwordHash")!!, it.text("role") ?: "user")
+            UserRow(uuidOf(it.path("_id"))!!, it.text("username")!!, it.text("passwordHash")!!, it.text("role") ?: "user")
         }
         reports += TypeReport("users", users.size, users.size, emptyList())
         val userIds = users.map { it.id }.toSet()
@@ -149,8 +151,8 @@ object MongoImport {
         val listDrops = mutableListOf<String>()
         val memberNames = mutableMapOf<UUID, List<String>>()
         for (d in listDocs) {
-            val id = uuidOf(d.get("_id"))!!
-            val ownerId = uuidOf(d.get("ownerId"))?.takeIf { it in userIds }
+            val id = uuidOf(d.path("_id"))!!
+            val ownerId = uuidOf(d.path("ownerId"))?.takeIf { it in userIds }
                 ?: d.text("ownerUsername")?.let { userByName[it]?.id }
             if (ownerId == null) {
                 listDrops += "list $id: owner unresolvable"
@@ -158,7 +160,7 @@ object MongoImport {
             }
             lists += ListRow(
                 id, d.text("name")!!, d.text("emoji"), ownerId, d.text("origin") ?: "USER_CREATED",
-                instantOf(d.get("createdAt")) ?: Instant.now(),
+                instantOf(d.path("createdAt")) ?: Instant.now(),
             )
             memberNames[id] = d.get("memberUsernames")?.takeIf { it.isArray }?.map { it.asText() } ?: emptyList()
         }
@@ -189,8 +191,8 @@ object MongoImport {
         var docLoaded = 0
         for (d in memberDocs) {
             val ref = d.get("_id").toString()
-            val listId = uuidOf(d.get("listId"))
-            val userId = uuidOf(d.get("userId"))?.takeIf { it in userIds } ?: d.text("username")?.let { userByName[it]?.id }
+            val listId = uuidOf(d.path("listId"))
+            val userId = uuidOf(d.path("userId"))?.takeIf { it in userIds } ?: d.text("username")?.let { userByName[it]?.id }
             val status = d.text("status")
             when {
                 listId == null || listId !in listIds -> docDrops += "list_member $ref: list missing or dropped"
@@ -198,7 +200,7 @@ object MongoImport {
                 status != "PENDING" && status != "DECLINED" -> docDrops += "list_member $ref: status '$status' is not carried (memberUsernames decides ACCEPTED)"
                 (listId to userId) in members -> docDrops += "list_member $ref: user already has a membership on the list"
                 else -> {
-                    members[listId to userId] = MemberRow(listId, userId, status, instantOf(d.get("createdAt")) ?: Instant.now())
+                    members[listId to userId] = MemberRow(listId, userId, status, instantOf(d.path("createdAt")) ?: Instant.now())
                     docLoaded++
                 }
             }
@@ -209,8 +211,8 @@ object MongoImport {
         val categories = mutableListOf<CategoryRow>()
         val categoryDrops = mutableListOf<String>()
         for (d in categoryDocs) {
-            val id = uuidOf(d.get("_id"))!!
-            val listId = uuidOf(d.get("listId"))
+            val id = uuidOf(d.path("_id"))!!
+            val listId = uuidOf(d.path("listId"))
             when {
                 listId == null -> categoryDrops += "category $id: listId is null"
                 listId !in listIds -> categoryDrops += "category $id: list $listId missing or dropped"
@@ -223,25 +225,36 @@ object MongoImport {
         // Items
         val items = mutableListOf<ItemRow>()
         val itemDrops = mutableListOf<String>()
+        // Mongo keys a binary UUID and its string form apart, so the old app's string-id writes left the binary-id
+        // original behind under the same UUID. The string-id copy is the newer write and wins.
+        val superseded = itemDocs.groupBy { uuidOf(it.path("_id"))!! }.values.filter { it.size > 1 }.flatMap { twins ->
+            val newer = twins.filter { it.path("_id").isTextual }
+            if (newer.size != 1) throw ImportRefused("Item ${uuidOf(twins.first().path("_id"))} has ${twins.size} documents and no single string _id")
+            twins - newer.toSet()
+        }.toSet()
         for (d in itemDocs) {
-            val id = uuidOf(d.get("_id"))!!
-            val listId = uuidOf(d.get("listId"))
-            val category = uuidOf(d.get("category"))
+            val id = uuidOf(d.path("_id"))!!
+            if (d in superseded) {
+                itemDrops += "item $id: superseded by its string-_id duplicate"
+                continue
+            }
+            val listId = uuidOf(d.path("listId"))
+            val category = uuidOf(d.path("category"))
             when {
                 listId == null -> itemDrops += "item $id: listId is null"
                 listId !in listIds -> itemDrops += "item $id: list $listId missing or dropped"
                 category == null || category == NIL -> itemDrops += "item $id: category is nil"
                 categoryList[category] != listId -> itemDrops += "item $id: category $category not in the item's list"
                 else -> items += ItemRow(
-                    id, d.text("name")!!, d.bool("checked"), category, listId, d.get("stores").map { it.asText() },
-                    d.text("recurring"), d.text("addedBy"), d.bool("deleted"), instantOf(d.get("deletedAt")), instantOf(d.get("checkedAt")),
+                    id, d.text("name")!!, d.bool("checked"), category, listId, d.get("stores")?.map { it.asText() } ?: emptyList(),
+                    d.text("recurring"), d.text("addedBy"), d.bool("deleted"), instantOf(d.path("deletedAt")), instantOf(d.path("checkedAt")),
                 )
             }
         }
         reports += TypeReport("items", itemDocs.size, items.size, itemDrops)
 
         val feedback = feedbackDocs.map {
-            FeedbackRow(uuidOf(it.get("_id"))!!, it.text("text")!!, it.text("username")!!, instantOf(it.get("createdAt")) ?: Instant.now())
+            FeedbackRow(uuidOf(it.path("_id"))!!, it.text("text")!!, it.text("username")!!, instantOf(it.path("createdAt")) ?: Instant.now())
         }
         reports += TypeReport("feedback", feedback.size, feedback.size, emptyList())
 

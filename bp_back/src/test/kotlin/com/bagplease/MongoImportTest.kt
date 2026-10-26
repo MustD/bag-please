@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import java.nio.file.Files
@@ -120,13 +121,37 @@ class MongoImportTest : FunSpec({
     test("an item in the legacy single-store shape is refused, listing its id") {
         val dir = fixtureCopy()
         edit(dir, "items") { (it[0] as ObjectNode).put("store", "Lidl") }
-        edit(dir, "items") { (it[1] as ObjectNode).remove("stores") }
         edit(dir, "items") { (it[2] as ObjectNode).put("stores", "Lidl") }
         val e = shouldThrow<ImportRefused> { MongoImport.run(container.appConfig(), dir) }
         e.message!! shouldContain "00000000-0000-0000-0000-000000000040"
-        e.message!! shouldContain "00000000-0000-0000-0000-000000000041"
         e.message!! shouldContain "00000000-0000-0000-0000-000000000042"
         allEmpty()
+    }
+
+    // The live export: items older than these fields never had them; the Mongo-era `Item` defaulted each one.
+    test("an item without the later optional fields loads with their defaults") {
+        val dir = fixtureCopy()
+        val optional = listOf("stores", "recurring", "addedBy", "deleted", "deletedAt", "checkedAt")
+        edit(dir, "items") { arr -> arr.filterIsInstance<ObjectNode>().filter { it.path("name").asText() == "item64" }.forEach { it.remove(optional) } }
+        MongoImport.run(container.appConfig(), dir)
+        pgRows("SELECT stores::text, recurring, added_by, deleted::text, deleted_at::text, checked_at::text FROM items WHERE name = 'item64'") shouldBe
+            listOf(listOf("{}", null, null, "false", null, null))
+    }
+
+    // The live export: an item updated after the old app switched to string ids also kept its binary-id original.
+    test("an item stored under both a binary and a string _id loads the string one, dropping the other") {
+        val dir = fixtureCopy()
+        edit(dir, "items") { arr ->
+            val item = arr.filterIsInstance<ObjectNode>().single { it.path("name").asText() == "item64" }
+            val id = java.util.UUID.fromString(item.path("_id").asText())
+            val bytes = java.nio.ByteBuffer.allocate(16).putLong(id.mostSignificantBits).putLong(id.leastSignificantBits).array()
+            val stale = item.deepCopy().put("name", "item64-stale")
+            stale.putObject("_id").putObject("${'$'}binary").put("base64", java.util.Base64.getEncoder().encodeToString(bytes)).put("subType", "04")
+            arr.insert(0, stale)
+        }
+        val rs = MongoImport.run(container.appConfig(), dir)
+        report(rs, "items").dropped shouldContain "item 00000000-0000-0000-0000-000000000040: superseded by its string-_id duplicate"
+        pgRows("SELECT name FROM items WHERE id = '00000000-0000-0000-0000-000000000040'") shouldBe listOf(listOf("item64"))
     }
 
     // Story 11.9: db:bootstrap runs Flyway by importing an export whose collections are all `[]`; the list it seeds is
