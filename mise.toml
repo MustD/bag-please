@@ -86,10 +86,6 @@ run = "docker compose down"
 description = "Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000"
 run = "docker compose up postgres bp_back"
 
-[tasks."db:import:local"]
-description = "Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)"
-run = "./mise/db_import.sh"
-
 # --- Production infrastructure (deploy/README.md). Each task loads .secure.deploy.env itself; nothing global. ---
 
 [tasks."infra:plan"]
@@ -101,16 +97,6 @@ run = "deploy/scripts/infra.sh plan"
 description = "Terraform apply for the DigitalOcean droplet + this app's database on the shared PostgreSQL (by hand, never from CI)"
 env = { _ = { file = ".secure.deploy.env" } }
 run = "deploy/scripts/infra.sh apply"
-
-[tasks."db:bootstrap"]
-description = "One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)"
-env = { _ = { file = ".secure.deploy.env" } }
-run = "deploy/scripts/bootstrap-db.sh"
-
-[tasks."db:import"]
-description = "Import a Mongo export (default migration-export/) into the production PostgreSQL"
-env = { _ = { file = ".secure.deploy.env" } }
-run = "deploy/scripts/import.sh"
 
 [tasks."deploy:test"]
 description = "Run the deploy script guard tests (stubbed terraform/ssh/git/docker; no network)"
@@ -128,6 +114,8 @@ run = "deploy/scripts/push.sh"
 
 [tasks."deploy"]
 description = "Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)"
+# The deploy script guards (secrets kept off argv and child envs, verify-full, hardening) gate every release.
+depends = ["deploy:test"]
 env = { _ = { file = [".secure.deploy.env", ".secure.build.env"] } }
 run = "deploy/scripts/deploy.sh"
 

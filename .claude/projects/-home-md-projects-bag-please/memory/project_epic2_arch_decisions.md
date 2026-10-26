@@ -8,7 +8,7 @@ metadata:
 Decisions made during Epic 1 retrospective (2026-05-14) that govern Epic 2 design.
 
 **Decision 1 — Remove UserStorage:** `UserStorage.kt` is deleted in Story 2.0. `UserService` calls `UserRepository`
-directly. `UserRepository.findByUsername` (previously dead code) is the primary lookup. MongoDB unique index on
+directly. `UserRepository.findByUsername` (previously dead code) is the primary lookup. The database unique constraint on
 `username` is the sole duplicate prevention mechanism. No in-memory user cache.
 **Why:** Login is ~once per 30 days; refresh path never touches UserStorage. Cache added TOCTOU race and dual-map
 complexity with no benefit.
@@ -21,8 +21,8 @@ endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`, `/a
 cookie concerns and benefit from codegen types and Apollo caching.
 **How to apply:** Any new admin operation → GraphQL. Never add admin REST endpoints.
 
-**Decision 3 — ApplicationConfig direct to MongoDB, no cache:** `ApplicationConfigRepository` reads and writes MongoDB
-directly. No in-memory cache or cache invalidation logic.
+**Decision 3 — ApplicationConfig direct to the database, no cache:** the app config is read and written in the database
+directly (PostgreSQL `app_config` since Epic 11). No in-memory cache or cache invalidation logic.
 **Why:** Registration toggle is infrequent; cache complexity is not justified at this scale (NFR11: tens of users).
 **How to apply:** `ApplicationConfigRepository` is a simple repository like `RefreshTokenRepository`. No service-layer
 cache.

@@ -34,39 +34,6 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "db:bootstrap — One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)",
-    "command": "mise",
-    "args": [
-      "run",
-      "db:bootstrap"
-    ],
-    "reveal": "always",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": false
-  },
-  {
-    "label": "db:import — Import a Mongo export (default migration-export/) into the production PostgreSQL",
-    "command": "mise",
-    "args": [
-      "run",
-      "db:import"
-    ],
-    "reveal": "always",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": false
-  },
-  {
-    "label": "db:import:local — Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)",
-    "command": "mise",
-    "args": [
-      "run",
-      "db:import:local"
-    ],
-    "reveal": "always",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": false
-  },
-  {
     "label": "deploy — Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)",
     "command": "mise",
     "args": [

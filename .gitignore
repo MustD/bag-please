@@ -49,7 +49,7 @@ bin/
 .tmp/
 .playwright-mcp/
 
-# Database dump archives (see deploy/README.md, Backups)
+# Database dumps and archives (see deploy/README.md, Backups); old mongodump archives may still sit in the tree
 *.archive
 *.dump
 

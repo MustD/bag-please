@@ -51,7 +51,7 @@ with the edge not yet pointed at it and nobody touching it), or the importer tre
 row as empty, or seeding moves into `V1__baseline.sql` and the importer overwrites it.
 
 **B3. A memlog decision is missing from the spine: the droplet compose publishing and hardening rules.**
-Memlog decision 5.4 (md): `bp_front` is published on the private IP `:80` only, `bp_back` is internal only, mal_ui
+Memlog decision 5.4 (md): `bp_front` is published on the private IP `:80` only, `bp_back` is internal only, the reference project
 hardening applies (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`, `mem_limit`), and `-Xmx` is set
 explicitly. The addendum states the same ("Only the web container is published, and only on the private IP"). The
 spine carries only the word "(hardened)" in the Structural Seed and the deferred sizing values. No AD binds the
@@ -112,7 +112,7 @@ adds a migration, or explicitly nothing.
 
 ### Low
 
-**B11. `crash.log` is missing from the gitignore list.** The addendum lists mal_ui's `deploy/terraform/.gitignore`
+**B11. `crash.log` is missing from the gitignore list.** The addendum lists the reference project's `deploy/terraform/.gitignore`
 entries, including `crash.log`, which can contain provider secrets. AD-12's list leaves it out. NFR-D1 requires the
 patterns to cover every secret-bearing path before the first such file exists.
 

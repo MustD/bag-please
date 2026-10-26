@@ -15,3 +15,14 @@ bp_front/.vite
 bp_back/build
 .gradle
 *.archive
+
+# Secrets and infrastructure: never in a build context (the images are public), whatever a Dockerfile COPYs.
+.secure.*.env
+deploy/
+migration-export/
+*.dump
+*.tfstate*
+*.tfvars
+.terraform/
+*.pem
+*.key

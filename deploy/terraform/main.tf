@@ -88,8 +88,8 @@ resource "digitalocean_database_user" "app" {
   name       = "bag_please_app"
 
   lifecycle {
-    # The user owns every Flyway-created table and its password is the runtime's; replacing it means re-running
-    # db:bootstrap's grants and redeploying the credentials.
+    # The user owns every Flyway-created table and its password is the runtime's; replacing it means re-running the
+    # database grants (deploy/README.md) and redeploying the credentials.
     prevent_destroy = true
   }
 }

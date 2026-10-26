@@ -9,7 +9,7 @@ Depth that downstream documents (architecture, epics) need but that does not bel
 
 ## Epic 11 — PostgreSQL and a DigitalOcean deployment
 
-Inputs: md, 2026-10-21; reference implementation `/home/md/projects/personal/mal_ui` (md's own project, same edge).
+Inputs: md, 2026-10-21; reference implementation `<reference project>/` (md's own project, same edge).
 
 ### Technical choices stated by md
 
@@ -18,9 +18,9 @@ Inputs: md, 2026-10-21; reference implementation `/home/md/projects/personal/mal
 - **Database:** a DigitalOcean Managed PostgreSQL cluster, separate from the droplet, on the cheapest tier (currently a
   single-node, 1 vCPU / 1 GB plan; check the slug and price when applying). Trusted sources are limited to the droplet.
 - **Infrastructure as code:** Terraform with the `digitalocean` provider.
-- **Deploy:** operator-run mise tasks, as in mal_ui. No CI deploy.
+- **Deploy:** operator-run mise tasks, as in the reference project. No CI deploy.
 
-### What mal_ui does that maps over
+### What the reference project does that maps over
 
 - `deploy/terraform/` holds `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf`, `cloud-init.yaml.tftpl`, and a
   committed `.terraform.lock.hcl`. Its own `.gitignore` covers `.terraform/`, `*.tfstate`, `*.tfstate.*`, `crash.log`
@@ -31,8 +31,8 @@ Inputs: md, 2026-10-21; reference implementation `/home/md/projects/personal/mal
   it and moves the edge's upstream IP.
 - The firewall allows inbound 80 and 22 only from the edge's private IP. SSH goes through the edge as a jump host
   (`ssh -J $EDGE_SSH deploy@<private ip>`).
-- Remote state goes in an S3 backend on DigitalOcean Spaces (the `io-workshop-tfstate` bucket from the
-  io-workshop-hub stack), using a Spaces key.
+- Remote state goes in an S3 backend on DigitalOcean Spaces (the `<state bucket>` bucket from the
+  hub stack), using a Spaces key.
 - Secrets are kept in `.secure.deploy.env` and `.secure.build.env`. Both are gitignored as `.secure.*.env`, and each
   has a committed `.example` copy. mise loads them only for the infra and deploy tasks, and `lib.sh` keeps deploy
   secrets out of Gradle's environment.

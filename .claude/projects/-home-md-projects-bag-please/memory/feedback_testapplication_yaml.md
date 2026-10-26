@@ -12,4 +12,4 @@ Always call `setUpJwt()` in new backend tests even after creating `src/test/reso
 `ApplicationConfigurationException: Property jwt.admin_login not found`.
 
 **How to apply:** Every new `testApplication { }` block that calls `application { module() }` must also call
-`setUpJwt()` (for JWT config) and `setUpMongo(container)` (for MongoDB config) before the `application { }` call.
+`setUpJwt()` (for JWT config) and `setUpPostgres()` (for the database config) before the `application { }` call.

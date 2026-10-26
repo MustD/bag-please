@@ -54,7 +54,17 @@ data class PostgresConfig(
         if (sslrootcert.isNotBlank()) append("&sslrootcert=").append(sslrootcert.enc())
     }
 
+    /** A host other than the local one is reached only over verified TLS; anything weaker is refused at startup. */
+    fun requireVerifiedTlsForRemoteHost() {
+        require(host in LOCAL_HOSTS || sslmode == "verify-full") {
+            "db.postgres: host $host is not local, so sslmode must be verify-full (got $sslmode)"
+        }
+    }
+
     companion object {
+        /** Loopback and the Compose service name: the only hosts allowed without verify-full. */
+        val LOCAL_HOSTS = setOf("localhost", "127.0.0.1", "::1", "postgres")
+
         fun from(config: ApplicationConfig): PostgresConfig {
             val c = config.config("db.postgres")
             return PostgresConfig(
@@ -116,6 +126,7 @@ private fun closePool() {
 /** Runs Flyway, then opens the R2DBC pool. Called from `module()` before `configureGql`. */
 fun Application.configureDatabase() {
     val config = PostgresConfig.from(environment.config)
+    config.requireVerifiedTlsForRemoteHost()
     logger.info("Connecting to postgres at ${config.host}:${config.port}/${config.name} as ${config.user} (sslmode=${config.sslmode})")
     migrate(config)
     connectDatabase(config)

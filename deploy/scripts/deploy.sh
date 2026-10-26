@@ -7,13 +7,14 @@
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-require_clean_tree
-require_env AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH KTOR_JWT_SECRET KTOR_ADMIN_LOGIN KTOR_ADMIN_PASS \
+require_env TF_STATE_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EDGE_SSH KTOR_JWT_SECRET KTOR_ADMIN_LOGIN KTOR_ADMIN_PASS \
 	DOCKER_IMAGE_BACK DOCKER_IMAGE_FRONT
 # Not needed here; and the runtime secrets stay shell variables of this script, so no child process (git, docker,
 # terraform, ssh) inherits them - they reach the droplet as ssh stdin only.
-unset DIGITALOCEAN_TOKEN PG_ADMIN_USER PG_ADMIN_PASSWORD
+unset DIGITALOCEAN_TOKEN
 export -n KTOR_JWT_SECRET KTOR_ADMIN_LOGIN KTOR_ADMIN_PASS
+keep_deploy_env_private
+require_clean_tree
 
 if [ -n "${1:-}" ]; then
 	version="$1"
@@ -46,7 +47,6 @@ on_exit() {
 		echo "To go back to the previous version, run:" >&2
 		echo "  mise run deploy -- ${previous:-<previous version>}" >&2
 	fi
-	cleanup
 	exit "$rc"
 }
 trap on_exit EXIT
@@ -86,5 +86,5 @@ printf '%s\n' "$env_file" | remote 'umask 077 && mkdir -p bag-please && cat > ba
 printf '%s\n' "$DB_CA_CERTIFICATE" | remote 'umask 022 && cat > bag-please/ca-certificate.crt.new && chmod 644 bag-please/ca-certificate.crt.new && mv bag-please/ca-certificate.crt.new bag-please/ca-certificate.crt'
 remote 'cat > bag-please/docker-compose.yml.new && mv bag-please/docker-compose.yml.new bag-please/docker-compose.yml' <"$ROOT/deploy/docker-compose.yml"
 remote 'cd bag-please && docker compose pull && docker compose up -d --wait --remove-orphans' </dev/null
-"$HERE/smoke.sh"
+with_spaces_env "$HERE/smoke.sh"
 echo "deployed $version"

@@ -15,7 +15,7 @@ sources:
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/architecture/architecture-epic-9/ARCHITECTURE-SPINE.md
   - bp_back/CLAUDE.md
-  - /home/md/projects/personal/mal_ui (deploy/, mise.toml)
+  - <reference project>/ (deploy/, mise.toml)
 companions: []
 ---
 
@@ -27,8 +27,8 @@ A layered monolith built from per-entity vertical slices. Epic 11 changes the bo
 `mongo/` package becomes `db/` (Exposed DSL tables and repositories on R2DBC), and every in-memory cache goes away.
 Calls still go one way only: **GQL → Service → Repository → PostgreSQL**. A service method that touches the database is
 one transaction, and the events it emits leave only after the outermost transaction commits. Flyway owns the schema.
-Production is one droplet behind the existing io-workshop edge, plus one managed PostgreSQL cluster. Both are declared
-in Terraform and released by operator-run mise tasks, following mal_ui. The frontend does not change.
+Production is one droplet behind the existing edge, plus one managed PostgreSQL cluster. Both are declared
+in Terraform and released by operator-run mise tasks, following the reference project. The frontend does not change.
 
 ```mermaid
 flowchart LR
@@ -220,16 +220,16 @@ write it, and only `update` upserts it. Every instant is
   method per step: recurring restore, soft-delete hard-delete, and `AuthService.purgeExpiredTokens()`. Each step has its
   own `tx`. A step that throws is logged, and the following steps still run.
 
-### AD-11 — Infrastructure follows mal_ui's Terraform layout; the database is private to the droplet
+### AD-11 — Infrastructure follows the reference project's Terraform layout; the database is private to the droplet
 
 - **Binds:** FR73, NFR-D2, NFR-D3, NFR-D6
 - **Prevents:** a replaced droplet silently moving the edge's upstream, a database reachable from outside the VPC, and
   the app running as the cluster administrator
-- **Rule:** `deploy/terraform/` follows mal_ui's layout:
+- **Rule:** `deploy/terraform/` follows the reference project's layout:
   - The VPC and SSH key are data sources.
   - The droplet sets `ignore_changes = [user_data, image]`.
   - The firewall allows only 80 and 22 from the edge's private IP.
-  - State lives in the `io-workshop-tfstate` Spaces bucket under the key `bag-please/web.tfstate`.
+  - State lives in the `<state bucket>` Spaces bucket under the key `bag-please/web.tfstate`.
   - `.terraform.lock.hcl` is committed.
 
   The PostgreSQL 18 cluster is shared with other projects and managed outside this repo (amended 2026-10-23; no link to
@@ -416,7 +416,7 @@ write it, and only `update` upserts it. Every instant is
 | `org.flywaydb:flyway-core` / `flyway-database-postgresql`  | 13.11.1                     |
 | `org.postgresql:postgresql` (JDBC, Flyway only)            | 42.7.14                     |
 | `org.testcontainers:testcontainers-postgresql`             | 2.0.5                       |
-| Terraform                                                  | ~> 1.15 (as mal_ui)         |
+| Terraform                                                  | ~> 1.15 (as the reference project)         |
 | `digitalocean/digitalocean` provider                       | ~> 2.106                    |
 | Kotlin / Ktor / JDK (unchanged)                            | 2.4.21 / 3.6.0 / temurin-25 |
 
@@ -424,8 +424,8 @@ write it, and only `update` upserts it. Every instant is
 
 ```mermaid
 flowchart LR
-  User((Browser)) -->|HTTPS bag-please.io-workshop.net| Edge[io-workshop edge proxy]
-  subgraph VPC[io-workshop VPC]
+  User((Browser)) -->|HTTPS bag-please.io-workshop.net| Edge[edge proxy]
+  subgraph VPC[edge VPC]
     Edge -->|HTTP :80, private IP| Caddy
     subgraph Droplet[droplet: docker compose]
       Caddy[bp_front: Caddy + SPA, healthcheck] -->|/api| Back[bp_back: Ktor]
@@ -433,7 +433,7 @@ flowchart LR
     Back -->|R2DBC TLS verify-full| DB[(DO Managed PostgreSQL 18, trusted via the client tag)]
   end
   Op[operator laptop] -->|ssh -J edge for the backend-running check; db:bootstrap / db:import connect to the public host| Droplet
-  Op -->|terraform, S3 backend| Spaces[(Spaces: io-workshop-tfstate)]
+  Op -->|terraform, S3 backend| Spaces[(Spaces: <state bucket>)]
   Op -->|deploy:push| Hub[(Docker Hub: exact tags)]
   Droplet -->|pull tag| Hub
 ```
@@ -521,7 +521,7 @@ migration-export/                # gitignored; mongoexport output, removed after
 
 - **Droplet size slug, `-Xmx`, `mem_limit` values, R2DBC pool size.** These are chosen in the Terraform/deploy stories,
   against the smallest droplet that runs both containers (NFR-D6). One story sets each.
-- **Edge configuration** for `bag-please.io-workshop.net`. It belongs to the io-workshop edge, outside this repo.
+- **Edge configuration** for `bag-please.io-workshop.net`. It belongs to the edge, outside this repo.
 - **Observability.** `docker compose logs` on the droplet and `deploy:status` are enough at this scale. There is no
   metrics stack.
 - **Indexes beyond the carried list.** They are added only when a query needs one, each in its own migration (AD-5).
