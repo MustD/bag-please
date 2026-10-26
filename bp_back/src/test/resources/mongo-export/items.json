@@ -1,0 +1,83 @@
+[
+ {
+  "_id": "00000000-0000-0000-0000-000000000040",
+  "name": "item64",
+  "checked": true,
+  "category": "00000000-0000-0000-0000-000000000020",
+  "listId": "00000000-0000-0000-0000-000000000010",
+  "stores": [
+   "Lidl",
+   "aldi"
+  ],
+  "recurring": "WEEKLY",
+  "addedBy": "alice",
+  "deleted": false,
+  "deletedAt": null,
+  "checkedAt": {
+   "$date": "2026-02-01T10:00:00Z"
+  }
+ },
+ {
+  "_id": "00000000-0000-0000-0000-000000000041",
+  "name": "item65",
+  "checked": false,
+  "category": "00000000-0000-0000-0000-000000000020",
+  "listId": null,
+  "stores": [
+   "Lidl",
+   "aldi"
+  ],
+  "recurring": null,
+  "addedBy": "alice",
+  "deleted": false,
+  "deletedAt": null,
+  "checkedAt": null
+ },
+ {
+  "_id": "00000000-0000-0000-0000-000000000042",
+  "name": "item66",
+  "checked": false,
+  "category": "00000000-0000-0000-0000-000000000000",
+  "listId": "00000000-0000-0000-0000-000000000010",
+  "stores": [
+   "Lidl",
+   "aldi"
+  ],
+  "recurring": null,
+  "addedBy": "alice",
+  "deleted": false,
+  "deletedAt": null,
+  "checkedAt": null
+ },
+ {
+  "_id": "00000000-0000-0000-0000-000000000043",
+  "name": "item67",
+  "checked": false,
+  "category": "00000000-0000-0000-0000-000000000022",
+  "listId": "00000000-0000-0000-0000-000000000010",
+  "stores": [
+   "Lidl",
+   "aldi"
+  ],
+  "recurring": null,
+  "addedBy": "alice",
+  "deleted": false,
+  "deletedAt": null,
+  "checkedAt": null
+ },
+ {
+  "_id": "00000000-0000-0000-0000-000000000044",
+  "name": "item68",
+  "checked": false,
+  "category": "00000000-0000-0000-0000-000000000022",
+  "listId": "00000000-0000-0000-0000-000000000012",
+  "stores": [],
+  "recurring": null,
+  "addedBy": null,
+  "deleted": true,
+  "deletedAt": {
+   "$date": "2026-03-01T00:00:00Z"
+  },
+  "checkedAt": null
+ }
+]

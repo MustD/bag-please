@@ -3,28 +3,29 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
+  pg_data:
 
 services:
-  mongo:
-    image: mongo:8
+  # PostgreSQL 18 (Epic 11, AD-16), the only data store. The volume mounts at /var/lib/postgresql
+  # (the image's data root from 18 on), not the old .../data.
+  postgres:
+    image: postgres:18
     volumes:
-      - db_data:/data/db
+      - pg_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "127.0.0.1:27217:27017" # loopback only — host-side dev access; host port 27217 avoids conflict with local MongoDB
+      - "127.0.0.1:25432:5432" # loopback only — host-side dev access
     networks:
       - bp_network
     environment:
-      MONGO_INITDB_ROOT_USERNAME: "user"
-      MONGO_INITDB_ROOT_PASSWORD: "pass"
-      #kernel >= 6.19 workaround
-      GLIBC_TUNABLES: "glibc:pthread:rseq=1"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
     healthcheck:
-      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok" ]
-      interval: 10s
+      test: [ "CMD-SHELL", "pg_isready -h 127.0.0.1 -U bag_please_app -d bag_please" ]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 10s
 
   # Frontend: multi-stage image — Vite build served by Caddy, which also proxies
   # /api to bp_back. This is the production artifact the E2E suite runs against.
@@ -35,7 +36,7 @@ services:
     ports:
       - "127.0.0.1:2080:80"
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
       bp_back:
         condition: service_started
@@ -51,16 +52,15 @@ services:
       # 4000 is published solely so the local Vite dev server can proxy /api to it.
       - "127.0.0.1:4000:4000"
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
     networks:
       - bp_network
     environment:
-      KTOR_MONGO_HOST: "mongo"
-      KTOR_MONGO_PORT: "27017"
-      KTOR_MONGO_DB_NAME: "bag_please"
-      KTOR_MONGO_USER: "user"
-      KTOR_MONGO_PASS: "pass"
-      MIGRATION_TARGET_USER: "mia"
+      KTOR_DB_HOST: "postgres"
+      KTOR_DB_PORT: "5432"
+      KTOR_DB_NAME: "bag_please"
+      KTOR_DB_USER: "bag_please_app"
+      KTOR_DB_PASSWORD: "bag_please_app"
 
       KTOR_RATE_LIMIT_ATTEMPTS: 6000

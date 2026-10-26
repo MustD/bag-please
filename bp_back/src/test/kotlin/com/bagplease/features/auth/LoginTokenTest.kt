@@ -3,12 +3,12 @@ package com.bagplease.features.auth
 import com.bagplease.features.auth.dto.ErrorResponse
 import com.bagplease.module
 import com.bagplease.plugins.authMethod
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.SharedPostgres
+import com.bagplease.utils.appJdbcUrl
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.bagplease.utils.setUpRegistration
-import com.mongodb.client.model.Filters
-import com.mongodb.kotlin.client.coroutine.MongoClient
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -29,12 +29,11 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
-import org.bson.Document
 import java.util.*
 
 class LoginTokenTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     fun randomUser() = "user_${UUID.randomUUID().toString().take(8)}"
 
@@ -42,7 +41,7 @@ class LoginTokenTest : FunSpec({
         username: String,
         password: String = "password123",
     ) {
-        setUpRegistration(container, true)
+        setUpRegistration(true)
         client.post("/auth/register") {
             contentType(ContentType.Application.Json)
             setBody("""{"username":"$username","password":"$password"}""")
@@ -68,7 +67,7 @@ class LoginTokenTest : FunSpec({
     // AC1 — admin login returns accessToken, username, role:admin and sets refresh cookie
     test("AC1 admin login returns accessToken with correct fields and sets refresh cookie") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val response = client.post("/auth/login") {
@@ -89,7 +88,7 @@ class LoginTokenTest : FunSpec({
     test("AC1 registered user login returns accessToken with role user") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -110,7 +109,7 @@ class LoginTokenTest : FunSpec({
     test("AC2 wrong password and non-existent user return identical 401 error") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -132,7 +131,7 @@ class LoginTokenTest : FunSpec({
     // AC3 — 6th login request from same IP returns 429
     test("AC3 rate limit blocks 6th login request") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             repeat(5) {
@@ -152,7 +151,7 @@ class LoginTokenTest : FunSpec({
     test("AC4 valid refresh cookie returns new accessToken") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -170,7 +169,7 @@ class LoginTokenTest : FunSpec({
     // AC5 — POST /auth/refresh with no cookie returns 401
     test("AC5 refresh with no cookie returns 401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             client.post("/auth/refresh").shouldHaveStatus(HttpStatusCode.Unauthorized)
@@ -181,7 +180,7 @@ class LoginTokenTest : FunSpec({
     test("AC6 logout invalidates refresh token") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -201,7 +200,7 @@ class LoginTokenTest : FunSpec({
     test("AC7 admin login does not create a user document") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -210,12 +209,16 @@ class LoginTokenTest : FunSpec({
                 setBody("""{"username":"admin","password":"admin"}""")
             }.shouldHaveStatus(HttpStatusCode.OK)
         }
-        // Verify directly: no document with username "admin" exists in the users collection
-        MongoClient.create("mongodb://test_user:test_pass@localhost:${container.firstMappedPort}").use { mongoClient ->
-            val adminCount = mongoClient.getDatabase("test")
-                .getCollection<Document>("users")
-                .countDocuments(Filters.eq("username", "admin"))
-            adminCount shouldBe 0L
+        // Verify directly: no row with username "admin" exists in the users table
+        java.sql.DriverManager.getConnection(
+            SharedPostgres.container.appJdbcUrl(), SharedPostgres.APP_USER, SharedPostgres.APP_PASSWORD,
+        ).use { c ->
+            c.createStatement().use { st ->
+                st.executeQuery("SELECT count(*) FROM users WHERE username = 'admin'").use {
+                    it.next()
+                    it.getLong(1) shouldBe 0L
+                }
+            }
         }
     }
 
@@ -223,7 +226,7 @@ class LoginTokenTest : FunSpec({
     test("AC8 user role JWT returns 403 on admin-only endpoint") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application {
                 module()
@@ -257,7 +260,7 @@ class LoginTokenTest : FunSpec({
     // AC9 — authenticated GraphQL request succeeds (principal threading)
     test("AC9 authenticated GraphQL request returns data not auth error") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (adminToken, _) = loginUser("admin", "admin")
@@ -276,7 +279,7 @@ class LoginTokenTest : FunSpec({
     test("AC10 change password succeeds and invalidates old credentials") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -304,7 +307,7 @@ class LoginTokenTest : FunSpec({
     test("AC10 change password invalidates existing refresh tokens") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)
@@ -325,7 +328,7 @@ class LoginTokenTest : FunSpec({
     // Admin must not be able to change password via this endpoint
     test("admin calling change-password returns 403") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val (adminToken, _) = loginUser("admin", "admin")
@@ -342,7 +345,7 @@ class LoginTokenTest : FunSpec({
     test("AC11 change password with wrong current password returns 400") {
         val username = randomUser()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             registerUser(username)

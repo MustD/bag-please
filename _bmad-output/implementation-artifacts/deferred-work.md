@@ -996,3 +996,7 @@ as a HOLD: a held-back major closes its story rather than failing it.
   (the unexercised musl path), and update the version lines in `AGENTS.md` / `bp_front/CLAUDE.md`.
   Proposed fix: **OPEN — a live obligation, no code change owed today.** The epic-7 `action_items` row in
   `sprint-status.yaml` was closed by decision on 2026-09-15; this section is now what carries the re-check.
+
+## Deferred from: code review of spec-11-9-the-new-home-exists-in-terraform.md (2026-10-26)
+
+- `CLAUDE.md` Production infrastructure paragraph (Story 11.9) has a broken reflow ("so / there is no SSH tunnel. Secrets live / only ..."); rewrap to the file's width. Deferred because CLAUDE.md is an agent-context file.

@@ -54,7 +54,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:2080'
 // whole wiring — see the "Four projects, not two" note under `projects`.
 //
 //   @registration-toggle (Story 7.3) — `registrationEnabled` is a single shared
-//     Mongo document and the FR20/FR21 test flips it OFF for real.
+//     PostgreSQL row and the FR20/FR21 test flips it OFF for real.
 //   @serial-users (Story 9.2) — the FR13/FR15 last-page test must arrange the
 //     users table's TOTAL to sit at a page boundary, and the suite creates ~4
 //     users/second while it runs.
@@ -93,8 +93,8 @@ export default defineConfig({
   //     with no published port; reusing it would leave :2080 dead and burn the
   //     600 s timeout silently, so containers are always recreated.
   //   * `url` is GET /api/health (unauthenticated, not rate limited): 200 only
-  //     when Ktor answers AND pings Mongo. Caddy's 502 (Ktor not up) and the
-  //     endpoint's 503 (Mongo unreachable) both count as not ready, so
+  //     when Ktor answers AND checks PostgreSQL. Caddy's 502 (Ktor not up) and the
+  //     endpoint's 503 (PostgreSQL unreachable) both count as not ready, so
   //     Playwright keeps polling. It targets the compose-managed Caddy entrypoint
   //     directly, independent of E2E_BASE_URL: docker compose starts :2080, not
   //     the edge.
@@ -105,10 +105,10 @@ export default defineConfig({
   //   * Teardown: `gracefulShutdown` SIGTERM makes compose STOP the containers
   //     it started (the default SIGKILL kills only the client and leaves them
   //     running). 60 s covers three containers' 10 s stop grace. It is a stop,
-  //     never a `down -v`: the named `db_data` volume is always kept.
+  //     never a `down -v`: the named `pg_data` volume is always kept.
   //   * Reuse: Playwright reuses a running stack (`reuseExistingServer`, left
   //     untouched) ONLY when /api/health already answers 200-403. A running
-  //     stack answering 503 (Mongo paused) or 404 (an older image without the
+  //     stack answering 503 (PostgreSQL paused) or 404 (an older image without the
   //     endpoint) is NOT reused: compose rebuilds, recreates and attaches to it,
   //     and teardown then stops it.
   webServer: {
@@ -128,7 +128,7 @@ export default defineConfig({
   //
   // Four projects, not two, since Story 7.3 — and the extra pair is a MUTUAL
   // EXCLUSION mechanism, not extra coverage. `registrationEnabled` is one shared
-  // Mongo document; the FR20/FR21 admin test flips it OFF for real, and while it
+  // PostgreSQL row; the FR20/FR21 admin test flips it OFF for real, and while it
   // was OFF the ~50 UI registrations in the *other* viewport project hit
   // "Registration is disabled" or found no Register link at all. Measured at
   // `00e95cf` with the mechanism off: three consecutive `retries: 0` runs failed

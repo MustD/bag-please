@@ -2,8 +2,12 @@
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete', 'step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 status: final
 completedAt: '2026-05-08'
-lastEdited: '2026-10-20'
+lastEdited: '2026-10-22'
 editHistory:
+  - date: '2026-10-22'
+    changes: 'Epic 11 architecture pass (md, see architecture/architecture-epic-11/ARCHITECTURE-SPINE.md AD-15, AD-20): NFR17 gains a scoped exception, so Epic 11 stories land on an epic-11 branch where E2E may be red until the single merge to main. NFR-D4 drops the restore drill; md accepts the risk of production data loss and relies on the managed tier''s daily backups plus an off-repo Mongo archive. NFR-D5: the export leaves the repository working tree after the import is verified and md keeps it off-repo instead of deleting it. Risk rows updated to match.'
+  - date: '2026-10-21'
+    changes: 'Epic 11 planning pass (md): persistence moves from MongoDB to a DigitalOcean Managed PostgreSQL database, and production moves to a fresh droplet provisioned by Terraform, modeled on md''s mal_ui project. Added FR70-FR74 (Data Store & Deployment) and NFR-D1-NFR-D6 (Operations & Secrets, written for an open-source repository). NFR2 and NFR17 reworded to name no database product; FR47, FR69 and NFR-L3 marked as Mongo-era history. No user-visible behaviour changes. Technical choices (Exposed, Terraform layout, tier sizes) live in addendum.md.'
   - date: '2026-10-20'
     changes: 'Epic 10 Story 10.1: FR57 amended. The back-to-lists links on the shopping view (/list/:id) and the list management screen (/lists/:id) duplicated the account menu Home / My lists entries and pushed each screen header down, so both are removed; the app-bar title and account menu are the only navigation and no in-page affordance replaces them.'
   - date: '2026-09-15'
@@ -544,6 +548,23 @@ to lists and introduces sharing.
   drop the redundant `Unit` in `UserService`, gitignore `dev-dist/`, delete the dead `ListStorage.delete()`, adopt
   or delete the four unused `custom.bp.*` theme tokens
 
+### Epic 11 — PostgreSQL and a DigitalOcean Deployment (Planned)
+
+**Source:** md, 2026-10-21. A platform change with no user-visible behaviour change: every existing FR keeps holding.
+Production has 2 real users today; their data must carry over.
+
+- The data store becomes PostgreSQL in every environment (dev, E2E, production); MongoDB leaves the stack (FR70)
+- Production data moves once, from a JSON export of the current MongoDB into the new database, by an operator-run
+  script (FR71)
+- The database schema is versioned and applied by the backend itself (FR72)
+- Infrastructure is declared in Terraform: a fresh droplet for the frontend and backend behind the existing
+  io-workshop edge, and a separate managed PostgreSQL database on the cheapest tier (FR73)
+- Release is an operator-run command, as in mal_ui; no CI deploy (FR74)
+- The repository is open source, so secrets hygiene is a requirement of its own, not a convention (NFR-D1–NFR-D6)
+- **Cutover:** md exports the current production data, imports it into the new database and checks it, then points
+  `https://bag-please.io-workshop.net/` at the new droplet. The old deployment is retired only after the new one serves
+  both users' real data.
+
 ### Phase 3 — Growth (Post-Epic 4)
 
 - Store mode: while shopping in one store, show only the items available there (builds on multi-store FR44)
@@ -571,6 +592,9 @@ to lists and introduces sharing.
 | Hourly scheduler missed cycles (app restart, downtime)         | Scheduler is stateless and reads from DB on each run; missed cycles self-heal on next hourly tick; one restoration per item per run regardless of elapsed cycles |
 | Sharing mental model mismatch (users expect read-only)         | Sharing UI explicitly states "full access" before invite is sent; no read-only mode exists in Epic 4 (deferred to Phase 3) |
 | Admin inadvertently accessing list data                        | All list GQL operations return auth error for admin callers (FR56); enforced at service layer, not only at route level  |
+| A secret lands in the public repository                        | Secrets live only in gitignored files with committed blank examples; gitignore patterns cover every secret-bearing path (NFR-D1) |
+| Data lost or altered in the MongoDB → PostgreSQL move          | Import is one transaction, refuses a non-empty target and reports export / loaded / dropped counts per type; old deployment kept until verified (FR71) |
+| Managed database unreachable or lost                           | Provider's daily backups on the managed tier; off-repo Mongo archive as manual fallback; data loss accepted (NFR-D4)     |
 
 ## Functional Requirements
 
@@ -730,6 +754,31 @@ to lists and introduces sharing.
   as its only store, and an item without one has no stores. The conversion runs once, on the first startup of the
   release that ships multi-store items, and does not re-run.
 
+*FR47 and FR69 (and NFR-L3) describe MongoDB-era startup migrations. They are history after Epic 11: the PostgreSQL
+database starts from an export of already-migrated data (FR71), and those migrations are not carried forward.*
+
+### Data Store & Deployment
+
+- **FR70:** All persisted application data — users, refresh tokens, application configuration, lists, memberships and
+  pending invites, items, categories and feedback — is stored in PostgreSQL. MongoDB is not part of any environment:
+  local development, the E2E stack, or production. Every other FR behaves exactly as before.
+- **FR71:** A one-time import script, run by the operator, loads a JSON export of the production MongoDB into an
+  empty PostgreSQL database. Every user (with their existing password hash, so passwords keep working), list,
+  membership, pending invite, item (stores, recurring setting, check and soft-delete state, `addedBy` included),
+  category, feedback entry and configuration value carries over, and the relations between them stay intact.
+  Refresh tokens are not carried over: each user signs in once after the move. The script refuses to run
+  against a database that already holds application data, and finishes by printing, for each record type, the count
+  in the export and the count loaded.
+- **FR72:** The database schema is created and changed only by versioned migrations that the backend applies at
+  startup. Each migration applies once; a restart against an up-to-date schema changes nothing.
+- **FR73:** Production infrastructure is declared in Terraform in this repository: one droplet running the frontend
+  and backend, joined to the existing io-workshop VPC and reachable only from the edge proxy, and one separate
+  DigitalOcean Managed PostgreSQL database on the cheapest tier, which accepts connections only from that droplet.
+  The operator applies infrastructure changes by hand; a deploy never applies them.
+- **FR74:** The operator releases a version with one command: it builds and publishes the images, rolls the droplet to
+  that version, and checks that the site answers at `https://bag-please.io-workshop.net/`. A second command reports
+  which version is running.
+
 ### Navigation & UX
 
 - **FR48:** *(Superseded — describes the Epic 4 bottom-tab design that never shipped; see AR-E8-8 and Story 8.7,
@@ -807,8 +856,8 @@ to lists and introduces sharing.
 ### Security
 
 - **NFR1:** User passwords are hashed using bcrypt with cost factor 12; plaintext passwords are never stored or logged
-- **NFR2:** Refresh tokens are stored in MongoDB with a TTL index matching their 30-day expiry; expired tokens are
-  automatically purged
+- **NFR2:** Refresh tokens are stored with their 30-day expiry; an expired token is never accepted, and expired tokens
+  are purged automatically. *(Amended 2026-10-21: previously named a MongoDB TTL index.)*
 - **NFR3:** Refresh tokens are delivered exclusively via httpOnly, `SameSite=Strict` cookies; never accessible to
   JavaScript
 - **NFR4:** Access tokens are short-lived (15 minutes); refresh tokens are long-lived (30 days)
@@ -835,9 +884,11 @@ to lists and introduces sharing.
 - **NFR15:** Form error messages are associated with their corresponding input fields
 - **NFR16:** Text and interactive elements on auth screens meet minimum colour contrast for readability
 - **NFR17:** The frontend has a Playwright e2e test suite covering every delivered flow; the suite runs against the
-  **production artifact** — the built SPA served by Caddy, plus the backend and MongoDB — on **both** a desktop
+  **production artifact** — the built SPA served by Caddy, plus the backend and its database — on **both** a desktop
   viewport and a mobile viewport, and must pass with zero failures before any story in any epic is marked done. It is
   deliberately not pointed at the Vite dev server, so the bundle that ships is the bundle that is tested.
+  *Exception (2026-10-22, Epic 11 only): stories land on an `epic-11` branch where the suite may be red between
+  stories; it must pass in full before the branch merges to main, and no release runs on the branch.*
 - **NFR18:** E2E tests use browser-level isolation (no shared auth state across test files) and are **UI-driven**:
   each spec registers its own fresh user and signs in through the form. There is deliberately **no login fixture and
   no `storageState`**. Direct API calls are permitted **only** to prepare the environment — for example enabling
@@ -861,3 +912,25 @@ to lists and introduces sharing.
   validates the token before establishing any subscription stream; the connection is closed when the validated
   token expires; the `clearAuth()` frontend function disposes the WebSocket client before clearing auth state to
   prevent orphaned in-flight events reaching React state after logout
+
+### Operations & Secrets
+
+The repository is public. Every requirement here follows from that.
+
+- **NFR-D1:** No secret is ever committed. This covers the DigitalOcean API token, Spaces keys, database passwords and
+  connection strings, the JWT signing secret, admin credentials, Terraform state and variable files, and any data
+  export. Secrets live only in gitignored files; each such file has a committed example with blank values and a
+  comment per entry. The fixed local credentials that the dev and E2E Compose stack uses are not secrets: they
+  open nothing outside the developer's machine and are never used in production.
+- **NFR-D2:** Terraform state lives in a private remote store, never in the repository, because it holds the database
+  password. Tasks that need a secret load it themselves; it is not exported into an interactive shell.
+- **NFR-D3:** The managed database is not reachable from the public internet. It accepts connections only from the
+  application droplet, and the backend connects to it over TLS.
+- **NFR-D4:** Production data survives losing the droplet: it lives only in the managed database, which keeps the
+  provider's automatic daily backups. There is no restore drill: md accepts the risk of losing production data
+  (2026-10-22), and the off-repo Mongo archive (NFR-D5) is the manual fallback.
+- **NFR-D5:** The production MongoDB export holds every user's password hash and all list content. It stays outside
+  the repository (a gitignored path) and is removed from the repository working tree once the import is verified.
+  md keeps a copy off-repo, in their own storage, as the manual fallback for NFR-D4.
+- **NFR-D6:** The running cost stays at the smallest droplet that runs the frontend and backend, plus the cheapest
+  managed PostgreSQL tier; nothing is sized for more than the tens of users NFR11 describes.

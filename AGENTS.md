@@ -3,7 +3,7 @@
 
 ## bag-please
 
-Shopping-list / store-management app: Kotlin/Ktor GraphQL backend, Vite + React 19 SPA, MongoDB, Caddy, all on Docker
+Shopping-list / store-management app: Kotlin/Ktor GraphQL backend, Vite + React 19 SPA, PostgreSQL, Caddy, all on Docker
 Compose. Architecture, commands and per-layer conventions are in the root and per-directory `CLAUDE.md` files, which
 load with this one — this block carries only what those do not.
 
@@ -38,13 +38,13 @@ load with this one — this block carries only what those do not.
 - JDK 25 is required locally (`jvmToolchain(25)`); a wrong JDK gives a cryptic toolchain-resolution error, not a
   version message.
 - Backend readiness check: `curl -o /dev/null -w '%{http_code}' http://localhost:2080/api/health` → `200`
-  (unauthenticated, not rate limited; `503` = Mongo unreachable, `502` = Ktor not up behind Caddy). Do not probe
+  (unauthenticated, not rate limited; `503` = PostgreSQL unreachable, `502` = Ktor not up behind Caddy). Do not probe
   `/api/graphiql` for readiness: it sits inside `authenticate(...)` and returns 401 on a healthy backend.
-- Registration defaults to OFF (persisted in Mongo); enable it with the `setRegistrationEnabled(enabled: true)`
+- Registration defaults to OFF (persisted in PostgreSQL); enable it with the `setRegistrationEnabled(enabled: true)`
   mutation as admin. `admin`/`admin` is blocked from every list operation and from change-password, so register a
   regular user for any list or account flow.
-- Run one Playwright suite at a time against a given `:2080` backend. `registrationEnabled` is a single shared Mongo
-  document, so a second concurrent suite (a TLS-edge run, or `--shard`) re-creates the race the four-project topology
+- Run one Playwright suite at a time against a given `:2080` backend. `registrationEnabled` is a single shared PostgreSQL
+  row, so a second concurrent suite (a TLS-edge run, or `--shard`) re-creates the race the four-project topology
   exists to close.
 
 ## Conventions that differ from defaults
@@ -67,19 +67,14 @@ load with this one — this block carries only what those do not.
 - Jackson 2 and Jackson 3 both sit on the backend runtime classpath by design — Jackson 2 via
   `ktor-serialization-jackson` serves `/api/auth/*`, Jackson 3 arrives with graphql-kotlin 11
   (`graphql-kotlin-ktor-server` -> `ktor-serialization-jackson3`). Do not "unify" them.
-- An enumerated field is an enum in the **domain** model only; the Mongo and GQL models each keep their own `String`,
-  so the SDL never moves and no data migration is needed. A repository `Updates.set` has no mapper in it and must pass
-  `.name` explicitly, and a BSON filter must use `Status.PENDING.name`, never a bare literal.
+- An enumerated field is an enum in the **domain** model only; the row mapper and GQL models each keep their own `String`,
+  so the SDL never moves. A repository write must pass `.name` explicitly, never a bare literal.
 - A service rejects with `IllegalArgumentException`. The `GraphQL*Exception` classes are gql-layer only — importing one
   into a service is a service→plugins layering violation.
 
 ## Known pitfalls
 
-- **`_id` representation differs per collection.** `users` stores a BSON UUID, so `UserRepository` filters with the
-  `UUID` object; items, categories, lists and app-config store a String and filter with `id.toString()`. A mismatched
-  filter matches nothing and reports nothing, and `UUIDSerializer` accepts both on read, so it never surfaces there —
-  copy the form the collection's own repository already uses.
-- Every new `testApplication { }` must call `setUpJwt()` and `setUpMongo(container)` before `application { module() }`.
+- Every new `testApplication { }` must call `setUpJwt()` and `setUpPostgres()` before `application { module() }`.
   `bp_back/src/test/resources/application.yaml` exists but `testApplication` does not load it; without them `module()`
   fails on `Property jwt.admin_login not found`.
 - Install `ContentNegotiation` exactly once, in `securityRoutes()`. graphql-kotlin installs its own at route scope, so
@@ -93,7 +88,7 @@ load with this one — this block carries only what those do not.
 - An upsert service **merges the stored row** with only the fields the GraphQL input carries (allowlist); never
   reconstruct the entity from the input. Server-owned fields are meaningless on the incoming object, and three shipped
   bugs (BUG-E6-1/2/3) came from the reconstruct form. `ItemService.saveItem` is the reference shape.
-- Backend tests run in parallel against a shared Mongo, and the E2E `db_data` volume persists across runs. Assert only
+- Backend tests run in parallel against a shared PostgreSQL, and the E2E `pg_data` volume persists across runs. Assert only
   on records your test created, keyed by the UUIDs it generated — never on totals, and never by human-readable names
   like `"Milk"`.
 - `browser.newContext()` does **not** inherit the project's `use` block, so a hand-built context silently runs at a

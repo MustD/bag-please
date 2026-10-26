@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
@@ -16,11 +16,11 @@ import io.ktor.server.testing.testApplication
 
 class AuthApiTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     test("graphql without token returns 401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             client.post("/graphql") {
@@ -32,7 +32,7 @@ class AuthApiTest : FunSpec({
 
     test("login with valid credentials returns token") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             client.post("/auth/login") {
@@ -50,7 +50,7 @@ class AuthApiTest : FunSpec({
 
     test("login with wrong password returns 401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             client.post("/auth/login") {

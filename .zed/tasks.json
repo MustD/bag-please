@@ -34,7 +34,95 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:back — Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000",
+    "label": "db:bootstrap — One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)",
+    "command": "mise",
+    "args": [
+      "run",
+      "db:bootstrap"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "db:import — Import a Mongo export (default migration-export/) into the production PostgreSQL",
+    "command": "mise",
+    "args": [
+      "run",
+      "db:import"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "db:import:local — Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)",
+    "command": "mise",
+    "args": [
+      "run",
+      "db:import:local"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy — Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:build — Build both images tagged with gradle.properties' version (needs .secure.build.env)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:build"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:push — Build and push both images as :<version> (refuses a dirty tree or an existing tag; needs docker login)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:push"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:status — Running version on the droplet and the public URL's HTTP status",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:status"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:test — Run the deploy script guard tests (stubbed terraform/ssh/git/docker; no network)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:test"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "docker:back — Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000",
     "command": "mise",
     "args": [
       "run",
@@ -45,7 +133,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:down — Stop everything (frontend[Caddy] + mongo + back) on :2080",
+    "label": "docker:down — Stop everything (frontend[Caddy] + postgres + back) on :2080",
     "command": "mise",
     "args": [
       "run",
@@ -56,7 +144,7 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "docker:up — Build & start everything (frontend[Caddy] + mongo + back) on :2080",
+    "label": "docker:up — Build & start everything (frontend[Caddy] + postgres + back) on :2080",
     "command": "mise",
     "args": [
       "run",
@@ -133,11 +221,22 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "images:build-push — Build & push backend/frontend images tagged with the current version (needs project.env + docker login)",
+    "label": "infra:apply — Terraform apply for the DigitalOcean droplet + this app's database on the shared PostgreSQL (by hand, never from CI)",
     "command": "mise",
     "args": [
       "run",
-      "images:build-push"
+      "infra:apply"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "infra:plan — Terraform plan for the DigitalOcean droplet + this app's database on the shared PostgreSQL (needs .secure.deploy.env)",
+    "command": "mise",
+    "args": [
+      "run",
+      "infra:plan"
     ],
     "reveal": "always",
     "use_new_terminal": false,

@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -32,7 +32,7 @@ private const val GQL_WS_PROTOCOL = "graphql-transport-ws"
 
 class SubscriptionScopingTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -74,7 +74,7 @@ class SubscriptionScopingTest : FunSpec({
         val userA = "scopeA_${UUID.randomUUID().toString().take(8)}"
         val userB = "scopeB_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = registerAndLogin(userA)
@@ -108,7 +108,7 @@ class SubscriptionScopingTest : FunSpec({
         val itemId = UUID.randomUUID()
         val catId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = registerAndLogin(userA)
@@ -163,7 +163,7 @@ class SubscriptionScopingTest : FunSpec({
         val userB = "catIsolB_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = registerAndLogin(userA)
@@ -211,7 +211,7 @@ class SubscriptionScopingTest : FunSpec({
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = registerAndLogin(owner)
@@ -315,7 +315,7 @@ class SubscriptionScopingTest : FunSpec({
         val probeItemId = UUID.randomUUID()
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(user)

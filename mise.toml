@@ -5,6 +5,7 @@
 gradle = "9"
 java = "temurin-25"
 node = "26"
+terraform = "1.15" # deploy/terraform's required_version
 
 # Regenerates .zed/tasks.json from the tasks above so Zed's task picker
 # mirrors mise. Hidden so it doesn't list itself; rerun after editing tasks.
@@ -71,23 +72,69 @@ description = "Run Playwright E2E tests"
 dir = "bp_front"
 run = "npm run test:e2e"
 
-# --- Docker Compose (Caddy frontend + mongo + back; entry point :2080) ---
+# --- Docker Compose (Caddy frontend + postgres + back; entry point :2080) ---
 
 [tasks."docker:up"]
-description = "Build & start everything (frontend[Caddy] + mongo + back) on :2080"
+description = "Build & start everything (frontend[Caddy] + postgres + back) on :2080"
 run = "docker compose up --build"
 
 [tasks."docker:down"]
-description = "Stop everything (frontend[Caddy] + mongo + back) on :2080"
+description = "Stop everything (frontend[Caddy] + postgres + back) on :2080"
 run = "docker compose down"
 
 [tasks."docker:back"]
-description = "Start only mongo + backend so the Vite dev server (front:dev) can proxy to :4000"
-run = "docker compose up mongo bp_back"
+description = "Start only postgres + backend so the Vite dev server (front:dev) can proxy to :4000"
+run = "docker compose up postgres bp_back"
 
-[tasks."images:build-push"]
-description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"
-run = "./mise/images-build-push.sh"
+[tasks."db:import:local"]
+description = "Import a Mongo export (default migration-export/) into the local Compose PostgreSQL (must be empty)"
+run = "./mise/db_import.sh"
+
+# --- Production infrastructure (deploy/README.md). Each task loads .secure.deploy.env itself; nothing global. ---
+
+[tasks."infra:plan"]
+description = "Terraform plan for the DigitalOcean droplet + this app's database on the shared PostgreSQL (needs .secure.deploy.env)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/infra.sh plan"
+
+[tasks."infra:apply"]
+description = "Terraform apply for the DigitalOcean droplet + this app's database on the shared PostgreSQL (by hand, never from CI)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/infra.sh apply"
+
+[tasks."db:bootstrap"]
+description = "One-time: grant bag_please_app the shared cluster's bag_please database and run Flyway (needs psql)"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/bootstrap-db.sh"
+
+[tasks."db:import"]
+description = "Import a Mongo export (default migration-export/) into the production PostgreSQL"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/import.sh"
+
+[tasks."deploy:test"]
+description = "Run the deploy script guard tests (stubbed terraform/ssh/git/docker; no network)"
+run = "deploy/scripts/test-guards.sh"
+
+[tasks."deploy:build"]
+description = "Build both images tagged with gradle.properties' version (needs .secure.build.env)"
+env = { _ = { file = ".secure.build.env" } }
+run = "deploy/scripts/build.sh"
+
+[tasks."deploy:push"]
+description = "Build and push both images as :<version> (refuses a dirty tree or an existing tag; needs docker login)"
+env = { _ = { file = ".secure.build.env" } }
+run = "deploy/scripts/push.sh"
+
+[tasks."deploy"]
+description = "Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)"
+env = { _ = { file = [".secure.deploy.env", ".secure.build.env"] } }
+run = "deploy/scripts/deploy.sh"
+
+[tasks."deploy:status"]
+description = "Running version on the droplet and the public URL's HTTP status"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/status.sh"
 
 # --- Update / maintenance ---
 [tasks."update:mise-tools"]
