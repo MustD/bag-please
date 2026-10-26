@@ -25,6 +25,18 @@ repositories {
     mavenCentral()
 }
 
+// Operator-run Mongo export importer (Story 11.8). Its own source set so it is compiled against `main` but never
+// lands in `installDist` / the bp_back image, which only packages `main`.
+val importSet: SourceSet = sourceSets.create("import") {
+    compileClasspath += sourceSets.main.get().output + configurations.compileClasspath.get()
+    runtimeClasspath += output + sourceSets.main.get().output + configurations.runtimeClasspath.get()
+}
+
+sourceSets.test {
+    compileClasspath += importSet.output
+    runtimeClasspath += importSet.output
+}
+
 dependencies {
     implementation(libs.arrow.core)
     implementation(libs.arrow.fx.coroutines)
@@ -46,16 +58,22 @@ dependencies {
     implementation(libs.graphql.kotlin.ktor.server)
     implementation(libs.logback.classic)
 
-    implementation(libs.mongodb.driver.kotlin.coroutine)
-    implementation(libs.mongodb.bson.kotlinx)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.r2dbc)
+    implementation(libs.exposed.java.time)
+    implementation(libs.r2dbc.postgresql)
+    implementation(libs.r2dbc.pool)
+    // Blocking JDBC exists only for Flyway (AD-8).
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.database.postgresql)
+    runtimeOnly(libs.postgresql.jdbc)
 
     testImplementation(libs.ktor.server.test)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotest.assertions.ktor)
-    testImplementation(libs.testcontainers.mongodb)
-    testImplementation(libs.kotest.testcontainers)
+    testImplementation(libs.testcontainers.postgresql)
 }
 
 tasks.withType<Test>().configureEach {
@@ -78,4 +96,11 @@ tasks.withType<Test>().configureEach {
         testList()
         quiet { testList() }
     }
+}
+
+// Prints the importer's runtime classpath (used by mise/db_import.sh to start it with plain `java`).
+tasks.register("importClasspath") {
+    val classpath = importSet.runtimeClasspath
+    dependsOn(tasks.named("importClasses"))
+    doLast { println(classpath.asPath) }
 }

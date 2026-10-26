@@ -13,7 +13,7 @@
           <list>
             <option value="bp_back" />
             <option value="router" />
-            <option value="mongo" />
+            <option value="postgres" />
           </list>
         </option>
         <option name="sourceFilePath" value="docker-compose.yaml" />

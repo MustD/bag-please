@@ -6,33 +6,24 @@ import com.bagplease.config.ApplicationConfigService
 import com.bagplease.config.gql.ApplicationConfigMutations
 import com.bagplease.config.gql.ApplicationConfigQueries
 import com.bagplease.entity.category.CategoryService
-import com.bagplease.entity.category.CategoryStorage
 import com.bagplease.entity.category.gql.CategoryMutations
 import com.bagplease.entity.category.gql.CategoryQueries
 import com.bagplease.entity.category.gql.CategorySubscriptions
-import com.bagplease.entity.category.mongo.CategoryRepository
 import com.bagplease.entity.feedback.FeedbackService
 import com.bagplease.entity.feedback.gql.FeedbackMutations
 import com.bagplease.entity.feedback.gql.FeedbackQueries
-import com.bagplease.entity.feedback.mongo.FeedbackRepository
+import com.bagplease.entity.feedback.db.FeedbackRepository
 import com.bagplease.entity.item.ItemService
-import com.bagplease.entity.item.ItemStorage
 import com.bagplease.entity.item.gql.ItemMutations
 import com.bagplease.entity.item.gql.ItemQueries
 import com.bagplease.entity.item.gql.ItemSubscriptions
-import com.bagplease.entity.item.mongo.ItemRepository
 import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
 import com.bagplease.entity.list.gql.ListMutations
 import com.bagplease.entity.list.gql.ListQueries
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
 import com.bagplease.entity.user.UserService
 import com.bagplease.entity.user.gql.UserAdminMutations
 import com.bagplease.entity.user.gql.UserAdminQueries
-import com.bagplease.entity.user.mongo.UserRepository
 import com.bagplease.features.auth.AuthService
-import com.bagplease.mongo.MongoConnection
 import com.expediagroup.graphql.generator.extensions.toGraphQLContext
 import com.expediagroup.graphql.server.ktor.DefaultKtorGraphQLContextFactory
 import com.expediagroup.graphql.server.ktor.GraphQL
@@ -62,39 +53,16 @@ fun Application.configureGql(
     adminLogin: String,
     authService: AuthService,
     userService: UserService,
-    userRepository: UserRepository,
+    listService: ListService,
+    itemService: ItemService,
+    categoryService: CategoryService,
 ) {
 
-    val connection: MongoConnection by dependencies
-
-    val itemRepository = ItemRepository(connection.db)
-    val categoryRepository = CategoryRepository(connection.db)
-    val listRepository = ListRepository(connection.db)
-    val listMemberRepository = ListMemberRepository(connection.db)
-    val feedbackRepository = FeedbackRepository(connection.db)
-
-    val itemStorage = ItemStorage(itemRepository)
-    val categoryStorage = CategoryStorage(categoryRepository)
-    val listStorage = ListStorage(listRepository)
-
-    val listService = ListService(
-        listStorage = listStorage,
-        listRepository = listRepository,
-        userRepository = userRepository,
-        itemRepository = itemRepository,
-        categoryRepository = categoryRepository,
-        itemStorage = itemStorage,
-        categoryStorage = categoryStorage,
-        adminLogin = adminLogin,
-        listMemberRepository = listMemberRepository,
-    )
+    val feedbackRepository = FeedbackRepository()
 
     val feedbackService = FeedbackService(feedbackRepository, adminLogin)
 
-    val itemService = ItemService(itemStorage, listService, itemRepository, categoryStorage)
-    configureScheduler(itemService)
-    // itemService is constructed above on purpose: CategoryService.deleteCategory cascades into it.
-    val categoryService = CategoryService(categoryStorage, listService, itemService)
+    configureScheduler(itemService, authService)
 
     install(GraphQL) {
         schema {
@@ -109,7 +77,7 @@ fun Application.configureGql(
             queries = listOf(
                 ItemQueries(itemService),
                 CategoryQueries(categoryService),
-                ListQueries(listService, listMemberRepository, itemStorage),
+                ListQueries(listService),
                 ApplicationConfigQueries(appConfigService),
                 UserAdminQueries(userService, listService),
                 FeedbackQueries(feedbackService),
@@ -117,9 +85,9 @@ fun Application.configureGql(
             mutations = listOf(
                 ItemMutations(itemService),
                 CategoryMutations(categoryService),
-                ListMutations(listService, listMemberRepository, itemStorage),
+                ListMutations(listService),
                 ApplicationConfigMutations(appConfigService),
-                UserAdminMutations(userService, authService, listService),
+                UserAdminMutations(userService, listService),
                 FeedbackMutations(feedbackService),
             )
             subscriptions = listOf(

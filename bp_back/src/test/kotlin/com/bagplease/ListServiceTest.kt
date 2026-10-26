@@ -1,27 +1,14 @@
 package com.bagplease
 
-import com.bagplease.entity.category.CategoryStorage
-import com.bagplease.entity.category.mongo.CategoryRepository
-import com.bagplease.entity.item.ItemStorage
-import com.bagplease.entity.item.mongo.ItemRepository
-import com.bagplease.entity.list.ListService
-import com.bagplease.entity.list.ListStorage
-import com.bagplease.entity.list.mongo.ListMemberRepository
-import com.bagplease.entity.list.mongo.ListRepository
-import com.bagplease.entity.user.mongo.UserRepository
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.buildTestServices
+import com.bagplease.utils.postgresContainer
+import com.bagplease.utils.pgCount
+import com.bagplease.utils.pgRows
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.client.model.Filters
-import com.mongodb.kotlin.client.coroutine.MongoClient
-import com.mongodb.kotlin.client.coroutine.MongoDatabase
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -34,16 +21,13 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.flow.firstOrNull
-import org.bson.Document
-import org.bson.UuidRepresentation
 import java.util.*
 
 private val mapper = jacksonObjectMapper()
 
 class ListServiceTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -78,7 +62,7 @@ class ListServiceTest : FunSpec({
     test("AC5 createList happy path") {
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -100,7 +84,7 @@ class ListServiceTest : FunSpec({
     test("AC6 createList with null emoji") {
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -121,7 +105,7 @@ class ListServiceTest : FunSpec({
         val username = "listuser_${UUID.randomUUID().toString().take(8)}"
         val longName = "x".repeat(101)
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -139,7 +123,7 @@ class ListServiceTest : FunSpec({
         val userA = "userA_${UUID.randomUUID().toString().take(8)}"
         val userB = "userB_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val tokenA = createUserAndLogin(userA)
@@ -163,7 +147,7 @@ class ListServiceTest : FunSpec({
     test("AC9 lists query empty for new user") {
         val username = "newuser_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -184,7 +168,7 @@ class ListServiceTest : FunSpec({
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -218,7 +202,7 @@ class ListServiceTest : FunSpec({
         val owner = "owner_${UUID.randomUUID().toString().take(8)}"
         val nonOwner = "nonowner_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = createUserAndLogin(owner)
@@ -236,7 +220,7 @@ class ListServiceTest : FunSpec({
 
     test("AC15 admin blocked on createList") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()
@@ -252,7 +236,7 @@ class ListServiceTest : FunSpec({
 
     test("AC15 admin blocked on lists query") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()
@@ -269,7 +253,7 @@ class ListServiceTest : FunSpec({
     test("AC15 admin blocked on deleteList") {
         val owner = "owner2_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val ownerToken = createUserAndLogin(owner)
@@ -285,30 +269,16 @@ class ListServiceTest : FunSpec({
         }
     }
 
-    // Direct, raw-Mongo access for the service-level test below — the same shape as `ListSharingTest.connectToDb()`.
-    fun connectToDb(): MongoDatabase {
-        val credential = MongoCredential.createScramSha1Credential(
-            "test_user", "admin", "test_pass".toCharArray()
-        )
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .uuidRepresentation(UuidRepresentation.STANDARD)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        return MongoClient.create(settings).getDatabase("test")
-    }
-
     // AC-9.4-rerun — `purgeUser` is IDEMPOTENT, asserted at the service level because that is the only place the
     // claim can be tested: through `deleteUser` a second call raises NOT_FOUND on the missing user row and never
     // reaches the purge, so it proves nothing about running the purge twice.
     //
-    // The service is built here over the same database the app used, with its own (empty, then self-syncing)
-    // caches — which is also why every assertion below reads raw Mongo rather than the app's API.
+    // The service is built here over the same databases the app used; assertions read PostgreSQL directly.
     test("AC-9.4-rerun purgeUser run twice raises nothing and changes nothing") {
         val owner = "rerunOwner_${UUID.randomUUID().toString().take(8)}"
         val other = "rerunOther_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginToken()
@@ -337,40 +307,23 @@ class ListServiceTest : FunSpec({
                 setBody("""{"query":"mutation { acceptInvite(listId: \"$sharedId\") { id } }"}""")
             }.bodyAsText() shouldNotContain "errors"
 
-            val db = connectToDb()
-            val listRepository = ListRepository(db)
-            val listMemberRepository = ListMemberRepository(db)
-            val itemRepository = ItemRepository(db)
-            val categoryRepository = CategoryRepository(db)
-            val service = ListService(
-                listStorage = ListStorage(listRepository),
-                listRepository = listRepository,
-                userRepository = UserRepository(db),
-                itemRepository = itemRepository,
-                categoryRepository = categoryRepository,
-                itemStorage = ItemStorage(itemRepository),
-                categoryStorage = CategoryStorage(categoryRepository),
-                adminLogin = "admin",
-                listMemberRepository = listMemberRepository,
+            val service = buildTestServices().listService
+
+            fun snapshot() = pgRows(
+                "SELECT l.id, l.name, m.user_id, m.status FROM lists l LEFT JOIN list_members m ON m.list_id = l.id ORDER BY l.id, m.user_id"
             )
 
-            service.purgeUser(UUID.fromString(ownerId), owner)
+            service.purgeUser(UUID.fromString(ownerId))
 
-            val listCol = db.getCollection<Document>("lists")
-            val memberCol = db.getCollection<Document>("list_members")
-            val afterFirst = listCol.find(Filters.eq("_id", sharedId)).firstOrNull()
-            afterFirst.shouldNotBeNull()
-            listCol.countDocuments(Filters.eq("_id", ownedId)) shouldBe 0L
-            memberCol.countDocuments(Filters.eq("userId", ownerId)) shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id = '$ownedId'") shouldBe 0L
+            pgCount("SELECT count(*) FROM list_members WHERE user_id = '$ownerId'") shouldBe 0L
+            pgCount("SELECT count(*) FROM lists WHERE id = '$sharedId'") shouldBe 1L
+            val afterFirst = snapshot()
 
-            // The re-run: no exception, and not one document different.
-            service.purgeUser(UUID.fromString(ownerId), owner)
+            // The re-run: no exception, and not one row different.
+            service.purgeUser(UUID.fromString(ownerId))
 
-            listCol.countDocuments(Filters.eq("_id", ownedId)) shouldBe 0L
-            memberCol.countDocuments(Filters.eq("userId", ownerId)) shouldBe 0L
-            val afterSecond = listCol.find(Filters.eq("_id", sharedId)).firstOrNull()
-            afterSecond.shouldNotBeNull()
-            afterSecond shouldBe afterFirst
+            snapshot() shouldBe afterFirst
         }
     }
 })

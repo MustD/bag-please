@@ -1,15 +1,16 @@
 # bag-please — Closed Epics Archive
 
 Verbatim bodies of the closed epics, moved out of `epics.md` on 2026-09-07 to keep the live
-planning file small. Epics 1–9 are all closed, each with a retrospective in
+planning file small. Epics 1–10 are all closed, each with a retrospective in
 `_bmad-output/implementation-artifacts/`. Nothing here was edited — only relocated. Epic 8 was
 appended on 2026-09-15, when `epics.md` was re-initialised for Epic 9; the Epic 1–8 requirements
 inventory it carried is recoverable from git (`epics.md` at commit `b056451`). Epic 9 was appended on 2026-10-19,
 when `epics.md` was re-initialised for Epic 10; its requirements inventory is recoverable from git (`epics.md` at
-commit `4321365`).
+commit `4321365`). Epic 10 was appended on 2026-10-22, when `epics.md` was re-initialised for Epic 11; its
+requirements inventory is recoverable from git (`epics.md` at commit `8f64c42`).
 
 This file is part of the epic set: sprint planning must be run with BOTH files, e.g.
-`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–9
+`--epic-file .../epics.md --epic-file .../epics-archive.md`, or the story keys for Epics 1–10
 are reported as orphans and dropped from `sprint-status.yaml`.
 
 ---
@@ -3872,3 +3873,370 @@ So that tooling, docs and theme stop carrying traps and dead weight.
 **And** `npm run lint`, `npm run build`, the backend tests and the full E2E suite pass
 **And** each discharged deferred-work entry (F19b, `codegen.ts`, `./db/data`, trailing `Unit`, `dev-dist/`,
 `ListStorage.delete()`, `custom.bp.*` tokens) is closed in place
+
+---
+
+## Epic 10: Lighter Screens, a Current Stack and Docs That Earn Their Place
+
+The two list screens open straight on their header, with navigation left to the account menu; every dependency is on
+its latest stable release or held with recorded evidence; and the documentation is only what something actually reads,
+verified against the code.
+
+**Delivers:** FR57 (amended) · AR-E10-0 … AR-E10-12 · UX-DR-E10-1 … UX-DR-E10-3
+
+**Binding on every story below:** the inherited invariants (AR-E10-0); E2E against the production artifact on desktop
+**and** the 320px floor, UI-driven (NFR17, NFR18, NFR64, NFR65) for every story that ships code; every new or changed
+test observed failing before it is accepted; every count, version and test total measured in the pass, never quoted;
+any blocked bump reverted to byte-identical manifests and lockfiles and recorded in `deferred-work.md` with the story
+still closing `done` (AR-E10-3); docs naming a moved version updated in the same commit (AR-E10-7); `DESIGN.md` /
+`EXPERIENCE.md` corrected in the same commit as any screen they describe; `sprint-status.yaml` reconciled at story
+close. Registry versions quoted below are the 2026-10-19 planning snapshot — each story re-measures before it moves
+anything, and a newer stable release found on the day is the target instead.
+
+### Story 10.1: The list screens open on their header
+
+As a list member,
+I want the shopping view and the list management screen to start with the list's own header,
+So that I don't scroll past a back link that duplicates the account menu's Home and My lists entries.
+
+**Acceptance Criteria:**
+
+**Given** a signed-in user on the shopping view `/list/:id`
+**When** the page renders
+**Then** there is no back-to-lists link above the header: `list-shopping-back` is absent from the DOM
+**And** the header (`shopping-header`) is the first content in the page container (UX-DR-E10-1)
+
+**Given** a signed-in user on the list management screen `/lists/:id`
+**When** the page renders
+**Then** `list-detail-back` is absent from the DOM and the header block is the first content in the page container
+
+**Given** either screen on a desktop viewport and at the 320px floor
+**When** its top spacing is measured against the app bar
+**Then** the header sits at the container's top padding with no leftover gap from the removed link's `mb: 2`, nothing
+overflows horizontally, and the existing 320px layout assertions stay green (NFR64, NFR65)
+
+**Given** a signed-in user on either screen
+**When** they open the account menu and choose **My lists**
+**Then** they land on `/lists`; choosing **Home** or the app-bar title still goes to the resolved home (FR57 amended,
+UX-DR-E10-2)
+
+**Given** the E2E suite (15 specs) references the removed test ids today — `sharing.spec.ts` (`backToLists()` helper),
+`shopping.spec.ts`, `admin.spec.ts`, `lists.spec.ts`, `navigation.spec.ts`
+**When** the story is done
+**Then** every navigation that clicked `list-detail-back` or `list-shopping-back` goes through the shared
+`openListsViaMenu()` in `e2e/support/ui.ts`, the local `backToLists()` helper is deleted, no spec re-declares a helper,
+and `grep -rn "list-detail-back\|list-shopping-back" bp_front/` returns nothing (AR-E10-12)
+**And** `navigation.spec.ts` assertions that the shopping view **shows** a back link (Story 6.2 / FR57) are replaced by
+assertions that neither screen has one, each observed failing against the pre-change build before it is accepted
+
+**Given** `ArrowBackIcon` and `RouterLink`/`Link` imports become unused in `ListShoppingPage.tsx` and `ListDetailPage.tsx`
+**When** `npm run lint` and `npm run build` run
+**Then** both pass with the orphaned imports removed, and `DESIGN.md`'s icon inventory drops `ArrowBack` (no remaining
+consumer under `bp_front/src/`) with its count line updated
+
+**Given** `prd.md` FR57 and the `ux-epic-8` contract still describe a back-to-lists affordance
+**When** the code change is committed
+**Then** the same commit amends FR57 in `prd.md` to the Epic 10 wording in this file's inventory (with a dated
+`changes` entry in its frontmatter), and corrects `EXPERIENCE.md` (navigation / IA, both screens' anatomy) and
+`DESIGN.md` so no sentence describes the removed link or the "one back-link pattern" (UX-DR-E10-3)
+
+**Given** the full gate
+**When** the story closes
+**Then** `npm run lint`, `npm run build` and `npm run test:e2e` on every Playwright project pass with measured totals
+recorded
+
+### Story 10.2: We know which Jackson writes our GraphQL responses
+
+As md, maintaining the backend,
+I want a measured answer to which Jackson mapper serialises GraphQL bodies and WebSocket frames,
+So that the graphql-kotlin 11 bump cannot silently flip response serialisation.
+
+**Acceptance Criteria:**
+
+**Given** the open Story 7.12 ledger entry in `deferred-work.md` (Jackson 2 and Jackson 3 both on `runtimeClasspath`;
+`ContentNegotiation { jackson() }` on the root route at `Routing.kt`; `JacksonWebsocketContentConverter` at `GQL.kt`)
+**When** the story runs at least two of the black-box discriminators the entry names — non-ASCII / astral-plane escaping
+via the `emoji` field, `Accept`-header negotiation and 406 behaviour, the `Content-Type` `charset` suffix, field
+ordering / pretty-print defaults — or a throwaway-build `pluginOrNull(ContentNegotiation)` read
+**Then** the mapper serialising HTTP GraphQL `data`/`errors` is identified with the probe output captured verbatim
+**And** the same is established for subscription frames over `graphql-ws`
+
+**Given** the answer
+**When** it is recorded
+**Then** it becomes a rule in `bp_back/CLAUDE.md` (which mapper owns which path, and what moving or removing the root
+`ContentNegotiation` install would change)
+**And** a Kotest `testApplication` test pins the discriminating behaviour, so relocating the install fails the backend
+suite; the test is observed failing with the install moved before it is accepted
+
+**Given** the WebSocket converter is shown vestigial for GraphQL frames
+**When** it is removed
+**Then** a live subscription (item check-off reaching a second member) still works in E2E and the `FORBIDDEN` and
+failing-mutation response bodies stay byte-identical to a captured baseline (md5 recorded before and after)
+**And** if it is shown load-bearing instead, a code comment at `GQL.kt` says so and why, and nothing is removed
+
+**Given** the story closes
+**Then** the 7.12 ledger entry is closed in place with a pointer to the rule and the test; no dependency version moved
+(`git diff gradle/libs.versions.toml` empty); `cleanTest test` totals read from the JUnit XML and the full E2E gate pass
+
+### Story 10.3: The backend runs on current minor releases
+
+As md, maintaining the backend,
+I want every backend dependency below its next major brought to the latest stable minor/patch,
+So that the graphql-kotlin major lands on a current base as the only variable.
+
+**Acceptance Criteria:**
+
+**Given** the backend inventory (AR-E10-1), re-measured on the day — snapshot: Kotlin 2.4.10 → 2.4.21, Ktor 3.5.2 → 3.6.0,
+Mongo driver 5.9.2 → 5.13.0, Logback 1.6.2 → 1.6.5, Kotest 6.2.4 → 6.2.6; Arrow 2.2.3, Testcontainers 2.0.5, bcrypt 0.10.2
+current; `gradle:9.6.1-jdk25` → current Gradle 9.x image; `eclipse-temurin:25`, `mongo:8`, mise `temurin-25`
+**When** the story lists it
+**Then** the record shows locked vs latest-stable for each, prereleases excluded (Kotlin 2.5.0-Beta*, Arrow 2.3.0-alpha*),
+and `graphql-kotlin` explicitly left for Story 10.4
+
+**Given** the minor/patch bumps applied together in `libs.versions.toml` and `bp_back/Dockerfile`
+**When** `./gradlew :bp_back:cleanTest :bp_back:test` and `:bp_back:build` run
+**Then** both pass with no added `@Suppress`, `force`/`strictly`, or `-Xskip-metadata-version-check` (AR-E10-3)
+**And** if anything fails, the bumps are bisected and only the culprit is held — reverted and recorded verbatim in
+`deferred-work.md` — while the rest land
+
+**Given** the Story 10.2 rule and test
+**When** the bumped backend runs
+**Then** the Jackson-discrimination test stays green, and the `FORBIDDEN` / failing-mutation bodies match the 10.2 md5
+baseline
+
+**Given** Ktor moves a minor
+**When** the auth and rate-limit surfaces are exercised
+**Then** login, refresh-cookie flags (`Secure`, `HttpOnly`, `SameSite=Strict`), rate limiting, `/api/health` and the
+subscription JWT close-on-expiry behave as before — covered by the existing Kotest and E2E suites, totals measured
+
+**Given** the bumped stack built with `docker compose up --build`
+**When** `npm run generate` runs with a fresh `CODEGEN_TOKEN`
+**Then** `git status --short bp_front/src/__generated__/` is empty, or the change is committed and explained
+
+**Given** the story closes
+**Then** the full E2E gate passes on every project, and `bp_back/CLAUDE.md` / `AGENTS.md` / `architecture.md` lines
+naming a moved version are updated in the same commit (AR-E10-7)
+
+### Story 10.4: graphql-kotlin 10 → 11
+
+As md, maintaining the backend,
+I want graphql-kotlin on 11.x, or a recorded reason it cannot be,
+So that the GraphQL server stays on a supported major without changing what clients see.
+
+**Acceptance Criteria:**
+
+**Given** Story 10.3 has landed and `graphql-kotlin` latest stable is re-measured (snapshot `11.0.0`)
+**When** the compatibility source is checked
+**Then** the `graphql-kotlin-ktor-server` POM's Ktor and Kotlin floors are cited (snapshot: Ktor 3.4.1, Kotlin 2.3.0 —
+already met), and the release notes' breaking changes are listed against this codebase's usage (`GQL.kt`, schema
+hooks, the four `GraphQL*Exception` classes, subscription server)
+
+**Given** baselines captured before the bump: the failing-`saveItem` error body, a `FORBIDDEN` body, an
+`extensions.code` per exception class, `GET /api/graphiql` status, and the Story 10.2 discrimination output
+**When** the version moves and only the `bp_back/` edits a captured compile or test error forces are made
+**Then** after the bump the bodies are byte-identical (md5 before/after), `errors[0].message` still carries the prefix
+`Exception while fetching data (/saveItem) : ` that `bp_front/src/lib/admin/adminErrors.ts` strips, every
+`extensions.code` is unchanged, and GraphiQL answers as before (AR-E10-5)
+
+**Given** the bumped backend
+**When** `npm run generate` runs and the full E2E gate runs
+**Then** codegen output is byte-identical or committed and explained, a live subscription and a live mutation pass on
+both viewports, and the Story 10.2 test is green
+
+**Given** the bump cannot land under AR-E10-3's prohibitions
+**When** the story takes the HOLD branch
+**Then** `libs.versions.toml` and any touched source are restored to byte-identical, the blocking error is recorded
+verbatim in a `## Deferred from: Story 10.4` ledger section, and the story closes `done`
+
+**Given** the story closes on LAND
+**Then** `cleanTest test` totals come from the JUnit XML and docs naming the graphql-kotlin version are updated in the
+same commit
+
+### Story 10.5: The frontend runs on current minor releases
+
+As md, maintaining the frontend,
+I want every frontend dependency below its next major brought to the latest stable minor/patch,
+So that the PWA and TypeScript majors are each tried on a current base as the only variable.
+
+**Acceptance Criteria:**
+
+**Given** the frontend inventory (AR-E10-1), re-measured on the day — snapshot: React/React DOM 19.2.8 → 19.3.1,
+`@apollo/client` 4.2.11 → 4.3.4, MUI 9.3.1 → 9.5.0, Vite 8.2.1 → 8.3.4, `@vitejs/plugin-react` → 6.1.2, Playwright
+1.62.1 → 1.64.1, eslint → 10.13.0, `typescript-eslint` → 8.71.2, `graphql-ws` 6.2.1 → 6.4.1, codegen cli 7.2.0 → 7.4.6
+and client-preset 6.1.3 → 6.2.3, `@types/*`, `react-router-dom`, `globals`, `eslint-plugin-react-refresh`; `node:26-alpine`,
+`caddy:2-alpine`, mise `node 26`
+**When** the story lists it
+**Then** locked vs latest-stable is recorded for each, and `typescript` (Story 10.7) and `vite-plugin-pwa` (Story 10.6)
+are explicitly left out
+
+**Given** the bumps applied with exact pins where the package is pinned today and ranges kept where ranged today
+**When** `npm install` runs with no flags and no `.npmrc` change
+**Then** it exits 0 with no `overrides`/`resolutions`, and `npm run lint` and `npm run build` pass
+**And** a package that cannot land cleanly is held — reverted and recorded verbatim — while the rest land (AR-E10-3)
+
+**Given** `@apollo/client` and `graphql-ws` move a minor
+**When** the E2E suite exercises login, silent refresh, a mutation, a live subscription across two members, and logout
+disposing the socket before clearing auth
+**Then** all pass on every project (NFR-L5, FR53)
+
+**Given** Playwright moves a minor
+**When** browsers are installed for the new version
+**Then** the four-project topology and count invariants documented in `playwright.config.ts` still hold, with totals
+measured
+
+**Given** `npm run generate` runs against the live schema
+**Then** `src/__generated__/` is byte-identical or the change is committed and explained
+
+**Given** the story closes
+**Then** the full E2E gate passes, `bp_front/CLAUDE.md` / `AGENTS.md` / `architecture.md` version lines are updated in
+the same commit, and the bundle-size delta of `npm run build` is recorded (not a failure criterion)
+
+### Story 10.6: vite-plugin-pwa 1 → 2
+
+As someone who installed Bag Please on their phone,
+I want the app to keep installing and updating exactly as it does today after the PWA plugin's major upgrade,
+So that the upgrade is invisible to me.
+
+**Acceptance Criteria:**
+
+**Given** Story 10.5 has landed and `vite-plugin-pwa` latest stable is re-measured (snapshot `2.0.0`, peer `vite ^3 … ^8`,
+`workbox-build`/`workbox-window ^7.4.1`)
+**When** the release notes are read against `bp_front/vite.config.ts`
+**Then** every breaking change touching the options this project uses — `registerType: 'autoUpdate'`,
+`navigateFallback: '/index.html'`, `navigateFallbackDenylist: [/^\/api/]`, empty `runtimeCaching`, manifest and icons —
+is listed with its effect
+
+**Given** the plugin moves and only the config edits a captured break forces are made
+**When** `npm install` (no flags), `npm run lint` and `npm run build` run
+**Then** all exit 0, and the built `dist/` still emits `manifest.webmanifest` (or the renamed equivalent, with Caddy's
+content type kept correct), `sw.js` at the root scope, and exactly one injected manifest link
+
+**Given** the production image
+**When** `e2e/pwa.spec.ts` runs
+**Then** all seven tests pass unchanged: manifest content type and install keys, real PNG icons at declared sizes, `sw.js`
+served as JavaScript and not long-term cached, one manifest link, the worker activated and answering navigations,
+`/api/health` reaching Ktor under the worker, and no `/api` entry in Cache Storage after an authenticated session
+(FR59, NFR-E7-7, AR-E7-15)
+**And** `routing/Caddyfile` needs no change, or its change is part of the story and covered by those tests
+
+**Given** an existing installation built on plugin 1.x
+**When** the 2.x build is deployed over it
+**Then** the old worker is replaced on the next load (`autoUpdate`) without a stale shell — verified by building 1.x,
+loading it, rebuilding on 2.x and reloading, with the result recorded
+
+**Given** the bump cannot land under AR-E10-3
+**When** the story takes the HOLD branch
+**Then** `package.json`, `package-lock.json` and `vite.config.ts` are byte-identical to before, the symptom is recorded in a
+`## Deferred from: Story 10.6` ledger section, and the story closes `done`
+
+**Given** the story closes on LAND
+**Then** the full E2E gate passes and the `vite-plugin-pwa` version in `CLAUDE.md` / `bp_front/CLAUDE.md` is updated in the
+same commit
+
+### Story 10.7: TypeScript 7, tried again
+
+As md, maintaining the frontend,
+I want TypeScript 7 adopted if the lint toolchain now allows it, and the blocker re-evidenced if it does not,
+So that the hold is current fact, not a two-month-old observation.
+
+**Acceptance Criteria:**
+
+**Given** Story 10.5 has landed (`typescript-eslint` on its newest stable)
+**When** `npm view typescript version` and `npm view typescript-eslint peerDependencies` run
+**Then** both outputs are recorded verbatim (snapshot: `typescript` 7.0.2; `typescript-eslint` 8.71.2 peer
+`>=4.8.4 <6.1.0`)
+
+**Given** the peer range admits `7.x`
+**When** `typescript` moves to the latest 7.x with a plain `npm install`
+**Then** `npm run lint`, `npm run build` (`tsc -b && vite build`) and the full E2E gate pass, `tsconfig*.json` changes are
+only those a captured diagnostic forces, `tsconfig.app.json` still excludes `src/__generated__`, and version lines are
+updated in the same commit
+
+**Given** the peer range still excludes `7.x` (the expected path)
+**When** a throwaway reproduction forces the install (`--legacy-peer-deps`, in that task only)
+**Then** the `npm install` resolution error and the `npm run lint` failure are captured verbatim
+**And** `npx tsc -b tsconfig.json --force` under TS 7 is run and its exit code and any diagnostics recorded — a non-zero
+exit is new evidence and changes the ledger wording
+**And** the tree is restored: `git checkout -- bp_front/package.json bp_front/package-lock.json`, `npm ci`,
+`git status --short` empty, `npx tsc --version` reporting `6.0.3`
+
+**Given** the HOLD branch
+**When** the evidence is recorded
+**Then** the existing Story 7.10 ledger entry in `deferred-work.md` is updated in place with the 2026-10 re-measurement
+(no duplicate section), the story does not swap the lint stack to escape the peer constraint (AR-E10-4), and it closes
+`done`
+
+### Story 10.8: Only documents something reads are kept
+
+As md, and as every agent loading context in this repo,
+I want documentation that no skill, config or context file reads removed, and anything still useful moved to where it is loaded,
+So that nobody reads a stale scan or a superseded spec as truth.
+
+**Acceptance Criteria:**
+
+**Given** the candidates — `docs/` scan output (`index.md`, `project-overview.md`, `source-tree-analysis.md`,
+`api-contracts-bp_back.md`, `data-models-bp_back.md`, `component-inventory-bp_front.md`, `architecture-routing.md`,
+`deployment-guide.md`, `development-guide.md`, `project-parts.json`, `project-scan-report.json`) and planning-root
+leftovers (three `implementation-readiness-report-*.md`, two `ux-design-directions*.html`, `ux-design-specification.md`,
+`ux-design-specification-epic-4.md`, `prd-validation.md`, two `sprint-change-proposal-*.md`, `review-rubric-epic9.md`,
+`review-polish-epic9.md`, `.memlog.md`)
+**When** the story audits them
+**Then** a table records, per file, its live consumers found by grep over `CLAUDE.md` files, `AGENTS.md`, `_bmad/` config,
+`.claude/skills/`, `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair and `epics*.md` — and the
+verdict: delete, keep (consumer named), or fold-then-delete (AR-E10-8)
+
+**Given** a `docs/` file holds a fact that is still true against the code and is not already in a loaded file
+**When** it is folded
+**Then** the fact lands once in the `CLAUDE.md` whose tree it describes (root, `bp_back/`, `bp_front/`, `routing/`) and is
+checked against the cited source file; facts found false are dropped, not carried (AR-E10-9)
+
+**Given** `docs/feedback.md`
+**Then** it is kept as the backlog intake, and is the only file left in `docs/` unless the audit names another consumer
+
+**Given** `project_knowledge` resolves to `{project-root}/docs` in the BMAD config
+**When** `docs/` is reduced
+**Then** `project_knowledge` still points at an existing directory whose content matches what BMAD skills expect from it,
+changed through the supported config path (`_bmad/custom/` override or the installer config), and
+`uv run _bmad/scripts/resolve_config.py --project-root .` shows the resolved value
+
+**Given** a live planning document links to a deleted file
+**When** the deletion is committed
+**Then** the link is updated or removed in the same commit; historical records under `implementation-artifacts/` are not
+rewritten (AR-E10-8), and `prd.md`, `architecture.md`, the Epic 9 spine, the `ux-epic-8` pair, `epics.md` and
+`epics-archive.md` are kept (AR-E10-10)
+
+**Given** the story ships no product code
+**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty, and NFR17's E2E gate is deliberately not applicable —
+recorded so its absence reads as a decision
+
+### Story 10.9: The agent context files match the code
+
+As md, and as every agent working in this repo,
+I want `AGENTS.md` and the four `CLAUDE.md` files to say only what is true at HEAD, each fact once,
+So that an agent follows current commands and conventions instead of stale or contradicting ones.
+
+**Acceptance Criteria:**
+
+**Given** Stories 10.1–10.8 have landed
+**When** `AGENTS.md`'s managed `bmad:context` block is refreshed with `bmad-project-context`
+**Then** its "Verified" line names the current HEAD and date, and content outside the markers is preserved
+
+**Given** the root, `bp_back/`, `bp_front/` and `routing/` `CLAUDE.md` files
+**When** each is checked line by line
+**Then** every command is run or its target confirmed to exist (Gradle tasks, npm scripts, mise tasks, file paths, test ids,
+ports), every version matches `libs.versions.toml` / `package.json` / Dockerfiles, and a table records each fixed or
+deleted claim with the evidence (AR-E10-11)
+**And** time-bound notes that no longer apply (e.g. the 2026-08-13 `./db/data` migration instructions, if the old bind
+mount data is gone) are removed or reworded by md's ruling, not silently
+
+**Given** a fact appears in more than one of these files
+**When** duplication is resolved
+**Then** it lives in the most specific file that loads where it is needed (per-directory over root, `CLAUDE.md` over
+`AGENTS.md` for architecture and commands, as `AGENTS.md` itself states), and the others drop it
+
+**Given** `mise.toml` and `.zed/tasks.json`
+**When** any documented command changes
+**Then** the two stay in sync (the `sync-zed-mise-tasks` skill), or the record states no task changed
+
+**Given** the story ships no product code
+**Then** `git diff --stat bp_front/src bp_front/e2e bp_back` is empty and NFR17 is recorded as not applicable

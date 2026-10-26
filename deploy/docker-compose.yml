@@ -1,0 +1,58 @@
+# Production compose for the droplet (Story 11.10). deploy.sh copies it to ~deploy/bag-please/ and writes the .env next
+# to it (mode 600) over ssh; no secret lives in this file or in an image. Images are always tagged with BP_VERSION,
+# never latest. Droplet: 1 GB RAM + 1 GB swap, so the limits below are small on purpose.
+name: bag-please
+
+services:
+  bp_front:
+    image: ${DOCKER_IMAGE_FRONT:?}:${BP_VERSION:?}
+    # Only the droplet's private address: the edge proxy is the one client the droplet firewall lets in.
+    ports:
+      - "${PRIVATE_IP:?}:80:80"
+    depends_on:
+      - bp_back
+    restart: unless-stopped
+    read_only: true
+    # Caddy writes its autosave config and data directories; /tmp for anything else.
+    tmpfs:
+      - /tmp
+      - /config
+      - /data
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  bp_back:
+    image: ${DOCKER_IMAGE_BACK:?}:${BP_VERSION:?}
+    # No ports: only bp_front reaches it (bp_back:4000 on the compose network).
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    volumes:
+      - ./ca-certificate.crt:/etc/bag-please/ca-certificate.crt:ro
+    environment:
+      JAVA_OPTS: "-Xmx256m"
+      KTOR_DB_HOST: ${KTOR_DB_HOST:?}
+      KTOR_DB_PORT: ${KTOR_DB_PORT:?}
+      KTOR_DB_NAME: ${KTOR_DB_NAME:?}
+      KTOR_DB_USER: ${KTOR_DB_USER:?}
+      KTOR_DB_PASSWORD: ${KTOR_DB_PASSWORD:?}
+      # Hardcoded: no connection uses a weaker mode.
+      KTOR_DB_SSLMODE: verify-full
+      KTOR_DB_SSLROOTCERT: /etc/bag-please/ca-certificate.crt
+      KTOR_JWT_SECRET: ${KTOR_JWT_SECRET:?}
+      KTOR_ADMIN_LOGIN: ${KTOR_ADMIN_LOGIN:?}
+      KTOR_ADMIN_PASS: ${KTOR_ADMIN_PASS:?}

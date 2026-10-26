@@ -49,5 +49,14 @@ bin/
 .tmp/
 .playwright-mcp/
 
-# Mongo dumps (see CLAUDE.md, dump before a migration release)
+# Database dump archives (see deploy/README.md, Backups)
 *.archive
+*.dump
+
+# Secrets and migration data (AD-9): never committed
+.secure.*.env
+migration-export/
+*.tfstate*
+*.tfvars
+.terraform/
+crash.log

@@ -24,7 +24,7 @@ import {
 // `goto('/lists')` reload rather than waiting for a live update.
 //
 // Every scenario registers FRESH unique users per run/project via the register UI
-// and asserts only on self-created data (the db_data named volume persists across
+// and asserts only on self-created data (the pg_data named volume persists across
 // runs and the two projects run concurrently).
 
 test('FR39/FR41/FR50 — owner shares; invitee accepts and can write to the shared list', async ({browser, page, baseURL}, testInfo) => {

@@ -9,9 +9,8 @@ import java.util.Locale
  * display data, which is why a casing-only edit still persists (`["Lidl"]` → `["LIDL"]`) while
  * `"lidl"` beside `"Lidl"` is one store, not two.
  *
- * Its own top-level object rather than a private helper on `ItemService`: `plugins/Migration.kt`
- * folds the legacy single-value `store` field through exactly this normalizer, and a copy that
- * drifted from the service's would let a migrated row hold a shape no save could produce.
+ * Its own top-level object rather than a private helper on `ItemService`, so every writer of store
+ * names shares one normalizer and no copy can drift from it.
  *
  * `lowercase(Locale.ROOT)` deliberately, never the default-locale overload: a Turkish-locale JVM
  * would key `"LIDL"` to `"lıdl"` and stop matching `"lidl"`. The frontend mirror in

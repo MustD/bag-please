@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.ktor.client.request.get
@@ -10,11 +10,11 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 
 class ApplicationTest : FunSpec({
-    val container = mongoContainer()
+    val container = postgresContainer()
     test("up test") {
 
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { }
 

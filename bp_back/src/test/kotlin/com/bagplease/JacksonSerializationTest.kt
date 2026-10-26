@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -32,7 +32,7 @@ import io.ktor.websocket.readText
 // Moving or removing the root install must fail the REST-order and 406 rows.
 class JacksonSerializationTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.adminToken(): String {
         val res = client.post("/auth/login") {
@@ -51,7 +51,7 @@ class JacksonSerializationTest : FunSpec({
         }
 
     fun ApplicationTestBuilder.boot() {
-        setUpMongo(container)
+        setUpPostgres()
         setUpJwt()
         application { module() }
     }

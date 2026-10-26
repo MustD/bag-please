@@ -121,10 +121,8 @@ fun Application.configureAuthRoutes(
                     val body = call.receive<ChangePasswordRequest>()
                     userService.changePassword(username, body.currentPassword, body.newPassword).fold(
                         ifLeft = { call.respond(HttpStatusCode.BadRequest, ErrorResponse("Password change failed")) },
-                        ifRight = {
-                            authService.invalidateUserSessions(username)
-                            call.respond(HttpStatusCode.OK)
-                        },
+                        // Sessions are invalidated inside the same transaction as the new hash.
+                        ifRight = { call.respond(HttpStatusCode.OK) },
                     )
                 }
             }

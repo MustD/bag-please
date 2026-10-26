@@ -1,14 +1,12 @@
 package com.bagplease.features.feedback
 
 import com.bagplease.module
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.SharedPostgres
+import com.bagplease.utils.appJdbcUrl
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.MongoCredential
-import com.mongodb.kotlin.client.coroutine.MongoClient
 import io.kotest.assertions.ktor.client.shouldHaveStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -26,9 +24,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.flow.toList
-import org.bson.Document
-import org.testcontainers.mongodb.MongoDBContainer
 
 // Story 9.9 — sendFeedback(text). Story 9.10 adds the admin-only `feedback`
 // query and `deleteFeedback` mutation. Modeled on
@@ -36,7 +31,9 @@ import org.testcontainers.mongodb.MongoDBContainer
 // client, `shouldContain`/`shouldNotContain` on the response body.
 class FeedbackTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
+    // One PostgreSQL per JVM: start every test from empty tables so no test depends on declaration order.
+    beforeTest { SharedPostgres.reset() }
 
     suspend fun ApplicationTestBuilder.loginAdmin(): String {
         val res = client.post("/auth/login") {
@@ -71,21 +68,21 @@ class FeedbackTest : FunSpec({
         return """{"query":"mutation { sendFeedback(text: \"$escaped\") }"}"""
     }
 
-    // Reads the `feedback` collection directly, bypassing the GraphQL layer — the
-    // same raw-MongoClient idiom `utils/TestContainers.kt`'s `setUpRegistration`
-    // uses. Proves what was actually PERSISTED, not just the mutation's boolean
-    // return.
-    suspend fun feedbackDocuments(container: MongoDBContainer): List<Document> {
-        val credential = MongoCredential.createScramSha1Credential("test_user", "admin", "test_pass".toCharArray())
-        val settings = MongoClientSettings.builder()
-            .credential(credential)
-            .applyConnectionString(ConnectionString("mongodb://localhost:${container.firstMappedPort}/test"))
-            .build()
-        val client = MongoClient.create(settings)
-        try {
-            return client.getDatabase("test").getCollection<Document>("feedback").find().toList()
-        } finally {
-            client.close()
+    // Reads the `feedback` table directly, bypassing the GraphQL layer. Proves what was actually PERSISTED,
+    // not just the mutation's boolean return.
+    data class StoredFeedback(val id: String, val text: String, val username: String, val createdAt: java.sql.Timestamp?)
+
+    fun jdbc(): java.sql.Connection = java.sql.DriverManager.getConnection(
+        SharedPostgres.container.appJdbcUrl(), SharedPostgres.APP_USER, SharedPostgres.APP_PASSWORD,
+    )
+
+    fun feedbackRows(): List<StoredFeedback> = jdbc().use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery("SELECT id, text, username, created_at FROM feedback").use { rs ->
+                buildList {
+                    while (rs.next()) add(StoredFeedback(rs.getString(1), rs.getString(2), rs.getString(3), rs.getTimestamp(4)))
+                }
+            }
         }
     }
 
@@ -112,14 +109,14 @@ class FeedbackTest : FunSpec({
         }.bodyAsText()
 
     // Story 9.10 I/O matrix row "No feedback yet". MUST run before any other
-    // test in this spec inserts a row: `container` is one Mongo instance shared
+    // test in this spec inserts a row: `container` is one PostgreSQL instance shared
     // by every `test()` block in this file (declared once above, not reset
     // between tests), so this is the only point at which the `feedback`
-    // collection is guaranteed empty. Kotest's default FunSpec order is
+    // table is guaranteed empty. Kotest's default FunSpec order is
     // declaration order, which is why this is placed first.
     test("the feedback query returns an empty list when nothing has been submitted yet") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -133,7 +130,7 @@ class FeedbackTest : FunSpec({
     // Happy path: regular user, text trimmed server-side.
     test("a regular user's feedback is accepted and trimmed") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_happy")
@@ -149,19 +146,19 @@ class FeedbackTest : FunSpec({
             body shouldContain """"sendFeedback":true"""
 
             // What was actually PERSISTED, not just the mutation's boolean return.
-            val stored = feedbackDocuments(container)
+            val stored = feedbackRows()
             stored shouldHaveSize 1
-            val doc = stored.first()
-            doc.getString("text") shouldBe "Please add dark icons"
-            doc.getString("username") shouldBe "feedback_happy"
-            doc["createdAt"].shouldNotBeNull()
+            val row = stored.first()
+            row.text shouldBe "Please add dark icons"
+            row.username shouldBe "feedback_happy"
+            row.createdAt.shouldNotBeNull()
         }
     }
 
     // Blank text (after trim) is rejected.
     test("blank feedback text is rejected") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_blank")
@@ -179,7 +176,7 @@ class FeedbackTest : FunSpec({
     // Over-length text (post-trim, > 2000 UTF-16 chars) is rejected.
     test("feedback text over 2000 characters is rejected") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_toolong")
@@ -198,7 +195,7 @@ class FeedbackTest : FunSpec({
     // Exactly 2000 characters (post-trim) is accepted.
     test("feedback text of exactly 2000 characters is accepted") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_exact")
@@ -219,7 +216,7 @@ class FeedbackTest : FunSpec({
     // The admin caller is rejected exactly like every other admin-blocked mutation.
     test("the admin account cannot send feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -236,7 +233,7 @@ class FeedbackTest : FunSpec({
     // No JWT on /graphql returns HTTP 401, same as every other GraphQL mutation.
     test("unauthenticated sendFeedback returns HTTP 401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
 
@@ -255,7 +252,7 @@ class FeedbackTest : FunSpec({
 
     test("the admin lists feedback newest-first") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_list_order")
@@ -279,7 +276,7 @@ class FeedbackTest : FunSpec({
 
     test("a non-admin caller cannot query feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_query_forbidden")
@@ -291,15 +288,15 @@ class FeedbackTest : FunSpec({
 
     test("the admin deletes a feedback entry and it no longer appears") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_delete_happy")
             val adminToken = loginAdmin()
 
             sendFeedback(userToken, "entry to delete")
-            val stored = feedbackDocuments(container)
-            val id = stored.first { it.getString("text") == "entry to delete" }.getString("_id")
+            val stored = feedbackRows()
+            val id = stored.first { it.text == "entry to delete" }.id
 
             val deleteBody = deleteFeedbackMutation(adminToken, id)
             deleteBody shouldNotContain """"errors":"""
@@ -312,7 +309,7 @@ class FeedbackTest : FunSpec({
 
     test("deleting a non-existent feedback id returns NOT_FOUND") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val adminToken = loginAdmin()
@@ -324,14 +321,14 @@ class FeedbackTest : FunSpec({
 
     test("a non-admin caller cannot delete feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_delete_forbidden")
 
             sendFeedback(userToken, "not deletable by a regular user")
-            val stored = feedbackDocuments(container)
-            val id = stored.first { it.getString("text") == "not deletable by a regular user" }.getString("_id")
+            val stored = feedbackRows()
+            val id = stored.first { it.text == "not deletable by a regular user" }.id
 
             val body = deleteFeedbackMutation(userToken, id)
             body shouldContain """"code":"FORBIDDEN""""
@@ -344,7 +341,7 @@ class FeedbackTest : FunSpec({
 
     test("deleting a user does not delete their feedback") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val userToken = loginRegularUser("feedback_survives_user_delete")
@@ -370,6 +367,40 @@ class FeedbackTest : FunSpec({
 
             val afterBody = feedbackQuery(adminToken)
             afterBody shouldContain "feedback that outlives its author"
+        }
+    }
+
+    test("deleting a feedback id that is not a UUID returns NOT_FOUND") {
+        testApplication {
+            setUpPostgres()
+            setUpJwt()
+            application { module() }
+            val adminToken = loginAdmin()
+
+            val body = deleteFeedbackMutation(adminToken, "abc")
+            body shouldContain """"code":"NOT_FOUND""""
+        }
+    }
+
+    test("entries with equal timestamps are listed newest-first with id as the tiebreak") {
+        testApplication {
+            setUpPostgres()
+            setUpJwt()
+            application { module() }
+            val adminToken = loginAdmin()
+
+            jdbc().use { c ->
+                c.createStatement().use { st ->
+                    st.execute("DELETE FROM feedback")
+                    st.execute("INSERT INTO feedback VALUES ('00000000-0000-0000-0000-00000000000a', 'tie low', 'x', '2026-01-01T00:00:00Z')")
+                    st.execute("INSERT INTO feedback VALUES ('00000000-0000-0000-0000-00000000000b', 'tie high', 'x', '2026-01-01T00:00:00Z')")
+                    st.execute("INSERT INTO feedback VALUES ('00000000-0000-0000-0000-00000000000c', 'older', 'x', '2025-01-01T00:00:00Z')")
+                    st.execute("INSERT INTO feedback VALUES ('00000000-0000-0000-0000-00000000000d', 'newest', 'x', '2027-01-01T00:00:00Z')")
+                }
+            }
+
+            val texts = jacksonObjectMapper().readTree(feedbackQuery(adminToken))["data"]["feedback"].map { it["text"].asText() }
+            texts shouldBe listOf("newest", "tie high", "tie low", "older")
         }
     }
 })

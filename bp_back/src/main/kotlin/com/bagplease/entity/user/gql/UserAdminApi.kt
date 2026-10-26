@@ -2,7 +2,6 @@ package com.bagplease.entity.user.gql
 
 import com.bagplease.entity.list.ListService
 import com.bagplease.entity.user.UserService
-import com.bagplease.features.auth.AuthService
 import com.bagplease.plugins.GraphQLConflictException
 import com.bagplease.plugins.GraphQLInvalidInputException
 import com.bagplease.plugins.GraphQLNotFoundException
@@ -33,8 +32,8 @@ class UserAdminQueries(
     ): GqlUserPage {
         env.requireAdmin()
         val page = userService.getUserPage(limit, offset, around)
-        // Owned-list counts are joined here, off the in-memory list cache: one
-        // scan for the whole page, not 20 Mongo round-trips, and `getUserPage`
+        // Owned-list counts are joined here: one
+        // query for the whole page, not 20 round-trips, and `getUserPage`
         // stays list-agnostic (Story 9.4).
         val counts = listService.countOwnedLists(page.users.map { it.id })
         return GqlUserMapper.toGql(page, counts)
@@ -44,7 +43,6 @@ class UserAdminQueries(
 @Suppress("unused")
 class UserAdminMutations(
     private val userService: UserService,
-    private val authService: AuthService,
     private val listService: ListService,
 ) : Mutation {
     suspend fun createUser(username: String, password: String, env: DataFetchingEnvironment): GqlUser {
@@ -63,33 +61,11 @@ class UserAdminMutations(
         } catch (e: IllegalArgumentException) {
             throw GraphQLInvalidInputException("Invalid user ID format")
         }
-        // Counted BEFORE the delete, while the lists still exist: it is what the
-        // response reports back as destroyed.
-        val ownedListCount = listService.countOwnedLists(uuid)
-        return userService.adminDeleteUser(uuid).fold(
+        // One service call (Story 11.2): lock, purge the user's lists, drop their refresh tokens, delete the row last —
+        // all in one PostgreSQL transaction. Access tokens stay valid until expiry.
+        return userService.deleteUser(uuid).fold(
             ifLeft = { throw GraphQLNotFoundException("User not found") },
-            ifRight = { user ->
-                // The ordered three-step sequence (AR-E9-8), and the order is
-                // load-bearing:
-                //   1. the user row is already gone above, so a createList or
-                //      acceptInvite racing step 2 on a still-valid ACCESS token
-                //      resolves no caller and is refused (CallerNotFound) instead
-                //      of re-creating the membership the purge just removed;
-                //   2. the list purge removes every membership row, strips the
-                //      user from lists they did not own and cascades the ones
-                //      they did;
-                //   3. session invalidation drops refresh tokens only — access
-                //      tokens stay valid until expiry, which is exactly why 1
-                //      precedes 2.
-                // `finally`, so a purge that throws still cannot leave the deleted user's refresh tokens live —
-                // and the exception still propagates, because a half-done purge must not report success.
-                try {
-                    listService.purgeUser(user.id, user.username)
-                } finally {
-                    authService.invalidateUserSessions(user.username)
-                }
-                GqlUserMapper.toGql(user, ownedListCount)
-            },
+            ifRight = { GqlUserMapper.toGql(it.user, it.ownedListCount) },
         )
     }
 
@@ -102,8 +78,8 @@ class UserAdminMutations(
         }
         return userService.adminResetPassword(uuid, newPassword).fold(
             ifLeft = { throw GraphQLNotFoundException("User not found") },
+            // Sessions are dropped inside the service's transaction, together with the new hash.
             ifRight = { user ->
-                authService.invalidateUserSessions(user.username)
                 GqlUserMapper.toGql(user, listService.countOwnedLists(user.id))
             },
         )

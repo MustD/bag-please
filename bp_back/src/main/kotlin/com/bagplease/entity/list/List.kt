@@ -9,8 +9,6 @@ data class List(
     val emoji: String?,
     val ownerId: UUID,
     val ownerUsername: String,
-    val memberUsernames: kotlin.collections.List<String>,
-    val members: kotlin.collections.List<UUID>,
     val origin: String,
     val createdAt: Instant,
 )

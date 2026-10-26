@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -31,7 +31,7 @@ private const val GQL_WS_PROTOCOL = "graphql-transport-ws"
 
 class WebSocketAuthTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -53,7 +53,7 @@ class WebSocketAuthTest : FunSpec({
 
     test("unauthenticated connection: missing Authorization is rejected with 4401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
 
@@ -73,7 +73,7 @@ class WebSocketAuthTest : FunSpec({
 
     test("invalid token is rejected with 4401") {
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
 
@@ -94,7 +94,7 @@ class WebSocketAuthTest : FunSpec({
     test("valid token is accepted and connection_ack is received") {
         val username = "wsAuth_${UUID.randomUUID().toString().take(8)}"
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = registerAndLogin(username)

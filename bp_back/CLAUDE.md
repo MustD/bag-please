@@ -7,34 +7,99 @@ Guidance for working in the Kotlin/Ktor GraphQL backend. Build/test commands liv
 ```
 GQL layer      (entity/<name>/gql/)          – graphql-kotlin Query/Mutation/Subscription objects
 Service layer  (entity/<name>/<Name>Service) – business logic + Kotlin SharedFlow subscriptions
-Storage layer  (entity/<name>/<Name>Storage) – in-memory ConcurrentMap with lazy sync on first access
-Mongo layer    (entity/<name>/mongo/)        – MongoDB coroutine driver repositories
+Repository     (entity/<name>/db/)           – Exposed-on-R2DBC table, row mapper and repository
+PostgreSQL                                   – the only data store
 ```
 
-Data flows from the GQL layer down through the service, through the in-memory storage, and is persisted to MongoDB. On
-startup the storage is populated from MongoDB on first access (`synced` flag). `synced` is never reset, so a document
-written straight to Mongo after a storage's first access stays invisible to the app until restart. Mutations emit on a
-`MutableSharedFlow` which the GraphQL subscriptions expose as a `Flow`.
+Every slice (users, refresh tokens, feedback, the app config, lists/list members, categories and, since Story 11.6, items) uses a `db/` package over PostgreSQL and no storage cache, see below. Data flows GQL -> Service -> Repository -> PostgreSQL: from the GQL layer down through the service (which owns every `tx {}`) to the repository. Mutations emit on a `MutableSharedFlow` (queued with `afterCommit`) which the GraphQL subscriptions expose as a `Flow`.
 
 Shared code sits beside the entity slices under `src/main/kotlin/com/bagplease/`: `config/` (application config,
-its GQL and Mongo parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), `mongo/`
-(`MongoConnection`, `AppMigrationsRepository`) and `plugins/` (Ktor plugins, `GQL.kt`, `Migration.kt`).
+its GQL and PostgreSQL `db/` parts), `features/auth/` (REST auth routes, `AuthService`, refresh tokens), and `plugins/` (Ktor plugins, `GQL.kt`, `Database.kt`).
 
 The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease/entity/<name>/` (`item`, `category`,
 `list`, `user`, `feedback`) holds all of that entity's layers, e.g. `entity/item/`:
 
 - `Item.kt` — plain domain model
-- `ItemService.kt` — orchestrates storage + emits subscription events
-- `ItemStorage.kt` — the in-memory cache (only `item`, `category` and `list` have one; `user` and `feedback`
-  services call their repository directly)
+- `ItemService.kt` — orchestrates the repository inside `tx {}` + emits subscription events with `afterCommit`
 - `gql/` — GraphQL model + `object` mapper, and the `ItemApi.kt` Query/Mutation/Subscription objects, registered in
   `plugins/GQL.kt`'s `configureGql()`
-- `mongo/` — MongoDB BSON model + `object` mapper + `ItemRepository`
+- `db/` — Exposed `Table`, row mapper + `ItemRepository`
+
+## PostgreSQL foundation (Epic 11, Story 11.1)
+
+PostgreSQL 18 is the only data store (MongoDB left the stack in Story 11.7). **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4), categories (Story 11.5) and items with the hourly item jobs (Story 11.6) live in PostgreSQL**; there is no Mongo driver, connection or startup data migration. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
+
+- `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
+  defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`, pool `maxSize` 5 via `KTOR_DB_POOL_MAX_SIZE`) and builds BOTH URLs from it: Flyway's JDBC
+  URL (`sslrootcert`) and the runtime R2DBC URL (`sslRootCert`). The app always connects as the non-superuser
+  `bag_please_app`, which owns `public` in `bag_please` (`postgres/init/01-app-role.sh` in Compose).
+- **Schema is Flyway only**: `src/main/resources/db/migration/V<n>__<name>.sql`, applied by `configureDatabase()` in
+  `module()` before `configureGql`. DDL only, no data rows, additive, a shipped migration is never edited, never
+  `clean`. `V1__baseline.sql` holds all eight tables. No `SchemaUtils`/`MigrationUtils` anywhere.
+- **`tx { }` is the only caller of `suspendTransaction`.** It joins an open transaction or opens one (no savepoints,
+  max attempts 1). `afterCommit { }` (on the `TxScope` receiver) queues an action on the OUTERMOST transaction: it runs
+  once, in registration order, after that commit, and is dropped on rollback. Never `emit` inside `tx`. Put Arrow
+  `either { }` outside `tx { }`: a `raise` inside rolls the transaction back.
+- **Accounts and sessions (Story 11.2)**: `entity/user/db/` and `features/auth/db/` hold the Exposed `Table`, row mapper
+  and repository (no connection argument; they run inside a service's `tx {}`). Services own the transaction:
+  `UserService` / `AuthService` wrap every DB-touching body in `tx {}` with Arrow `either {}` outside it. SQLSTATE `23505`
+  is translated in `UserRepository.insert` to `DuplicateUsernameException` (`Throwable.isUniqueViolation()` in
+  `Database.kt`). `username` is `COLLATE "C"`: case-sensitive equality, binary order for the admin list. Password
+  change / admin reset drop the user's refresh tokens in the same transaction as the new hash.
+  `UserService.deleteUser` is one transaction: `SELECT … FOR UPDATE`, list purge via `ListService`, tokens deleted,
+  `users` row deleted last. `ListService` looks users up through `UserLookup`
+  (`tx { findByUsername }`, joins an open tx), never a PG repository directly.
+- **Lists, shares and invites (Story 11.4)**: `entity/list/db/` (`ListTable`, `ListMemberTable`, `ListRowMapper`,
+  `ListRepository`). `list_members` is the sole membership/invite record: the owner holds an `ACCEPTED` row but is
+  excluded from `List.members` (the Share dialog data = `PENDING` + `ACCEPTED` rows minus the owner, oldest first by
+  `created_at` then `user_id`; `DECLINED` never shown). Owner and member usernames are joined from `users`, never stored;
+  domain `List` has no member arrays. `ListService` owns every `tx {}` (the membership check runs in the same tx as the
+  work it guards) and returns `ListView(list, members, uncheckedItemCount)`; `isMember` is a suspend one-row indexed read
+  used by the subscription `takeWhile`. Creating a list inserts the list and the owner row in one tx; re-inviting a
+  `DECLINED` user flips that row to `PENDING` with a fresh `created_at`; the admin has no rows and every list operation
+  rejects it. `ListService` takes `Lazy<ItemService>` (items verify membership, list views count unchecked items via
+  `ItemService.countUncheckedByList`); `Application.kt` builds `ItemService` after a `lateinit var`. The list cascade
+  deletes items, then categories, members and the list, all in one `tx` (`ItemService.deleteAllInList`). `UserService.deleteUser` calls `ListService.purgeUser(userId)`; the `lists.owner_id` /
+  `list_members.user_id` FKs are `RESTRICT`, so the `users` row can only go after the purge.
+- **Categories (Story 11.5)**: `entity/category/db/` (`CategoryTable`, `CategoryRowMapper`, `CategoryRepository`).
+  `CategoryService` owns every `tx {}` and is the only caller of the repository; `ItemService` and `ListService` reach
+  categories through `CategoryService.existsOnList` / `deleteAllInList` (both take `Lazy<CategoryService>`;
+  `Application.kt` builds `CategoryService` after `ItemService`). Subscription events are emitted with `afterCommit`, so
+  a failed save/delete emits nothing. `saveCategory` inserts a new id, renames an existing id on the same list, and
+  rejects an id that lives on another list (`IllegalArgumentException`; categories are never relocated, the `items`
+  composite FK depends on it). `deleteCategory` runs membership, find, `ItemService.deleteAllInCategory`, the row
+  delete (one `tx`), then the DELETED event after commit.
+- **Items (Story 11.6)**: `entity/item/db/` (`ItemTable`, `ItemRowMapper`, `ItemRepository`); `ItemService` is the only
+  caller and owns every `tx {}`, membership running in the same tx as the write. `items.stores` is a `text[]` (order and
+  casing kept); `category_id` is guarded by the composite FK `(list_id, category_id)`, so a category delete removes its
+  items and an item can never carry another list's category. `saveItem` reads the stored row inside the write's tx (no
+  cache): same list -> category guard + merge allowlist + `applyCheckState`; id on another list ->
+  `IllegalArgumentException("Item <id> belongs to a different list")`; new id -> category guard + insert. Events go out
+  with `afterCommit`. `deleteAllInCategory` / `deleteAllInList` also remove soft-deleted rows and emit nothing.
+- **Hourly scheduler** (`plugins/Scheduler.kt`): three ordered steps, each its own `tx` and its own try/catch -
+  `ItemService.restoreRecurring()`, `ItemService.hardDeleteSoftDeleted()`, `AuthService.purgeExpiredTokens()`.
+- **Expired refresh tokens** are rejected on read (`AuthService.refresh`) and purged by the hourly scheduler step
+  `purgeExpiredTokens()` (`plugins/Scheduler.kt`: ordered named steps, each in its own try/catch). Nothing expires them automatically in the database.
+- `/api/health` answers 200 only when `SELECT 1` answers within 2 s; otherwise 503.
+- Verified in the 11.1 spike: Ktor Netty and r2dbc-postgresql's reactor-netty run together (Gradle resolves Netty to
+  4.2.17) and R2DBC connects over TLS with `verify-full`.
+
+## Mongo export importer (Story 11.8)
+
+`src/import/kotlin/com/bagplease/tools/MongoImport.kt` is an operator tool in its own source set (`import`), compiled
+against `main`, visible to tests, absent from `installDist` and the image. `gradle :bp_back:importClasspath` prints its
+classpath; `main` reads `IMPORT_DB_{HOST,PORT,NAME,USER,PASSWORD,SSLMODE,SSLROOTCERT}`. Mapping rules (AD-18): owner is
+always `ACCEPTED`; `lists.memberUsernames` decides `ACCEPTED`; a `list_members` doc only adds `PENDING`/`DECLINED`;
+orphans are dropped with a reason; refresh tokens are never loaded. Tests: `MongoImportTest` over
+`src/test/resources/mongo-export/`.
 
 ## Tests
 
-Kotest `FunSpec` only, no mocking library: tests run against a real MongoDB from the `FunSpec.mongoContainer()` helper
-in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`.
+Kotest `FunSpec` only, no mocking library: tests run against a real PostgreSQL from the `FunSpec.postgresContainer()` helper
+in `src/test/kotlin/com/bagplease/utils/TestContainers.kt`: one shared `postgres:18` per test JVM. Its rows (users, lists, members, ...) outlive a spec, so `postgresContainer()` calls `SharedPostgres.reset()`
+(TRUNCATE … CASCADE) before each spec, and specs that need clean tables per test call it again. Specs that build services directly call
+`connectDatabase(container.appConfig())` first (role `bag_please_app` set up like Compose); `setUpPostgres()` points the app at it, because
+`module()` runs Flyway at startup. Specs that need a clean schema create their own database with `createDatabase`. `buildTestServices(db)` wires `ListService` + `ItemService` the way `Application.kt` does, and `pgRows` / `pgCount` assert on PostgreSQL over JDBC.
 
 ## Config
 
@@ -70,8 +135,8 @@ Multi-user with RBAC (built out across Epics 1–4 — the "single admin user" m
 - **Auth is REST under `/api/auth/*`** (not a bare `/api/login`): `register`, `login`, `refresh`, `logout`,
   `change-password`, `config`. `POST /api/auth/login` returns a short-lived **access token (~15 min**,
   `KTOR_JWT_ACCESS_EXPIRY_MINUTES`)
-  with `username` + `role` claims, **plus** an httpOnly `Secure` `SameSite=Strict` `refresh_token` cookie (UUID in Mongo
-  `refresh_tokens` with a TTL index, 30 days). Auth endpoints are rate-limited (`RateLimitName("auth")` → HTTP 429).
+  with `username` + `role` claims, **plus** an httpOnly `Secure` `SameSite=Strict` `refresh_token` cookie (UUID in PostgreSQL
+  `refresh_tokens`, 30 days, expired rows purged hourly by the scheduler). Auth endpoints are rate-limited (`RateLimitName("auth")` → HTTP 429).
 - **All GraphQL HTTP** (`POST /api/graphql`) requires `Authorization: Bearer <accessToken>`.
 - **GraphQL subscriptions ARE authenticated** (Story 4.2): the JWT arrives in `connection_init` as
   `connectionParams.Authorization = "Bearer <token>"`; `WsGraphQLContextFactory` verifies it and closes the socket with
@@ -81,5 +146,5 @@ Multi-user with RBAC (built out across Epics 1–4 — the "single admin user" m
   for HTTP, `WsGraphQLContextFactory` for WebSocket (both in `GQL.kt`). Service-layer authorization reads the caller
   from there; per-list access is enforced by `verifyMembership` on subscribe plus a `takeWhile` membership re-check on
   every emitted event, so a revoked member's stream terminates on the next event.
-- **The `admin` account is special-cased:** it has no row in the `users` collection, is 403-forbidden from
+- **The `admin` account is special-cased:** it has no row in the `users` table, is 403-forbidden from
   `/api/auth/change-password`, and is blocked from all list operations (`ensure(caller.value != adminLogin)`).

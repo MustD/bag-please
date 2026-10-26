@@ -15,7 +15,7 @@ http://127.0.0.1:2080   ->  bp_front (Caddy)  ->  SPA + /api + /api/subscription
 ```
 
 `docker-compose.yaml` publishes only this port for serving. `bp_back` (`:4000`)
-and `mongo` (`:27217`) are bound to `127.0.0.1` for local development and are
+and `postgres` (`:25432`) are bound to `127.0.0.1` for local development and are
 **not** reachable from other machines — the edge proxy must never target them.
 
 ## What the edge proxy must do

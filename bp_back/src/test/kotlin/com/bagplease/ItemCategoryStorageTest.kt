@@ -1,8 +1,8 @@
 package com.bagplease
 
-import com.bagplease.utils.mongoContainer
+import com.bagplease.utils.postgresContainer
 import com.bagplease.utils.setUpJwt
-import com.bagplease.utils.setUpMongo
+import com.bagplease.utils.setUpPostgres
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
@@ -21,7 +21,7 @@ private val mapper = jacksonObjectMapper()
 
 class ItemCategoryStorageTest : FunSpec({
 
-    val container = mongoContainer()
+    val container = postgresContainer()
 
     suspend fun ApplicationTestBuilder.loginToken(username: String = "admin", password: String = "admin"): String {
         val res = client.post("/auth/login") {
@@ -52,12 +52,12 @@ class ItemCategoryStorageTest : FunSpec({
         return mapper.readTree(body)["data"]["createList"]["id"].asText()
     }
 
-    test("AC4 evictList on ItemStorage: post-evict getByListId returns empty") {
+    test("AC4 deleting a list removes its items: afterwards the list is gone for its owner") {
         val username = "evict_${UUID.randomUUID().toString().take(8)}"
         val catId = UUID.randomUUID()
         val itemId = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
@@ -88,7 +88,7 @@ class ItemCategoryStorageTest : FunSpec({
             }.bodyAsText()
             beforeEvict shouldContain itemId.toString()
 
-            // deleteList triggers evictList
+            // deleteList removes the list's items in the same transaction
             client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 bearerAuth(token)
@@ -113,7 +113,7 @@ class ItemCategoryStorageTest : FunSpec({
         val itemId1 = UUID.randomUUID()
         val itemId2 = UUID.randomUUID()
         testApplication {
-            setUpMongo(container)
+            setUpPostgres()
             setUpJwt()
             application { module() }
             val token = createUserAndLogin(username)
