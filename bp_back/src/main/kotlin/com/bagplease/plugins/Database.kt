@@ -34,6 +34,8 @@ data class PostgresConfig(
     val password: String,
     val sslmode: String,
     val sslrootcert: String,
+    /** r2dbc-pool `maxSize`: the shared cluster allows about 22 connections for ALL projects. */
+    val poolMaxSize: Int = 5,
 ) {
     private fun String.enc() = URLEncoder.encode(this, Charsets.UTF_8)
 
@@ -42,6 +44,7 @@ data class PostgresConfig(
         append("r2dbc:pool:postgresql://$host:$port/$name")
         append("?sslMode=").append(sslmode.enc())
         if (sslrootcert.isNotBlank()) append("&sslRootCert=").append(sslrootcert.enc())
+        append("&maxSize=").append(poolMaxSize)
     }
 
     /** JDBC URL without credentials, for Flyway only. */
@@ -62,6 +65,7 @@ data class PostgresConfig(
                 password = c.property("password").getString(),
                 sslmode = c.property("sslmode").getString(),
                 sslrootcert = c.propertyOrNull("sslrootcert")?.getString() ?: "",
+                poolMaxSize = c.propertyOrNull("poolMaxSize")?.getString()?.toInt() ?: 5,
             )
         }
     }

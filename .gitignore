@@ -49,8 +49,9 @@ bin/
 .tmp/
 .playwright-mcp/
 
-# Database dump archives (see CLAUDE.md, dump-and-restore section)
+# Database dump archives (see deploy/README.md, Backups)
 *.archive
+*.dump
 
 # Secrets and migration data (AD-9): never committed
 .secure.*.env

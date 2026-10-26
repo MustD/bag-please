@@ -4,7 +4,7 @@
 
 ## Goal
 
-Move bag-please from MongoDB to PostgreSQL (every environment) and from the current host to a Terraform-declared DigitalOcean droplet plus managed PostgreSQL, so both production users keep every list, item, share and password and see no change. md gains real transactions and foreign keys, declared infrastructure, and a one-command release with a status check, in a public repo that holds no secret.
+Move bag-please from MongoDB to PostgreSQL in every environment, and from the current host to a Terraform-declared DigitalOcean droplet backed by a shared managed PostgreSQL cluster. Both production users keep every list, item, share and password and see no change. md gains real transactions and foreign keys, declared infrastructure, and a one-command release with a status check, in a public repo that holds no secret.
 
 ## Stories
 
@@ -22,43 +22,40 @@ Move bag-please from MongoDB to PostgreSQL (every environment) and from the curr
 
 ## Requirements & Constraints
 
-- No user-visible change: GraphQL schema and response shapes stay identical (`npm run generate` output byte-identical); all other active FRs are the regression surface.
-- Schema is versioned and applied by the backend at startup; a second start changes nothing.
-- A one-time operator-run import loads the Mongo export atomically, refuses a non-empty target, and reports export/loaded/dropped counts per record type.
-- Refresh tokens: expired ones are rejected on read and purged.
-- Infrastructure is Terraform (one droplet, one cheapest-tier managed PostgreSQL); release is an operator-run command, no CI deploy.
-- No secret in the repo (gitignore patterns and blank `.example` files are the only control); the managed DB is unreachable from the public internet; running cost stays minimal.
-- The Mongo export holds password hashes and list content; keep it out of the repo. md keeps an off-repo copy as the only fallback; no restore drill; provider daily backups are the only automated protection.
-- E2E per-story gate is relaxed on the epic branch only; the full E2E suite must pass before the single merge to `main`.
-- FR42/FR43 stay deferred. Retires FR47, FR69 and the TTL-index NFR.
+- No user-visible change: the GraphQL schema and response shapes stay identical (`npm run generate` output byte-identical); every other active FR is the regression surface.
+- All persisted data (users, refresh tokens, config, lists, memberships, invites, items, categories, feedback) lives in PostgreSQL; MongoDB is absent from dev, E2E and production.
+- Schema changes only via versioned migrations applied at startup; each applies once and a restart changes nothing.
+- The one-time import is operator-run, loads a Mongo JSON export atomically into an empty database, keeps password hashes, drops refresh tokens (users sign in once), refuses a non-empty target, and prints export / loaded / dropped counts per record type.
+- Expired refresh tokens are rejected on read and purged.
+- Production is Terraform-declared (droplet reachable only from the edge proxy; database private to the droplet). Infra changes are applied by hand; a deploy never applies them.
+- Release is one operator command (build, push, roll the droplet, check the public URL) plus a status command reporting the running version.
+- No secret is committed; Terraform state is remote; the database is not publicly reachable; cost stays at the smallest droplet plus the cheapest database tier.
+- The Mongo export holds hashes and list content: keep it out of the repo, and md keeps an off-repo copy as the only fallback. There is no restore drill; provider daily backups are the only automated protection.
+- The per-story E2E gate is relaxed on the epic branch only; the full E2E suite must pass before the single merge to `main`.
+- Retires FR47, FR69 and the TTL-index NFR. FR42/FR43 stay deferred.
 
 ## Technical Decisions
 
-Binding rules for every story (AR-E11-0, -1, -2, -8, -26, -26a):
-- Work lands on `feature/pg-migration` in story order; each story keeps `gradle :bp_back:test` green for what it touches; E2E may be red until Story 11.7. No code writes one entity to both stores. A slice is on Mongo or PostgreSQL, never both. `main` never runs two stores (AD-15, AD-19).
-- Every new/changed test is observed failing before acceptance; test totals come from JUnit XML, never quoted.
-- A shipped migration is never edited (the epic allows edits only before Story 11.11's merge). Docs describing changed behaviour change in the same story. Re-sync Zed tasks when `mise.toml` tasks change; reconcile `sprint-status.yaml` at story close. Versions are a 2026-10-21 snapshot (AR-E11-16): re-measure before pinning.
-- Transactions stay `READ COMMITTED`; creates are `insert`; `ON CONFLICT` only where current semantics need it; the only explicit lock is user deletion's `SELECT … FOR UPDATE`.
-
-Architecture (spine ids):
-- AD-1: no caches or `Storage` classes anywhere; each slice's `mongo/` becomes `db/` (Exposed `Table`, row mapper, repository). Domain models unchanged.
-- AD-2/AD-17: services own transactions. Every DB-touching service method runs in `tx {}` (from `plugins/Database.kt`, the only caller of `suspendTransaction`; joins an open tx, no nested/savepoints, max attempts 1). GQL, routes, subscriptions and the scheduler call services only, never repositories. Cross-slice workflows are one service method. Arrow `either {}` goes outside `tx {}`.
-- AD-3: services never `emit` inside `tx`; use `afterCommit {}`, run after the outermost commit, dropped on rollback.
-- AD-4: `list_members(list_id, user_id, status, created_at)` is the sole membership/invite record; owner holds an ACCEPTED row but is excluded from GQL `List.members`. Membership check (NFR-L2) runs in the same tx as guarded work; `isMember` is suspend.
-- AD-5/AD-6: Flyway (JDBC, DDL only, additive, backward-compatible with the previous image) owns the schema; `V1__baseline.sql` has all eight tables. No `SchemaUtils`/`MigrationUtils`. `Migration.kt`/`app_migrations` deleted. Conventions: uuid app-generated PKs, `timestamptz`↔`Instant`, enums as `text`+`CHECK`, snake_case, `users.username` `COLLATE "C" UNIQUE`, `items.stores text[]`, `app_config` fixed id with no row written on read, SQLSTATE `23505` translated in the repository.
-- AD-7: list-child FKs cascade; user FKs restrict; services still delete explicitly in today's order; user deletion locks the row, purges, deletes `users` last.
-- AD-8/AR-E11-11/12: Exposed DSL over R2DBC at runtime, JDBC only for Flyway; one `db.postgres` block (`KTOR_DB_*`) builds both URLs. Foundation spike must prove Ktor Netty + r2dbc-postgresql TLS work together before any slice moves.
-- AD-10: expired-token purge is a scheduler step; each step in its own tx, a failing step is logged and the rest run.
-- AD-16: `postgres:18` everywhere (Compose volume at `/var/lib/postgresql`, Testcontainers, managed); app connects as non-superuser `bag_please_app`.
-- AD-9/AD-18: importer is `com.bagplease.tools.MongoImport` in its own source set, runs from the operator laptop through an SSH tunnel as one tx; id/membership mapping and dropped-row rules are in AD-18.
-- AD-11/AD-12/AD-13/AD-14: Terraform follows mal_ui (data-source VPC/SSH key, `ignore_changes`, firewall from edge private IP only, Spaces state, committed lock file); DB firewall trusts only the droplet; secrets only in gitignored `.secure.build.env`/`.secure.deploy.env` loaded per mise task, `.gitignore` patterns land before any secret file; releases are immutable exact tags (never `latest`), deploy waits on `bp_front` healthcheck then smoke-tests via the edge jump host; runtime DB TLS is `verify-full` (importer tunnel alone may use `verify-ca`).
-- AD-20: cutover order is fixed: infra apply, db bootstrap, Mongo export, import, count check by md, deploy, md verifies, repoint edge, status, retire old deployment.
-- `/api/health` returns 503 unless PostgreSQL (and Mongo until 11.7) answers.
-- Docs touched: root `CLAUDE.md`, `bp_back/CLAUDE.md`, new `deploy/README.md` runbook.
+- Stories land on `feature/pg-migration` in story order; each keeps `gradle :bp_back:test` green for what it touches, while E2E may be red until Story 11.7. A slice is on Mongo or PostgreSQL, never both, and no code writes one entity to both stores. The merge to `main` is a merge commit, not a squash.
+- Every new or changed test is observed failing before acceptance. Test totals come from JUnit XML, never quoted. Docs for a changed behaviour change in the same story. Re-sync Zed tasks when `mise.toml` tasks change. Reconcile `sprint-status.yaml` at story close. Versions are a 2026-10-21 snapshot, so re-measure before pinning.
+- Persistence: Exposed DSL (no DAO) on R2DBC at runtime (`r2dbc-postgresql` + `r2dbc-pool`). Blocking JDBC is used only for Flyway. One `db.postgres` config block (`KTOR_DB_*` env) feeds both. The pool is 5 or fewer because the shared cluster allows about 22 connections.
+- No caching: `ItemStorage`, `CategoryStorage`, `ListStorage` and the config `AtomicReference` are deleted. Each slice's `mongo/` package becomes `db/` (Table object, row-to-domain mapper, repository).
+- Services own transactions: every DB-touching service method runs in the single `tx {}` helper. GQL, routes and the scheduler never touch repositories. Subscription events fire only after the outermost commit and are dropped on rollback. Isolation stays `READ COMMITTED`. Creates are `insert`s; `ON CONFLICT` only where current semantics need it. Expected outcomes (not found, `23505` conflict) become the slice's existing `Either` errors outside `tx`.
+- Flyway owns the schema (`db/migration/V<n>__name.sql`): DDL only, additive, backward-compatible with the previous image, never edited once shipped (before 11.11's merge it may be edited). The full schema ships in `V1__baseline.sql` in Story 11.1. Exposed never issues DDL. `Migration.kt`, `app_migrations` and `AppMigrationsRepository` are deleted.
+- Membership is one `list_members(list_id, user_id, status, created_at)` table with status PENDING / ACCEPTED / DECLINED. The owner holds an ACCEPTED row written when the list is created. Access means an ACCEPTED row exists. GQL `List.members` still lists PENDING and ACCEPTED rows excluding the owner. `ListService.isMember` is `suspend`.
+- Column conventions: `users.username` is `COLLATE "C"` and unique (binary sort order); `items.stores` holds the normalized list as is. Deletes are ordered explicitly in the service: list children cascade, users restrict, and category delete and user purge each run in one `tx`.
+- The health route pings PostgreSQL. The compose healthcheck stays on `bp_front` with busybox `wget`.
+- PostgreSQL 18 everywhere (Compose `postgres:18`, Testcontainers). Local dev, E2E and Testcontainers use no TLS. Before any slice moves, Story 11.1 proves Ktor's Netty and r2dbc-postgresql's reactor-netty coexist and connect over TLS.
+- Importer (`bp_back/src/import`, never packaged): runs from the operator's machine as one transaction, uses `verify-full`, and applies the import mapping from the architecture spine.
+- Terraform (`deploy/terraform/`, modeled on md's mal_ui layout): VPC and SSH key are data sources; the droplet sets `ignore_changes = [user_data, image]`; the firewall allows 80 and 22 only from the edge's private IP; state lives in the Spaces bucket `io-workshop-tfstate`; `.terraform.lock.hcl` is committed. The PostgreSQL cluster is shared and managed outside this repo: look it up by name, never create it or its firewall. The droplet carries the client tag the cluster firewall trusts. Terraform creates DB `bag_please` and user `bag_please_app`, the only identity used by Flyway, the runtime and the importer. `doadmin` is used only by `db:bootstrap`.
+- Secrets: gitignored `.secure.build.env` and `.secure.deploy.env`, each with a committed blank `.example`. mise loads them per task, and `lib.sh` strips deploy variables before nested Gradle or mise tasks. Runtime secrets reach the droplet only in a deploy-written `.env` (mode 600). The deploy refuses empty DB values. `.gitignore` covers `.secure.*.env`, `migration-export/`, `*.tfstate*`, `*.tfvars`, `.terraform/`, `crash.log` and `*.archive` before such files exist.
+- Release: the version is `gradle.properties`' `version`. The push refuses an existing tag and never pushes `latest`. `deploy` refuses a dirty tree, runs `back:test`, builds and pushes, writes `.env`, pulls and ups, waits on the `bp_front` healthcheck, then smoke-tests via the edge jump host. `deploy:status` checks the public URL and prints the version. `deploy <version>` is the rollback. On failure the deploy prints the rollback command and never rolls back itself.
+- Database TLS is `verify-full` in production (committed in the droplet compose, CA mounted read-only); no connection uses a weaker mode.
+- Docs: the epic updates root `CLAUDE.md` (stack, commands, backup section), `bp_back/CLAUDE.md` and adds `deploy/README.md` (operator runbook).
 
 ## Cross-Story Dependencies
 
-- 11.1 is the foundation (spike, `tx`, Flyway, full baseline schema, Compose/Testcontainers) and blocks everything; its spike failure stops the epic pending md's decision.
-- Slices follow FK order: 11.2 (user, auth, then 11.3 config/feedback) before 11.4 lists, then 11.5 categories, then 11.6 items; cross-slice calls to unmoved slices are non-atomic on the branch only.
-- 11.7 removes Mongo only after all slices move; 11.8 importer needs the `db/` tables and an empty-DB guarantee from 11.3 (reads never write `app_config`).
-- 11.9 Terraform precedes 11.10 deploy tasks; 11.11 cutover needs 11.8-11.10 and ends with the merge to `main`.
+- Story 11.1 (foundation: `tx`, Flyway, full baseline schema, Compose/Testcontainers Postgres, TLS spike) gates everything. Slices 11.2 to 11.6 follow foreign-key order, each depending on the previous. Story 11.7 removes Mongo only after all slices have moved.
+- 11.8 (importer) needs the baseline schema and the final mapping. 11.9 (Terraform) and 11.10 (deploy tasks and droplet compose) precede 11.11.
+- Cutover order in 11.11: `infra:apply`, `db:bootstrap`, md takes the Mongo export, `db:import` (backend not yet deployed), md checks counts, `deploy`, md verifies both users through the edge jump host, repoint the edge, `deploy:status`, retire the old deployment. `migration-export/` leaves the working tree once the import is verified. Never run `infra:apply` without md.
+- Epic 9 invariants carry over unchanged (admin GQL gate, server-normalized store names, category cascade, membership written only by `ListService`, one check-state transition, `/api/health` readiness).

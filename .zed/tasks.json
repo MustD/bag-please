@@ -67,7 +67,51 @@
     "allow_concurrent_runs": false
   },
   {
-    "label": "deploy:test — Run the deploy script guard tests (stubbed terraform/ssh/git; no network)",
+    "label": "deploy — Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:build — Build both images tagged with gradle.properties' version (needs .secure.build.env)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:build"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:push — Build and push both images as :<version> (refuses a dirty tree or an existing tag; needs docker login)",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:push"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:status — Running version on the droplet and the public URL's HTTP status",
+    "command": "mise",
+    "args": [
+      "run",
+      "deploy:status"
+    ],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "deploy:test — Run the deploy script guard tests (stubbed terraform/ssh/git/docker; no network)",
     "command": "mise",
     "args": [
       "run",
@@ -171,17 +215,6 @@
     "args": [
       "run",
       "front:lint"
-    ],
-    "reveal": "always",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": false
-  },
-  {
-    "label": "images:build-push — Build & push backend/frontend images tagged with the current version (needs project.env + docker login)",
-    "command": "mise",
-    "args": [
-      "run",
-      "images:build-push"
     ],
     "reveal": "always",
     "use_new_terminal": false,

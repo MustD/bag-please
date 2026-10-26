@@ -113,12 +113,28 @@ env = { _ = { file = ".secure.deploy.env" } }
 run = "deploy/scripts/import.sh"
 
 [tasks."deploy:test"]
-description = "Run the deploy script guard tests (stubbed terraform/ssh/git; no network)"
+description = "Run the deploy script guard tests (stubbed terraform/ssh/git/docker; no network)"
 run = "deploy/scripts/test-guards.sh"
 
-[tasks."images:build-push"]
-description = "Build & push backend/frontend images tagged with the current version (needs project.env + docker login)"
-run = "./mise/images-build-push.sh"
+[tasks."deploy:build"]
+description = "Build both images tagged with gradle.properties' version (needs .secure.build.env)"
+env = { _ = { file = ".secure.build.env" } }
+run = "deploy/scripts/build.sh"
+
+[tasks."deploy:push"]
+description = "Build and push both images as :<version> (refuses a dirty tree or an existing tag; needs docker login)"
+env = { _ = { file = ".secure.build.env" } }
+run = "deploy/scripts/push.sh"
+
+[tasks."deploy"]
+description = "Release: test, build, push, roll the droplet, smoke test. `-- <version>` rolls onto a published version (rollback)"
+env = { _ = { file = [".secure.deploy.env", ".secure.build.env"] } }
+run = "deploy/scripts/deploy.sh"
+
+[tasks."deploy:status"]
+description = "Running version on the droplet and the public URL's HTTP status"
+env = { _ = { file = ".secure.deploy.env" } }
+run = "deploy/scripts/status.sh"
 
 # --- Update / maintenance ---
 [tasks."update:mise-tools"]

@@ -107,9 +107,9 @@ docker compose up --build
 docker compose up postgres bp_back
 ```
 
-Image build + push is `mise run images:build-push` (`mise/images-build-push.sh`): it tags both images with
-`gradle.properties`' `version` and reads the image names from `project.env`, which is gitignored — copy
-`project.example.env` to `project.env` first.
+Image build + push is `mise run deploy:build` / `deploy:push` (`deploy/scripts/`): both images are tagged with
+`gradle.properties`' `version` only (never `latest`); `deploy:push` refuses a dirty tree or a tag already on Docker Hub.
+The image names come from the gitignored `.secure.build.env` (copy `.secure.build.env.example`); run `docker login` once.
 
 ### Importing the Mongo export (Story 11.8)
 
@@ -129,36 +129,21 @@ firewall here). Its name, the client tag its firewall trusts (the droplet carrie
 public host directly (its IP must be among the cluster's trusted sources; `db:import` also SSHes through the edge), so
 there is no SSH tunnel. Secrets live
 only in the gitignored `.secure.deploy.env` (copy `.secure.deploy.env.example`), loaded per task by mise:
-`mise run infra:plan`, `infra:apply`, `db:bootstrap`, `db:import [-- <export-dir>]`; `mise run deploy:test` checks the
-script guards. Never run `infra:apply` without md. Runbook, costs and live verification steps: `deploy/README.md`.
+`mise run infra:plan`, `infra:apply`, `db:bootstrap`, `db:import [-- <export-dir>]`, and the release tasks
+`deploy:build`, `deploy:push`, `deploy [-- <version>]`, `deploy:status` (see `deploy/README.md`); `mise run deploy:test`
+checks the script guards. Never run `infra:apply` without md. Runbook, costs and live verification steps: `deploy/README.md`.
 
-### Dump before a migration release, restore to roll back (AR-E9-5a)
+### Releasing (Story 11.10)
 
-> **Superseded by Story 11.10.** This section describes the MongoDB-era procedure (the `mongo` service and
-> `Migration.kt` no longer exist); Story 11.10 replaces it with a PostgreSQL release procedure. Kept until then.
+`mise run deploy` is the release: clean tree, `back:test`, build + push `:<version>`, write the droplet's `.env`
+(secrets only as `ssh` stdin, mode 600), pull, `up -d --wait` with `deploy/docker-compose.yml`, smoke-test
+`/api/health` through the edge. `mise run deploy -- <version>` rolls onto an already published version (the rollback);
+`mise run deploy:status` shows the running version and the public URL's HTTP status. Tasks load `.secure.deploy.env`
+and/or `.secure.build.env` themselves; `lib.sh` strips every variable of both files, `TF_VAR_*` and `KTOR_*` before
+nested Gradle or mise tasks. A deploy never runs Terraform and never rolls back by itself. Release procedure,
+backups, rollback and the cutover order: `deploy/README.md`.
 
-Startup migrations (`bp_back/.../plugins/Migration.kt`) rewrite documents in place, each gated on its own
-`app_migrations` record, and the app cannot reverse them (`epic9-multi-store` unsets every item's legacy `store`
-field, which the previous image still reads). Before deploying a release that adds a migration, dump with the stack
-still on the OLD image. The credentials below (`user` / `pass`) are the dev / E2E ones from `docker-compose.yaml`;
-a real deployment uses its own. `*.archive` is gitignored, so a dump in the repo root is never committed.
+### Backups and rolling back a release
 
-```bash
-docker compose exec -T mongo mongodump \
-  --username user --password pass --authenticationDatabase admin \
-  --db bag_please --archive > backup-$(date +%Y%m%d-%H%M%S).archive
-docker compose up -d --build
-docker compose logs bp_back | grep -i "migration"   # each migration logs "completed" or "already complete, skipping"
-```
-
-Rollback is restore **then** the previous image — rolling the image back alone leaves migrated data the old code
-cannot read. `--wait` blocks until mongo's healthcheck passes, so the restore does not race startup:
-
-```bash
-docker compose down && docker compose up -d --wait mongo
-docker compose exec -T mongo mongorestore \
-  --username user --password pass --authenticationDatabase admin \
-  --nsInclude 'bag_please.*' --drop --archive < backup-<timestamp>.archive
-git checkout <previous-release-tag>   # tags are bare versions, e.g. 0.17.0
-docker compose up -d --build
-```
+The MongoDB dump and restore procedure is gone with MongoDB. Backups (the shared cluster's daily backups, an optional
+`pg_dump` before a migration release) and rollback (`mise run deploy -- <previous version>`) are in `deploy/README.md`.

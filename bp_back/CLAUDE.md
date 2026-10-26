@@ -30,7 +30,7 @@ The code is sliced **per entity**, not per layer: `src/main/kotlin/com/bagplease
 PostgreSQL 18 is the only data store (MongoDB left the stack in Story 11.7). **Users and refresh tokens (Story 11.2), feedback and the app config (Story 11.3) lists, shares and invites (Story 11.4), categories (Story 11.5) and items with the hourly item jobs (Story 11.6) live in PostgreSQL**; there is no Mongo driver, connection or startup data migration. The registration switch is read from `app_config` on every request (no cache); a missing row means the defaults and a read never writes it, only `setRegistrationEnabled` upserts it. What exists:
 
 - `plugins/Database.kt` reads one `db.postgres` block (`KTOR_DB_HOST/PORT/NAME/USER/PASSWORD/SSLMODE/SSLROOTCERT`,
-  defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`) and builds BOTH URLs from it: Flyway's JDBC
+  defaults `localhost:25432`/`bag_please`/`bag_please_app`, `sslmode: disable`, pool `maxSize` 5 via `KTOR_DB_POOL_MAX_SIZE`) and builds BOTH URLs from it: Flyway's JDBC
   URL (`sslrootcert`) and the runtime R2DBC URL (`sslRootCert`). The app always connects as the non-superuser
   `bag_please_app`, which owns `public` in `bag_please` (`postgres/init/01-app-role.sh` in Compose).
 - **Schema is Flyway only**: `src/main/resources/db/migration/V<n>__<name>.sql`, applied by `configureDatabase()` in

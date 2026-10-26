@@ -31,3 +31,4 @@ db:
     password: "$KTOR_DB_PASSWORD:bag_please_app"
     sslmode: "$KTOR_DB_SSLMODE:disable"
     sslrootcert: "$KTOR_DB_SSLROOTCERT:"
+    poolMaxSize: "$KTOR_DB_POOL_MAX_SIZE:5"
